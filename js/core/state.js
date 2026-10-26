@@ -1573,6 +1573,8 @@
 
         export: 'Export',
 
+        publish: 'Publish',
+
         settings: 'Settings',
 
         help: 'Help',

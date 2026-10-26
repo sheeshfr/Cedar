@@ -3566,7 +3566,7 @@ ${itemsXml}
     const brand = (cfg.design && cfg.design.branding) || {};
     const siteTitle = brand.siteTitle || cfg.name || cfg.domain || 'Cedar';
     const tagline = (brand.tagline !== undefined && brand.tagline !== null) ? brand.tagline : (cfg.subtitle || '');
-    const defaultTitle = tagline ? `${siteTitle} — ${tagline}` : siteTitle;
+    const defaultTitle = `Home — ${siteTitle}`;
     const pageTitle = options.pageTitle || defaultTitle;
     const siteDesc = options.metaDesc || cfg.description || tagline || `Published on ${siteTitle}`;
     const isRssEnabled = Boolean(cfg.rssEnabled);

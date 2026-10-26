@@ -3344,7 +3344,10 @@
   }
 
   function updatePageIdentity(siteTitle, logoUrl) {
-    document.title = siteTitle ? `${siteTitle} — Cedar` : 'Cedar';
+    document.title = siteTitle ? `Home — ${siteTitle}` : 'Home — Cedar';
+    if (typeof window.updateCedarTitle === 'function') {
+      window.updateCedarTitle();
+    }
     const tabLogoEl = document.querySelector("link[rel*='icon']");
     if (tabLogoEl && logoUrl) {
       tabLogoEl.href = logoUrl;

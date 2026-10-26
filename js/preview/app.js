@@ -452,18 +452,19 @@
     } else if (r.view === 'reader') {
       const renderedItem = renderReader(r.type || 'post', r.slug, r.page || 1);
       const isLinks = renderedItem && (renderedItem.id === 'page_links' || renderedItem.slug === 'links' || r.slug === 'links');
-      let pageTitle = isLinks
-        ? (renderedItem.linksData?.profile?.headline || renderedItem.title || 'Links')
-        : `${(renderedItem && renderedItem.title) || 'Article'} — ${siteTitle}`;
+      const itemTitle = isLinks
+        ? ((renderedItem && renderedItem.title) || 'Links')
+        : ((renderedItem && renderedItem.title) || 'Article');
+      let pageTitle = `${itemTitle} — ${siteTitle}`;
       updatePageTitle(pageTitle);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else if (r.view === 'author') {
-      const pageTitle = `${r.name} — Profile — ${siteTitle}`;
+      const pageTitle = `${r.name} — ${siteTitle}`;
       updatePageTitle(pageTitle);
       if (typeof renderAuthorProfile === 'function') renderAuthorProfile(r.name, r.tab || 'articles');
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else {
-      const pageTitle = tagline ? `${siteTitle} — ${tagline}` : `${siteTitle} — Home`;
+      const pageTitle = `Home — ${siteTitle}`;
       updatePageTitle(pageTitle);
       renderHome(options);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
@@ -603,6 +604,7 @@
         else if (typeof window.setProjectConfig === 'function') window.setProjectConfig(e.data.projectConfig);
       }
       if (typeof updateBranding === 'function') updateBranding();
+      route({ preserveScroll: true });
     } else if (e.data.type === 'CEDAR_CONFIG_CHANGED' || e.data.type === 'CEDAR_WORKSPACE_UPDATED') {
       const prevScrollY = (typeof e.data.scrollY === 'number')
         ? e.data.scrollY

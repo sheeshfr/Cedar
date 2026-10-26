@@ -403,7 +403,7 @@
         const logo = brand.generalLogo || 'logo.png';
         const favicon = brand.tabLogo || 'icon.png';
 
-        document.getElementById('page-title').textContent = tagline ? `${siteName} — ${tagline}` : siteName;
+        document.getElementById('page-title').textContent = `Home — ${siteName}`;
         document.getElementById('header-title').textContent = siteName;
         const taglineEl = document.getElementById('header-tagline');
         if (taglineEl) {
