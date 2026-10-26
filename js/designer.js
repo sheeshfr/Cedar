@@ -347,7 +347,7 @@
           `<g class="splash-brush-base"><polygon points="8,42 406,18 394,88 414,96 396,152 16,164 28,104 4,94" /></g><g class="splash-brush-accent"><path d="M14,66 L398,42" fill="none" stroke-width="15" stroke-linecap="square" /><path d="M24,118 L386,96" fill="none" stroke-width="12" stroke-linecap="square" opacity="0.6" /></g>`,
           `<g class="splash-brush-base"><polygon points="12,36 398,22 410,66 24,82" /><polygon points="390,54 38,118 20,156 404,96" /><polygon points="18,114 412,96 398,154 8,166" /></g><g class="splash-brush-accent"><path d="M26,58 L392,42 L34,132 L396,118" fill="none" stroke-width="12" stroke-linecap="butt" stroke-linejoin="bevel" /></g>`
         ];
-        return `<svg class="post-card-showcase-splash" data-swoosh="highlighter" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
+        return `<svg class="post-card-showcase-splash" data-swoosh="highlighter" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
       }
       if (type === 'comic_pop') {
         const vars = [
@@ -356,7 +356,7 @@
           `<g class="splash-brush-base"><polygon points="10,52 384,22 406,96 28,128" /><polygon points="32,88 412,64 392,152 14,166" /><polygon points="396,18 414,32 390,38" /><polygon points="8,142 26,158 6,164" /></g><g class="splash-brush-accent"><path d="M20,104 Q56,52 92,102 T164,98 T236,94 T308,90 T380,86" fill="none" stroke-width="13" stroke-linecap="round" /></g>`,
           `<g class="splash-brush-base"><polygon points="16,28 408,22 384,84 414,96 392,158 10,162 36,98 6,86" /></g><g class="splash-brush-accent"><polyline points="28,44 394,38 372,88 398,98 380,146 24,150" fill="none" stroke-width="8" /><path d="M42,88 L378,72" fill="none" stroke-width="14" stroke-linecap="round" opacity="0.7" /></g>`
         ];
-        return `<svg class="post-card-showcase-splash" data-swoosh="comic_pop" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
+        return `<svg class="post-card-showcase-splash" data-swoosh="comic_pop" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
       }
       if (type === 'aura_wash') {
         const vars = [
@@ -365,7 +365,7 @@
           `<g class="splash-brush-base"><path d="M12,112 C28,54 112,18 208,26 C298,14 392,32 412,82 C422,128 352,166 258,158 C162,172 48,164 12,112 Z" /><circle cx="44" cy="32" r="5" /><circle cx="378" cy="158" r="6" /></g><g class="splash-brush-accent"><path d="M16,86 Q114,32 210,86 T404,86" fill="none" stroke-width="13" stroke-linecap="round" /><path d="M24,116 Q118,64 214,116 T396,116" fill="none" stroke-width="7" stroke-linecap="round" opacity="0.65" /></g>`,
           `<g class="splash-brush-base"><path d="M20,68 C36,22 132,14 218,32 C304,12 404,34 410,92 C414,146 326,170 232,154 C138,172 28,152 10,104 C4,86 12,78 20,68 Z" /></g><g class="splash-brush-accent"><path d="M20,118 C112,28 298,154 398,56" fill="none" stroke-width="16" stroke-linecap="round" /><path d="M42,64 C138,148 286,28 384,116" fill="none" stroke-width="6" stroke-linecap="round" opacity="0.55" /></g>`
         ];
-        return `<svg class="post-card-showcase-splash" data-swoosh="aura_wash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
+        return `<svg class="post-card-showcase-splash" data-swoosh="aura_wash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
       }
       if (type === 'arcade_neon') {
         const vars = [
@@ -374,7 +374,7 @@
           `<g class="splash-brush-base"><polygon points="8,44 412,22 392,92 18,114" /><polygon points="22,98 406,76 384,154 6,168" /></g><g class="splash-brush-accent"><polyline points="10,94 78,94 106,36 142,146 178,44 214,134 248,54 282,124 316,78 410,78" fill="none" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" /></g>`,
           `<g class="splash-brush-base"><polygon points="36,24 414,24 382,72 4,72" /><polygon points="20,78 398,78 366,126 6,126" /><polygon points="44,132 410,132 384,164 18,164" /></g><g class="splash-brush-accent"><path d="M10,136 L406,36" fill="none" stroke-width="15" stroke-linecap="round" /><path d="M24,158 L414,62" fill="none" stroke-width="7" stroke-linecap="round" opacity="0.7" /></g>`
         ];
-        return `<svg class="post-card-showcase-splash" data-swoosh="arcade_neon" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
+        return `<svg class="post-card-showcase-splash" data-swoosh="arcade_neon" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
       }
       const jazzVars = [
         `<g class="splash-brush-base"><path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" /><path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" /><path d="M138,168 C210,122 292,72 378,34 C398,25 412,39 392,54 C324,102 246,144 174,180 C150,190 122,180 138,168 Z" /><path d="M236,162 C292,128 352,94 404,68 C418,61 422,75 408,86 C362,118 308,148 262,172 C244,180 222,170 236,162 Z" /><circle cx="188" cy="18" r="5" /><circle cx="312" cy="22" r="6" /><circle cx="398" cy="36" r="4.5" /><circle cx="28" cy="158" r="5.5" /><circle cx="118" cy="176" r="4.5" /></g><g class="splash-brush-accent"><path d="M16,120 C54,82 88,48 108,44 C120,42 96,102 110,108 C126,114 196,42 228,36 C242,33 214,94 230,100 C248,106 318,40 350,36 C364,34 336,86 352,92 C368,98 394,68 412,56" fill="none" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" /><path d="M36,132 C72,98 100,68 116,64 C126,62 108,112 122,116 C138,120 206,58 234,52 C246,50 224,104 238,108 C254,112 322,56 352,52" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" /></g>`,
@@ -382,7 +382,7 @@
         `<g class="splash-brush-base"><path d="M12,148 C58,96 118,46 178,18 C194,10 206,20 192,34 C148,74 96,124 46,166 C26,180 4,164 12,148 Z" /><path d="M78,154 C138,100 212,48 292,16 C310,9 322,22 304,36 C242,84 174,132 110,170 C88,182 62,168 78,154 Z" /><path d="M154,168 C222,118 302,66 384,28 C402,20 414,34 396,48 C332,96 258,142 188,178 C166,188 138,180 154,168 Z" /><path d="M252,166 C306,130 362,92 408,62 C420,54 424,68 410,80 C370,114 318,146 276,174 C258,184 238,176 252,166 Z" /><circle cx="204" cy="16" r="5" /><circle cx="322" cy="18" r="5.5" /><circle cx="96" cy="176" r="5" /></g><g class="splash-brush-accent"><path d="M14,126 C46,84 76,48 92,46 C104,44 84,98 96,102 C110,106 162,42 184,38 C196,36 176,94 190,98 C204,102 262,38 286,34 C298,32 278,88 292,92 C308,96 368,42 408,36" fill="none" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" /></g>`,
         `<g class="splash-brush-base"><path d="M4,132 C56,82 124,36 196,16 C216,10 228,24 208,38 C152,78 92,122 38,160 C18,174 -6,150 4,132 Z" /><path d="M68,166 C148,112 242,56 344,20 C366,12 380,26 358,42 C274,98 184,146 104,180 C78,190 50,178 68,166 Z" /><path d="M184,164 C256,122 336,78 406,46 C420,39 424,54 408,66 C348,106 278,144 212,176 C192,184 168,174 184,164 Z" /><circle cx="226" cy="18" r="6" /><circle cx="376" cy="26" r="5" /><circle cx="144" cy="178" r="5" /></g><g class="splash-brush-accent"><path d="M16,76 C88,148 164,18 242,96 C306,160 356,34 408,88" fill="none" stroke-width="16" stroke-linecap="round" /><path d="M28,96 C100,164 176,38 252,112 C314,172 362,54 404,106" fill="none" stroke-width="6.5" stroke-linecap="round" opacity="0.6" /></g>`
       ];
-      return `<svg class="post-card-showcase-splash" data-swoosh="jazz_cup" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">${jazzVars[v]}</svg>`;
+      return `<svg class="post-card-showcase-splash" data-swoosh="jazz_cup" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">${jazzVars[v]}</svg>`;
     };
   }
 
@@ -424,18 +424,21 @@
               cw.setProjectConfig(window.projectConfig);
             }
           }
-          if (Array.isArray(window.drafts)) {
-            cw.drafts = JSON.parse(JSON.stringify(window.drafts));
+          const activeDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+            ? window.CedarStore.getAllDrafts()
+            : window.drafts;
+          if (Array.isArray(activeDrafts)) {
+            cw.drafts = JSON.parse(JSON.stringify(activeDrafts));
             if (typeof cw.setDrafts === 'function') {
-              cw.setDrafts(window.drafts);
+              cw.setDrafts(activeDrafts);
             }
           }
           if (cw.CedarPreview) {
             if (typeof cw.CedarPreview.setProjectConfig === 'function') {
               cw.CedarPreview.setProjectConfig(window.projectConfig);
             }
-            if (typeof cw.CedarPreview.setDrafts === 'function') {
-              cw.CedarPreview.setDrafts(window.drafts);
+            if (typeof cw.CedarPreview.setDrafts === 'function' && Array.isArray(activeDrafts)) {
+              cw.CedarPreview.setDrafts(activeDrafts);
             }
           }
           if (typeof cw.applyThemeToPreview === 'function') {
@@ -2456,12 +2459,12 @@
     if (!viewport) {
       container.innerHTML = `
         <div class="designer-device-viewport ${designerPreviewDevice === 'mobile' ? 'device-mobile' : 'device-tablet'}" id="designer-preview-viewport">
-          <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html#/" title="Cedar Live Site Preview"></iframe>
+          <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.4.5#/" title="Cedar Live Site Preview"></iframe>
         </div>`;
       viewport = document.getElementById('designer-preview-viewport');
       frame = document.getElementById('designer-preview-site-frame');
     } else if (!frame) {
-      viewport.innerHTML = `<iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html#/" title="Cedar Live Site Preview"></iframe>`;
+      viewport.innerHTML = `<iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.4.5#/" title="Cedar Live Site Preview"></iframe>`;
       frame = document.getElementById('designer-preview-site-frame');
     }
 

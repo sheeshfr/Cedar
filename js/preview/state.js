@@ -117,7 +117,7 @@
           const themePart = (p.design && (p.design.blogTheme || p.design.activeTheme)) || '';
           const layoutPart = (p.design && p.design._layoutThemeName) || '';
           const designFlagsPart = p.design
-            ? `${Boolean(p.design.featured)}:${p.design.featuredMode || 'latest'}:${p.design.featuredCategory || ''}:${Boolean(p.design.categoryBar)}`
+            ? `${Boolean(p.design.featured)}:${p.design.featuredMode || 'latest'}:${p.design.featuredCategory || ''}:${Boolean(p.design.categoryBar)}:${p.design.postLayout || ''}:${p.design.showcaseSwoosh || ''}:${p.design.showcaseSwooshSeed || ''}:${JSON.stringify(p.design.showcaseSwooshMap || {})}:${p.design.siteFont || ''}:${p.design.titleFont || ''}:${p.design.headerAlign || ''}:${p.design.brandingMode || ''}:${p.design.logoScale || ''}:${p.design.titleScale || ''}`
             : '';
           const catPart = Array.isArray(p.categories) ? p.categories.join(',') : '';
           return `${p.name || ''}|${p.domain || ''}|${themePart}|${customPart}|${layoutPart}|${designFlagsPart}|${radiusPart}|${catPart}|${authPart}|${dList.length}|${dPart}|${blocksPart}|${brandPart}`;
@@ -136,7 +136,7 @@
         // Guard: if running in an iframe inside Cedar Studio, Studio parent is the authoritative source of truth.
         // Direct memory & postMessage updates keep preview in sync without background fetch race conditions.
         try {
-          if (window.parent && window.parent !== window && window.parent.projectConfig) {
+          if (window.parent && window.parent !== window && window.parent.projectConfig && Array.isArray(window.parent.drafts) && window.parent.drafts.length > 0) {
             return;
           }
         } catch (_) {}

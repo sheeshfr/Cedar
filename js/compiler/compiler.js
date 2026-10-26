@@ -3394,19 +3394,20 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
     if (!coverImage) {
       const titleStr = String(title || 'Untitled').trim();
       const subStr = subtitle ? String(subtitle).trim() : '';
-      const titleRows = Math.min(3, Math.max(1, Math.ceil(titleStr.length / 18)));
+      const titleRows = Math.min(2, Math.max(1, Math.ceil(titleStr.length / 18)));
       const subRows = subStr ? Math.min(3, Math.max(1, Math.ceil(subStr.length / 32))) : 0;
       const totalRows = titleRows + subRows;
       const maxRowChars = Math.max(Math.min(titleStr.length, 20) * 1.35, Math.min(subStr.length, 34));
       const padX = Math.min(3.1, Math.max(1.65, 1.2 + maxRowChars * 0.048)).toFixed(2);
       const padY = Math.min(1.9, Math.max(0.9, 0.58 + totalRows * 0.25)).toFixed(2);
       const tiltDeg = (-4.2 / Math.sqrt(totalRows)).toFixed(2);
+      const clusterModeClass = subStr ? 'has-subtitle' : 'title-only';
 
       const cfgDesign = (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.design) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.design) || {};
       const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
       const swooshSvgHtml = (typeof window !== 'undefined' && typeof window.buildShowcaseSwooshSvg === 'function')
         ? window.buildShowcaseSwooshSvg(swooshType, draft.id || slug || title, draft)
-        : `<svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+        : `<svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
           <g class="splash-brush-base">
             <path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" />
             <path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" />
@@ -3422,7 +3423,7 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
 
       return `  <a href="/blog/published/${slug}/" class="post-card post-card-no-cover">
     <div class="post-card-img-wrap post-card-showcase-wrap" style="aspect-ratio: 16 / 9;">
-      <div class="post-card-showcase-cluster" data-rows="${totalRows}" style="--splash-pad-x: ${padX}rem; --splash-pad-y: ${padY}rem; --splash-tilt: ${tiltDeg}deg;">
+      <div class="post-card-showcase-cluster ${clusterModeClass}" data-rows="${totalRows}" style="--splash-pad-x: ${padX}rem; --splash-pad-y: ${padY}rem; --splash-tilt: ${tiltDeg}deg;">
         ${swooshSvgHtml}
         <div class="post-card-showcase-text">
           <h3 class="post-card-title post-card-showcase-title">${escapeHtml(title)}</h3>
@@ -3431,15 +3432,12 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
       </div>
     </div>
     <div class="post-card-body post-card-showcase-body">
-      <div class="post-card-meta post-card-showcase-meta">
-        <div class="post-card-showcase-byline">
-          <span class="post-card-author">By ${escapeHtml(authName)}</span>
-        </div>
-        <div class="post-card-showcase-dateline">
-          <time datetime="${draft.date}">${dateDisplay}</time>
-          <span>&bull;</span>
-          <span>${readTime}</span>
-        </div>
+      <div class="post-card-meta">
+        <span class="post-card-author">By ${escapeHtml(authName)}</span>
+        <span>&bull;</span>
+        <time datetime="${draft.date}">${dateDisplay}</time>
+        <span>&bull;</span>
+        <span>${readTime}</span>
       </div>
     </div>
   </a>`;
@@ -4285,7 +4283,14 @@ ${itemsXml}
           addFile('CNAME', cleanDom + '\n');
         }
       }
-      const workerSiteName = (typeof generateSlug === 'function' ? generateSlug(publicProject.name || 'cedar-blog') : 'cedar-blog').replace(/[^a-z0-9-]/gi, '-').replace(/^-+|-+$/g, '') || 'cedar-blog';
+      let linkedGhRepoName = '';
+      try {
+        const rawGhRepo = (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_github_repo')) || '';
+        if (rawGhRepo && rawGhRepo.includes('/')) {
+          linkedGhRepoName = rawGhRepo.split('/').filter(Boolean).pop().replace(/\.git$/i, '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+        }
+      } catch (e) {}
+      const workerSiteName = linkedGhRepoName || (typeof generateSlug === 'function' ? generateSlug(publicProject.name || 'cedar-blog') : 'cedar-blog').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || 'cedar-blog';
       addFile('wrangler.jsonc', JSON.stringify({
         "$schema": "node_modules/wrangler/config-schema.json",
         "name": workerSiteName,
