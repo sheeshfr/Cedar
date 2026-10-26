@@ -39,44 +39,35 @@
                       </span>
                     </div>
                     <div class="export-url-row export-storage-location-row">
-                      <div class="export-path-bar-wrap">
-                        <div class="export-path-icon-prefix">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                      <div class="export-storage-top-bar-row">
+                        <div class="export-path-bar-wrap">
+                          <div class="export-path-icon-prefix">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                          </div>
+                          <input type="text" id="export-vault-path-input" class="export-path-input" readonly value="In-Browser Storage (No Local Folder Linked)" title="Active storage path on your computer">
                         </div>
-                        <input type="text" id="export-vault-path-input" class="export-path-input" readonly value="In-Browser Storage (No Local Folder Linked)" title="Active storage path on your computer">
-                      </div>
-                      <div class="export-url-actions">
                         <button type="button" class="btn btn-secondary btn-url-action" id="btn-export-open-explorer" title="Open in File Explorer">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
-                          <span>Open in Explorer</span>
+                          <span>Open</span>
                         </button>
+                      </div>
+                      <div class="export-url-actions">
                         <button type="button" class="btn btn-secondary btn-url-action" id="btn-export-change-folder" title="Switch to a different local folder" style="display: none;">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
                           <span>Change Folder</span>
                         </button>
+                        <button type="button" class="btn btn-secondary btn-url-action" id="btn-download-master-zip" title="Export complete Local Storage backup (.ZIP)">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                          <span>Export Local Backup (.ZIP)</span>
+                        </button>
+                        <label class="btn btn-secondary btn-url-action" id="btn-trigger-import-zip" style="cursor: pointer; margin: 0;" title="Restore blog from backup (.ZIP)">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                          <span>Restore from Backup (.ZIP)</span>
+                          <input type="file" id="input-pane-import-zip" accept=".zip" style="display: none;">
+                        </label>
                       </div>
                     </div>
                   </div>
-
-                  <!-- Local Data Management: Offline Backups & Restores (Centered) -->
-                  <div class="export-backup-centered-wrap" style="width: 100% !important; align-self: stretch !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; text-align: center !important; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); padding-top: 1.25rem; margin-top: 0.75rem; box-sizing: border-box;">
-                    <div class="export-backup-heading-wrap" style="text-align: center !important; margin: 0 auto 0.65rem auto !important; width: 100% !important; max-width: 640px !important;">
-                      <div class="export-backup-title" style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary, #f4f4f5); text-align: center !important;">Offline Backups &amp; Migration</div>
-                      <div class="export-backup-desc" style="font-size: 0.78rem; color: var(--text-muted, #71717a); margin-top: 3px; text-align: center !important; line-height: 1.45;">Download or restore an exact snapshot containing all raw drafts, published posts, pages, images, and blog configs.</div>
-                    </div>
-                    <div class="export-backup-btn-row" style="display: flex !important; align-items: center !important; justify-content: center !important; gap: 12px !important; flex-wrap: wrap !important; width: 100% !important; margin: 0.5rem auto 0 auto !important;">
-                      <button type="button" class="btn btn-secondary" id="btn-download-master-zip" title="Export complete Local Storage backup (.ZIP)">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        <span>Export Local Backup (.ZIP)</span>
-                      </button>
-                      <label class="btn btn-secondary" id="btn-trigger-import-zip" style="cursor: pointer; margin: 0;" title="Restore blog from backup (.ZIP)">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                        <span>Restore from Backup (.ZIP)</span>
-                        <input type="file" id="input-pane-import-zip" accept=".zip" style="display: none;">
-                      </label>
-                    </div>
-                  </div>
-
                 </div>
               </div>
 

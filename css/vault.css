@@ -249,9 +249,17 @@
   width: 100%;
 }
 
-.export-storage-location-row .export-path-bar-wrap {
+.export-storage-top-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
   width: 100%;
-  flex: none;
+}
+
+.export-storage-location-row .export-path-bar-wrap {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .export-storage-location-row .export-url-actions {
