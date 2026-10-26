@@ -98,38 +98,403 @@
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
+  function unwrapElementPreservingChildren(el) {
+    if (!el || !el.parentNode) return;
+    const parent = el.parentNode;
+    while (el.firstChild) {
+      parent.insertBefore(el.firstChild, el);
+    }
+    parent.removeChild(el);
+  }
+
+  function splitInlineElementAtRange(inlineEl, range) {
+    if (!inlineEl || !inlineEl.parentNode || !range) return null;
+    const parent = inlineEl.parentNode;
+
+    const beforeRange = document.createRange();
+    beforeRange.selectNodeContents(inlineEl);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+
+    const afterRange = document.createRange();
+    afterRange.selectNodeContents(inlineEl);
+    afterRange.setStart(range.endContainer, range.endOffset);
+
+    const beforeFrag = beforeRange.extractContents();
+    const afterFrag = afterRange.extractContents();
+    const middleFrag = range.extractContents();
+
+    const hasVisibleOrNodes = (frag) => {
+      if (!frag) return false;
+      const text = (frag.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+      if (text.length > 0) return true;
+      return Boolean(frag.querySelector && frag.querySelector('img, br'));
+    };
+
+    let beforeNode = null;
+    if (hasVisibleOrNodes(beforeFrag)) {
+      beforeNode = inlineEl.cloneNode(false);
+      beforeNode.appendChild(beforeFrag);
+      parent.insertBefore(beforeNode, inlineEl);
+    }
+
+    const middleMarker = document.createTextNode('');
+    parent.insertBefore(middleMarker, inlineEl);
+
+    let afterNode = null;
+    if (hasVisibleOrNodes(afterFrag)) {
+      afterNode = inlineEl.cloneNode(false);
+      afterNode.appendChild(afterFrag);
+      parent.insertBefore(afterNode, inlineEl);
+    }
+
+    parent.removeChild(inlineEl);
+
+    const newRange = document.createRange();
+    newRange.setStartBefore(middleMarker);
+    newRange.setEndAfter(middleMarker);
+    newRange.deleteContents();
+
+    if (middleFrag && middleFrag.childNodes.length > 0) {
+      const firstChild = middleFrag.firstChild;
+      const lastChild = middleFrag.lastChild;
+      newRange.insertNode(middleFrag);
+      if (firstChild && lastChild) {
+        newRange.setStartBefore(firstChild);
+        newRange.setEndAfter(lastChild);
+      }
+    }
+
+    return { range: newRange, beforeNode, afterNode };
+  }
+
   function applyInlineCode() {
     restoreEditorSelection();
     if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
     const sel = window.getSelection();
     const canvas = document.getElementById('rich-canvas-prose');
+    if (!sel || !sel.rangeCount || !canvas) return;
 
-    if (!sel || !sel.rangeCount || sel.isCollapsed) {
-      document.execCommand('insertHTML', false, '<code>code</code>');
+    const range = sel.getRangeAt(0);
+    if (!canvas.contains(range.commonAncestorContainer)) return;
+
+    let anchorEl = range.commonAncestorContainer;
+    if (anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
+    if (anchorEl && anchorEl.closest && anchorEl.closest('pre')) {
+      return;
+    }
+
+    const enclosingCode = (anchorEl && anchorEl.closest) ? anchorEl.closest('code:not(pre code)') : null;
+
+    if (sel.isCollapsed) {
+      if (enclosingCode && canvas.contains(enclosingCode)) {
+        const visibleText = (enclosingCode.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+        if (!visibleText) {
+          // Empty inline code: unwrap and leave caret in parent block
+          const parent = enclosingCode.parentNode;
+          const zwsp = document.createTextNode('\u200B');
+          parent.replaceChild(zwsp, enclosingCode);
+          const newRange = document.createRange();
+          newRange.setStart(zwsp, 1);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          savedSelectionRange = newRange.cloneRange();
+          window._savedSelectionRange = savedSelectionRange;
+        } else {
+          // Caret is inside non-empty <code>: split or step outside <code> so typing continues in normal text
+          const postRange = document.createRange();
+          postRange.selectNodeContents(enclosingCode);
+          postRange.setStart(range.startContainer, range.startOffset);
+          const postText = (postRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+          let targetAfterNode = enclosingCode;
+          if (postText.length > 0) {
+            const splitRes = splitInlineElementAtRange(enclosingCode, range);
+            if (splitRes && splitRes.beforeNode) {
+              targetAfterNode = splitRes.beforeNode;
+            }
+          }
+
+          const zwsp = document.createTextNode('\u200B');
+          if (targetAfterNode && targetAfterNode.parentNode) {
+            targetAfterNode.parentNode.insertBefore(zwsp, targetAfterNode.nextSibling);
+          } else {
+            range.insertNode(zwsp);
+          }
+          const newRange = document.createRange();
+          newRange.setStart(zwsp, 1);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          savedSelectionRange = newRange.cloneRange();
+          window._savedSelectionRange = savedSelectionRange;
+        }
+      } else {
+        // Caret is outside <code>: insert <code>\u200B</code> and place caret inside
+        const codeEl = document.createElement('code');
+        const zwsp = document.createTextNode('\u200B');
+        codeEl.appendChild(zwsp);
+        range.insertNode(codeEl);
+
+        const newRange = document.createRange();
+        newRange.setStart(zwsp, 1);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedSelectionRange = newRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+
+      updateToolbarActiveStates();
       if (typeof window.recordAction === 'function') window.recordAction('format', true);
       if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       return;
     }
 
-    const range = sel.getRangeAt(0);
-    let p = range.commonAncestorContainer;
-    if (p.nodeType === Node.TEXT_NODE) p = p.parentNode;
-
-    if (p && p.tagName === 'CODE') {
-      const text = document.createTextNode(p.textContent);
-      p.parentNode.replaceChild(text, p);
+    // Non-collapsed selection
+    if (enclosingCode && canvas.contains(enclosingCode)) {
+      const splitRes = splitInlineElementAtRange(enclosingCode, range);
+      if (splitRes && splitRes.range) {
+        sel.removeAllRanges();
+        sel.addRange(splitRes.range);
+        savedSelectionRange = splitRes.range.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
     } else {
       const contents = range.extractContents();
+      contents.querySelectorAll('code').forEach(nested => unwrapElementPreservingChildren(nested));
       const code = document.createElement('code');
       code.appendChild(contents);
       range.insertNode(code);
+
+      // Merge with immediately adjacent <code> siblings if any
+      if (code.previousSibling && code.previousSibling.nodeType === Node.ELEMENT_NODE && code.previousSibling.tagName === 'CODE') {
+        const prev = code.previousSibling;
+        while (prev.lastChild) {
+          code.insertBefore(prev.lastChild, code.firstChild);
+        }
+        prev.remove();
+      }
+      if (code.nextSibling && code.nextSibling.nodeType === Node.ELEMENT_NODE && code.nextSibling.tagName === 'CODE') {
+        const next = code.nextSibling;
+        while (next.firstChild) {
+          code.appendChild(next.firstChild);
+        }
+        next.remove();
+      }
+
       const newRange = document.createRange();
       newRange.selectNodeContents(code);
       sel.removeAllRanges();
       sel.addRange(newRange);
       savedSelectionRange = newRange.cloneRange();
+      window._savedSelectionRange = savedSelectionRange;
     }
 
+    updateToolbarActiveStates();
+    if (typeof window.recordAction === 'function') window.recordAction('format', true);
+    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+  }
+
+  function normalizeCustomColorNodes(container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll('span.cedar-custom-color').forEach(span => {
+      if (!span.parentNode) return;
+      // Unwrap nested .cedar-custom-color with same color
+      const color = (span.getAttribute('data-custom-color') || '').toLowerCase();
+      const parentSpan = span.parentElement ? span.parentElement.closest('span.cedar-custom-color') : null;
+      if (parentSpan && (parentSpan.getAttribute('data-custom-color') || '').toLowerCase() === color) {
+        unwrapElementPreservingChildren(span);
+        return;
+      }
+      // Merge adjacent sibling span.cedar-custom-color with identical color
+      const next = span.nextSibling;
+      if (next && next.nodeType === Node.ELEMENT_NODE && next.tagName === 'SPAN' && next.classList.contains('cedar-custom-color')) {
+        const nextColor = (next.getAttribute('data-custom-color') || '').toLowerCase();
+        if (nextColor === color) {
+          while (next.firstChild) {
+            span.appendChild(next.firstChild);
+          }
+          next.remove();
+        }
+      }
+    });
+  }
+
+  function applyFontColor(colorValue) {
+    const normalizedColor = (!colorValue || colorValue === 'default') ? 'default' : colorValue.trim().toLowerCase();
+    const activeMode = window.activeMode || 'canvas';
+
+    if (activeMode === 'markdown') {
+      const mdInput = document.getElementById('markdown-input');
+      if (!mdInput) return;
+      if (normalizedColor === 'default') {
+        const start = mdInput.selectionStart;
+        const end = mdInput.selectionEnd;
+        const selected = mdInput.value.substring(start, end);
+        const stripped = selected.replace(/<span\b[^>]*class=["'][^"']*cedar-custom-color[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, '$1');
+        insertMarkdownAtCursor(stripped, '', '');
+      } else {
+        insertMarkdownAtCursor(
+          `<span class="cedar-custom-color" data-custom-color="${normalizedColor}" style="color: ${normalizedColor};">`,
+          '</span>',
+          'colored text'
+        );
+      }
+      return;
+    }
+
+    restoreEditorSelection();
+    if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+    const sel = window.getSelection();
+    const canvas = document.getElementById('rich-canvas-prose');
+    if (!sel || !sel.rangeCount || !canvas) return;
+
+    let range = sel.getRangeAt(0);
+    if (!canvas.contains(range.commonAncestorContainer)) return;
+
+    let anchorEl = range.commonAncestorContainer;
+    if (anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
+    const enclosingColorSpan = (anchorEl && anchorEl.closest) ? anchorEl.closest('span.cedar-custom-color') : null;
+
+    if (sel.isCollapsed) {
+      if (normalizedColor === 'default') {
+        if (enclosingColorSpan && canvas.contains(enclosingColorSpan)) {
+          const visibleText = (enclosingColorSpan.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+          if (!visibleText) {
+            const parent = enclosingColorSpan.parentNode;
+            const zwsp = document.createTextNode('\u200B');
+            parent.replaceChild(zwsp, enclosingColorSpan);
+            const newRange = document.createRange();
+            newRange.setStart(zwsp, 1);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            savedSelectionRange = newRange.cloneRange();
+            window._savedSelectionRange = savedSelectionRange;
+          } else {
+            const postRange = document.createRange();
+            postRange.selectNodeContents(enclosingColorSpan);
+            postRange.setStart(range.startContainer, range.startOffset);
+            const postText = (postRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+            let targetAfterNode = enclosingColorSpan;
+            if (postText.length > 0) {
+              const splitRes = splitInlineElementAtRange(enclosingColorSpan, range);
+              if (splitRes && splitRes.beforeNode) {
+                targetAfterNode = splitRes.beforeNode;
+              }
+            }
+
+            const zwsp = document.createTextNode('\u200B');
+            if (targetAfterNode && targetAfterNode.parentNode) {
+              targetAfterNode.parentNode.insertBefore(zwsp, targetAfterNode.nextSibling);
+            } else {
+              range.insertNode(zwsp);
+            }
+            const newRange = document.createRange();
+            newRange.setStart(zwsp, 1);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            savedSelectionRange = newRange.cloneRange();
+            window._savedSelectionRange = savedSelectionRange;
+          }
+        }
+      } else {
+        // Custom hex color selected with collapsed caret
+        if (enclosingColorSpan && canvas.contains(enclosingColorSpan)) {
+          const currentSpanColor = (enclosingColorSpan.getAttribute('data-custom-color') || '').toLowerCase();
+          if (currentSpanColor === normalizedColor) {
+            updateToolbarActiveStates();
+            return;
+          }
+          const visibleText = (enclosingColorSpan.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+          if (!visibleText) {
+            enclosingColorSpan.setAttribute('data-custom-color', normalizedColor);
+            enclosingColorSpan.style.color = normalizedColor;
+            updateToolbarActiveStates();
+            if (typeof window.recordAction === 'function') window.recordAction('format', true);
+            if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+            return;
+          }
+          // Split existing color span at caret and insert new color span
+          const splitRes = splitInlineElementAtRange(enclosingColorSpan, range);
+          if (splitRes && splitRes.range) {
+            range = splitRes.range;
+          }
+        }
+
+        const span = document.createElement('span');
+        span.className = 'cedar-custom-color';
+        span.setAttribute('data-custom-color', normalizedColor);
+        span.style.color = normalizedColor;
+        const zwsp = document.createTextNode('\u200B');
+        span.appendChild(zwsp);
+        range.insertNode(span);
+
+        const newRange = document.createRange();
+        newRange.setStart(zwsp, 1);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedSelectionRange = newRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+
+      updateToolbarActiveStates();
+      if (typeof window.recordAction === 'function') window.recordAction('format', true);
+      if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+      return;
+    }
+
+    // Non-collapsed selection (highlighted text)
+    if (enclosingColorSpan && canvas.contains(enclosingColorSpan)) {
+      const splitRes = splitInlineElementAtRange(enclosingColorSpan, range);
+      if (splitRes && splitRes.range) {
+        range = splitRes.range;
+      }
+    }
+
+    if (normalizedColor === 'default') {
+      const contents = range.extractContents();
+      contents.querySelectorAll('span.cedar-custom-color').forEach(s => unwrapElementPreservingChildren(s));
+      const firstChild = contents.firstChild;
+      const lastChild = contents.lastChild;
+      range.insertNode(contents);
+      if (firstChild && lastChild && firstChild.parentNode && lastChild.parentNode) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(firstChild);
+        newRange.setEndAfter(lastChild);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedSelectionRange = newRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+      normalizeCustomColorNodes(canvas);
+    } else {
+      const contents = range.extractContents();
+      contents.querySelectorAll('span.cedar-custom-color').forEach(s => unwrapElementPreservingChildren(s));
+      const span = document.createElement('span');
+      span.className = 'cedar-custom-color';
+      span.setAttribute('data-custom-color', normalizedColor);
+      span.style.color = normalizedColor;
+      span.appendChild(contents);
+      range.insertNode(span);
+
+      normalizeCustomColorNodes(span.parentNode || canvas);
+
+      if (span.isConnected) {
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedSelectionRange = newRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+    }
+
+    updateToolbarActiveStates();
     if (typeof window.recordAction === 'function') window.recordAction('format', true);
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
@@ -845,10 +1210,11 @@
     try { isUl = document.queryCommandState('insertUnorderedList'); } catch (e) {}
     try { isOl = document.queryCommandState('insertOrderedList'); } catch (e) {}
 
-    // Walk ancestry for code, links, blockquote, headings inside prose
+    // Walk ancestry for code, links, blockquote, headings, and custom font color inside prose
     let isCode = false;
     let isLink = false;
     let isQuote = false;
+    let activeCustomColor = 'default';
     let currentBlock = 'p';
 
     if (selectedNonText) {
@@ -879,6 +1245,10 @@
         }
         if (tag === 'code') isCode = true;
         if (tag === 'a') isLink = true;
+        if (activeCustomColor === 'default' && curr.classList && curr.classList.contains('cedar-custom-color')) {
+          const customHex = (curr.getAttribute('data-custom-color') || '').trim().toLowerCase();
+          if (customHex) activeCustomColor = customHex;
+        }
         if (tag === 'blockquote') {
           isQuote = true;
           currentBlock = 'quote';
@@ -921,6 +1291,23 @@
     setBtnActive('quote', isQuote);
     setBtnActive('ul', isUl);
     setBtnActive('ol', isOl);
+
+    // Update Font Color indicator & menu swatches
+    const fontColorIndicator = document.getElementById('tb-font-color-indicator');
+    const fontColorBtn = document.getElementById('tb-btn-font-color');
+    const fontColorMenu = document.getElementById('tb-font-color-menu');
+    if (fontColorIndicator) {
+      fontColorIndicator.style.background = activeCustomColor === 'default' ? 'var(--text-primary)' : activeCustomColor;
+    }
+    if (fontColorBtn) {
+      fontColorBtn.classList.toggle('active', activeCustomColor !== 'default');
+    }
+    if (fontColorMenu) {
+      fontColorMenu.querySelectorAll('[data-action="font-color"]').forEach(btn => {
+        const btnColor = (btn.dataset.color || 'default').toLowerCase();
+        btn.classList.toggle('active', btnColor === activeCustomColor);
+      });
+    }
 
     // Check block alignment
     let currentAlign = 'left';
@@ -1108,6 +1495,14 @@
     if (pageBlocksMenu) {
       pageBlocksMenu.querySelectorAll('.toolbar-menu-item').forEach(b => b.classList.remove('active'));
     }
+    const fontColorIndicator = document.getElementById('tb-font-color-indicator');
+    if (fontColorIndicator) fontColorIndicator.style.background = 'var(--text-primary)';
+    const fontColorMenu = document.getElementById('tb-font-color-menu');
+    if (fontColorMenu) {
+      fontColorMenu.querySelectorAll('[data-action="font-color"]').forEach(b => {
+        b.classList.toggle('active', b.dataset.color === 'default');
+      });
+    }
   }
 
   function setupFormattingToolbar() {
@@ -1161,7 +1556,7 @@
 
         const action = btn.dataset.action;
         if (action) {
-          executeToolbarAction(action);
+          executeToolbarAction(action, btn.dataset.color || null);
           return;
         }
 
@@ -1466,7 +1861,7 @@
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
-  function executeToolbarAction(action) {
+  function executeToolbarAction(action, value = null) {
     const activeMode = window.activeMode || 'canvas';
 
     if (activeMode === 'markdown') {
@@ -1482,6 +1877,9 @@
           break;
         case 'code':
           insertMarkdownAtCursor('`', '`', 'code');
+          break;
+        case 'font-color':
+          applyFontColor(value || 'default');
           break;
         case 'align-left': {
           const mdInput = document.getElementById('markdown-input');
@@ -1635,6 +2033,9 @@
         break;
       case 'code':
         applyInlineCode();
+        break;
+      case 'font-color':
+        applyFontColor(value || 'default');
         break;
       case 'align-left':
         applyBlockAlignment('left');
@@ -1893,6 +2294,8 @@
   window.restoreEditorSelection = restoreEditorSelection;
   window.formatInline = formatInline;
   window.applyInlineCode = applyInlineCode;
+  window.applyFontColor = applyFontColor;
+  window.normalizeCustomColorNodes = normalizeCustomColorNodes;
   window.formatBlockStyle = formatBlockStyle;
   window.focusNodeCaret = focusNodeCaret;
   window.resetActiveInlineFormatting = resetActiveInlineFormatting;
@@ -1918,6 +2321,8 @@
     restoreEditorSelection,
     formatInline,
     applyInlineCode,
+    applyFontColor,
+    normalizeCustomColorNodes,
     formatBlockStyle,
     focusNodeCaret,
     resetActiveInlineFormatting,

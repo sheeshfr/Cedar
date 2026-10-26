@@ -1673,7 +1673,87 @@
           }
         }
 
-        // 2B. When editing inside a top-level text block in canvasProse, protect adjacent non-text blocks
+        // 2B. Clean inline <code> and .cedar-custom-color Backspace handling
+        const selInline = window.getSelection();
+        if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && selInline && selInline.rangeCount && selInline.isCollapsed) {
+          const rangeInline = selInline.getRangeAt(0);
+          let anchorNode = rangeInline.startContainer;
+          if (anchorNode && anchorNode.nodeType === Node.TEXT_NODE) anchorNode = anchorNode.parentNode;
+
+          const inlineCodeEl = (anchorNode && anchorNode.closest) ? anchorNode.closest('code:not(pre code)') : null;
+          if (inlineCodeEl && canvasProse.contains(inlineCodeEl)) {
+            const visibleCodeText = (inlineCodeEl.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+            const preCodeRange = document.createRange();
+            preCodeRange.selectNodeContents(inlineCodeEl);
+            preCodeRange.setEnd(rangeInline.startContainer, rangeInline.startOffset);
+            const preCodeText = (preCodeRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+            const postCodeRange = document.createRange();
+            postCodeRange.selectNodeContents(inlineCodeEl);
+            postCodeRange.setStart(rangeInline.endContainer, rangeInline.endOffset);
+            const postCodeText = (postCodeRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+            if (visibleCodeText.length === 0) {
+              // Empty <code> chip -> remove <code> cleanly on Backspace
+              e.preventDefault();
+              e.stopPropagation();
+              if (window.commitCheckpoint) window.commitCheckpoint();
+              const parentBlock = inlineCodeEl.parentNode;
+              const zwsp = document.createTextNode('\u200B');
+              parentBlock.replaceChild(zwsp, inlineCodeEl);
+              const newRange = document.createRange();
+              newRange.setStart(zwsp, 1);
+              newRange.collapse(true);
+              selInline.removeAllRanges();
+              selInline.addRange(newRange);
+              window._savedSelectionRange = newRange.cloneRange();
+              if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+              if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+              return;
+            } else if (preCodeText.length === 1 && postCodeText.length === 0) {
+              // Deleting the last visible character inside <code> -> keep <code> alive with \u200B
+              // so Chromium doesn't destroy <code> or inject broken inline <span style="...">
+              e.preventDefault();
+              e.stopPropagation();
+              if (window.commitCheckpoint) window.commitCheckpoint();
+              const zwsp = document.createTextNode('\u200B');
+              inlineCodeEl.innerHTML = '';
+              inlineCodeEl.appendChild(zwsp);
+              const newRange = document.createRange();
+              newRange.setStart(zwsp, 1);
+              newRange.collapse(true);
+              selInline.removeAllRanges();
+              selInline.addRange(newRange);
+              window._savedSelectionRange = newRange.cloneRange();
+              if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+              if (typeof window.updateStats === 'function') window.updateStats();
+              if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+              return;
+            }
+          }
+
+          const inlineColorEl = (anchorNode && anchorNode.closest) ? anchorNode.closest('span.cedar-custom-color') : null;
+          if (inlineColorEl && canvasProse.contains(inlineColorEl)) {
+            const visibleColorText = (inlineColorEl.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+            if (visibleColorText.length === 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              const parentBlock = inlineColorEl.parentNode;
+              const zwsp = document.createTextNode('\u200B');
+              parentBlock.replaceChild(zwsp, inlineColorEl);
+              const newRange = document.createRange();
+              newRange.setStart(zwsp, 1);
+              newRange.collapse(true);
+              selInline.removeAllRanges();
+              selInline.addRange(newRange);
+              window._savedSelectionRange = newRange.cloneRange();
+              if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+              return;
+            }
+          }
+        }
+
+        // 2C. When editing inside a top-level text block in canvasProse, protect adjacent non-text blocks
         // (images, galleries, videos, page blocks) from Chromium's native deleteContentBackward / deleteContentForward!
         const sel = window.getSelection();
         if (sel && sel.rangeCount) {
@@ -1864,6 +1944,39 @@
                 window.splitBlockToNewParagraph(null, canvasProse);
               }
               return;
+            }
+          }
+        }
+      }
+
+      // Allow ArrowRight at the end of inline <code> to step out of <code> cleanly
+      if (e.key === 'ArrowRight' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && sel.isCollapsed) {
+          const range = sel.getRangeAt(0);
+          let anchorEl = range.startContainer;
+          if (anchorEl && anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
+          const inlineCodeEl = (anchorEl && anchorEl.closest) ? anchorEl.closest('code:not(pre code)') : null;
+          if (inlineCodeEl && canvasProse.contains(inlineCodeEl)) {
+            const postRange = document.createRange();
+            postRange.selectNodeContents(inlineCodeEl);
+            postRange.setStart(range.endContainer, range.endOffset);
+            const postText = postRange.toString();
+            if (postText.length === 0) {
+              const nextSib = inlineCodeEl.nextSibling;
+              if (!nextSib || (nextSib.nodeType === Node.ELEMENT_NODE && nextSib.tagName === 'BR')) {
+                e.preventDefault();
+                const zwsp = document.createTextNode('\u200B');
+                inlineCodeEl.parentNode.insertBefore(zwsp, inlineCodeEl.nextSibling);
+                const newRange = document.createRange();
+                newRange.setStart(zwsp, 1);
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                window._savedSelectionRange = newRange.cloneRange();
+                if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+                return;
+              }
             }
           }
         }
@@ -2208,6 +2321,72 @@
       if (e.target && e.target.classList && e.target.classList.contains('individual-post-url-input')) {
         return;
       }
+
+      // 1. Clean up zero-width space placeholders (\u200B) once real characters are typed into the same text node
+      const selForCleanup = window.getSelection();
+      let activeTextNode = null;
+      let activeOffset = 0;
+      if (selForCleanup && selForCleanup.rangeCount && selForCleanup.isCollapsed) {
+        const r = selForCleanup.getRangeAt(0);
+        if (r.startContainer && r.startContainer.nodeType === Node.TEXT_NODE) {
+          activeTextNode = r.startContainer;
+          activeOffset = r.startOffset;
+        }
+      }
+
+      const textWalker = document.createTreeWalker(canvasProse, NodeFilter.SHOW_TEXT, null, false);
+      const textNodesToClean = [];
+      let tNode = textWalker.nextNode();
+      while (tNode) {
+        if (tNode.nodeValue && tNode.nodeValue.length > 1 && tNode.nodeValue.includes('\u200B')) {
+          const withoutZwsp = tNode.nodeValue.replace(/\u200B/g, '');
+          if (withoutZwsp.length > 0) {
+            textNodesToClean.push(tNode);
+          }
+        }
+        tNode = textWalker.nextNode();
+      }
+
+      textNodesToClean.forEach(node => {
+        const orig = node.nodeValue;
+        if (node === activeTextNode) {
+          const beforeCaret = orig.slice(0, activeOffset);
+          const removedBefore = (beforeCaret.match(/\u200B/g) || []).length;
+          node.nodeValue = orig.replace(/\u200B/g, '');
+          const newOffset = Math.max(0, Math.min(node.nodeValue.length, activeOffset - removedBefore));
+          try {
+            const newRange = document.createRange();
+            newRange.setStart(node, newOffset);
+            newRange.collapse(true);
+            selForCleanup.removeAllRanges();
+            selForCleanup.addRange(newRange);
+            window._savedSelectionRange = newRange.cloneRange();
+          } catch (err) {}
+        } else {
+          node.nodeValue = orig.replace(/\u200B/g, '');
+        }
+      });
+
+      // 2. Strip any Chromium-injected inline style spans (<span style="..."> / <font>) that are NOT .cedar-custom-color
+      // (Chromium's DeleteSelectionCommand injects <span style="background-color:...; color:...;"> when backspacing across inline tags)
+      canvasProse.querySelectorAll('span[style], font').forEach(el => {
+        if (el.closest('[contenteditable="false"]')) return;
+        if (el.tagName === 'SPAN' && el.classList.contains('cedar-custom-color') && el.getAttribute('data-custom-color')) {
+          const customHex = el.getAttribute('data-custom-color');
+          if (el.style.backgroundColor || el.style.fontFamily || el.style.fontSize) {
+            el.removeAttribute('style');
+            el.style.color = customHex;
+          }
+          return;
+        }
+        const parent = el.parentNode;
+        if (parent) {
+          while (el.firstChild) {
+            parent.insertBefore(el.firstChild, el);
+          }
+          parent.removeChild(el);
+        }
+      });
 
       // Check for horizontal rule (divider) shortcut: ---, ***, or ___ in a block
       const sel = window.getSelection();
