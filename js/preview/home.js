@@ -135,6 +135,9 @@
     const rootToken = segments[0] || '';
 
     const isHome = activeRoute === 'home' || (!rawRoute && (!activeRoute || activeRoute === 'home')) || rootToken === 'home';
+    if (!isHome && document.body) {
+      document.body.classList.remove('home-no-featured-with-cats');
+    }
 
     // 1. Identify active category (if any)
     let activeCatSlug = null;
@@ -1692,6 +1695,21 @@
             }
             syncCategoryViewAll();
           }
+        }
+
+        const hasHeroOrFeaturedNow = Boolean(
+          (spotlightBlock && spotlightSec && spotlightSec.style.display !== 'none') ||
+          (heroSection && heroSection.style.display !== 'none')
+        );
+        const isCatBarShowing = Boolean(
+          feedHeaderWrap &&
+          feedHeaderWrap.style.display !== 'none' &&
+          !feedHeaderWrap.classList.contains('divider-only') &&
+          feedCatWrap &&
+          feedCatWrap.style.display !== 'none'
+        );
+        if (document.body) {
+          document.body.classList.toggle('home-no-featured-with-cats', !hasHeroOrFeaturedNow && isCatBarShowing);
         }
 
         // 6. Recent Posts Feed Block

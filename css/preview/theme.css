@@ -115,6 +115,12 @@
       border-bottom: 1px solid var(--border-subtle);
     }
 
+    body.home-no-featured-with-cats .site-header .nav-wrap,
+    .app-theme-light.home-no-featured-with-cats .site-header .nav-wrap,
+    .app-theme-light body.home-no-featured-with-cats .site-header .nav-wrap {
+      border-bottom: none !important;
+    }
+
     .custom-masthead-link {
       display: block;
       position: relative;
