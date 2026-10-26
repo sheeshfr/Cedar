@@ -643,9 +643,7 @@
         }
 
         // Meta Bar
-        const rawAuths = (Array.isArray(item.authors) && item.authors.length > 0)
-          ? item.authors
-          : [item.authorName || getConfig().defaultAuthor || 'Cedar Staff'];
+        const rawAuths = [getConfig().defaultAuthor || item.authorName || (Array.isArray(item.authors) && item.authors[0]) || 'Cedar Staff'];
         const authName = typeof window.formatAuthorsString === 'function' ? window.formatAuthorsString(rawAuths) : rawAuths.map(a => a?.name || a).join(', ');
         const authorObj = typeof resolveAuthor === 'function' ? resolveAuthor(rawAuths[0]) : null;
         let authAvatar = (authorObj && authorObj.avatar) ? authorObj.avatar : (typeof getAuthorAvatar === 'function' ? getAuthorAvatar(rawAuths[0]) : '');
@@ -941,7 +939,7 @@
     const authorPosts = (getDrafts() || [])
       .filter(d => (d.type === 'post' || !d.type) && d.type !== 'page' && d.status === 'published' && !d.hidden && !d.retired && !isLinks(d))
       .filter(d => {
-        const a = (d.author || d.authorName || getConfig().defaultAuthor || 'Author').trim().toLowerCase();
+        const a = (getConfig().defaultAuthor || d.author || d.authorName || 'Author').trim().toLowerCase();
         return a === cleanTarget.toLowerCase();
       })
       .sort((a, b) => new Date(b.publishedDate || b.date || 0) - new Date(a.publishedDate || a.date || 0));

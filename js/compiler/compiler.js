@@ -1001,7 +1001,7 @@
     const defaultAuth = (typeof resolveProjectDefaultAuthor === 'function')
       ? resolveProjectDefaultAuthor()
       : (((typeof window !== 'undefined' && window.projectConfig && window.projectConfig.defaultAuthor) || (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.defaultAuthor)) || '');
-    const rawAuthors = (Array.isArray(draft.authors) && draft.authors.length > 0) ? draft.authors : [draft.authorName || defaultAuth];
+    const rawAuthors = [defaultAuth || draft.authorName || (Array.isArray(draft.authors) && draft.authors[0]) || 'Staff'];
     const authorName = (typeof window.formatAuthorsString === 'function')
       ? window.formatAuthorsString(rawAuthors)
       : (draft.authorName || defaultAuth);
@@ -3459,7 +3459,7 @@ ${imgBlock ? imgBlock + '\n' : ''}    <div class="featured-post-content">
     const defaultAuth = (typeof resolveProjectDefaultAuthor === 'function')
       ? resolveProjectDefaultAuthor()
       : ((typeof projectConfig !== 'undefined' && projectConfig && projectConfig.defaultAuthor) || '');
-    const authorsList = (Array.isArray(draft.authors) && draft.authors.length > 0) ? draft.authors : [draft.authorName || defaultAuth];
+    const authorsList = [defaultAuth || draft.authorName || (Array.isArray(draft.authors) && draft.authors[0]) || 'Staff'];
     const authorName = (typeof window.formatAuthorsString === 'function')
       ? window.formatAuthorsString(authorsList)
       : (draft.authorName || authorsList.join(', ') || defaultAuth);
@@ -3506,7 +3506,7 @@ ${draft.markdown || ''}`;
       const postUrl = `${siteUrl}/blog/published/${slug}/`;
       const pubDate = new Date(p.publishedAt || p.createdAt || p.date || Date.now()).toUTCString();
       const timestamp = new Date(p.publishedAt || p.createdAt || p.date || Date.now()).getTime();
-      const author = p.authorName || cfg.defaultAuthor || 'Staff';
+      const author = cfg.defaultAuthor || p.authorName || 'Staff';
       const desc = p.subtitle || p.customDesc || (p.markdown ? p.markdown.substring(0, 280) : '');
       const cat = p.tag || (p.categories && p.categories[0]) || 'Uncategorized';
 
@@ -4045,6 +4045,11 @@ ${itemsXml}
       delete postClone.revisions;
       delete postClone.history;
       delete postClone.autosave;
+      if (publicProject && publicProject.defaultAuthor) {
+        postClone.authorName = publicProject.defaultAuthor;
+        postClone.author = publicProject.defaultAuthor;
+        postClone.authors = [publicProject.defaultAuthor];
+      }
       postClone.images = cleanImages;
       if (postClone.coverImage && postClone.coverImage.startsWith('data:')) {
         const covBlob = dataUrlToBlob(postClone.coverImage);

@@ -138,7 +138,7 @@
       options.body = JSON.stringify(options.body);
     }
 
-    const res = await fetch(url, Object.assign({}, options, { headers }));
+    const res = await fetch(url, Object.assign({ cache: 'no-store' }, options, { headers }));
     if (!res.ok) {
       let errText = '';
       try {
@@ -544,16 +544,48 @@
           parents: [headSha]
         }
       });
-      const newCommitSha = commitRes.sha;
+      let newCommitSha = commitRes.sha;
 
-      // 5. Update Branch Ref
-      await apiRequest(`/repos/${repo}/git/refs/heads/${branch}`, {
-        method: 'PATCH',
-        body: {
-          sha: newCommitSha,
-          force: isForce
+      // 5. Update Branch Ref (use force: true since collision check already ran, and auto-recover on 422)
+      try {
+        await apiRequest(`/repos/${repo}/git/refs/heads/${branch}`, {
+          method: 'PATCH',
+          body: {
+            sha: newCommitSha,
+            force: true
+          }
+        });
+      } catch (patchErr) {
+        if (patchErr && patchErr.status === 422) {
+          const latestRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}?t=${Date.now()}`);
+          const latestSha = latestRef?.object?.sha;
+          if (latestSha && latestSha !== newCommitSha) {
+            const latestCommit = await apiRequest(`/repos/${repo}/git/commits/${latestSha}?t=${Date.now()}`);
+            if (latestCommit?.tree?.sha === newTreeSha) {
+              newCommitSha = latestSha;
+            } else {
+              const retryCommit = await apiRequest(`/repos/${repo}/git/commits`, {
+                method: 'POST',
+                body: {
+                  message: commitMsg,
+                  tree: newTreeSha,
+                  parents: [latestSha]
+                }
+              });
+              newCommitSha = retryCommit.sha;
+              await apiRequest(`/repos/${repo}/git/refs/heads/${branch}`, {
+                method: 'PATCH',
+                body: {
+                  sha: newCommitSha,
+                  force: true
+                }
+              });
+            }
+          }
+        } else {
+          throw patchErr;
         }
-      });
+      }
 
       // Update sync state
       localStorage.setItem(STORAGE_KEYS.LAST_SHA, newCommitSha);

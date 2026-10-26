@@ -63,17 +63,27 @@
       try { localStorage.setItem('outpost_active_author', authorNameVal); } catch (e) {}
     } catch (e) {}
 
-    if (prevAuthorName && authorNameVal && prevAuthorName !== authorNameVal) {
-      if (Array.isArray(window.drafts)) {
-        window.drafts.forEach(d => {
-          if (d && d.type !== 'page') {
+    if (authorNameVal && Array.isArray(window.drafts)) {
+      let updatedAny = false;
+      window.drafts.forEach(d => {
+        if (d && d.type !== 'page') {
+          if (d.authorName !== authorNameVal || d.author !== authorNameVal || !Array.isArray(d.authors) || d.authors.length !== 1 || d.authors[0] !== authorNameVal) {
             d.authorName = authorNameVal;
             d.author = authorNameVal;
+            d.authors = [authorNameVal];
+            updatedAny = true;
           }
-        });
+        }
+      });
+      if (updatedAny) {
+        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+          window.CedarStore.hydrateFromList(window.drafts);
+        }
         if (typeof window.saveDraftsToStorage === 'function') {
           window.saveDraftsToStorage();
         }
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
       }
     }
 
@@ -1420,11 +1430,15 @@
 
         if (Array.isArray(window.drafts)) {
           window.drafts.forEach(d => {
-            if (d.type !== 'page') {
+            if (d && d.type !== 'page') {
               d.authorName = authorNameVal;
               d.author = authorNameVal;
+              d.authors = [authorNameVal];
             }
           });
+          if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+            window.CedarStore.hydrateFromList(window.drafts);
+          }
           if (typeof window.saveDraftsToStorage === 'function') {
             window.saveDraftsToStorage();
           }
@@ -2322,8 +2336,12 @@
         if (d && d.type !== 'page') {
           d.authorName = newTrimmed;
           d.author = newTrimmed;
+          d.authors = [newTrimmed];
         }
       });
+      if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+        window.CedarStore.hydrateFromList(window.drafts);
+      }
       if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
     }
     if (typeof window.saveProjectToStorage === 'function') window.saveProjectToStorage();

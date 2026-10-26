@@ -685,7 +685,7 @@
         const hasValidCategory = cat && cat.toLowerCase() !== 'uncategorized' && cat.toLowerCase() !== 'general';
         const readTime = calcReadTime(p.markdown);
         const dateDisplay = formatDate(p.publishedDate || p.date);
-        const rawAuths = (Array.isArray(p.authors) && p.authors.length > 0) ? p.authors : [p.authorName || getConfig().defaultAuthor || 'Staff'];
+        const rawAuths = [getConfig().defaultAuthor || p.authorName || (Array.isArray(p.authors) && p.authors[0]) || 'Staff'];
         const authName = typeof window.formatAuthorsString === 'function' ? window.formatAuthorsString(rawAuths) : rawAuths.map(a => a?.name || a).join(', ');
         const authAvatar = getAuthorAvatar(rawAuths[0]);
 
@@ -1245,9 +1245,7 @@
           ? getPostFeaturedImage(featured)
           : (typeof resolvePostImage === 'function' ? resolvePostImage(featured.coverImage || featured.featuredImage, featured) : '');
 
-        const rawAuths = (Array.isArray(featured.authors) && featured.authors.length > 0)
-          ? featured.authors
-          : [featured.authorName || getConfig().defaultAuthor || 'Staff'];
+        const rawAuths = [getConfig().defaultAuthor || featured.authorName || (Array.isArray(featured.authors) && featured.authors[0]) || 'Staff'];
         const authName = typeof window.formatAuthorsString === 'function' ? window.formatAuthorsString(rawAuths) : rawAuths.map(a => a?.name || a).join(', ');
         const authAvatar = (typeof getAuthorAvatar === 'function') ? getAuthorAvatar(rawAuths[0]) : '';
         let spotAvatar = authAvatar;
