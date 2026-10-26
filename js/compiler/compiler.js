@@ -4275,13 +4275,42 @@ ${itemsXml}
       `window.__CEDAR_PRODUCTION__ = true;\nwindow.__CEDAR_STATIC_DATA__ = ${JSON.stringify(siteDataPayload)};\n`
     );
 
-      // 8. Custom Domain CNAME (for GitHub Pages / static hosts)
+      // 8. Custom Domain CNAME & Cloudflare Workers/Pages Static Asset Config
       if (publicProject.domain && typeof publicProject.domain === 'string') {
         const cleanDom = publicProject.domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
         if (cleanDom && cleanDom.includes('.')) {
           addFile('CNAME', cleanDom + '\n');
         }
       }
+      const workerSiteName = (typeof generateSlug === 'function' ? generateSlug(publicProject.name || 'cedar-blog') : 'cedar-blog').replace(/[^a-z0-9-]/gi, '-').replace(/^-+|-+$/g, '') || 'cedar-blog';
+      addFile('wrangler.jsonc', JSON.stringify({
+        "$schema": "node_modules/wrangler/config-schema.json",
+        "name": workerSiteName,
+        "compatibility_date": "2024-09-23",
+        "assets": {
+          "directory": "."
+        }
+      }, null, 2) + '\n');
+      addFile('.assetsignore', [
+        '# Cloudflare Workers Static Assets ignore rules',
+        '.git',
+        '.git/**',
+        'writer/',
+        'static-writer/',
+        'editor/',
+        'drafts/',
+        'hidden/',
+        'backups/',
+        'notes/',
+        '*.draft.*',
+        '**/draft.json',
+        'drafts.json',
+        'vault.json',
+        'notes.json',
+        'sync.json',
+        '.DS_Store',
+        'Thumbs.db'
+      ].join('\n') + '\n');
 
       // 9. RSS 2.0 Feed
       if (isRssEnabled) {

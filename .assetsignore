@@ -1,0 +1,21 @@
+# Cloudflare Workers Static Assets ignore rules
+.git
+.git/**
+.github
+.github/**
+.vscode
+.idea
+*.bat
+*.sh
+*.py
+*.pyc
+__pycache__
+__pycache__/**
+docs
+docs/**
+AGENTS.md
+GEMINI.md
+.live-sync.json
+*.log
+.DS_Store
+Thumbs.db
