@@ -1070,6 +1070,16 @@
     const modal = document.getElementById('modal-milestone');
     if (!modal) return;
 
+    const modalBody = modal.querySelector('.modal-body');
+    if (modalBody && !modalBody.querySelector('#milestone-privacy-note')) {
+      const noteEl = document.createElement('p');
+      noteEl.id = 'milestone-privacy-note';
+      noteEl.className = 'milestone-privacy-note';
+      noteEl.style.cssText = 'margin: 0.95rem 0 0 0; font-size: 0.78rem; color: var(--text-muted, #a1a1aa); text-align: center; line-height: 1.4;';
+      noteEl.textContent = "Note: The public won't see milestones — they're strictly for the author.";
+      modalBody.appendChild(noteEl);
+    }
+
     initMilestoneEmojiKeyboard();
 
     const titleEl = document.getElementById('modal-milestone-title');

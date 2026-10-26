@@ -1308,6 +1308,13 @@ body.dark-mode .type-page,
 #input-milestone-date::-webkit-datetime-edit {
   margin: 0 auto;
 }
+#modal-milestone .milestone-privacy-note {
+  margin: 0.95rem 0 0 0 !important;
+  font-size: 0.78rem;
+  color: var(--text-muted, #a1a1aa);
+  text-align: center;
+  line-height: 1.4;
+}
 
 
 
