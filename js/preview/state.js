@@ -89,9 +89,66 @@
         } catch (_) {}
 
         try {
-          const res = await fetch('/api/live-sync');
-          if (res.ok) {
-            const data = await res.json();
+          let data = null;
+          const h = (window.location && window.location.hostname) || '';
+          const isLocalServer = h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+          if (isLocalServer) {
+            try {
+              const res = await fetch('/api/live-sync');
+              if (res.ok) {
+                data = await res.json();
+              }
+            } catch (_) {}
+          }
+          if (!data) {
+            // Static web host (e.g. cedar.pub) or offline fallback: sync from opener, IndexedDB (CedarVirtualStorage), or localStorage
+            let fallbackProj = null;
+            let fallbackDrafts = null;
+            try {
+              if (window.opener && !window.opener.closed) {
+                if (window.opener.projectConfig) {
+                  fallbackProj = JSON.parse(JSON.stringify(window.opener.projectConfig));
+                }
+                const openerDrafts = (window.opener.CedarStore && typeof window.opener.CedarStore.getAllDrafts === 'function')
+                  ? window.opener.CedarStore.getAllDrafts()
+                  : window.opener.drafts;
+                if (Array.isArray(openerDrafts) && openerDrafts.length > 0) {
+                  fallbackDrafts = JSON.parse(JSON.stringify(openerDrafts));
+                }
+              }
+            } catch (_) {}
+            const vs = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+            if (vs && typeof vs.readFile === 'function') {
+              if (!fallbackProj) {
+                try {
+                  const vp = await vs.readFile('cedar_config.json') || await vs.readFile('project.json');
+                  if (vp && typeof vp === 'object') fallbackProj = vp;
+                } catch (_) {}
+              }
+              if (!fallbackDrafts) {
+                try {
+                  const vd = await vs.readFile('editor/drafts.json') || await vs.readFile('writer/drafts.json');
+                  if (Array.isArray(vd) && vd.length > 0) fallbackDrafts = vd;
+                } catch (_) {}
+              }
+            }
+            if (!fallbackProj) {
+              try {
+                const rawP = localStorage.getItem(STORAGE_KEY_PROJECT);
+                if (rawP) fallbackProj = JSON.parse(rawP);
+              } catch (_) {}
+            }
+            if (!fallbackDrafts) {
+              try {
+                const rawD = localStorage.getItem(STORAGE_KEY_DRAFTS) || localStorage.getItem(LEGACY_STORAGE_DRAFTS);
+                if (rawD) fallbackDrafts = JSON.parse(rawD);
+              } catch (_) {}
+            }
+            if (fallbackProj || fallbackDrafts) {
+              data = { project: fallbackProj, drafts: fallbackDrafts };
+            }
+          }
+          if (data) {
             if (data.project) {
               const parsedProject = typeof data.project === 'string' ? JSON.parse(data.project) : data.project;
               if (Array.isArray(parsedProject.authors)) {
@@ -161,12 +218,13 @@
               window.projectConfig = projectConfig;
               if (!projectConfig.design) projectConfig.design = {};
               projectConfig.design.authorBar = false;
-              if (!Array.isArray(projectConfig.design.homeBlocks) || projectConfig.design.homeBlocks.length === 0) {
+              if (!Array.isArray(projectConfig.design.homeBlocks) || projectConfig.design.homeBlocks.length === 0 || !projectConfig.design.homeBlocks.some(b => b && b.type !== 'masthead' && b.type !== 'footer')) {
                 projectConfig.design.homeBlocks = [
                   { id: 'b_masthead', type: 'masthead', x: 320, y: 0, w: 1280, h: 64, stretchWidth: false, config: {} },
                   { id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, config: {} },
-                  { id: 'b_feed', type: 'post_feed', x: 320, y: 320, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 2, cols: 2, layoutStyle: 'vertical' } },
-                  { id: 'b_footer', type: 'footer', x: 320, y: 768, w: 1280, h: 64, stretchWidth: false, config: {} }
+                  { id: 'b_categories', type: 'categories_shelf', x: 320, y: 320, w: 1280, h: 80, stretchWidth: false, config: { title: 'Category' } },
+                  { id: 'b_feed', type: 'post_feed', x: 320, y: 400, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' } },
+                  { id: 'b_footer', type: 'footer', x: 320, y: 784, w: 1280, h: 64, stretchWidth: false, config: {} }
                 ];
               }
             }
@@ -340,8 +398,11 @@
                 window.projectConfig = projectConfig;
                 parentHasProject = true;
               }
-              if (Array.isArray(sourceWindow.drafts) && sourceWindow.drafts.length > 0) {
-                drafts = JSON.parse(JSON.stringify(sourceWindow.drafts));
+              const srcDrafts = (sourceWindow.CedarStore && typeof sourceWindow.CedarStore.getAllDrafts === 'function')
+                ? sourceWindow.CedarStore.getAllDrafts()
+                : sourceWindow.drafts;
+              if (Array.isArray(srcDrafts) && srcDrafts.length > 0) {
+                drafts = JSON.parse(JSON.stringify(srcDrafts));
                 window.drafts = drafts;
                 window.CedarPreview.drafts = drafts;
                 window.OutpostPreview.drafts = drafts;
@@ -365,7 +426,7 @@
           }
           if (!projectConfig.design) projectConfig.design = {};
           projectConfig.design.authorBar = false;
-          if (!Array.isArray(projectConfig.design.homeBlocks) || projectConfig.design.homeBlocks.length === 0) {
+          if (!Array.isArray(projectConfig.design.homeBlocks) || projectConfig.design.homeBlocks.length === 0 || !projectConfig.design.homeBlocks.some(b => b && b.type !== 'masthead' && b.type !== 'footer')) {
             projectConfig.design.homeBlocks = [
               { id: 'b_masthead', type: 'masthead', x: 320, y: 0, w: 1280, h: 64, stretchWidth: false, config: {} },
               { id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, config: {} },
@@ -946,6 +1007,7 @@
     if (Array.isArray(d)) {
       drafts = d;
       window.drafts = drafts;
+      window.CedarPreview.drafts = drafts;
       window.OutpostPreview.drafts = drafts;
     }
   }

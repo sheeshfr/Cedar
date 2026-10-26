@@ -382,8 +382,12 @@
     function updateAllPreviewFrames() {
       try {
         const frames = document.querySelectorAll('#preview-site-frame, iframe[title*="Preview"], iframe[title*="preview"]');
-        const proj = (typeof window.projectConfig !== 'undefined') ? window.projectConfig : ((typeof projectConfig !== 'undefined') ? projectConfig : null);
-        const drfts = (typeof window.drafts !== 'undefined' && Array.isArray(window.drafts)) ? window.drafts : ((typeof drafts !== 'undefined') ? drafts : []);
+        const rawProj = (typeof window.projectConfig !== 'undefined') ? window.projectConfig : ((typeof projectConfig !== 'undefined') ? projectConfig : null);
+        const rawDrfts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+          ? window.CedarStore.getAllDrafts()
+          : ((typeof window.drafts !== 'undefined' && Array.isArray(window.drafts)) ? window.drafts : ((typeof drafts !== 'undefined') ? drafts : []));
+        const proj = rawProj ? JSON.parse(JSON.stringify(rawProj)) : null;
+        const drfts = Array.isArray(rawDrfts) ? JSON.parse(JSON.stringify(rawDrfts)) : [];
         frames.forEach(frame => {
           if (frame && frame.contentWindow) {
             frame.contentWindow.postMessage({

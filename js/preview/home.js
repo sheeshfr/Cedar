@@ -1404,8 +1404,16 @@
           return true;
         });
 
+        if (!homeBlocks.some(b => b.type === 'spotlight') && designCfg.featured !== false && !rawHomeBlocks.some(b => b && b.type === 'spotlight' && b.enabled === false)) {
+          homeBlocks.push({ id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, enabled: true, config: {} });
+        }
+
         if (!homeBlocks.some(b => b.type === 'categories_shelf') && designCfg.categoryBar !== false) {
-          homeBlocks.push({ id: 'b_categories', type: 'categories_shelf', enabled: true, config: { title: 'Category' } });
+          homeBlocks.push({ id: 'b_categories', type: 'categories_shelf', x: 320, y: 320, w: 1280, h: 80, enabled: true, config: { title: 'Category' } });
+        }
+
+        if (!homeBlocks.some(b => b.type === 'post_feed') && !rawHomeBlocks.some(b => b && b.type === 'post_feed' && b.enabled === false)) {
+          homeBlocks.push({ id: 'b_feed', type: 'post_feed', x: 320, y: 400, w: 1280, h: 384, stretchWidth: false, enabled: true, config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' } });
         }
 
         // 1. Designer Hero Beacon Banner Block

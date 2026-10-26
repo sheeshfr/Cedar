@@ -3044,6 +3044,13 @@
       }
 
       const wasPublished = currentDraft.status === 'published';
+      if (!currentDraft.type) {
+        currentDraft.type = 'post';
+      }
+      if (currentDraft.type !== 'page') {
+        currentDraft.hidden = false;
+        currentDraft.retired = false;
+      }
       currentDraft.status = 'published';
       currentDraft.everPublished = true;
       currentDraft.publishedSlug = currentDraft.slug;
@@ -3123,6 +3130,12 @@
       // Save drafts to storage
       if (typeof saveDraftsToStorage === 'function') {
         await saveDraftsToStorage();
+      }
+      if (typeof window.updateAllPreviewFrames === 'function') {
+        window.updateAllPreviewFrames();
+      }
+      if (typeof window.syncLiveWorkspaceData === 'function') {
+        window.syncLiveWorkspaceData();
       }
 
       if (typeof window.updateCategorySelectUI === 'function') {

@@ -2371,15 +2371,19 @@
 
       }
 
-      if (cleanedBlocks.length === 0) {
+      if (cleanedBlocks.length === 0 || !cleanedBlocks.some(b => b && b.type !== 'masthead' && b.type !== 'footer')) {
 
         cleanedBlocks = [
 
-          { id: 'b_masthead', type: 'masthead', x: 0, relX: 0, y: 0, w: 1920, h: 64, stretchWidth: true, config: {} },
+          { id: 'b_masthead', type: 'masthead', x: 320, y: 0, w: 1280, h: 64, stretchWidth: false, config: {} },
 
-          { id: 'b_feed', type: 'post_feed', x: 320, relX: 0, y: 64, w: 1280, h: 384, stretchWidth: false, config: { title: 'Latest Publications', limit: 4, cols: 2, layoutStyle: 'vertical' } },
+          { id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, config: {} },
 
-          { id: 'b_footer', type: 'footer', x: 0, relX: 0, y: 448, w: 1920, h: 64, stretchWidth: true, config: {} }
+          { id: 'b_categories', type: 'categories_shelf', x: 320, y: 320, w: 1280, h: 80, stretchWidth: false, config: { title: 'Category' } },
+
+          { id: 'b_feed', type: 'post_feed', x: 320, y: 400, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' } },
+
+          { id: 'b_footer', type: 'footer', x: 320, y: 784, w: 1280, h: 64, stretchWidth: false, config: {} }
 
         ];
 
@@ -5464,9 +5468,59 @@ Full-text and excerpt syndication for all published articles.
 
           });
 
-          localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(slimDrafts));
+          try {
 
-          savedInLocal = true;
+            localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(slimDrafts));
+
+            savedInLocal = true;
+
+          } catch (quotaErr3) {
+
+            // Tier 3: Strip heavy base64 dataUrl payloads from images for the 5MB localStorage mirror
+            // (Full high-res images remain intact in memory, IndexedDB CedarVirtualStorage, and local disk)
+            const ultraSlimDrafts = slimDrafts.map(d => {
+
+              if (!d) return d;
+
+              const copy = { ...d };
+
+              if (Array.isArray(copy.images)) {
+
+                copy.images = copy.images.map(im => {
+
+                  if (!im || !im.dataUrl) return im;
+
+                  const imCopy = { ...im };
+
+                  delete imCopy.dataUrl;
+
+                  return imCopy;
+
+                });
+
+              }
+
+              if (typeof copy.coverImage === 'string' && copy.coverImage.startsWith('data:image/') && copy.coverImage.length > 65536) {
+
+                const matchingImg = Array.isArray(d.images) && d.images.find(im => im && im.dataUrl === copy.coverImage && im.filename);
+
+                if (matchingImg && matchingImg.filename) {
+
+                  copy.coverImage = matchingImg.relativePath || matchingImg.filename;
+
+                }
+
+              }
+
+              return copy;
+
+            });
+
+            localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(ultraSlimDrafts));
+
+            savedInLocal = true;
+
+          }
 
         }
 

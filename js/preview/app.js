@@ -569,15 +569,25 @@
     });
   }
 
-  // Storage event listener for real-time reactivity (same origin)
-  window.addEventListener('storage', () => {
+  // Storage & tab focus event listeners for real-time reactivity across tabs
+  function refreshPreviewFromWorkspace() {
     const prevScrollY = window.pageYOffset || window.scrollY || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
     loadWorkspaceData();
     applyThemeToPreview();
     maybeRenderApp();
+    if (!window.__CEDAR_PRODUCTION__ && !window.__CEDAR_STATIC_DATA__) {
+      syncWithServer();
+    }
     if (prevScrollY > 0) {
       window.scrollTo({ top: prevScrollY, behavior: 'instant' });
       requestAnimationFrame(() => window.scrollTo({ top: prevScrollY, behavior: 'instant' }));
+    }
+  }
+  window.addEventListener('storage', refreshPreviewFromWorkspace);
+  window.addEventListener('focus', refreshPreviewFromWorkspace);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshPreviewFromWorkspace();
     }
   });
 

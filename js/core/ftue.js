@@ -3083,10 +3083,40 @@
             config: {}
           },
           {
+            id: 'b_spotlight',
+            type: 'spotlight',
+            x: 320,
+            y: 64,
+            w: 1280,
+            h: 256,
+            stretchWidth: false,
+            config: {}
+          },
+          {
+            id: 'b_categories',
+            type: 'categories_shelf',
+            x: 320,
+            y: 320,
+            w: 1280,
+            h: 80,
+            stretchWidth: false,
+            config: { title: 'Category' }
+          },
+          {
+            id: 'b_feed',
+            type: 'post_feed',
+            x: 320,
+            y: 400,
+            w: 1280,
+            h: 384,
+            stretchWidth: false,
+            config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' }
+          },
+          {
             id: 'b_footer',
             type: 'footer',
             x: 320,
-            y: 704,
+            y: 784,
             w: 1280,
             h: 64,
             stretchWidth: false,
