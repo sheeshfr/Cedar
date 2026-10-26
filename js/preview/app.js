@@ -674,6 +674,13 @@
       return;
     }
 
+    if (href.startsWith('/preview.html#')) {
+      e.preventDefault();
+      const sub = href.slice('/preview.html#'.length).replace(/^\/+/, '');
+      navigateTo('#/' + sub);
+      return;
+    }
+
     if (href.startsWith('#/')) {
       e.preventDefault();
       navigateTo(href);
