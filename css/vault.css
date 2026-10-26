@@ -1580,8 +1580,9 @@
    Command Prompt / Live Publish Console Log Window
    ========================================================================== */
 .publish-terminal-wrap {
+  max-width: 520px;
   width: 100%;
-  margin-top: 1.1rem;
+  margin: 0.45rem auto 0 auto;
   text-align: left;
 }
 

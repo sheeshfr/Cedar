@@ -947,7 +947,7 @@
       const styleEl = document.createElement('style');
       styleEl.id = 'cedar-publish-terminal-styles';
       styleEl.textContent = `
-        .publish-terminal-wrap { width: 100%; margin-top: 1.1rem; text-align: left; }
+        .publish-terminal-wrap { max-width: 520px; width: 100%; margin: 0.45rem auto 0 auto; text-align: left; }
         .publish-terminal-window { background: #090d16; border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 10px; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.35); }
         .app-theme-light .publish-terminal-window { background: #0f172a; border-color: rgba(99, 102, 241, 0.35); box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18); }
         .publish-terminal-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.45rem 0.75rem; background: rgba(30, 41, 59, 0.65); border-bottom: 1px solid rgba(129, 140, 248, 0.18); }
@@ -975,35 +975,40 @@
       document.head.appendChild(styleEl);
     }
 
-    const credsPanel = document.getElementById('github-credentials-panel');
-    if (credsPanel && !document.getElementById('github-publish-terminal-wrap')) {
-      const wrap = document.createElement('div');
-      wrap.className = 'publish-terminal-wrap';
-      wrap.id = 'github-publish-terminal-wrap';
-      wrap.innerHTML = `
-        <div class="publish-terminal-window" id="github-publish-terminal">
-          <div class="publish-terminal-header">
-            <div class="publish-terminal-title-group">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-              <span class="publish-terminal-title">Publish Console</span>
-              <span class="publish-terminal-status-badge status-idle" id="github-terminal-status">Idle</span>
+    const readoutWrap = document.getElementById('publish-readout-wrap');
+    if (readoutWrap && readoutWrap.parentNode) {
+      let wrap = document.getElementById('github-publish-terminal-wrap');
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'publish-terminal-wrap';
+        wrap.id = 'github-publish-terminal-wrap';
+        wrap.innerHTML = `
+          <div class="publish-terminal-window" id="github-publish-terminal">
+            <div class="publish-terminal-header">
+              <div class="publish-terminal-title-group">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                <span class="publish-terminal-title">Publish Console</span>
+                <span class="publish-terminal-status-badge status-idle" id="github-terminal-status">Idle</span>
+              </div>
+              <div class="publish-terminal-actions">
+                <button type="button" class="publish-terminal-btn" id="btn-github-log-copy" title="Copy console log to clipboard">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span id="btn-github-log-copy-text">Copy</span>
+                </button>
+                <button type="button" class="publish-terminal-btn" id="btn-github-log-clear" title="Clear console log">
+                  <span>Clear</span>
+                </button>
+              </div>
             </div>
-            <div class="publish-terminal-actions">
-              <button type="button" class="publish-terminal-btn" id="btn-github-log-copy" title="Copy console log to clipboard">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span id="btn-github-log-copy-text">Copy</span>
-              </button>
-              <button type="button" class="publish-terminal-btn" id="btn-github-log-clear" title="Clear console log">
-                <span>Clear</span>
-              </button>
+            <div class="publish-terminal-body" id="github-publish-log-output" role="log" aria-live="polite" aria-label="GitHub publish console output">
+              <div class="publish-log-line log-dim"><span class="log-prefix">$</span> <span class="log-text">Ready. Click "Publish" or "Test Connection" to stream live output...</span></div>
             </div>
           </div>
-          <div class="publish-terminal-body" id="github-publish-log-output" role="log" aria-live="polite" aria-label="GitHub publish console output">
-            <div class="publish-log-line log-dim"><span class="log-prefix">$</span> <span class="log-text">Ready. Click "Publish" or "Test Connection" to stream live output...</span></div>
-          </div>
-        </div>
-      `;
-      credsPanel.appendChild(wrap);
+        `;
+      }
+      if (readoutWrap.nextElementSibling !== wrap) {
+        readoutWrap.insertAdjacentElement('afterend', wrap);
+      }
     }
   }
 
