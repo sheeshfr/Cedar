@@ -5414,7 +5414,19 @@
 
 .links-avatar-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  align-items: center;
+}
+
+.links-avatar-actions .btn-secondary {
+  background: var(--input-bg, var(--bg-primary, #09090b));
+  border: 1px solid var(--input-border, var(--border-color, rgba(255, 255, 255, 0.16)));
+  color: var(--text-primary, #fafafa);
+}
+
+.links-avatar-actions .btn-secondary:hover {
+  border-color: var(--accent-primary, #71717a);
+  background: var(--btn-secondary-hover-bg, var(--bg-primary, #18181b));
 }
 
 .links-profile-fields {
@@ -5434,6 +5446,32 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.dash-input,
+.links-field-input,
+.links-field-input-sm {
+  background: var(--input-bg, var(--bg-primary, #09090b));
+  border: 1px solid var(--input-border, var(--border-color, rgba(255, 255, 255, 0.14)));
+  border-radius: 8px;
+  color: var(--input-color, var(--text-primary, #fafafa));
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.dash-input::placeholder,
+.links-field-input::placeholder,
+.links-field-input-sm::placeholder {
+  color: var(--input-placeholder, #71717a);
+}
+
+.dash-input:focus,
+.links-field-input:focus,
+.links-field-input-sm:focus {
+  border-color: var(--accent-primary, #71717a);
+  box-shadow: 0 0 0 2px var(--btn-primary-glow, rgba(113, 113, 122, 0.25));
 }
 
 .links-field-input {

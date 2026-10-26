@@ -1348,16 +1348,19 @@
         backdrop.style.setProperty('background', 'rgba(235, 240, 245, 0.85)', 'important');
       }
     } else {
+      const darkInputBg = palette.c60 || '#18181b';
+      const darkBtnSecBg = palette.c60 || '#27272a';
+      const darkBtnSecHover = lightenColor(darkBtnSecBg, 10);
       root.style.setProperty('--border-color', 'rgba(255, 255, 255, 0.08)');
       root.style.setProperty('--border-subtle', 'rgba(255, 255, 255, 0.08)');
-      root.style.setProperty('--input-bg', '#18181b');
-      root.style.setProperty('--input-border', 'rgba(255, 255, 255, 0.12)');
+      root.style.setProperty('--input-bg', darkInputBg);
+      root.style.setProperty('--input-border', 'rgba(255, 255, 255, 0.14)');
       root.style.setProperty('--input-color', pTokens.textPrimary);
       root.style.setProperty('--input-prefix-color', pTokens.textMuted);
-      root.style.setProperty('--btn-secondary-bg', '#27272a');
+      root.style.setProperty('--btn-secondary-bg', darkBtnSecBg);
       root.style.setProperty('--btn-secondary-color', pTokens.textPrimary);
-      root.style.setProperty('--btn-secondary-border', 'rgba(255, 255, 255, 0.14)');
-      root.style.setProperty('--btn-secondary-hover-bg', '#3f3f46');
+      root.style.setProperty('--btn-secondary-border', 'rgba(255, 255, 255, 0.16)');
+      root.style.setProperty('--btn-secondary-hover-bg', darkBtnSecHover);
       root.style.setProperty('--panel-inner-bg', 'rgba(0, 0, 0, 0.28)');
       root.style.setProperty('--panel-inner-border', 'rgba(255, 255, 255, 0.08)');
       root.style.setProperty('--panel-row-border', 'rgba(255, 255, 255, 0.05)');
