@@ -126,7 +126,13 @@
             fc.remove();
           }
         });
-        return body.innerHTML.trim();
+        body.querySelectorAll('code:not(pre code), span.cedar-custom-color').forEach(el => {
+          const visible = (el.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+          if (!visible && !el.querySelector('img, br')) {
+            el.remove();
+          }
+        });
+        return body.innerHTML.replace(/\u200B/g, '').trim();
       }
     } catch (e) {
       console.warn('cleanProseHtmlForStorage error:', e);

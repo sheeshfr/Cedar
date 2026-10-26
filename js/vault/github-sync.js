@@ -93,6 +93,13 @@
     const parsed = parseGitHubRepoInput(repo);
     const cleanRepo = parsed.repo;
     const effBranch = parsed.branch || (branch || 'main').trim();
+    const prevRepo = localStorage.getItem(STORAGE_KEYS.REPO) || '';
+    const prevBranch = localStorage.getItem(STORAGE_KEYS.BRANCH) || 'main';
+    if (prevRepo && (prevRepo !== cleanRepo || prevBranch !== effBranch)) {
+      localStorage.removeItem(STORAGE_KEYS.LAST_SHA);
+      localStorage.removeItem(STORAGE_KEYS.LAST_REV);
+      localStorage.removeItem(STORAGE_KEYS.LAST_TIME);
+    }
     localStorage.setItem(STORAGE_KEYS.REPO, cleanRepo);
     localStorage.setItem(STORAGE_KEYS.TOKEN, (token || '').trim());
     localStorage.setItem(STORAGE_KEYS.BRANCH, effBranch);
@@ -423,14 +430,34 @@
       }
       const headSha = branchRef.object.sha;
       const lastSyncedSha = localStorage.getItem(STORAGE_KEYS.LAST_SHA);
+      let baseRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
 
-      // Collision Check: If remote head does not match last synced SHA, warn user!
+      // Collision Check: Only warn if a DIFFERENT Cedar device pushed a newer revision since our last sync
       if (!isForce && lastSyncedSha && headSha !== lastSyncedSha) {
         const remoteStatus = await getRemoteStatus();
-        const proceed = await showConflictModal(remoteStatus);
-        if (!proceed) {
-          if (typeof window.showToast === 'function') window.showToast('Push cancelled.');
-          return false;
+        if (remoteStatus && remoteStatus.revision > baseRev) {
+          baseRev = remoteStatus.revision;
+        }
+        const isDifferentDevice = Boolean(
+          remoteStatus &&
+          remoteStatus.revision > 0 &&
+          remoteStatus.device &&
+          remoteStatus.device !== 'GitHub' &&
+          remoteStatus.device !== getDeviceName()
+        );
+        const localRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
+        if (isDifferentDevice && remoteStatus.revision > localRev) {
+          const proceed = await showConflictModal(remoteStatus);
+          if (!proceed) {
+            if (typeof window.showToast === 'function') window.showToast('Push cancelled.');
+            return false;
+          }
+        } else {
+          // Self-heal stale local SHA/revision (e.g. from same device or previous recovered push)
+          localStorage.setItem(STORAGE_KEYS.LAST_SHA, headSha);
+          if (baseRev > localRev) {
+            localStorage.setItem(STORAGE_KEYS.LAST_REV, String(baseRev));
+          }
         }
       }
 
@@ -442,7 +469,7 @@
 
       // 2. Prepare file manifest (Complete 1:1 Production Static Site)
       const treeEntries = [];
-      const currentRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10) + 1;
+      const currentRev = baseRev + 1;
       const syncMeta = {
         revision: currentRev,
         lastSavedAt: new Date().toISOString(),
@@ -683,7 +710,28 @@
       if (!remote) return;
 
       const localSha = localStorage.getItem(STORAGE_KEYS.LAST_SHA);
-      const isOutdated = localSha && remote.headSha && localSha !== remote.headSha;
+      const localRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
+      const isDifferentDevice = Boolean(
+        remote.revision > 0 &&
+        remote.device &&
+        remote.device !== 'GitHub' &&
+        remote.device !== getDeviceName()
+      );
+      const isOutdated = Boolean(
+        localSha &&
+        remote.headSha &&
+        localSha !== remote.headSha &&
+        isDifferentDevice &&
+        remote.revision > localRev
+      );
+
+      if (localSha && remote.headSha && localSha !== remote.headSha && !isOutdated) {
+        // Self-heal stale local SHA if remote commit came from this same device
+        localStorage.setItem(STORAGE_KEYS.LAST_SHA, remote.headSha);
+        if (remote.revision > localRev) {
+          localStorage.setItem(STORAGE_KEYS.LAST_REV, String(remote.revision));
+        }
+      }
 
       const pill = document.getElementById('github-freshness-pill');
       if (pill) {
@@ -1169,6 +1217,13 @@
         const parsed = parseGitHubRepoInput(rawRepo);
         const cleanRepo = parsed.repo || rawRepo;
         const effBranch = parsed.branch || localStorage.getItem(STORAGE_KEYS.BRANCH) || 'main';
+        const prevRepo = localStorage.getItem(STORAGE_KEYS.REPO) || '';
+        const prevBranch = localStorage.getItem(STORAGE_KEYS.BRANCH) || 'main';
+        if (prevRepo && (prevRepo !== cleanRepo || prevBranch !== effBranch)) {
+          localStorage.removeItem(STORAGE_KEYS.LAST_SHA);
+          localStorage.removeItem(STORAGE_KEYS.LAST_REV);
+          localStorage.removeItem(STORAGE_KEYS.LAST_TIME);
+        }
 
         localStorage.setItem(STORAGE_KEYS.REPO, cleanRepo);
         localStorage.setItem(STORAGE_KEYS.TOKEN, rawToken);

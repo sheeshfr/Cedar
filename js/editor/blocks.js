@@ -1679,13 +1679,92 @@
           break;
         }
 
-        // Otherwise (h1, h2, h3, h4, pre, etc.), convert to standard P
+        // If it's a UL or OL list, convert each LI item to a paragraph preserving inline HTML
+        if (block.tagName === 'UL' || block.tagName === 'OL') {
+          const lis = Array.from(block.querySelectorAll('li'));
+          const frag = document.createDocumentFragment();
+          let firstP = null;
+          if (lis.length > 0) {
+            lis.forEach(li => {
+              const newP = document.createElement('p');
+              if (li.style && li.style.textAlign) newP.style.textAlign = li.style.textAlign;
+              else if (block.style && block.style.textAlign) newP.style.textAlign = block.style.textAlign;
+              newP.innerHTML = li.innerHTML.trim() ? li.innerHTML : '<br>';
+              frag.appendChild(newP);
+              if (!firstP) firstP = newP;
+            });
+          } else {
+            const newP = document.createElement('p');
+            newP.innerHTML = '<br>';
+            frag.appendChild(newP);
+            firstP = newP;
+          }
+          block.parentNode.replaceChild(frag, block);
+          if (firstP && typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(firstP, false);
+          break;
+        }
+
+        // Otherwise (h1, h2, h3, h4, pre, etc.), convert to standard P preserving inline HTML for headings
         if (block.tagName !== 'P') {
+          const newP = document.createElement('p');
+          if (block.style && block.style.textAlign) newP.style.textAlign = block.style.textAlign;
+          if (block.getAttribute('align')) newP.setAttribute('align', block.getAttribute('align'));
+          if (/^H[1-6]$/.test(block.tagName)) {
+            newP.innerHTML = block.innerHTML.trim() ? block.innerHTML : '<br>';
+          } else {
+            newP.innerHTML = rawText ? (typeof escapeHtml === 'function' ? escapeHtml(rawText) : rawText) : '<br>';
+          }
+          block.parentNode.replaceChild(newP, block);
+          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
+        }
+        break;
+      }
+
+      case 'h2':
+      case 'h3':
+      case 'h4': {
+        const targetTag = targetType.toUpperCase();
+        if (block.tagName === targetTag) {
+          const newP = document.createElement('p');
+          if (block.style && block.style.textAlign) newP.style.textAlign = block.style.textAlign;
+          if (block.getAttribute('align')) newP.setAttribute('align', block.getAttribute('align'));
+          newP.innerHTML = block.innerHTML.trim() ? block.innerHTML : '<br>';
+          block.parentNode.replaceChild(newP, block);
+          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
+          break;
+        }
+        const headingEl = document.createElement(targetType);
+        if (block.style && block.style.textAlign) headingEl.style.textAlign = block.style.textAlign;
+        if (block.getAttribute('align')) headingEl.setAttribute('align', block.getAttribute('align'));
+        if (block.tagName === 'P' || /^H[1-6]$/.test(block.tagName)) {
+          headingEl.innerHTML = block.innerHTML.trim() ? block.innerHTML : '<br>';
+        } else {
+          headingEl.innerHTML = rawText ? (typeof escapeHtml === 'function' ? escapeHtml(rawText) : rawText) : '<br>';
+        }
+        block.parentNode.replaceChild(headingEl, block);
+        if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(headingEl);
+        break;
+      }
+
+      case 'codeblock':
+      case 'pre': {
+        if (block.tagName === 'PRE') {
           const newP = document.createElement('p');
           newP.innerHTML = rawText ? (typeof escapeHtml === 'function' ? escapeHtml(rawText) : rawText) : '<br>';
           block.parentNode.replaceChild(newP, block);
           if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
+          break;
         }
+        const newPre = document.createElement('pre');
+        const newCode = document.createElement('code');
+        if (rawText) {
+          newCode.textContent = rawText;
+        } else {
+          newCode.innerHTML = '<br>';
+        }
+        newPre.appendChild(newCode);
+        block.parentNode.replaceChild(newPre, block);
+        if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newCode);
         break;
       }
 

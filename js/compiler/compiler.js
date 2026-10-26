@@ -520,28 +520,31 @@
           case 'h1':
           case 'h2': {
             const hAlign = getAlignment(node);
+            const hText = inlineDomToMarkdown(node).trim();
             if (hAlign && (hAlign === 'center' || hAlign === 'right')) {
-              output += `\n\n<h2 align="${hAlign}">${node.textContent.trim()}</h2>\n\n`;
+              output += `\n\n<h2 align="${hAlign}">${hText}</h2>\n\n`;
             } else {
-              output += `\n\n## ${node.textContent.trim()}\n\n`;
+              output += `\n\n## ${hText}\n\n`;
             }
             break;
           }
           case 'h3': {
             const hAlign = getAlignment(node);
+            const hText = inlineDomToMarkdown(node).trim();
             if (hAlign && (hAlign === 'center' || hAlign === 'right')) {
-              output += `\n\n<h3 align="${hAlign}">${node.textContent.trim()}</h3>\n\n`;
+              output += `\n\n<h3 align="${hAlign}">${hText}</h3>\n\n`;
             } else {
-              output += `\n\n### ${node.textContent.trim()}\n\n`;
+              output += `\n\n### ${hText}\n\n`;
             }
             break;
           }
           case 'h4': {
             const hAlign = getAlignment(node);
+            const hText = inlineDomToMarkdown(node).trim();
             if (hAlign && (hAlign === 'center' || hAlign === 'right')) {
-              output += `\n\n<h4 align="${hAlign}">${node.textContent.trim()}</h4>\n\n`;
+              output += `\n\n<h4 align="${hAlign}">${hText}</h4>\n\n`;
             } else {
-              output += `\n\n#### ${node.textContent.trim()}\n\n`;
+              output += `\n\n#### ${hText}\n\n`;
             }
             break;
           }
@@ -559,7 +562,7 @@
             break;
           }
           case 'blockquote':
-            output += `\n\n> ${node.textContent.trim()}\n\n`;
+            output += `\n\n> ${inlineDomToMarkdown(node).trim()}\n\n`;
             break;
           case 'ul':
             node.querySelectorAll('li').forEach(li => {
@@ -574,7 +577,7 @@
             output += '\n\n';
             break;
           case 'pre':
-            output += `\n\n\`\`\`\n${node.textContent.trim()}\n\`\`\`\n\n`;
+            output += `\n\n\`\`\`\n${node.textContent.replace(/\u200B/g, '').trim()}\n\`\`\`\n\n`;
             break;
           case 'hr':
             output += `\n\n---\n\n`;
@@ -598,7 +601,7 @@
     let out = '';
     node.childNodes.forEach(child => {
       if (child.nodeType === Node.TEXT_NODE) {
-        out += child.textContent;
+        out += (child.textContent || '').replace(/\u200B/g, '');
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         if (child.classList && (child.classList.contains('article-share-block') || child.classList.contains('btn-share-article') || child.dataset?.blockType === 'share')) {
           out += '\n\n:::share:::\n\n';
@@ -613,22 +616,36 @@
         switch (tag) {
           case 'strong':
           case 'b':
-            out += `**${inner}**`;
+            out += inner ? `**${inner}**` : '';
             break;
           case 'em':
           case 'i':
-            out += `*${inner}*`;
+            out += inner ? `*${inner}*` : '';
             break;
           case 'a':
             out += `[${inner}](${child.getAttribute('href') || '#'})`;
             break;
           case 'code':
-            out += `\`${inner}\``;
+            out += inner ? `\`${inner}\`` : '';
             break;
           case 'del':
           case 's':
-            out += `~~${inner}~~`;
+          case 'strike':
+            out += inner ? `~~${inner}~~` : '';
             break;
+          case 'span': {
+            if (child.classList && child.classList.contains('cedar-custom-color')) {
+              const customColor = (child.getAttribute('data-custom-color') || child.style?.color || '').trim();
+              if (customColor && inner) {
+                out += `<span class="cedar-custom-color" data-custom-color="${customColor}" style="color: ${customColor};">${inner}</span>`;
+              } else {
+                out += inner;
+              }
+            } else {
+              out += inner;
+            }
+            break;
+          }
           case 'img':
             const rawInAlt = child.getAttribute('alt') || 'Image';
             const rawInSrc = child.dataset.originalSrc || child.getAttribute('src') || '';
@@ -1991,12 +2008,12 @@
 
     .article-prose strong, .article-prose b {
       font-weight: 700;
-      color: var(--text-primary);
+      color: inherit;
     }
 
     .article-prose em, .article-prose i {
       font-style: italic;
-      color: var(--text-secondary, inherit);
+      color: inherit;
     }
 
     .article-prose a:not(.post-card):not(.post-card-link) {
@@ -2010,16 +2027,19 @@
       color: var(--accent-rose);
     }
 
-    .article-prose :not(pre) > code {
+    .article-prose code:not(pre code) {
       font-family: var(--font-mono);
+      font-variant-ligatures: none;
+      font-feature-settings: "liga" 0, "calt" 0;
       font-size: 0.88em;
-      background: var(--category-chip-bg);
-      padding: 0.15rem 0.4rem;
+      background: var(--category-chip-bg, rgba(128, 128, 128, 0.16));
+      padding: 0.12rem 0.36rem;
       border-radius: 4px;
-      color: var(--accent-rose);
+      border: none;
+      color: inherit;
       overflow-wrap: break-word;
       word-break: normal;
-      white-space: break-spaces;
+      white-space: pre-wrap;
     }
 
     .article-prose pre {
