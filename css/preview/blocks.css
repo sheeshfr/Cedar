@@ -576,7 +576,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 0.85rem;
+      margin-bottom: 1.65rem;
       border-bottom: 1px solid var(--border-card, rgba(255, 255, 255, 0.08));
       padding-bottom: 0.5rem;
       width: 100%;
@@ -587,7 +587,7 @@
       height: 0 !important;
       min-height: 0 !important;
       padding: 0 !important;
-      margin: 0 0 1.25rem 0 !important;
+      margin: 0 0 1.65rem 0 !important;
       border-bottom: 1px solid var(--border-card, rgba(255, 255, 255, 0.08)) !important;
       border-top: none !important;
       border-left: none !important;
@@ -1746,7 +1746,7 @@
         display: flex !important;
         flex-wrap: wrap !important;
         justify-content: center !important;
-        margin-bottom: 0.75rem !important;
+        margin-bottom: 1.4rem !important;
       }
       .feed-header-categories {
         width: 100% !important;
