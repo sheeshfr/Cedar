@@ -433,20 +433,32 @@
     // Purge any phantom posts in window.drafts that share a slug with a category,
     // and purge any accidental auto-generated category pages with built-in slugs like 'rss' or 'about'
     const categorySlugs = new Set([...categorySet].map(c => (typeof window.generateSlug === 'function' ? window.generateSlug(c) : c.toLowerCase().replace(/[^a-z0-9]+/g, '-'))));
-    categorySlugs.add('corn-ribs');
     const preCount = window.drafts.length;
     window.drafts = window.drafts.filter(d => {
       if (d && d.type === 'post' && d.slug && categorySlugs.has(d.slug.toLowerCase())) {
+        if (window.CedarStore && d.id && typeof window.CedarStore.removePost === 'function') {
+          window.CedarStore.removePost(d.id);
+        }
         return false;
       }
       if (d && (d.isCategoryAggregate || String(d.id).startsWith('page_cat_'))) {
         const s = (d.slug || '').trim().toLowerCase();
         const t = (d.title || '').trim().toLowerCase();
         const catStr = (d.categoryAggregate || d.title || '').trim().toLowerCase();
-        if (forbiddenPageNames.has(s) || forbiddenPageNames.has(t) || s.startsWith('testcategory') || t.startsWith('testcategory') || catStr.startsWith('testcategory')) return false;
+        if (forbiddenPageNames.has(s) || forbiddenPageNames.has(t) || s.startsWith('testcategory') || t.startsWith('testcategory') || catStr.startsWith('testcategory')) {
+          if (window.CedarStore && d.id && typeof window.CedarStore.removePage === 'function') {
+            window.CedarStore.removePage(d.id);
+          }
+          return false;
+        }
         // Purge orphan category pages whose category is no longer in categorySet
         const match = [...categorySet].some(validCat => validCat.toLowerCase() === catStr || validCat.toLowerCase() === t);
-        if (!match) return false;
+        if (!match) {
+          if (window.CedarStore && d.id && typeof window.CedarStore.removePage === 'function') {
+            window.CedarStore.removePage(d.id);
+          }
+          return false;
+        }
       }
       return true;
     });
@@ -487,6 +499,9 @@
           updatedAt: Date.now()
         };
         window.drafts.push(newPage);
+        if (window.CedarStore && typeof window.CedarStore.upsertPage === 'function') {
+          window.CedarStore.upsertPage(newPage);
+        }
         changed = true;
       } else {
         if (existing.title !== catName) {

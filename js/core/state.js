@@ -2136,7 +2136,7 @@
 
       // Never allow "Uncategorized" or "Posts" in projectConfig.categories
 
-      projectConfig.categories = projectConfig.categories.filter(c => c && c.trim().toLowerCase() !== 'uncategorized' && c.trim().toLowerCase() !== 'posts' && c.trim().toLowerCase() !== 'interviews' && c.trim().toLowerCase() !== 'interview');
+      projectConfig.categories = projectConfig.categories.filter(c => c && c.trim().toLowerCase() !== 'uncategorized' && c.trim().toLowerCase() !== 'posts');
 
       if (projectConfig.defaultCategory && projectConfig.defaultCategory.trim().toLowerCase() === 'posts') {
 
@@ -4546,9 +4546,7 @@ Full-text and excerpt syndication for all published articles.
         'page_test_static_1',
         'page_test_static_2',
         'page_1792817789185_l3h0i0',
-        'page_1792843130092_qn15eo',
-        'page_faq',
-        'page_custom_faq'
+        'page_1792843130092_qn15eo'
       ]);
       try {
         const raw = localStorage.getItem('cedar_deleted_draft_ids');
@@ -4582,13 +4580,11 @@ Full-text and excerpt syndication for all published articles.
       const dSlugLower = String(d.slug || '').trim().toLowerCase();
       const dTitleLower = String(d.title || '').trim().toLowerCase();
       return (
-        dIdLower === 'page_faq' || dIdLower === 'page_custom_faq' || dIdLower === 'page_cat_tech' || dIdLower === 'page_cat_interviews' ||
         dIdLower === 'page_test_static_1' || dIdLower === 'page_test_static_2' ||
         dIdLower === 'page_1792817789185_l3h0i0' || dIdLower === 'page_1792843130092_qn15eo' ||
         dIdLower === 'page_1792812981050_lb72ka' ||
-        dSlugLower === 'faq' || dSlugLower === 'alpha-static' || dSlugLower === 'beta-static-newer' || dSlugLower === 'maybe-i-have' || dSlugLower === 'my-brand-new-project' ||
-        dTitleLower === 'faq' || dTitleLower === 'alpha static' || dTitleLower === 'beta static newer' || dTitleLower === 'my brand new project' || dTitleLower === 'maybe i have' ||
-        (Boolean(d.isCategoryAggregate) && (dSlugLower === 'tech' || dSlugLower === 'interviews'))
+        dSlugLower === 'alpha-static' || dSlugLower === 'beta-static-newer' || dSlugLower === 'maybe-i-have' || dSlugLower === 'my-brand-new-project' ||
+        dTitleLower === 'alpha static' || dTitleLower === 'beta static newer' || dTitleLower === 'my brand new project' || dTitleLower === 'maybe i have'
       );
     },
 

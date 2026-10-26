@@ -345,7 +345,7 @@
           if (item.type === 'designer') return false;
           if (item.type === 'category' && (item.data?.action === 'reordered' || item.action === 'reordered')) return false;
           const s = JSON.stringify(item).toLowerCase();
-          if (s.includes('astrid') || s.includes('page_faq') || s.includes('"faq"') || s.includes('page_cat_tech')) return false;
+          if (s.includes('astrid')) return false;
           if (item.type === 'post') {
             const postData = item.data || {};
             const postId = postData.id || item.id;
@@ -361,11 +361,10 @@
             if (
               pageId === 'page_about_cedar' || pageId === 'synth-page-page_about_cedar' || pageId === 'act-page-page_about_cedar' ||
               pageSlug === 'about-cedar' || pageTitle === 'about cedar' ||
-              pageId === 'page_faq' || pageId === 'page_custom_faq' || pageId === 'page_cat_tech' ||
               pageId === 'page_test_static_1' || pageId === 'page_test_static_2' ||
               pageId === 'page_1792817789185_l3h0i0' || pageId === 'page_1792843130092_qn15eo' || pageId === 'page_1792812981050_lb72ka' ||
-              pageSlug === 'faq' || pageSlug === 'alpha-static' || pageSlug === 'beta-static-newer' || pageSlug === 'maybe-i-have' ||
-              pageTitle === 'faq' || pageTitle === 'alpha static' || pageTitle === 'beta static newer' || pageTitle === 'my brand new project' || pageTitle === 'maybe i have'
+              pageSlug === 'alpha-static' || pageSlug === 'beta-static-newer' || pageSlug === 'maybe-i-have' ||
+              pageTitle === 'alpha static' || pageTitle === 'beta static newer' || pageTitle === 'my brand new project' || pageTitle === 'maybe i have'
             ) return false;
             const liveDraft = currentDrafts.find(d => d && (d.id === pageId || (pageSlug && d.slug === pageSlug)));
             if (!liveDraft) return false;
@@ -471,7 +470,7 @@
       // 3. Existing Pages (User rule: on feed, only show 'created the category' not the page for the category)
       const feedProjCats = new Set((getProjectConfig().categories || []).map(c => String(c).trim().toLowerCase()));
       if (window.CedarStore && typeof window.CedarStore.remove === 'function') {
-        ['page_test_static_1', 'page_test_static_2', 'page_1792817789185_l3h0i0', 'page_1792843130092_qn15eo', 'page_1792812981050_lb72ka', 'page_faq', 'page_custom_faq'].forEach(testId => {
+        ['page_test_static_1', 'page_test_static_2', 'page_1792817789185_l3h0i0', 'page_1792843130092_qn15eo', 'page_1792812981050_lb72ka'].forEach(testId => {
           if (window.CedarStore.get(testId)) {
             window.CedarStore.remove(testId);
             if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
@@ -484,11 +483,10 @@
         if (d.id === 'page_about_cedar' || d.slug === 'about-cedar') return false;
         const titleLower = (d.title || '').trim().toLowerCase();
         if (
-          d.id === 'page_faq' || d.id === 'page_custom_faq' || d.id === 'page_cat_tech' ||
           d.id === 'page_test_static_1' || d.id === 'page_test_static_2' ||
           d.id === 'page_1792817789185_l3h0i0' || d.id === 'page_1792843130092_qn15eo' || d.id === 'page_1792812981050_lb72ka' ||
-          d.slug === 'faq' || d.slug === 'alpha-static' || d.slug === 'beta-static-newer' || d.slug === 'maybe-i-have' ||
-          titleLower === 'faq' || titleLower === 'alpha static' || titleLower === 'beta static newer' || titleLower === 'my brand new project' || titleLower === 'maybe i have'
+          d.slug === 'alpha-static' || d.slug === 'beta-static-newer' || d.slug === 'maybe-i-have' ||
+          titleLower === 'alpha static' || titleLower === 'beta static newer' || titleLower === 'my brand new project' || titleLower === 'maybe i have'
         ) return false;
         if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) return false;
         const catLower = (d.categoryAggregate || '').trim().toLowerCase();
@@ -825,16 +823,11 @@
       }
     }
 
-    // Purge any category entries in log whose category no longer exists (including test-seeded 'Interviews')
+    // Purge any category entries in log whose category no longer exists
     for (let i = log.length - 1; i >= 0; i--) {
       const e = log[i];
       if (e && e.type === 'category') {
         const cName = String(e.data?.categoryName || e.data?.category || '').trim().toLowerCase();
-        if (cName === 'interviews' || cName === 'interview') {
-          log.splice(i, 1);
-          addedCount++;
-          continue;
-        }
         const stillExists = projCats.some(c => String(c).trim().toLowerCase() === cName) ||
                             allDraftsList.some(d => d && (
                               (d.type === 'page' && (d.title || '').trim().toLowerCase() === cName) ||
@@ -2384,11 +2377,10 @@
         isCatDraft || isCatPageId || isCatByName ||
         page.id === 'page_about_cedar' || page.slug === 'about-cedar' || titleLowerCheck === 'about cedar' ||
         (entry.id && (entry.id === 'synth-page-page_about_cedar' || String(entry.id).includes('about_cedar') || String(entry.id).includes('about-cedar'))) ||
-        page.id === 'page_faq' || page.id === 'page_custom_faq' || page.id === 'page_cat_tech' ||
         page.id === 'page_test_static_1' || page.id === 'page_test_static_2' ||
         page.id === 'page_1792817789185_l3h0i0' || page.id === 'page_1792843130092_qn15eo' || page.id === 'page_1792812981050_lb72ka' ||
-        page.slug === 'faq' || page.slug === 'alpha-static' || page.slug === 'beta-static-newer' || page.slug === 'maybe-i-have' ||
-        titleLowerCheck === 'faq' || titleLowerCheck === 'alpha static' || titleLowerCheck === 'beta static newer' || titleLowerCheck === 'my brand new project' || titleLowerCheck === 'maybe i have'
+        page.slug === 'alpha-static' || page.slug === 'beta-static-newer' || page.slug === 'maybe-i-have' ||
+        titleLowerCheck === 'alpha static' || titleLowerCheck === 'beta static newer' || titleLowerCheck === 'my brand new project' || titleLowerCheck === 'maybe i have'
       ) {
         return null;
       }

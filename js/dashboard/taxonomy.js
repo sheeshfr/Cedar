@@ -112,15 +112,35 @@
         const matchId = (d.id && d.id === `page_cat_${oldSlug}`);
 
         if (matchTitle || matchAggregate || matchId) {
+          const prevId = d.id;
           d.title = newTrimmed;
           d.slug = newSlug;
           d.categoryAggregate = newTrimmed;
           d.id = `page_cat_${newSlug}`;
           d.updatedAt = Date.now();
+          if (window.CedarStore) {
+            if (prevId && prevId !== d.id && typeof window.CedarStore.removePage === 'function') {
+              window.CedarStore.removePage(prevId);
+            }
+            if (typeof window.CedarStore.upsertPage === 'function') {
+              window.CedarStore.upsertPage(d);
+            }
+          }
           pageToUpdate = d;
           draftsChanged = true;
         }
       });
+
+      if (Array.isArray(projectConfig.pagesCustomOrder)) {
+        projectConfig.pagesCustomOrder = projectConfig.pagesCustomOrder.map(id => {
+          const low = String(id || '').trim().toLowerCase();
+          if (low === `page_cat_${oldSlug}` || low === oldSlug || low === oldTrimmed.toLowerCase()) {
+            return `page_cat_${newSlug}`;
+          }
+          return id;
+        });
+        saveProjectToStorage();
+      }
 
       // Also sync current active draft if loaded in editor
       if (window.currentDraft && !window.currentDraft.type) {
