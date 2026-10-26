@@ -463,12 +463,66 @@
 
       if (typeof window.showToast === 'function') window.showToast('Packaging atomic commit for Cloudflare...');
 
-      // Get base commit tree
+      // Get base commit tree & existing recursive remote tree for SHA-1 delta diffing
       const baseCommit = await apiRequest(`/repos/${repo}/git/commits/${headSha}`);
       const baseTreeSha = baseCommit.tree.sha;
 
-      // 2. Prepare file manifest (Complete 1:1 Production Static Site)
+      let remoteTreeItems = [];
+      const remotePathToSha = new Map();
+      const knownRemoteBlobShas = new Set();
+      try {
+        const remoteTreeRes = await apiRequest(`/repos/${repo}/git/trees/${headSha}?recursive=1`);
+        if (remoteTreeRes && Array.isArray(remoteTreeRes.tree)) {
+          remoteTreeItems = remoteTreeRes.tree;
+          for (const item of remoteTreeItems) {
+            if (item && item.type === 'blob' && item.path && item.sha) {
+              remotePathToSha.set(item.path, item.sha);
+              knownRemoteBlobShas.add(item.sha);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[GitHubSync] Could not fetch remote tree for delta diffing / orphan pruning:', e);
+      }
+
+      // Compute Git's exact blob SHA-1: SHA1("blob " + byteLength + "\0" + rawBytes)
+      const textEncoder = new TextEncoder();
+      const computeGitBlobSha = async (data) => {
+        try {
+          if (typeof crypto === 'undefined' || !crypto.subtle || typeof crypto.subtle.digest !== 'function') {
+            return null;
+          }
+          let contentBytes;
+          if (typeof data === 'string') {
+            contentBytes = textEncoder.encode(data);
+          } else if (data instanceof Blob) {
+            contentBytes = new Uint8Array(await data.arrayBuffer());
+          } else if (data instanceof ArrayBuffer) {
+            contentBytes = new Uint8Array(data);
+          } else if (ArrayBuffer.isView(data)) {
+            contentBytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+          } else {
+            return null;
+          }
+          const headerBytes = textEncoder.encode(`blob ${contentBytes.byteLength}\0`);
+          const combined = new Uint8Array(headerBytes.byteLength + contentBytes.byteLength);
+          combined.set(headerBytes, 0);
+          combined.set(contentBytes, headerBytes.byteLength);
+          const hashBuffer = await crypto.subtle.digest('SHA-1', combined);
+          const hashArray = new Uint8Array(hashBuffer);
+          let hex = '';
+          for (let i = 0; i < hashArray.length; i++) {
+            hex += hashArray[i].toString(16).padStart(2, '0');
+          }
+          return hex;
+        } catch (err) {
+          return null;
+        }
+      };
+
+      // 2. Prepare file manifest (Incremental Delta against base_tree)
       const treeEntries = [];
+      const activePaths = new Set(['sync.json']);
       const currentRev = baseRev + 1;
       const syncMeta = {
         revision: currentRev,
@@ -494,18 +548,43 @@
         reader.readAsDataURL(blob);
       });
 
+      let uploadedCount = 0;
+      let skippedCount = 0;
+
       if (typeof window.buildProductionSiteFiles === 'function') {
         const prodFiles = await window.buildProductionSiteFiles({ includeEngineAssets: true });
         for (const f of prodFiles) {
           if (!f || !f.name || f.data === undefined || f.data === null) continue;
           const cleanPath = String(f.name).replace(/^\/+/, '');
-          if (typeof f.data === 'string') {
+          activePaths.add(cleanPath);
+
+          const localSha = await computeGitBlobSha(f.data);
+
+          // Skip completely if file at this path is already byte-for-byte identical in base_tree
+          if (localSha && remotePathToSha.get(cleanPath) === localSha) {
+            skippedCount++;
+            continue;
+          }
+
+          // Reuse existing blob SHA if an identical blob already exists in the repo or was uploaded earlier in this push
+          if (localSha && knownRemoteBlobShas.has(localSha)) {
+            treeEntries.push({
+              path: cleanPath,
+              mode: '100644',
+              type: 'blob',
+              sha: localSha
+            });
+            continue;
+          }
+
+          if (typeof f.data === 'string' && f.data.length < 250000) {
             treeEntries.push({
               path: cleanPath,
               mode: '100644',
               type: 'blob',
               content: f.data
             });
+            uploadedCount++;
           } else {
             const blobObj = (f.data instanceof Blob) ? f.data : new Blob([f.data]);
             const b64 = await blobToBase64(blobObj);
@@ -517,29 +596,21 @@
               }
             });
             if (blobRes && blobRes.sha) {
+              knownRemoteBlobShas.add(blobRes.sha);
+              if (localSha) knownRemoteBlobShas.add(localSha);
               treeEntries.push({
                 path: cleanPath,
                 mode: '100644',
                 type: 'blob',
                 sha: blobRes.sha
               });
+              uploadedCount++;
             }
           }
         }
       }
 
       // 2.5 Orphan Pruning: Delete any remote files on GitHub that are not in active manifest
-      let remoteTreeItems = [];
-      try {
-        const remoteTreeRes = await apiRequest(`/repos/${repo}/git/trees/${headSha}?recursive=1`);
-        if (remoteTreeRes && Array.isArray(remoteTreeRes.tree)) {
-          remoteTreeItems = remoteTreeRes.tree;
-        }
-      } catch (e) {
-        console.warn('[GitHubSync] Could not fetch remote tree for orphan pruning:', e);
-      }
-
-      const activePaths = new Set(treeEntries.map(e => e.path));
       for (const remoteItem of remoteTreeItems) {
         if (remoteItem.type === 'blob' && !activePaths.has(remoteItem.path)) {
           treeEntries.push({
@@ -550,6 +621,8 @@
           });
         }
       }
+
+      console.info(`[GitHubSync] Delta publish: ${uploadedCount} changed/new files uploaded, ${skippedCount} unchanged files skipped.`);
 
       // 3. Post Git Tree
       const treeRes = await apiRequest(`/repos/${repo}/git/trees`, {

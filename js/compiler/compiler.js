@@ -713,8 +713,9 @@
   // STATIC POST COMPILERS & EXPORT SNIPPETS
   // =========================================================================
 
-  function prepareProseForPublish(html, draft) {
+  function prepareProseForPublish(html, draft, options = {}) {
     if (!html) return '';
+    const preferStaticPaths = Boolean(options && options.preferStaticPaths);
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(`<body>${html}</body>`, 'text/html');
@@ -784,11 +785,36 @@
         }
       });
 
-      // 4. Resolve image URLs against imageRegistry or resolvePostImage if available
+      // 4. Resolve image URLs against static paths (for production site build) or imageRegistry / resolvePostImage
       body.querySelectorAll('img').forEach(img => {
         const src = img.getAttribute('src') || '';
         const orig = img.dataset.originalSrc || '';
         const imgName = (img.dataset.imgName && img.dataset.imgName !== 'img') ? img.dataset.imgName : '';
+
+        if (preferStaticPaths) {
+          if (orig && (orig.startsWith('data:') || orig.startsWith('blob:'))) {
+            img.removeAttribute('data-original-src');
+          }
+          const draftImgs = Array.isArray(draft && draft.images) ? draft.images : [];
+          const candidateRef = imgName || ((!orig.startsWith('data:') && !orig.startsWith('blob:')) ? orig : '') || ((!src.startsWith('data:') && !src.startsWith('blob:')) ? src : '');
+          const cleanCandidate = candidateRef ? candidateRef.split('?')[0].split('#')[0].split('/').pop().split('\\').pop() : '';
+          if (cleanCandidate && draftImgs.length > 0) {
+            const matched = draftImgs.find(im => {
+              if (!im) return false;
+              const fn = (im.filename || im.name || '').trim();
+              const rel = (im.relativePath || '').trim();
+              return (fn && fn === cleanCandidate) || (rel && (rel === candidateRef || rel.endsWith('/' + cleanCandidate)));
+            });
+            if (matched && matched.relativePath) {
+              img.setAttribute('src', matched.relativePath);
+              return;
+            }
+          }
+          if (src && !src.startsWith('data:') && !src.startsWith('blob:')) {
+            return;
+          }
+        }
+
         if (typeof imageRegistry !== 'undefined' && imageRegistry) {
           if (src && imageRegistry.has(src)) {
             img.src = imageRegistry.get(src).dataUrl;
@@ -805,7 +831,7 @@
           const ref = (orig && !orig.startsWith('blob:')) ? orig : (imgName || src);
           if (ref) {
             const resolved = window.resolvePostImage(ref, draft);
-            if (resolved && (resolved.startsWith('data:') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved))) {
+            if (resolved && (resolved.startsWith('data:') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved) || (preferStaticPaths && resolved.startsWith('/')))) {
               img.src = resolved;
             }
           }
@@ -851,7 +877,8 @@
   }
 
   // 0.9. Dedicated Linktree / Links Page Standalone HTML Renderer
-  function generateLinktreeHtmlForCompile(draft, config) {
+  function generateLinktreeHtmlForCompile(draft, config, options = {}) {
+    const preferStaticPaths = Boolean(options && options.preferStaticPaths);
     const pCfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {})) || {};
     let data = draft.linksData || pCfg.linksData;
     if (!data && typeof createDefaultLinksPage === 'function') {
@@ -914,7 +941,7 @@
       }
     }
 
-    if (avatarUrl && typeof imageRegistry !== 'undefined' && imageRegistry.has(avatarUrl)) {
+    if (!preferStaticPaths && avatarUrl && typeof imageRegistry !== 'undefined' && imageRegistry.has(avatarUrl)) {
       avatarUrl = imageRegistry.get(avatarUrl).dataUrl;
     } else if (avatarUrl && !avatarUrl.startsWith('data:') && !avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
       avatarUrl = '/' + avatarUrl;
@@ -950,7 +977,7 @@
       let iconMarkup = '';
       if (it.icon && (it.icon.startsWith('data:') || it.icon.startsWith('http') || it.icon.includes('.') || it.icon.includes('/'))) {
         let iconSrc = it.icon;
-        if (typeof imageRegistry !== 'undefined' && imageRegistry.has(iconSrc)) {
+        if (!preferStaticPaths && typeof imageRegistry !== 'undefined' && imageRegistry.has(iconSrc)) {
           iconSrc = imageRegistry.get(iconSrc).dataUrl;
         }
         iconMarkup = `<img src="${escapeHtml(iconSrc)}" alt="" onerror="this.style.display='none';">`;
@@ -987,7 +1014,8 @@
   }
 
   // 1. Full Standalone HTML File for blog/<slug>/index.html
-  function generateFullHtml(draft) {
+  function generateFullHtml(draft, options = {}) {
+    const preferStaticPaths = Boolean(options && options.preferStaticPaths);
     const isLayoutOverrideActive = Boolean(
       draft.layoutOverride ||
       (typeof window !== 'undefined' && typeof window.resolveProjectLayoutOverride === 'function'
@@ -1117,7 +1145,7 @@
       if (!av && lower === (draft.authorName || '').toLowerCase().trim() && draft.authorAvatar) {
         av = draft.authorAvatar;
       }
-      if (av && typeof imageRegistry !== 'undefined' && imageRegistry.has(av)) {
+      if (!preferStaticPaths && av && typeof imageRegistry !== 'undefined' && imageRegistry.has(av)) {
         av = imageRegistry.get(av).dataUrl;
       }
       if (av && !av.startsWith('data:') && !av.startsWith('http') && !av.startsWith('/')) {
@@ -1151,13 +1179,13 @@
     const hasCustomFragment = isLayoutOverrideActive && draft.customHtml && typeof draft.customHtml === 'string' && draft.customHtml.trim();
     let rawProse;
     if (isLinks) {
-      rawProse = generateLinktreeHtmlForCompile(draft, pConfig);
+      rawProse = generateLinktreeHtmlForCompile(draft, pConfig, options);
     } else if (hasCustomFragment) {
       rawProse = draft.customHtml;
     } else {
       rawProse = (draft.proseHtml || parseMarkdownToHtml(draft.markdown));
     }
-    const proseHtml = (isLinks || hasCustomFragment) ? rawProse : prepareProseForPublish(rawProse, draft);
+    const proseHtml = (isLinks || hasCustomFragment) ? rawProse : prepareProseForPublish(rawProse, draft, options);
     const canonicalPath = isPage ? `pages/published/${slug}/` : `blog/published/${slug}/`;
     const resolvedDomain = (window.resolveProjectDomain ? window.resolveProjectDomain() : ((window.projectConfig && window.projectConfig.domain) || (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '') || '')).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     const siteBase = resolvedDomain ? `https://${resolvedDomain}` : '';
@@ -1166,7 +1194,18 @@
     // Resolve Cover Image
     let resolvedCover = (draft.coverImage || '').trim();
     if (resolvedCover) {
-      if (typeof imageRegistry !== 'undefined' && imageRegistry.has(resolvedCover)) {
+      if (preferStaticPaths) {
+        const cleanCoverFn = resolvedCover.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+        if (Array.isArray(draft.images) && cleanCoverFn) {
+          const found = draft.images.find(im => im && ((im.filename && im.filename === cleanCoverFn) || (im.relativePath && im.relativePath === resolvedCover)));
+          if (found && found.relativePath) {
+            resolvedCover = found.relativePath;
+          }
+        }
+        if (resolvedCover && !resolvedCover.startsWith('data:') && !resolvedCover.startsWith('blob:') && !resolvedCover.startsWith('http') && !resolvedCover.startsWith('/')) {
+          resolvedCover = `/${canonicalPath}${resolvedCover}`;
+        }
+      } else if (typeof imageRegistry !== 'undefined' && imageRegistry.has(resolvedCover)) {
         resolvedCover = imageRegistry.get(resolvedCover).dataUrl;
       } else if (typeof window !== 'undefined' && typeof window.resolvePostImage === 'function') {
         const resolved = window.resolvePostImage(resolvedCover, draft);
@@ -1224,7 +1263,13 @@
       'Cedar';
     const blogTagline = (window.projectConfig && window.projectConfig.subtitle) || brand.tagline || '';
     let blogLogo = brand.generalLogo !== undefined ? brand.generalLogo : 'logo.png';
-    if (typeof imageRegistry !== 'undefined' && imageRegistry.has(blogLogo)) {
+    if (preferStaticPaths) {
+      if (blogLogo && blogLogo.startsWith('data:')) {
+        blogLogo = '/media/branding/logo.png';
+      } else if (blogLogo && !blogLogo.startsWith('http') && !blogLogo.startsWith('/')) {
+        blogLogo = '/' + blogLogo;
+      }
+    } else if (typeof imageRegistry !== 'undefined' && imageRegistry.has(blogLogo)) {
       blogLogo = imageRegistry.get(blogLogo).dataUrl;
     } else if (blogLogo && !blogLogo.startsWith('data:') && !blogLogo.startsWith('http') && !blogLogo.startsWith('/')) {
       blogLogo = '/' + blogLogo;
@@ -3680,7 +3725,7 @@ ${draft.markdown || ''}`;
     const feedUrl = (cfg.rssFeedUrl && (!domain || cfg.rssFeedUrl.includes(domain)))
       ? cfg.rssFeedUrl
       : `${siteUrl}/feed.xml`;
-    const lastBuildDate = new Date().toUTCString();
+    const fallbackDateIso = cfg.lastUpdated || cfg.createdAt || '2026-01-01T00:00:00.000Z';
 
     const allItems = [];
     (publishedPosts || []).forEach(p => {
@@ -3689,12 +3734,13 @@ ${draft.markdown || ''}`;
       if (!p.rssGuid || (domain && p.rssGuid.startsWith('http://localhost'))) {
         p.rssGuid = postUrl;
       }
+      const postDateRaw = p.publishedAt || p.publishedDate || p.createdAt || p.date || fallbackDateIso;
       if (!p.rssPubDate) {
-        p.rssPubDate = new Date(p.publishedAt || p.publishedDate || p.createdAt || p.date || Date.now()).toUTCString();
+        p.rssPubDate = new Date(postDateRaw).toUTCString();
       }
       const pubDate = p.rssPubDate;
       const guid = p.rssGuid;
-      const timestamp = new Date(p.publishedAt || p.publishedDate || p.createdAt || p.date || Date.now()).getTime();
+      const timestamp = new Date(postDateRaw).getTime() || 0;
       const author = cfg.defaultAuthor || p.authorName || 'Staff';
       const desc = p.subtitle || p.customDesc || (p.markdown ? p.markdown.substring(0, 280) : '');
       const cat = p.tag || (p.categories && p.categories[0]) || 'Uncategorized';
@@ -3714,6 +3760,9 @@ ${draft.markdown || ''}`;
     });
 
     allItems.sort((a, b) => b.timestamp - a.timestamp);
+    const lastBuildDate = (allItems.length > 0 && allItems[0].timestamp > 0)
+      ? new Date(allItems[0].timestamp).toUTCString()
+      : new Date(fallbackDateIso).toUTCString();
     const itemsXml = allItems.map(item => item.xml).join('\n');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -4186,6 +4235,73 @@ ${itemsXml}
 
     const publicDrafts = [];
 
+    // Helper: Strip inline base64 images from proseHtml/featuredImage into static files & rewrite img[src] to static paths
+    const sanitizeDraftMediaForStaticExport = (draftClone, slug, folder, cleanImgs) => {
+      if (draftClone.coverImage && draftClone.coverImage.startsWith('data:')) {
+        const covBlob = dataUrlToBlob(draftClone.coverImage);
+        if (covBlob) {
+          const covName = `${slug}-cover.webp`;
+          addFile(`${folder}/${covName}`, covBlob);
+          draftClone.coverImage = `/${folder}/${covName}`;
+        }
+      } else if (draftClone.coverImage && !draftClone.coverImage.startsWith('http') && !draftClone.coverImage.startsWith('data:') && !draftClone.coverImage.startsWith('blob:')) {
+        const cleanCovName = draftClone.coverImage.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+        const matchedCov = cleanImgs.find(im => im && im.filename === cleanCovName);
+        if (matchedCov && matchedCov.relativePath) {
+          draftClone.coverImage = matchedCov.relativePath;
+        }
+      }
+      if (draftClone.featuredImage && draftClone.featuredImage.startsWith('data:')) {
+        draftClone.featuredImage = draftClone.coverImage || '';
+      }
+
+      if (draftClone.proseHtml && typeof draftClone.proseHtml === 'string' && typeof DOMParser !== 'undefined') {
+        try {
+          const pDoc = new DOMParser().parseFromString(`<body>${draftClone.proseHtml}</body>`, 'text/html');
+          let inlineIdx = 0;
+          pDoc.body.querySelectorAll('img').forEach(imgEl => {
+            const src = imgEl.getAttribute('src') || '';
+            const orig = imgEl.dataset.originalSrc || '';
+            const imgName = (imgEl.dataset.imgName && imgEl.dataset.imgName !== 'img') ? imgEl.dataset.imgName : '';
+            if (orig && (orig.startsWith('data:') || orig.startsWith('blob:'))) {
+              imgEl.removeAttribute('data-original-src');
+            }
+            const candidateRef = imgName || ((!orig.startsWith('data:') && !orig.startsWith('blob:')) ? orig : '') || ((!src.startsWith('data:') && !src.startsWith('blob:')) ? src : '');
+            const cleanCandidate = candidateRef ? candidateRef.split('?')[0].split('#')[0].split('/').pop().split('\\').pop() : '';
+            if (cleanCandidate) {
+              const matched = cleanImgs.find(im => im && ((im.filename && im.filename === cleanCandidate) || (im.relativePath && (im.relativePath === candidateRef || im.relativePath.endsWith('/' + cleanCandidate)))));
+              if (matched && matched.relativePath) {
+                imgEl.setAttribute('src', matched.relativePath);
+                return;
+              }
+            }
+            if (src.startsWith('data:image/')) {
+              const inlineBlob = dataUrlToBlob(src);
+              if (inlineBlob) {
+                inlineIdx++;
+                const mimeMatch = src.match(/^data:image\/([a-zA-Z0-9+.-]+);/);
+                let ext = mimeMatch ? mimeMatch[1].toLowerCase() : 'webp';
+                if (ext === 'jpeg') ext = 'jpg';
+                if (ext === 'svg+xml') ext = 'svg';
+                const safeImgName = imgName ? imgName.replace(/[^a-zA-Z0-9._-]/g, '_') : '';
+                const inlineFname = (safeImgName && safeImgName.includes('.')) ? safeImgName : `${slug}-img-${inlineIdx}.${ext}`;
+                addFile(`${folder}/${inlineFname}`, inlineBlob);
+                addFile(`blog/images/${inlineFname}`, inlineBlob);
+                const relPath = `/${folder}/${inlineFname}`;
+                cleanImgs.push({
+                  filename: inlineFname,
+                  relativePath: relPath,
+                  alt: imgEl.getAttribute('alt') || ''
+                });
+                imgEl.setAttribute('src', relPath);
+              }
+            }
+          });
+          draftClone.proseHtml = prepareProseForPublish(pDoc.body.innerHTML, draftClone, { preferStaticPaths: true });
+        } catch (e) {}
+      }
+    };
+
     // 4. Process Published Posts
     for (const post of publishedPosts) {
       const slug = post.slug || (typeof generateSlug === 'function' ? generateSlug(post.title) : 'post');
@@ -4243,22 +4359,15 @@ ${itemsXml}
         postClone.authors = [publicProject.defaultAuthor];
       }
       postClone.images = cleanImages;
-      if (postClone.coverImage && postClone.coverImage.startsWith('data:')) {
-        const covBlob = dataUrlToBlob(postClone.coverImage);
-        if (covBlob) {
-          const covName = `${slug}-cover.webp`;
-          addFile(`${folder}/${covName}`, covBlob);
-          postClone.coverImage = `/${folder}/${covName}`;
-        }
-      }
+      sanitizeDraftMediaForStaticExport(postClone, slug, folder, cleanImages);
       publicDrafts.push(postClone);
 
       // Markdown & archival HTML in blog/published/<slug>/
       addFile(
         `${folder}/index.md`,
-        (typeof generateMarkdownWithFrontmatter === 'function') ? generateMarkdownWithFrontmatter(post) : (post.markdown || '')
+        (typeof generateMarkdownWithFrontmatter === 'function') ? generateMarkdownWithFrontmatter(postClone) : (postClone.markdown || '')
       );
-      addFile(`${folder}/index.html`, generateFullHtml(post));
+      addFile(`${folder}/index.html`, generateFullHtml(postClone, { preferStaticPaths: true }));
 
       // 1:1 Preview shell at clean route /<category>/<slug>/index.html
       const siteTitle = brand.siteTitle || publicProject.name || 'Cedar';
@@ -4281,6 +4390,10 @@ ${itemsXml}
 
       const pageClone = JSON.parse(JSON.stringify(page));
       delete pageClone.tempImages;
+      delete pageClone.coverImageOriginal;
+      delete pageClone.revisions;
+      delete pageClone.history;
+      delete pageClone.autosave;
 
       // Sync RSS or Links page content
       if (pageClone.id === 'page_rss' || slug === 'rss') {
@@ -4320,7 +4433,7 @@ ${itemsXml}
       const cleanPageImages = [];
       if (Array.isArray(page.images)) {
         for (const img of page.images) {
-          if (!img) continue;
+          if (!img || img.isOriginal) continue;
           const fname = img.filename || img.name;
           if (fname) {
             let blob = img.blob;
@@ -4345,14 +4458,16 @@ ${itemsXml}
         }
       }
       pageClone.images = cleanPageImages;
+      sanitizeDraftMediaForStaticExport(pageClone, slug, folder, cleanPageImages);
       publicDrafts.push(pageClone);
 
       if (!isHidden) {
+        const pageUpdatedAt = page.updatedAt || page.editedDate || page.publishedAt || page.publishedDate || page.createdAt || publicProject.createdAt || '2026-01-01T00:00:00.000Z';
         addFile(
           `${folder}/index.md`,
-          `---\ntitle: "${(page.title || '').replace(/"/g, '\\"')}"\nslug: "${slug}"\ntype: "page"\nupdatedAt: "${new Date(page.updatedAt || Date.now()).toISOString()}"\n---\n\n${page.markdown || ''}`
+          `---\ntitle: "${(page.title || '').replace(/"/g, '\\"')}"\nslug: "${slug}"\ntype: "page"\nupdatedAt: "${new Date(pageUpdatedAt).toISOString()}"\n---\n\n${page.markdown || ''}`
         );
-        addFile(`${folder}/index.html`, generateFullHtml(pageClone));
+        addFile(`${folder}/index.html`, generateFullHtml(pageClone, { preferStaticPaths: true }));
 
         if (!pageClone.isCategoryAggregate && !String(pageClone.id || '').startsWith('page_cat_') && slug !== 'all') {
           const siteTitle = brand.siteTitle || publicProject.name || 'Cedar';
