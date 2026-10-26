@@ -3260,23 +3260,70 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
+  function resolveAutoDetectedSiteBaseUrl(config) {
+    const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (typeof window !== 'undefined' && window.projectConfig ? window.projectConfig : {})) || {};
+    const rawDomain = String(cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain) && !/^127\.0\.0\.1(?::\d+)?$/.test(rawDomain))
+      ? rawDomain
+      : '';
+
+    if (typeof window !== 'undefined' && window.location && /^https?:$/i.test(window.location.protocol)) {
+      const host = String(window.location.hostname || '').toLowerCase();
+      const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+      const pathname = String(window.location.pathname || '');
+      const isEditorOrPreviewShell = !window.__CEDAR_PRODUCTION__ && (
+        pathname === '/preview.html' ||
+        pathname.endsWith('/preview.html') ||
+        pathname.includes('/preview.html/') ||
+        Boolean(typeof document !== 'undefined' && document.getElementById('view-dashboard'))
+      );
+
+      let subpath = pathname
+        .replace(/\/index\.html$/i, '')
+        .replace(/\/preview\.html(?:\/.*)?$/i, '')
+        .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
+        .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
+
+      if (typeof document !== 'undefined') {
+        const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
+        if (markerScript) {
+          const srcAttr = markerScript.getAttribute('src') || '';
+          if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
+            const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+            if (m) subpath = m[1] || '';
+          }
+        }
+      }
+      subpath = subpath.replace(/\/+$/, '');
+      if (subpath && !subpath.startsWith('/')) subpath = '/' + subpath;
+
+      if (!isLocal && !isEditorOrPreviewShell) {
+        return `${window.location.origin}${subpath}`;
+      }
+      if (validDomain) {
+        return `https://${validDomain}`;
+      }
+      return `${window.location.origin}${subpath}`;
+    }
+
+    if (validDomain) {
+      return `https://${validDomain}`;
+    }
+    return '';
+  }
+  window.resolveAutoDetectedSiteBaseUrl = resolveAutoDetectedSiteBaseUrl;
+
   function generateRssPageData(config) {
 
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : {}) || {};
 
     const isRssEnabled = Boolean(cfg.rssEnabled);
 
-    const rawDomain = (cfg.domain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-
-    const siteBase = rawDomain ? `https://${rawDomain}` : '';
+    const siteBase = resolveAutoDetectedSiteBaseUrl(cfg);
 
     const siteName = cfg.name || 'Cedar';
 
-
-
     const postsUrl = siteBase ? `${siteBase}/feed.xml` : '/feed.xml';
-
-
 
     let title = 'RSS';
 
@@ -3318,7 +3365,7 @@ Full-text and excerpt syndication for all published articles.
 
 2. In your RSS reader of choice, add a new subscription and paste the URL.
 
-3. If you have configured a custom domain in Settings, your live reader will automatically fetch updates whenever the site is compiled and published.`.trim();
+3. Your feed reader will automatically fetch updates whenever new articles are published.`.trim();
 
 
 

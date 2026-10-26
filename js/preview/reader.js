@@ -551,9 +551,12 @@
         }
         if (isRss && typeof window.generateRssPageData === 'function') {
           const rssData = window.generateRssPageData(getConfig());
-          item.subtitle = rssData.subtitle;
-          item.markdown = rssData.markdown;
-          item.proseHtml = rssData.proseHtml;
+          const rawMd = String(item.markdown || '').trim();
+          if ((!rawMd && !item.proseHtml) || rawMd.includes('### Available Feeds')) {
+            item.subtitle = rssData.subtitle;
+            item.markdown = rssData.markdown;
+            item.proseHtml = rssData.proseHtml;
+          }
         } else if (isLinks && typeof window.generateLinksPageData === 'function') {
           const linksData = window.generateLinksPageData(item.linksData, getConfig());
           item.subtitle = linksData.subtitle;
@@ -734,6 +737,15 @@
         });
 
         // Strip editor interactive attributes & classes
+        if (isRss) {
+          const liveFeedUrl = resolvePermanentRssFeedUrl();
+          proseEl.querySelectorAll('code').forEach(codeEl => {
+            const txt = (codeEl.textContent || '').trim();
+            if (txt === '/feed.xml' || txt === 'feed.xml' || /^https?:\/\/localhost(?::\d+)?\/.*feed\.xml$/i.test(txt)) {
+              codeEl.textContent = liveFeedUrl;
+            }
+          });
+        }
         proseEl.querySelectorAll('a.btn-rss-subscribe').forEach(a => {
           const btn = document.createElement('button');
           btn.type = 'button';
@@ -1099,21 +1111,16 @@
 
   function resolvePermanentRssFeedUrl() {
     const cfg = (typeof getConfig === 'function' ? getConfig() : (window.projectConfig || {})) || {};
-    const rawDomain = (cfg.domain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[')) ? rawDomain : '';
-    if (cfg.rssFeedUrl && (!validDomain || cfg.rssFeedUrl.includes(validDomain))) {
-      return cfg.rssFeedUrl;
+    if (typeof window.resolveAutoDetectedSiteBaseUrl === 'function') {
+      const detectedBase = window.resolveAutoDetectedSiteBaseUrl(cfg);
+      if (detectedBase) {
+        return `${detectedBase}/feed.xml`;
+      }
     }
+    const rawDomain = String(cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain)) ? rawDomain : '';
     if (validDomain) {
-      const permanentUrl = `https://${validDomain}/feed.xml`;
-      cfg.rssFeedUrl = permanentUrl;
-      if (window.projectConfig) window.projectConfig.rssFeedUrl = permanentUrl;
-      try {
-        if (window.parent && window.parent !== window && window.parent.projectConfig) {
-          window.parent.projectConfig.rssFeedUrl = permanentUrl;
-        }
-      } catch (_) {}
-      return permanentUrl;
+      return `https://${validDomain}/feed.xml`;
     }
     return `${window.location.origin}/feed.xml`;
   }

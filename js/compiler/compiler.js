@@ -3707,18 +3707,13 @@ ${draft.markdown || ''}`;
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {}));
     const siteTitle = cfg.name || (cfg.design && cfg.design.branding && cfg.design.branding.siteTitle) || 'Cedar';
     const siteDesc = cfg.description || cfg.subtitle || (cfg.design && cfg.design.branding && cfg.design.branding.tagline) || siteTitle;
-    const rawDomain = (cfg.domain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const domain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[')) ? rawDomain : '';
-    const siteUrl = domain ? `https://${domain}` : 'http://localhost:8080';
-    if (domain && !cfg.rssFeedUrl) {
-      cfg.rssFeedUrl = `https://${domain}/feed.xml`;
-      if (typeof window !== 'undefined' && window.projectConfig) {
-        window.projectConfig.rssFeedUrl = cfg.rssFeedUrl;
-      }
-    }
-    const feedUrl = (cfg.rssFeedUrl && (!domain || cfg.rssFeedUrl.includes(domain)))
-      ? cfg.rssFeedUrl
-      : `${siteUrl}/feed.xml`;
+    const rawDomain = (cfg.domain || cfg.detectedDomain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const domain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain)) ? rawDomain : '';
+    const autoBase = (typeof window !== 'undefined' && typeof window.resolveAutoDetectedSiteBaseUrl === 'function')
+      ? window.resolveAutoDetectedSiteBaseUrl(cfg)
+      : '';
+    const siteUrl = domain ? `https://${domain}` : (autoBase || 'http://localhost:8080');
+    const feedUrl = `${siteUrl}/feed.xml`;
     const fallbackDateIso = cfg.lastUpdated || cfg.createdAt || '2026-01-01T00:00:00.000Z';
 
     const allItems = [];
@@ -4137,6 +4132,9 @@ ${itemsXml}
     delete publicProject.webUrls;
     if (!publicProject.domain && typeof window.resolveProjectDomain === 'function') {
       publicProject.domain = window.resolveProjectDomain() || '';
+    }
+    if (!publicProject.domain && options.detectedSiteUrl) {
+      publicProject.detectedDomain = String(options.detectedSiteUrl).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     }
     const isRssEnabled = (typeof window.resolveProjectRssEnabled === 'function')
       ? window.resolveProjectRssEnabled()
@@ -5066,17 +5064,69 @@ ${page.markdown || ''}`;
   window.generateFullHtml = generateFullHtml;
   window.generateBlogCardHtml = generateBlogCardHtml;
   window.generateFeaturedCardHtml = generateFeaturedCardHtml;
+  function resolveAutoDetectedSiteBaseUrl(config) {
+    if (typeof window !== 'undefined' && typeof window.resolveAutoDetectedSiteBaseUrl === 'function' && window.resolveAutoDetectedSiteBaseUrl !== resolveAutoDetectedSiteBaseUrl) {
+      return window.resolveAutoDetectedSiteBaseUrl(config);
+    }
+    const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (typeof window !== 'undefined' && window.projectConfig ? window.projectConfig : {})) || {};
+    const rawDomain = String(cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain) && !/^127\.0\.0\.1(?::\d+)?$/.test(rawDomain))
+      ? rawDomain
+      : '';
+
+    if (typeof window !== 'undefined' && window.location && /^https?:$/i.test(window.location.protocol)) {
+      const host = String(window.location.hostname || '').toLowerCase();
+      const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+      const pathname = String(window.location.pathname || '');
+      const isEditorOrPreviewShell = !window.__CEDAR_PRODUCTION__ && (
+        pathname === '/preview.html' ||
+        pathname.endsWith('/preview.html') ||
+        pathname.includes('/preview.html/') ||
+        Boolean(typeof document !== 'undefined' && document.getElementById('view-dashboard'))
+      );
+
+      let subpath = pathname
+        .replace(/\/index\.html$/i, '')
+        .replace(/\/preview\.html(?:\/.*)?$/i, '')
+        .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
+        .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
+
+      if (typeof document !== 'undefined') {
+        const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
+        if (markerScript) {
+          const srcAttr = markerScript.getAttribute('src') || '';
+          if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
+            const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+            if (m) subpath = m[1] || '';
+          }
+        }
+      }
+      subpath = subpath.replace(/\/+$/, '');
+      if (subpath && !subpath.startsWith('/')) subpath = '/' + subpath;
+
+      if (!isLocal && !isEditorOrPreviewShell) {
+        return `${window.location.origin}${subpath}`;
+      }
+      if (validDomain) {
+        return `https://${validDomain}`;
+      }
+      return `${window.location.origin}${subpath}`;
+    }
+
+    if (validDomain) {
+      return `https://${validDomain}`;
+    }
+    return '';
+  }
+  window.resolveAutoDetectedSiteBaseUrl = resolveAutoDetectedSiteBaseUrl;
+
   function generateRssPageData(config) {
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : {}) || {};
     const isRssEnabled = Boolean(cfg.rssEnabled);
-    const rawDomain = (cfg.domain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[')) ? rawDomain : '';
-    const siteBase = validDomain ? `https://${validDomain}` : '';
+    const siteBase = resolveAutoDetectedSiteBaseUrl(cfg);
     const siteName = cfg.name || 'Cedar';
 
-    const postsUrl = (cfg.rssFeedUrl && (!validDomain || cfg.rssFeedUrl.includes(validDomain)))
-      ? cfg.rssFeedUrl
-      : (siteBase ? `${siteBase}/feed.xml` : '/feed.xml');
+    const postsUrl = siteBase ? `${siteBase}/feed.xml` : '/feed.xml';
 
     let title = 'RSS';
     let subtitle = 'Subscribe to published articles via RSS feed syndication.';
@@ -5099,7 +5149,7 @@ Full-text and excerpt syndication for all published articles and posts.
 ### How to Subscribe
 1. Copy the feed URL above (\`${postsUrl}\`).
 2. In your RSS reader of choice, add a new subscription and paste the URL.
-3. If you have configured a custom domain in Cedar Settings, your live reader will automatically fetch updates whenever the site is compiled and published.`.trim();
+3. Your feed reader will automatically fetch updates whenever new articles are published.`.trim();
 
     if (!isRssEnabled) {
       markdown = `> **Note**: RSS syndication is currently turned off in Settings. Enable RSS in Settings to broadcast these feeds to readers.\n\n` + markdown;

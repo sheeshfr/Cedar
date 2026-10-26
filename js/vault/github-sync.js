@@ -551,8 +551,36 @@
       let uploadedCount = 0;
       let skippedCount = 0;
 
+      let detectedSiteUrl = '';
+      try {
+        if (remotePathToSha.has('CNAME')) {
+          activePaths.add('CNAME');
+          const cnameFile = await apiRequest(`/repos/${repo}/contents/CNAME?ref=${branch}`);
+          if (cnameFile && cnameFile.content) {
+            const cnameTxt = decodeURIComponent(escape(atob(cnameFile.content.replace(/\s/g, '')))).trim().split(/\r?\n/)[0].trim();
+            if (cnameTxt) detectedSiteUrl = cnameTxt.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+          }
+        }
+        if (!detectedSiteUrl) {
+          try {
+            const pagesInfo = await apiRequest(`/repos/${repo}/pages`);
+            if (pagesInfo && (pagesInfo.cname || pagesInfo.html_url)) {
+              detectedSiteUrl = String(pagesInfo.cname || pagesInfo.html_url).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+            }
+          } catch (_) {}
+        }
+        if (!detectedSiteUrl) {
+          try {
+            const repoInfo = await apiRequest(`/repos/${repo}`);
+            if (repoInfo && repoInfo.homepage) {
+              detectedSiteUrl = String(repoInfo.homepage).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       if (typeof window.buildProductionSiteFiles === 'function') {
-        const prodFiles = await window.buildProductionSiteFiles({ includeEngineAssets: true });
+        const prodFiles = await window.buildProductionSiteFiles({ includeEngineAssets: true, detectedSiteUrl });
         for (const f of prodFiles) {
           if (!f || !f.name || f.data === undefined || f.data === null) continue;
           const cleanPath = String(f.name).replace(/^\/+/, '');
