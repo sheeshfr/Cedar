@@ -937,13 +937,59 @@
       </div>
     `;
 
+    // Prevent card drag when clicking or dragging to highlight text inside inputs or buttons
+    const syncCardDraggableForTarget = (target) => {
+      if (!isPagesEditMode) {
+        card._suppressCardDrag = true;
+        card.draggable = false;
+        card.setAttribute('draggable', 'false');
+        return;
+      }
+      const inInteractive = target && typeof target.closest === 'function' &&
+        target.closest('input, textarea, button, select, a, .posts-view-toggle, .card-title-input, .card-url-input');
+      if (inInteractive) {
+        card._suppressCardDrag = true;
+        card.draggable = false;
+        card.setAttribute('draggable', 'false');
+      } else {
+        card._suppressCardDrag = false;
+        card.draggable = true;
+        card.setAttribute('draggable', 'true');
+      }
+    };
+
+    card.addEventListener('pointerdown', (e) => {
+      syncCardDraggableForTarget(e.target);
+    }, true);
+
+    card.addEventListener('mousedown', (e) => {
+      syncCardDraggableForTarget(e.target);
+    }, true);
+
+    card.addEventListener('touchstart', (e) => {
+      syncCardDraggableForTarget(e.target);
+    }, { capture: true, passive: true });
+
+    card.querySelectorAll('input, textarea').forEach(inp => {
+      inp.setAttribute('draggable', 'false');
+      inp.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      inp.addEventListener('focus', () => {
+        card._suppressCardDrag = true;
+        card.draggable = false;
+        card.setAttribute('draggable', 'false');
+      });
+    });
+
     // Universal Drag and Drop Events for ALL page cards in Edit Mode
     card.addEventListener('dragstart', (e) => {
-      if (!isPagesEditMode) {
+      if (!isPagesEditMode || card._suppressCardDrag) {
         e.preventDefault();
         return;
       }
-      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.posts-view-toggle')) {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea') || e.target.closest('.posts-view-toggle')) {
         e.preventDefault();
         return;
       }
