@@ -3040,9 +3040,9 @@ Built with Cedar.
 
 
 
-[Try Cedar now! →](https://cedar.pub)`.trim(),
+[Try Cedar now! →](https://github.com/sheeshfr/Cedar)`.trim(),
 
-      proseHtml: `<h2><span style="font-weight: normal;"><span style="font-size: 1.075rem;"><i>After a decade plus of experimenting with all the blog tools, I never found one that I liked. Cedar is an attempt at pulling all the best parts of legacy writers into a single, focused experience.</i></span></span></h2><p>Cedar is an open-source, web-based static blog generator. Cedar is unique in that it...<br></p><ul><li>provides a writing platform,</li><li>manages your posts, pages and media,</li><li>organizes your files/folder so they're ready for upload,</li><li>makes uploading to a hosting provide as simple as can be.</li></ul><p>The best part -- Cedar stores all your information locally! Everything you do is stored 100% in your own browser or local folder.</p><p data-intentional="true">Everything remains 100% in your browser until you choose to move it elsewhere. You could also store everything in a folder on your computer, a portable SSD, or send it straight to GitHub! Regardless of your workflow, Cedar manages all your data for you so you'll never need to work in files/folders to reap the benefits of static site hosting.</p><p><br></p>\n\n<hr class="canvas-divider" style="border:0; border-top: 1px solid var(--border-subtle, var(--border-color, rgba(255,255,255,0.12))); margin: 2rem 0;">\n<p>Built with Cedar.</p>`,
+      proseHtml: `<h2><span style="font-weight: normal;"><span style="font-size: 1.075rem;"><i>After a decade plus of experimenting with all the blog tools, I never found one that I liked. Cedar is an attempt at pulling all the best parts of legacy writers into a single, focused experience.</i></span></span></h2><p>Cedar is an open-source, web-based static blog generator. Cedar is unique in that it...<br></p><ul><li>provides a writing platform,</li><li>manages your posts, pages and media,</li><li>organizes your files/folder so they're ready for upload,</li><li>makes uploading to a hosting provide as simple as can be.</li></ul><p>The best part -- Cedar stores all your information locally! Everything you do is stored 100% in your own browser or local folder.</p><p data-intentional="true">Everything remains 100% in your browser until you choose to move it elsewhere. You could also store everything in a folder on your computer, a portable SSD, or send it straight to GitHub! Regardless of your workflow, Cedar manages all your data for you so you'll never need to work in files/folders to reap the benefits of static site hosting.</p><p><br></p>\n\n<hr class="canvas-divider" style="border:0; border-top: 1px solid var(--border-subtle, var(--border-color, rgba(255,255,255,0.12))); margin: 2rem 0;">\n<p>Built with Cedar.</p>\n<p><a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">Try Cedar now! &rarr;</a></p>`,
 
       images: [],
 
@@ -4389,6 +4389,7 @@ Full-text and excerpt syndication for all published articles.
       }
       const cedarDraft = this._pages.get('page_about_cedar');
       if (cedarDraft) {
+        const canonicalCedar = (typeof createDefaultAboutCedarPage === 'function') ? createDefaultAboutCedarPage() : null;
         cedarDraft.id = 'page_about_cedar';
         cedarDraft.slug = 'about-cedar';
         cedarDraft.title = 'About Cedar';
@@ -4396,6 +4397,10 @@ Full-text and excerpt syndication for all published articles.
         cedarDraft.showSubtitle = false;
         cedarDraft.hidden = true;
         cedarDraft.retired = true;
+        if (canonicalCedar) {
+          cedarDraft.markdown = canonicalCedar.markdown;
+          cedarDraft.proseHtml = canonicalCedar.proseHtml;
+        }
       }
 
       // 4. Links

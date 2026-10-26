@@ -930,6 +930,11 @@
     if (isAboutCedar) {
       draft.subtitle = '';
       draft.showSubtitle = false;
+      if (typeof window !== 'undefined' && typeof window.createDefaultAboutCedarPage === 'function') {
+        const canonicalCedar = window.createDefaultAboutCedarPage();
+        draft.markdown = canonicalCedar.markdown;
+        draft.proseHtml = canonicalCedar.proseHtml;
+      }
     }
     const title = draft.title || 'Untitled Article';
     const subtitle = isAboutCedar ? '' : (draft.subtitle || '');

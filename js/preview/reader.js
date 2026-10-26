@@ -591,6 +591,24 @@
         if (isAboutCedar) {
           item.subtitle = '';
           item.showSubtitle = false;
+          const createCedarFn = (typeof window.createDefaultAboutCedarPage === 'function')
+            ? window.createDefaultAboutCedarPage
+            : (window.parent && typeof window.parent.createDefaultAboutCedarPage === 'function' ? window.parent.createDefaultAboutCedarPage : null);
+          if (createCedarFn) {
+            const canonicalCedar = createCedarFn();
+            item.markdown = canonicalCedar.markdown;
+            item.proseHtml = canonicalCedar.proseHtml;
+          } else {
+            if (item.markdown) {
+              item.markdown = item.markdown.replace(/https:\/\/cedar\.pub/gi, 'https://github.com/sheeshfr/Cedar');
+            }
+            if (item.proseHtml) {
+              item.proseHtml = item.proseHtml.replace(/https:\/\/cedar\.pub/gi, 'https://github.com/sheeshfr/Cedar');
+              if (!item.proseHtml.includes('github.com/sheeshfr/Cedar')) {
+                item.proseHtml += '\n<p><a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">Try Cedar now! &rarr;</a></p>';
+              }
+            }
+          }
         }
 
         const showTitle = !isPage || item.showTitle !== false;
