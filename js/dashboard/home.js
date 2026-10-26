@@ -1730,7 +1730,7 @@
           <span class="milestone-marker-desc">${renderFormattedNoteText(text)}</span>
         </div>
         <div class="milestone-marker-right">
-          <span class="milestone-marker-trophy" aria-hidden="true">ðŸ†</span>
+          <span class="milestone-marker-trophy" aria-hidden="true">🏆</span>
         </div>
       `;
 

@@ -1,5 +1,5 @@
 /**
- * Cedar â€” Vault (BYOC Local Drive & Storage Engine)
+ * Cedar — Vault (BYOC Local Drive & Storage Engine)
  * 100% Client-Side, Zero Dependencies, Standalone & Offline Ready
  * Uses the Native File System Access API with IndexedDB Persistence & PKZIP Backup/Restore.
  */
@@ -1913,7 +1913,7 @@ else {
     if (Vault.isConnected()) {
       const folderName = Vault.getFolderName();
       if (statusTitle) statusTitle.innerHTML = `<span class="vault-dot connected"></span> Connected to Hard Drive`;
-      if (folderPathText) folderPathText.textContent = `ðŸ“ ${folderName} (Active Read/Write Sync)`;
+      if (folderPathText) folderPathText.textContent = `📁 ${folderName} (Active Read/Write Sync)`;
       if (btnConnect) btnConnect.textContent = 'Switch Folder';
       if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
       if (storageNotice) storageNotice.textContent = 'All changes auto-sync to your hard drive in real time.';
@@ -1928,7 +1928,7 @@ else {
           } else {
             let html = '<div class="vault-file-tree">';
             files.slice(0, 15).forEach(f => {
-              const icon = f.kind === 'directory' ? 'ðŸ“' : 'ðŸ“„';
+              const icon = f.kind === 'directory' ? '📁' : '📄';
               html += `<div class="vault-file-item"><span>${icon} ${escapeHtml(f.path)}</span></div>`;
             });
             if (files.length > 15) {
@@ -1967,7 +1967,7 @@ else {
         <div class="modal-header">
           <div class="vault-modal-header-title">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-            <h3 class="modal-title">Sheesh Vault â€” Hard Drive BYOC</h3>
+            <h3 class="modal-title">Sheesh Vault — Hard Drive BYOC</h3>
           </div>
           <button type="button" class="modal-close-btn" data-close-vault-modal>&times;</button>
         </div>

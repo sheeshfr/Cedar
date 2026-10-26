@@ -1,5 +1,5 @@
 /**
- * Cedar Static Writing Engine â€” Token Versioning & Migration Pipeline (v3.3.4)
+ * Cedar Static Writing Engine — Token Versioning & Migration Pipeline (v3.3.4)
  * Schema Version: 150 (Token: v150)
  * Minimum Compatible Version: 125 (Breaking Engine Rewrite Threshold)
  * Zero Dependencies, Standalone & Offline Ready

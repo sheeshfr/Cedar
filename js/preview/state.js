@@ -6,6 +6,59 @@
   window.CedarPreview = window.CedarPreview || window.OutpostPreview || {};
   window.OutpostPreview = window.CedarPreview;
 
+  const CP1252_CHAR_TO_BYTE = {
+    '\u20AC': 0x80, '\u201A': 0x82, '\u0192': 0x83, '\u201E': 0x84, '\u2026': 0x85,
+    '\u2020': 0x86, '\u2021': 0x87, '\u02C6': 0x88, '\u2030': 0x89, '\u0160': 0x8A,
+    '\u2039': 0x8B, '\u0152': 0x8C, '\u017D': 0x8E, '\u2018': 0x91, '\u2019': 0x92,
+    '\u201C': 0x93, '\u201D': 0x94, '\u2022': 0x95, '\u2013': 0x96, '\u2014': 0x97,
+    '\u02DC': 0x98, '\u2122': 0x99, '\u0161': 0x9A, '\u203A': 0x9B, '\u0153': 0x9C,
+    '\u017E': 0x9E, '\u0178': 0x9F
+  };
+  const MOJIBAKE_REGEX = /[\u00C2-\u00F4][\u0080-\u00BF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]+/g;
+  const _utf8Decoder = (typeof TextDecoder !== 'undefined') ? new TextDecoder('utf-8', { fatal: true }) : null;
+
+  function repairUtf8Mojibake(str) {
+    if (!str || typeof str !== 'string' || !_utf8Decoder || !MOJIBAKE_REGEX.test(str)) return str;
+    MOJIBAKE_REGEX.lastIndex = 0;
+    let cur = str;
+    let prev = null;
+    while (cur !== prev && MOJIBAKE_REGEX.test(cur)) {
+      prev = cur;
+      MOJIBAKE_REGEX.lastIndex = 0;
+      cur = cur.replace(MOJIBAKE_REGEX, (match) => {
+        try {
+          const bytes = new Uint8Array(match.length);
+          for (let i = 0; i < match.length; i++) {
+            const ch = match[i];
+            const mapped = CP1252_CHAR_TO_BYTE[ch];
+            if (mapped !== undefined) {
+              bytes[i] = mapped;
+            } else {
+              const code = ch.charCodeAt(0);
+              if (code > 0xFF) return match;
+              bytes[i] = code;
+            }
+          }
+          return _utf8Decoder.decode(bytes);
+        } catch (_) {
+          return match;
+        }
+      });
+    }
+    return cur;
+  }
+  window.repairUtf8Mojibake = repairUtf8Mojibake;
+
+  function healDraftMojibake(d) {
+    if (!d || typeof d !== 'object') return;
+    const fields = ['title', 'subtitle', 'markdown', 'proseHtml', 'html', 'customDesc', 'bodyExcerpt'];
+    for (const f of fields) {
+      if (typeof d[f] === 'string' && d[f]) {
+        d[f] = repairUtf8Mojibake(d[f]);
+      }
+    }
+  }
+
       let projectConfig = {
         name: 'Cedar',
         domain: '',
@@ -279,6 +332,7 @@
                     return true;
                   });
                   drafts.forEach(d => {
+                    healDraftMojibake(d);
                     if (d && d.type === 'page') {
                       if (d.status !== 'hidden') d.status = 'published';
                       if (d.hidden === undefined && d.retired === undefined) {
@@ -476,6 +530,7 @@
               return true;
             });
             drafts.forEach(d => {
+              healDraftMojibake(d);
               if (d && d.type === 'page') {
                 if (d.status !== 'hidden') d.status = 'published';
                 if (d.hidden === undefined && d.retired === undefined) {
@@ -1005,6 +1060,7 @@
 
   function setDrafts(d) {
     if (Array.isArray(d)) {
+      d.forEach(healDraftMojibake);
       drafts = d;
       window.drafts = drafts;
       window.CedarPreview.drafts = drafts;
