@@ -5,6 +5,7 @@
 <div class="pane-header-left">
 
 <h2 class="dash-pane-title">Posts</h2>
+<button type="button" class="btn btn-sm btn-secondary" id="btn-posts-toggle-edit" title="Edit Posts">Edit</button>
 
 </div>
 
@@ -16,6 +17,11 @@
 
 <input type="search" id="posts-search-input" class="header-search-input" placeholder="Search Posts" autocomplete="off">
 
+</div>
+<!-- Edit Mode Actions Bar: Replaces search bar during edit mode -->
+<div class="pages-edit-mode-actions posts-edit-mode-actions" id="posts-edit-mode-actions">
+  <button type="button" class="btn btn-sm btn-secondary" id="btn-posts-edit-cancel">Cancel</button>
+  <button type="button" class="btn btn-sm btn-primary" id="btn-posts-edit-save">Save</button>
 </div>
 
 </div>
@@ -38,7 +44,7 @@
 
 </div>
 
-<div class="posts-view-toggle" id="posts-view-toggle" role="group" aria-label="Posts View Mode">
+<div class="posts-view-toggle" id="posts-view-toggle" role="group" aria-label="Posts View Mode" style="display: none;">
 
 <button type="button" class="posts-view-btn" data-posts-view="grid" title="Grid View">
 

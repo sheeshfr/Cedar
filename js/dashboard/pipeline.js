@@ -14,6 +14,131 @@
   window.Outpost.dashboard = window.Cedar.dashboard;
 
   let quickIdeasExpanded = false;
+  let isPostsEditMode = false;
+  let postsEditModeSnapshot = null;
+
+  function enterPostsEditMode() {
+    if (isPostsEditMode) return;
+    const currentDraftsList = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+      ? window.CedarStore.getAllDrafts()
+      : Array.from(window.drafts || []);
+    postsEditModeSnapshot = {
+      drafts: JSON.parse(JSON.stringify(currentDraftsList)),
+      postsViewMode: getPostsViewMode()
+    };
+    isPostsEditMode = true;
+    updatePostsEditModeUI();
+    renderAllPostsGrid();
+  }
+
+  function cancelPostsEditMode() {
+    if (postsEditModeSnapshot) {
+      if (Array.isArray(postsEditModeSnapshot.drafts)) {
+        const restored = JSON.parse(JSON.stringify(postsEditModeSnapshot.drafts));
+        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+          window.CedarStore.hydrateFromList(restored);
+        } else {
+          window.drafts = restored;
+        }
+        if (typeof window.saveDraftsToStorage === 'function') {
+          window.saveDraftsToStorage();
+        }
+      }
+      const restoredMode = postsEditModeSnapshot.postsViewMode || DEFAULT_VIEW_MODE;
+      if (window.projectConfig) {
+        window.projectConfig.postsViewMode = restoredMode;
+        if (typeof window.saveProjectToStorage === 'function') {
+          window.saveProjectToStorage();
+        }
+      }
+      try {
+        localStorage.setItem('cedar_posts_view_mode', restoredMode);
+      } catch (e) {}
+      postsEditModeSnapshot = null;
+    }
+    isPostsEditMode = false;
+    updatePostsEditModeUI();
+    renderAllPostsGrid();
+    if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
+    if (typeof renderPostsPipeline === 'function') renderPostsPipeline();
+    if (typeof updateAllPreviewFrames === 'function') updateAllPreviewFrames();
+  }
+
+  function savePostsEditMode() {
+    if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
+    if (typeof window.saveProjectToStorage === 'function') window.saveProjectToStorage();
+    if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
+      window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
+    }
+    if (typeof window.showToast === 'function') window.showToast('Changes saved');
+    postsEditModeSnapshot = null;
+    isPostsEditMode = false;
+    updatePostsEditModeUI();
+    renderAllPostsGrid();
+  }
+
+  function updatePostsEditModeUI() {
+    const toggleBtn = document.getElementById('btn-posts-toggle-edit');
+    const actionsWrap = document.getElementById('posts-edit-mode-actions');
+    const headerViewToggle = document.getElementById('posts-view-toggle');
+    const searchBox = document.querySelector('#pane-posts .header-search-box');
+    const panePosts = document.getElementById('pane-posts');
+    if (panePosts) {
+      panePosts.classList.toggle('is-edit-mode', Boolean(isPostsEditMode));
+    }
+
+    if (toggleBtn) {
+      if (isPostsEditMode) {
+        toggleBtn.textContent = 'Editing';
+        toggleBtn.classList.add('is-editing');
+        toggleBtn.style.cursor = 'default';
+        toggleBtn.style.opacity = '0.6';
+      } else {
+        toggleBtn.textContent = 'Edit';
+        toggleBtn.classList.remove('is-editing');
+        toggleBtn.style.cursor = 'pointer';
+        toggleBtn.style.opacity = '1';
+      }
+    }
+
+    if (searchBox) {
+      searchBox.style.display = isPostsEditMode ? 'none' : 'flex';
+    }
+
+    if (actionsWrap) {
+      actionsWrap.style.display = isPostsEditMode ? 'inline-flex' : 'none';
+    }
+
+    if (headerViewToggle) {
+      headerViewToggle.style.display = isPostsEditMode ? 'inline-flex' : 'none';
+    }
+  }
+
+  function initPostsEditModeListeners() {
+    const btnToggleEdit = document.getElementById('btn-posts-toggle-edit');
+    if (btnToggleEdit && !btnToggleEdit._hasEditListener) {
+      btnToggleEdit._hasEditListener = true;
+      btnToggleEdit.addEventListener('click', () => {
+        enterPostsEditMode();
+      });
+    }
+
+    const btnEditCancel = document.getElementById('btn-posts-edit-cancel');
+    if (btnEditCancel && !btnEditCancel._hasCancelListener) {
+      btnEditCancel._hasCancelListener = true;
+      btnEditCancel.addEventListener('click', () => {
+        cancelPostsEditMode();
+      });
+    }
+
+    const btnEditSave = document.getElementById('btn-posts-edit-save');
+    if (btnEditSave && !btnEditSave._hasSaveListener) {
+      btnEditSave._hasSaveListener = true;
+      btnEditSave.addEventListener('click', () => {
+        savePostsEditMode();
+      });
+    }
+  }
 
   function renderPostsPipeline() {
     let posts = (window.CedarStore && typeof window.CedarStore.getPosts === 'function')
@@ -233,9 +358,20 @@
         </button>
       ` : '';
 
-      const cornerBtnHtml = isPublished
-        ? `<button type="button" class="card-hover-delete-btn card-hover-revert-btn" data-action="revert-draft" title="Revert to Draft" aria-label="Revert to Draft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg></button>`
-        : `<button type="button" class="card-hover-delete-btn" data-action="delete" title="Delete Draft" aria-label="Delete Draft">&times;</button>`;
+      const cornerBtnHtml = isPostsEditMode
+        ? (isPublished
+          ? `<button type="button" class="card-hover-delete-btn card-hover-revert-btn" data-action="revert-draft" title="Revert to Draft" aria-label="Revert to Draft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg></button>`
+          : `<button type="button" class="card-hover-delete-btn" data-action="delete" title="Delete Draft" aria-label="Delete Draft">&times;</button>`)
+        : '';
+
+      const listActionsHtml = isPostsEditMode
+        ? `<div class="card-list-actions">
+            ${isPublished
+              ? `<button type="button" class="card-btn card-btn-revert" data-action="revert-draft" title="Revert to Draft" style="margin-left: auto;">Revert to Draft</button>`
+              : `<button type="button" class="card-btn card-btn-danger card-btn-delete" data-action="delete" title="Delete Draft" style="margin-left: auto;">Delete</button>`
+            }
+          </div>`
+        : '';
 
       card.innerHTML = `
         ${cornerBtnHtml}
@@ -249,17 +385,12 @@
             ${starBtnHtml}
           </div>
           ${post.subtitle ? `<p class="card-excerpt">${escapeHtml(post.subtitle)}</p>` : ''}
-          <div class="card-list-actions">
-            ${isPublished
-              ? `<button type="button" class="card-btn card-btn-revert" data-action="revert-draft" title="Revert to Draft" style="margin-left: auto;">Revert to Draft</button>`
-              : `<button type="button" class="card-btn card-btn-danger card-btn-delete" data-action="delete" title="Delete Draft" style="margin-left: auto;">Delete</button>`
-            }
-          </div>
+          ${listActionsHtml}
         </div>
       `;
     }
 
-    card.addEventListener('click', (e) => {
+    card.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-action]');
       if (btn) {
         e.stopPropagation();
@@ -302,6 +433,7 @@
           setItemStatus(post.id, 'draft');
           openPostInEditor(post.id);
         } else if (action === 'edit') {
+          if (isPostsEditMode) return;
           openPostInEditor(post.id);
         } else if (action === 'hide') {
           post.hidden = true;
@@ -320,6 +452,7 @@
           if (typeof renderPostsPipeline === 'function') renderPostsPipeline();
           if (typeof showToast === 'function') showToast(`Post "${post.title}" is now visible`);
         } else if (action === 'revert-draft') {
+          if (columnType !== 'idea' && !isPostsEditMode) return;
           setItemStatus(post.id, 'draft');
           if (typeof renderAllPostsGrid === 'function') renderAllPostsGrid();
           if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
@@ -327,7 +460,24 @@
           if (typeof updateAllPreviewFrames === 'function') updateAllPreviewFrames();
           if (typeof showToast === 'function') showToast(`Post "${post.title || 'Untitled'}" reverted to draft`);
         } else if (action === 'delete') {
-          deleteItem(post.id);
+          if (columnType !== 'idea' && !isPostsEditMode) return;
+          if (columnType !== 'idea') {
+            const confirmed = (typeof window.showConfirmDialog === 'function')
+              ? await window.showConfirmDialog({
+                  title: 'Delete Draft?',
+                  message: `Are you sure you want to delete "${post.title || 'Untitled'}"?`,
+                  confirmText: 'Delete',
+                  isDanger: true
+                })
+              : confirm(`Are you sure you want to delete "${post.title || 'Untitled'}"?`);
+            if (!confirmed) return;
+            if (postsEditModeSnapshot && Array.isArray(postsEditModeSnapshot.drafts)) {
+              postsEditModeSnapshot.drafts = postsEditModeSnapshot.drafts.filter(d => d && d.id !== post.id && (!post.slug || d.slug !== post.slug));
+            }
+            await deleteItem(post.id, { skipConfirm: true });
+          } else {
+            deleteItem(post.id);
+          }
           renderAllPostsGrid();
           if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
           if (typeof renderPostsPipeline === 'function') renderPostsPipeline();
@@ -337,6 +487,9 @@
       if (columnType === 'idea') {
         const padEl = card.querySelector('.card-scratchpad-text');
         if (padEl) padEl.focus();
+        return;
+      }
+      if (isPostsEditMode) {
         return;
       }
       openPostInEditor(post.id);
@@ -491,6 +644,8 @@
 
   function renderAllPostsGrid() {
     updatePostsCategoryFilterOptions();
+    updatePostsEditModeUI();
+    initPostsEditModeListeners();
 
     let posts = (window.CedarStore && typeof window.CedarStore.getPosts === 'function')
       ? window.CedarStore.getPosts()
@@ -786,14 +941,17 @@
 
     // Posts View Mode Toggle Listener (Grid / List)
     document.addEventListener('click', (e) => {
-      const btn = e.target.closest('#posts-view-toggle .posts-view-btn, .posts-view-btn');
+      const btn = e.target.closest('#posts-view-toggle .posts-view-btn, [data-posts-view]');
       if (!btn) return;
+      if (!isPostsEditMode) return;
       const targetMode = btn.dataset.postsView;
       if (!targetMode) return;
       setAllPostsViewMode(targetMode);
     });
 
     applyPostsViewModes();
+    updatePostsEditModeUI();
+    initPostsEditModeListeners();
   }
 
   window.renderPostsPipeline = renderPostsPipeline;

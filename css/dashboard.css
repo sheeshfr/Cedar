@@ -2557,8 +2557,9 @@
   white-space: nowrap;
 }
 
-/* Pages Pane Header Layout */
-#pane-pages .dash-pane-header.standardized-pane-header {
+/* Pages & Posts Pane Header Layout */
+#pane-pages .dash-pane-header.standardized-pane-header,
+#pane-posts .dash-pane-header.standardized-pane-header {
   display: grid !important;
   grid-template-columns: auto 1fr auto !important;
   align-items: center !important;
@@ -2570,7 +2571,8 @@
   column-gap: 1.25rem !important;
 }
 
-#pane-pages .pane-header-left {
+#pane-pages .pane-header-left,
+#pane-posts .pane-header-left {
   display: flex !important;
   align-items: center !important;
   height: 36px !important;
@@ -2580,7 +2582,8 @@
   z-index: 2;
 }
 
-#pane-pages .pane-header-center {
+#pane-pages .pane-header-center,
+#pane-posts .pane-header-center {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -2592,12 +2595,14 @@
   z-index: 1;
 }
 
-#pane-pages .pane-header-center .header-search-box {
+#pane-pages .pane-header-center .header-search-box,
+#pane-posts .pane-header-center .header-search-box {
   height: 36px !important;
   min-height: 36px !important;
 }
 
-#pane-pages .pane-header-right {
+#pane-pages .pane-header-right,
+#pane-posts .pane-header-right {
   display: flex !important;
   align-items: center !important;
   justify-content: flex-end !important;
@@ -2609,7 +2614,8 @@
 }
 
 /* Edit Mode Action Buttons: Replaces search bar in center header on a single line */
-.pages-edit-mode-actions {
+.pages-edit-mode-actions,
+.posts-edit-mode-actions {
   display: none;
   align-items: center;
   justify-content: center;
@@ -2619,15 +2625,18 @@
   min-height: 36px !important;
 }
 
-#pane-pages.is-edit-mode .pane-header-center .header-search-box {
+#pane-pages.is-edit-mode .pane-header-center .header-search-box,
+#pane-posts.is-edit-mode .pane-header-center .header-search-box {
   display: none !important;
 }
 
-#pane-pages.is-edit-mode .pages-edit-mode-actions {
+#pane-pages.is-edit-mode .pages-edit-mode-actions,
+#pane-posts.is-edit-mode .posts-edit-mode-actions {
   display: inline-flex !important;
 }
 
-.pages-edit-mode-actions .btn {
+.pages-edit-mode-actions .btn,
+.posts-edit-mode-actions .btn {
   min-width: 72px;
   height: 32px;
   font-size: 0.82rem;
@@ -2639,9 +2648,20 @@
   transition: all 0.18s ease;
 }
 
-#btn-pages-edit-save {
+#btn-pages-edit-save,
+#btn-posts-edit-save {
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+#pane-posts:not(.is-edit-mode) .card-hover-delete-btn,
+#pane-posts:not(.is-edit-mode) .card-list-actions,
+#pane-posts:not(.is-edit-mode) #posts-view-toggle {
+  display: none !important;
+}
+
+#pane-posts.is-edit-mode .card-hover-delete-btn {
+  opacity: 0.75;
 }
 
 /* Pages Tab Auto Category Pages Switch */
