@@ -237,7 +237,7 @@
         parsedBlocks.push(trimmedBlockLine);
         continue;
       }
-      if (/^<(p|div|h[1-6])\b[^>]*(align|style)=/i.test(trimmedBlockLine)) {
+      if (/^<(p|div|h[1-6]|blockquote)\b[^>]*(align|style|data-indent)=/i.test(trimmedBlockLine)) {
         flushParagraph();
         flushList();
         parsedBlocks.push(parseInlines(trimmedBlockLine));
@@ -516,13 +516,27 @@
           return el.style?.textAlign || el.getAttribute('align') || (el.classList?.contains('align-center') ? 'center' : (el.classList?.contains('align-right') ? 'right' : ''));
         };
 
+        const getIndent = (el) => {
+          if (!el) return 0;
+          return parseInt(el.getAttribute('data-indent') || '0', 10) || 0;
+        };
+
+        const buildBlockAttrs = (align, indent) => {
+          let attrs = '';
+          if (align && (align === 'center' || align === 'right')) attrs += ` align="${align}"`;
+          if (indent > 0) attrs += ` data-indent="${indent}"`;
+          return attrs;
+        };
+
         switch (tag) {
           case 'h1':
           case 'h2': {
             const hAlign = getAlignment(node);
+            const hIndent = getIndent(node);
             const hText = inlineDomToMarkdown(node).trim();
-            if (hAlign && (hAlign === 'center' || hAlign === 'right')) {
-              output += `\n\n<h2 align="${hAlign}">${hText}</h2>\n\n`;
+            const attrs = buildBlockAttrs(hAlign, hIndent);
+            if (attrs) {
+              output += `\n\n<h2${attrs}>${hText}</h2>\n\n`;
             } else {
               output += `\n\n## ${hText}\n\n`;
             }
@@ -530,9 +544,11 @@
           }
           case 'h3': {
             const hAlign = getAlignment(node);
+            const hIndent = getIndent(node);
             const hText = inlineDomToMarkdown(node).trim();
-            if (hAlign && (hAlign === 'center' || hAlign === 'right')) {
-              output += `\n\n<h3 align="${hAlign}">${hText}</h3>\n\n`;
+            const attrs = buildBlockAttrs(hAlign, hIndent);
+            if (attrs) {
+              output += `\n\n<h3${attrs}>${hText}</h3>\n\n`;
             } else {
               output += `\n\n### ${hText}\n\n`;
             }
@@ -540,9 +556,11 @@
           }
           case 'h4': {
             const hAlign = getAlignment(node);
+            const hIndent = getIndent(node);
             const hText = inlineDomToMarkdown(node).trim();
-            if (hAlign && (hAlign === 'center' || hAlign === 'right')) {
-              output += `\n\n<h4 align="${hAlign}">${hText}</h4>\n\n`;
+            const attrs = buildBlockAttrs(hAlign, hIndent);
+            if (attrs) {
+              output += `\n\n<h4${attrs}>${hText}</h4>\n\n`;
             } else {
               output += `\n\n#### ${hText}\n\n`;
             }
@@ -552,8 +570,10 @@
           case 'div': {
             const pContent = inlineDomToMarkdown(node).trim();
             const align = getAlignment(node);
-            if (align && (align === 'center' || align === 'right')) {
-              output += `\n\n<p align="${align}">${pContent || '&nbsp;'}</p>\n\n`;
+            const indent = getIndent(node);
+            const attrs = buildBlockAttrs(align, indent);
+            if (attrs) {
+              output += `\n\n<p${attrs}>${pContent || '&nbsp;'}</p>\n\n`;
             } else if (pContent) {
               output += `\n\n${pContent}\n\n`;
             } else {
@@ -561,9 +581,16 @@
             }
             break;
           }
-          case 'blockquote':
-            output += `\n\n> ${inlineDomToMarkdown(node).trim()}\n\n`;
+          case 'blockquote': {
+            const qIndent = getIndent(node);
+            const qText = inlineDomToMarkdown(node).trim();
+            if (qIndent > 0) {
+              output += `\n\n<blockquote data-indent="${qIndent}"><p>${qText}</p></blockquote>\n\n`;
+            } else {
+              output += `\n\n> ${qText}\n\n`;
+            }
             break;
+          }
           case 'ul':
             node.querySelectorAll('li').forEach(li => {
               output += `\n- ${inlineDomToMarkdown(li).trim()}`;
@@ -633,16 +660,25 @@
           case 'strike':
             out += inner ? `~~${inner}~~` : '';
             break;
+          case 'u':
+            out += inner ? `<u>${inner}</u>` : '';
+            break;
+          case 'mark':
+            out += inner ? `<mark class="cedar-highlight">${inner}</mark>` : '';
+            break;
           case 'span': {
+            const fw = (child.style && child.style.fontWeight) ? String(child.style.fontWeight).toLowerCase() : '';
+            const isBoldSpan = fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600;
+            const formattedInner = (isBoldSpan && inner) ? `**${inner}**` : inner;
             if (child.classList && child.classList.contains('cedar-custom-color')) {
               const customColor = (child.getAttribute('data-custom-color') || child.style?.color || '').trim();
-              if (customColor && inner) {
-                out += `<span class="cedar-custom-color" data-custom-color="${customColor}" style="color: ${customColor};">${inner}</span>`;
+              if (customColor && formattedInner) {
+                out += `<span class="cedar-custom-color" data-custom-color="${customColor}" style="color: ${customColor};">${formattedInner}</span>`;
               } else {
-                out += inner;
+                out += formattedInner;
               }
             } else {
-              out += inner;
+              out += formattedInner;
             }
             break;
           }
@@ -2007,7 +2043,8 @@
     }
 
     .article-prose strong, .article-prose b {
-      font-weight: 700;
+      font-weight: 700 !important;
+      font-synthesis: weight style;
       color: inherit;
     }
 
@@ -2015,6 +2052,47 @@
       font-style: italic;
       color: inherit;
     }
+
+    .article-prose u {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-thickness: 1.5px;
+    }
+
+    .article-prose s,
+    .article-prose del,
+    .article-prose strike {
+      text-decoration: none;
+      background-image: linear-gradient(currentColor, currentColor);
+      background-position: 0 60%;
+      background-size: 100% 1.5px;
+      background-repeat: no-repeat;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+      opacity: 0.88;
+    }
+
+    .article-prose mark,
+    .article-prose .cedar-highlight {
+      background: rgba(250, 204, 21, 0.32);
+      color: inherit;
+      padding: 0.08em 0.2em;
+      margin: 0 -0.05em;
+      border-radius: 3px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    .app-theme-light .article-prose mark,
+    .app-theme-light .article-prose .cedar-highlight {
+      background: rgba(250, 204, 21, 0.48);
+      color: inherit;
+    }
+
+    .article-prose [data-indent="1"] { padding-left: 2rem; }
+    .article-prose [data-indent="2"] { padding-left: 4rem; }
+    .article-prose [data-indent="3"] { padding-left: 6rem; }
+    .article-prose [data-indent="4"] { padding-left: 8rem; }
 
     .article-prose a:not(.post-card):not(.post-card-link) {
       color: var(--accent-lavender);

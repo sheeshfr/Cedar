@@ -1038,7 +1038,8 @@
 
 .canvas-prose strong, .article-prose strong,
 .canvas-prose b, .article-prose b {
-  font-weight: 700;
+  font-weight: 700 !important;
+  font-synthesis: weight style;
   color: inherit;
   overflow-wrap: break-word;
   word-break: normal;
@@ -1052,13 +1053,64 @@
   word-break: normal;
 }
 
-.canvas-prose s, .article-prose s,
-.canvas-prose del, .article-prose del,
-.canvas-prose strike, .article-prose strike,
 .canvas-prose u, .article-prose u {
   color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
   overflow-wrap: break-word;
   word-break: normal;
+}
+
+.canvas-prose s, .article-prose s,
+.canvas-prose del, .article-prose del,
+.canvas-prose strike, .article-prose strike {
+  color: inherit;
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 60%;
+  background-size: 100% 1.5px;
+  background-repeat: no-repeat;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  opacity: 0.88;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.canvas-prose mark, .article-prose mark,
+.canvas-prose .cedar-highlight, .article-prose .cedar-highlight {
+  background: rgba(250, 204, 21, 0.32);
+  color: inherit;
+  padding: 0.08em 0.2em;
+  margin: 0 -0.05em;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.app-theme-light .canvas-prose mark, .app-theme-light .article-prose mark,
+.app-theme-light .canvas-prose .cedar-highlight, .app-theme-light .article-prose .cedar-highlight {
+  background: rgba(250, 204, 21, 0.48);
+  color: inherit;
+}
+
+.canvas-prose [data-indent="1"], .article-prose [data-indent="1"] {
+  padding-left: 2rem;
+}
+
+.canvas-prose [data-indent="2"], .article-prose [data-indent="2"] {
+  padding-left: 4rem;
+}
+
+.canvas-prose [data-indent="3"], .article-prose [data-indent="3"] {
+  padding-left: 6rem;
+}
+
+.canvas-prose [data-indent="4"], .article-prose [data-indent="4"] {
+  padding-left: 8rem;
 }
 
 .canvas-prose a:not(.post-card):not(.post-card-link),

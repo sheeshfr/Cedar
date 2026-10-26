@@ -106,7 +106,7 @@
         try {
           const p = projectConfig || window.projectConfig || {};
           const dList = (Array.isArray(drafts) && drafts.length > 0) ? drafts : (Array.isArray(window.drafts) ? window.drafts : []);
-          const dPart = dList.map(d => `${d.id}:${d.updatedAt || d.date || ''}:${d.title || ''}:${d.coverImage || ''}:${d.status || ''}:${d.tag || ''}:${Array.isArray(d.categories) ? d.categories.join(',') : ''}:${Boolean(d.starred || d.featured || d.isFeatured)}`).join(';');
+          const dPart = dList.map(d => `${d.id}:${d.updatedAt || d.date || ''}:${d.title || ''}:${d.coverImage || ''}:${d.status || ''}:${d.tag || ''}:${Array.isArray(d.categories) ? d.categories.join(',') : ''}:${Boolean(d.starred || d.featured || d.isFeatured)}:${(d.proseHtml || '').length}:${(d.markdown || '').length}`).join(';');
           const authPart = (p.authors || []).map(a => `${(typeof a === 'object' ? a?.name : a) || ''}:${(typeof a === 'object' ? a?.avatar : '') || ''}`).join(';');
           const blocksPart = (p.design && Array.isArray(p.design.homeBlocks))
             ? p.design.homeBlocks.map(b => `${b.id}:${b.type}:${b.x}:${b.y}:${b.w}:${b.h}:${b.stretchWidth}:${b.align}:${JSON.stringify(b.config || {})}`).join(';')

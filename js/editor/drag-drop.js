@@ -144,10 +144,12 @@
         }
       }
 
+      let res = null;
+
       // Check if hovering before first child (above its midpoint)
       const firstMid = children[0].getBoundingClientRect().top + children[0].getBoundingClientRect().height / 2;
       if (mouseY < firstMid) {
-        return {
+        res = {
           targetBlock: children[0],
           position: 'before',
           prevBlock: null
@@ -155,44 +157,82 @@
       }
 
       // Check gaps between adjacent children
-      for (let i = 0; i < children.length - 1; i++) {
-        const curr = children[i];
-        const next = children[i + 1];
-        const currMid = curr.getBoundingClientRect().top + curr.getBoundingClientRect().height / 2;
-        const nextMid = next.getBoundingClientRect().top + next.getBoundingClientRect().height / 2;
+      if (!res) {
+        for (let i = 0; i < children.length - 1; i++) {
+          const curr = children[i];
+          const next = children[i + 1];
+          const currMid = curr.getBoundingClientRect().top + curr.getBoundingClientRect().height / 2;
+          const nextMid = next.getBoundingClientRect().top + next.getBoundingClientRect().height / 2;
 
-        if (mouseY >= currMid && mouseY < nextMid) {
-          // Exactly between curr and next
-          if (next.classList.contains('page-recent-posts-block')) {
-            return {
+          if (mouseY >= currMid && mouseY < nextMid) {
+            res = {
               targetBlock: next,
               position: 'before',
               prevBlock: curr
             };
+            break;
           }
-          return {
-            targetBlock: next,
-            position: 'before',
-            prevBlock: curr
-          };
         }
       }
 
       // Below last child's midpoint
-      const lastChild = children[children.length - 1];
-      if (lastChild.classList.contains('page-recent-posts-block')) {
-        return {
-          targetBlock: lastChild,
-          position: 'before',
-          prevBlock: children.length > 1 ? children[children.length - 2] : null
-        };
+      if (!res) {
+        const lastChild = children[children.length - 1];
+        if (lastChild.classList.contains('page-recent-posts-block')) {
+          res = {
+            targetBlock: lastChild,
+            position: 'before',
+            prevBlock: children.length > 1 ? children[children.length - 2] : null
+          };
+        } else {
+          res = {
+            targetBlock: lastChild,
+            position: 'after',
+            prevBlock: lastChild
+          };
+        }
       }
 
-      return {
-        targetBlock: lastChild,
-        position: 'after',
-        prevBlock: lastChild
-      };
+      // Prevent no-op drops onto the dragged block's immediate neighbors:
+      // Inserting draggedBlock 'before' its own nextElementSibling or 'after' its own previousElementSibling
+      // leaves draggedBlock in its exact current DOM position (especially noticeable when dropping onto a short empty block below it).
+      if (draggedBlock && res && res.targetBlock) {
+        const nextSib = draggedBlock.nextElementSibling;
+        const prevSib = draggedBlock.previousElementSibling;
+        const draggedRect = draggedBlock.getBoundingClientRect();
+
+        if (res.targetBlock === nextSib && res.position === 'before') {
+          if (prevSib && mouseY < draggedRect.top) {
+            res = {
+              targetBlock: prevSib,
+              position: 'before',
+              prevBlock: prevSib.previousElementSibling
+            };
+          } else if (!nextSib.classList.contains('page-recent-posts-block')) {
+            res = {
+              targetBlock: nextSib,
+              position: 'after',
+              prevBlock: nextSib
+            };
+          }
+        } else if (res.targetBlock === prevSib && res.position === 'after') {
+          if (nextSib && mouseY > draggedRect.bottom && !nextSib.classList.contains('page-recent-posts-block')) {
+            res = {
+              targetBlock: nextSib,
+              position: 'after',
+              prevBlock: nextSib
+            };
+          } else {
+            res = {
+              targetBlock: prevSib,
+              position: 'before',
+              prevBlock: prevSib.previousElementSibling
+            };
+          }
+        }
+      }
+
+      return res;
     }
 
     canvasProse.addEventListener('dragstart', (e) => {
@@ -294,7 +334,7 @@
         const canvasRect = canvasProse.getBoundingClientRect();
 
         let topY;
-        if (target.prevBlock && target.targetBlock && target.prevBlock !== target.targetBlock) {
+        if (target.position === 'before' && target.prevBlock && target.targetBlock && target.prevBlock !== target.targetBlock) {
           const prevRect = target.prevBlock.getBoundingClientRect();
           const nextRect = target.targetBlock.getBoundingClientRect();
           topY = Math.round(((prevRect.bottom + nextRect.top) / 2) - cRect.top);
@@ -303,7 +343,15 @@
           topY = Math.round(bRect.top - cRect.top - 3);
         } else {
           const bRect = target.targetBlock.getBoundingClientRect();
-          topY = Math.round(bRect.bottom - cRect.top + 3);
+          const afterSib = (target.targetBlock.nextElementSibling && target.targetBlock.nextElementSibling !== draggedBlock && target.targetBlock.nextElementSibling.id !== 'canvas-drop-indicator')
+            ? target.targetBlock.nextElementSibling
+            : null;
+          if (afterSib) {
+            const nextRect = afterSib.getBoundingClientRect();
+            topY = Math.round(((bRect.bottom + nextRect.top) / 2) - cRect.top);
+          } else {
+            topY = Math.round(bRect.bottom - cRect.top + 3);
+          }
         }
 
         ind.style.top = topY + 'px';
@@ -350,9 +398,20 @@
     }
 
     function onDragLeave(e) {
-      if (!scrollContainer || !scrollContainer.contains(e.relatedTarget)) {
+      if (!scrollContainer) {
         clearIndicators();
+        return;
       }
+      if (e.relatedTarget && scrollContainer.contains(e.relatedTarget)) {
+        return;
+      }
+      if (typeof e.clientX === 'number' && typeof e.clientY === 'number' && (e.clientX !== 0 || e.clientY !== 0)) {
+        const scRect = scrollContainer.getBoundingClientRect();
+        if (e.clientX >= scRect.left && e.clientX <= scRect.right && e.clientY >= scRect.top && e.clientY <= scRect.bottom && !isFalseDropZone(e)) {
+          return;
+        }
+      }
+      clearIndicators();
     }
 
     function onDrop(e) {
@@ -480,7 +539,7 @@
       if (!draggedBlock) return;
       e.preventDefault();
       e.stopPropagation();
-      const currentAction = dropAction;
+      const currentAction = dropAction || calculateDropTarget(e);
       const currentDragged = draggedBlock;
       draggedBlock = null;
       clearIndicators();
@@ -497,10 +556,25 @@
             : (currentAction.targetBlock.nextElementSibling && currentAction.targetBlock.nextElementSibling.classList.contains('gallery-caption')
                 ? currentAction.targetBlock.nextElementSibling.nextSibling
                 : currentAction.targetBlock.nextSibling);
+
+          // Safety guard: if insertRef would leave currentDragged in its exact current position
+          // when targeting its immediate next sibling, advance insertRef past targetBlock.
+          if (insertRef === currentDragged.nextSibling && currentAction.targetBlock === currentDragged.nextElementSibling && !currentAction.targetBlock.classList.contains('page-recent-posts-block')) {
+            insertRef = currentAction.targetBlock.nextSibling;
+          }
+
+          // Mark any existing empty paragraphs as intentional so moving a block past an empty space
+          // never collapses or deletes the empty space.
+          Array.from(canvasProse.children).forEach(ch => {
+            if (ch.tagName === 'P' && (!ch.textContent.trim() || ch.innerHTML === '<br>')) {
+              ch.setAttribute('data-intentional-space', 'true');
+            }
+          });
+
           canvasProse.insertBefore(currentDragged, insertRef);
-          if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
           if (window.recordAction) window.recordAction('block-drag-reorder', true);
+          if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
           if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
           if (typeof window.showToast === 'function') window.showToast('Block moved!');
         }

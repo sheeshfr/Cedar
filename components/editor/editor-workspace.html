@@ -87,8 +87,14 @@
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="italic" title="Italic (Ctrl+I)">
           <span style="font-style: italic; font-family: serif; font-size: 0.95rem; font-weight: 600;">I</span>
         </button>
-        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="strikethrough" title="Strikethrough">
-          <span style="text-decoration: line-through; font-family: serif; font-size: 0.95rem;">S</span>
+        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="underline" title="Underline (Ctrl+U)">
+          <span style="text-decoration: underline; text-underline-offset: 2px; font-family: serif; font-size: 0.95rem; font-weight: 600;">U</span>
+        </button>
+        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="strikethrough" title="Strikethrough (Ctrl+Shift+X)">
+          <span style="text-decoration: none; background-image: linear-gradient(currentColor, currentColor); background-position: 0 60%; background-size: 100% 1.5px; background-repeat: no-repeat; font-family: serif; font-size: 0.95rem; padding: 0 1px;">S</span>
+        </button>
+        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="highlight" title="Highlight (Ctrl+Shift+H)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"></path><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path><line x1="4" y1="22" x2="20" y2="22" stroke-width="2.6"></line></svg>
         </button>
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="code" title="Inline Code (Ctrl+E)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
@@ -134,7 +140,7 @@
 
       <div class="toolbar-divider"></div>
 
-      <!-- Group: Text Alignment -->
+      <!-- Group: Text Alignment & Indent -->
       <div class="toolbar-group">
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="align-left" title="Align Left (Ctrl+Shift+L)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="17" y1="18" x2="3" y2="18"></line></svg>
@@ -144,6 +150,9 @@
         </button>
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="align-right" title="Align Right (Ctrl+Shift+R)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="10" x2="7" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
+        </button>
+        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="indent" title="Indent Block (Tab / Shift+Tab to Outdent)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8 7 12 3 16"></polyline><line x1="21" y1="12" x2="11" y2="12"></line><line x1="21" y1="6" x2="11" y2="6"></line><line x1="21" y1="18" x2="3" y2="18"></line></svg>
         </button>
       </div>
 

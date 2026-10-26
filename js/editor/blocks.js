@@ -1115,7 +1115,7 @@
       const child = children[i];
       const isEmptyP = (child.tagName === 'P' && (!child.textContent.trim() || child.innerHTML === '<br>'));
       if (isEmptyP && lastWasEmptyP) {
-        if (child !== preserveNode && child !== document.activeElement) {
+        if (child !== preserveNode && child !== document.activeElement && child.getAttribute('data-intentional-space') !== 'true') {
           child.remove();
         } else {
           lastWasEmptyP = isEmptyP;

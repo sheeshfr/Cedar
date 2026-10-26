@@ -558,10 +558,15 @@
         const container = moveUpBtn.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-individual-post-block');
         if (container && container.previousElementSibling) {
           if (window.commitCheckpoint) window.commitCheckpoint();
+          Array.from(canvasProse.children).forEach(ch => {
+            if (ch.tagName === 'P' && (!ch.textContent.trim() || ch.innerHTML === '<br>')) {
+              ch.setAttribute('data-intentional-space', 'true');
+            }
+          });
           container.parentNode.insertBefore(container, container.previousElementSibling);
-          if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
           if (window.recordAction) window.recordAction('block-move-up', true);
+          if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
           if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
           if (typeof window.showToast === 'function') window.showToast('Moved block up');
         }
@@ -582,10 +587,15 @@
             return;
           }
           if (window.commitCheckpoint) window.commitCheckpoint();
+          Array.from(canvasProse.children).forEach(ch => {
+            if (ch.tagName === 'P' && (!ch.textContent.trim() || ch.innerHTML === '<br>')) {
+              ch.setAttribute('data-intentional-space', 'true');
+            }
+          });
           container.parentNode.insertBefore(container, container.nextElementSibling.nextSibling);
-          if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
           if (window.recordAction) window.recordAction('block-move-down', true);
+          if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
           if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
           if (typeof window.showToast === 'function') window.showToast('Moved block down');
         }
@@ -1734,6 +1744,26 @@
             }
           }
 
+          const inlineMarkEl = (anchorNode && anchorNode.closest) ? anchorNode.closest('mark') : null;
+          if (inlineMarkEl && canvasProse.contains(inlineMarkEl)) {
+            const visibleMarkText = (inlineMarkEl.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+            if (visibleMarkText.length === 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              const parentBlock = inlineMarkEl.parentNode;
+              const zwsp = document.createTextNode('\u200B');
+              parentBlock.replaceChild(zwsp, inlineMarkEl);
+              const newRange = document.createRange();
+              newRange.setStart(zwsp, 1);
+              newRange.collapse(true);
+              selInline.removeAllRanges();
+              selInline.addRange(newRange);
+              window._savedSelectionRange = newRange.cloneRange();
+              if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+              return;
+            }
+          }
+
           const inlineColorEl = (anchorNode && anchorNode.closest) ? anchorNode.closest('span.cedar-custom-color') : null;
           if (inlineColorEl && canvasProse.contains(inlineColorEl)) {
             const visibleColorText = (inlineColorEl.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
@@ -1779,6 +1809,19 @@
               const postText = (postRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
 
               if (e.key === 'Backspace') {
+                // Outdent on Backspace when caret is at the very start of an indented block
+                const curIndent = parseInt(topBlock.getAttribute('data-indent') || '0', 10) || 0;
+                if (preText.length === 0 && curIndent > 0) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (typeof window.applyBlockIndent === 'function') {
+                    window.applyBlockIndent('outdent');
+                  } else {
+                    if (curIndent > 1) topBlock.setAttribute('data-indent', String(curIndent - 1));
+                    else topBlock.removeAttribute('data-indent');
+                  }
+                  return;
+                }
                 // Case 1: Block is already completely empty (<p><br></p>)
                 if (rawText.length === 0 && !hasMedia && (isNonTextBlock(prevSib) || isNonTextBlock(nextSib) || !prevSib)) {
                   e.preventDefault();
@@ -1951,14 +1994,14 @@
         }
       }
 
-      // Allow ArrowRight at the end of inline <code> to step out of <code> cleanly
+      // Allow ArrowRight at the end of inline <code> or <mark> to step out cleanly
       if (e.key === 'ArrowRight' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const sel = window.getSelection();
         if (sel && sel.rangeCount && sel.isCollapsed) {
           const range = sel.getRangeAt(0);
           let anchorEl = range.startContainer;
           if (anchorEl && anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
-          const inlineCodeEl = (anchorEl && anchorEl.closest) ? anchorEl.closest('code:not(pre code)') : null;
+          const inlineCodeEl = (anchorEl && anchorEl.closest) ? anchorEl.closest('code:not(pre code), mark') : null;
           if (inlineCodeEl && canvasProse.contains(inlineCodeEl)) {
             const postRange = document.createRange();
             postRange.selectNodeContents(inlineCodeEl);
@@ -2383,10 +2426,20 @@
         }
         const parent = el.parentNode;
         if (parent) {
-          while (el.firstChild) {
-            parent.insertBefore(el.firstChild, el);
+          const fw = (el.style && el.style.fontWeight) ? String(el.style.fontWeight).toLowerCase() : '';
+          const isBoldSpan = fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600;
+          if (isBoldSpan && !el.closest('strong, b, h1, h2, h3, h4')) {
+            const strong = document.createElement('strong');
+            while (el.firstChild) {
+              strong.appendChild(el.firstChild);
+            }
+            parent.replaceChild(strong, el);
+          } else {
+            while (el.firstChild) {
+              parent.insertBefore(el.firstChild, el);
+            }
+            parent.removeChild(el);
           }
-          parent.removeChild(el);
         }
       });
 

@@ -113,7 +113,9 @@
     if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
     document.execCommand(command, false, null);
     saveCurrentSelection();
+    updateToolbarActiveStates();
     if (typeof window.recordAction === 'function') window.recordAction('format', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
@@ -312,6 +314,158 @@
 
     updateToolbarActiveStates();
     if (typeof window.recordAction === 'function') window.recordAction('format', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
+    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+  }
+
+  function applyHighlight() {
+    restoreEditorSelection();
+    if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+    const sel = window.getSelection();
+    const canvas = document.getElementById('rich-canvas-prose');
+    if (!sel || !sel.rangeCount || !canvas) return;
+
+    const range = sel.getRangeAt(0);
+    if (!canvas.contains(range.commonAncestorContainer)) return;
+
+    let anchorEl = range.commonAncestorContainer;
+    if (anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
+    if (anchorEl && anchorEl.closest && anchorEl.closest('pre')) {
+      return;
+    }
+
+    const enclosingMark = (anchorEl && anchorEl.closest) ? anchorEl.closest('mark') : null;
+
+    if (sel.isCollapsed) {
+      if (enclosingMark && canvas.contains(enclosingMark)) {
+        const visibleText = (enclosingMark.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+        if (!visibleText) {
+          const parent = enclosingMark.parentNode;
+          const zwsp = document.createTextNode('\u200B');
+          parent.replaceChild(zwsp, enclosingMark);
+          const newRange = document.createRange();
+          newRange.setStart(zwsp, 1);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          savedSelectionRange = newRange.cloneRange();
+          window._savedSelectionRange = savedSelectionRange;
+        } else {
+          const postRange = document.createRange();
+          postRange.selectNodeContents(enclosingMark);
+          postRange.setStart(range.startContainer, range.startOffset);
+          const postText = (postRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+          let targetAfterNode = enclosingMark;
+          if (postText.length > 0) {
+            const splitRes = splitInlineElementAtRange(enclosingMark, range);
+            if (splitRes && splitRes.beforeNode) {
+              targetAfterNode = splitRes.beforeNode;
+            }
+          }
+
+          const zwsp = document.createTextNode('\u200B');
+          if (targetAfterNode && targetAfterNode.parentNode) {
+            targetAfterNode.parentNode.insertBefore(zwsp, targetAfterNode.nextSibling);
+          } else {
+            range.insertNode(zwsp);
+          }
+          const newRange = document.createRange();
+          newRange.setStart(zwsp, 1);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          savedSelectionRange = newRange.cloneRange();
+          window._savedSelectionRange = savedSelectionRange;
+        }
+      } else {
+        const markEl = document.createElement('mark');
+        markEl.className = 'cedar-highlight';
+        const zwsp = document.createTextNode('\u200B');
+        markEl.appendChild(zwsp);
+        range.insertNode(markEl);
+
+        const newRange = document.createRange();
+        newRange.setStart(zwsp, 1);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedSelectionRange = newRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+
+      updateToolbarActiveStates();
+      if (typeof window.recordAction === 'function') window.recordAction('format', true);
+      if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
+      if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+      return;
+    }
+
+    // Non-collapsed selection
+    if (enclosingMark && canvas.contains(enclosingMark)) {
+      const splitRes = splitInlineElementAtRange(enclosingMark, range);
+      if (splitRes && splitRes.range) {
+        sel.removeAllRanges();
+        sel.addRange(splitRes.range);
+        savedSelectionRange = splitRes.range.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+    } else {
+      const contents = range.extractContents();
+      const existingMarks = Array.from(contents.querySelectorAll('mark'));
+      // If the entire selection was already wrapped in <mark>, unwrap it to toggle off
+      const onlyMarkChildren = existingMarks.length > 0 && Array.from(contents.childNodes).every(n =>
+        (n.nodeType === Node.TEXT_NODE && !n.textContent.trim()) ||
+        (n.nodeType === Node.ELEMENT_NODE && n.tagName === 'MARK')
+      );
+      if (onlyMarkChildren) {
+        existingMarks.forEach(nested => unwrapElementPreservingChildren(nested));
+        const firstChild = contents.firstChild;
+        const lastChild = contents.lastChild;
+        range.insertNode(contents);
+        if (firstChild && lastChild) {
+          const newRange = document.createRange();
+          newRange.setStartBefore(firstChild);
+          newRange.setEndAfter(lastChild);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          savedSelectionRange = newRange.cloneRange();
+          window._savedSelectionRange = savedSelectionRange;
+        }
+      } else {
+        existingMarks.forEach(nested => unwrapElementPreservingChildren(nested));
+        const mark = document.createElement('mark');
+        mark.className = 'cedar-highlight';
+        mark.appendChild(contents);
+        range.insertNode(mark);
+
+        if (mark.previousSibling && mark.previousSibling.nodeType === Node.ELEMENT_NODE && mark.previousSibling.tagName === 'MARK') {
+          const prev = mark.previousSibling;
+          while (prev.lastChild) {
+            mark.insertBefore(prev.lastChild, mark.firstChild);
+          }
+          prev.remove();
+        }
+        if (mark.nextSibling && mark.nextSibling.nodeType === Node.ELEMENT_NODE && mark.nextSibling.tagName === 'MARK') {
+          const next = mark.nextSibling;
+          while (next.firstChild) {
+            mark.appendChild(next.firstChild);
+          }
+          next.remove();
+        }
+
+        const newRange = document.createRange();
+        newRange.selectNodeContents(mark);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedSelectionRange = newRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      }
+    }
+
+    updateToolbarActiveStates();
+    if (typeof window.recordAction === 'function') window.recordAction('format', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
@@ -515,6 +669,7 @@
 
     updateToolbarActiveStates();
     if (typeof window.recordAction === 'function') window.recordAction('format', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
@@ -600,6 +755,115 @@
     saveCurrentSelection();
     updateToolbarActiveStates();
     if (typeof window.recordAction === 'function') window.recordAction('align', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
+    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+  }
+
+  function applyBlockIndent(direction = 'toggle') {
+    const activeMode = window.activeMode || 'canvas';
+    if (activeMode === 'markdown') {
+      const mdInput = document.getElementById('markdown-input');
+      if (!mdInput) return;
+      if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+      const start = mdInput.selectionStart;
+      const end = mdInput.selectionEnd;
+      const val = mdInput.value;
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = val.indexOf('\n', end);
+      if (lineEnd === -1) lineEnd = val.length;
+      const line = val.substring(lineStart, lineEnd);
+      const indentMatch = line.match(/^<(p|div|h[1-6]|blockquote)\b[^>]*data-indent=["']?(\d+)["']?[^>]*>([\s\S]*?)<\/\1>$/i);
+      let newLine = line;
+      if (indentMatch) {
+        const tag = indentMatch[1];
+        const curLevel = parseInt(indentMatch[2], 10) || 1;
+        const inner = indentMatch[3];
+        let nextLevel = curLevel;
+        if (direction === 'outdent') nextLevel = curLevel - 1;
+        else if (direction === 'indent') nextLevel = Math.min(4, curLevel + 1);
+        else nextLevel = 0;
+        newLine = nextLevel > 0 ? `<${tag} data-indent="${nextLevel}">${inner}</${tag}>` : inner;
+      } else if (direction !== 'outdent') {
+        newLine = `<p data-indent="1">${line || 'Indented text'}</p>`;
+      }
+      mdInput.value = val.substring(0, lineStart) + newLine + val.substring(lineEnd);
+      mdInput.selectionStart = lineStart;
+      mdInput.selectionEnd = lineStart + newLine.length;
+      if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
+      if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+      return;
+    }
+
+    restoreEditorSelection();
+    const sel = window.getSelection();
+    const canvas = document.getElementById('rich-canvas-prose');
+    if (!canvas) return;
+
+    const targetBlocks = [];
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      let node = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+
+      if (canvas.contains(node)) {
+        Array.from(canvas.children).forEach(child => {
+          if (range.intersectsNode(child) && ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'UL', 'OL', 'DIV'].includes(child.tagName)) {
+            if (!child.classList.contains('captioned-image-container') &&
+                !child.classList.contains('custom-gallery-grid') &&
+                !child.classList.contains('video-wrapper') &&
+                !child.classList.contains('article-share-block') &&
+                !child.classList.contains('article-rss-block') &&
+                !child.classList.contains('page-recent-posts-block') &&
+                !child.classList.contains('page-individual-post-block')) {
+              targetBlocks.push(child);
+            }
+          }
+        });
+
+        if (targetBlocks.length === 0) {
+          let curr = node;
+          while (curr && curr.parentNode !== canvas && curr !== canvas && curr !== document.body) {
+            curr = curr.parentNode;
+          }
+          if (curr && curr.parentNode === canvas && ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'UL', 'OL', 'DIV'].includes(curr.tagName)) {
+            targetBlocks.push(curr);
+          }
+        }
+      }
+    }
+
+    if (targetBlocks.length === 0 && window._lastActiveBlock && window._lastActiveBlock.parentNode === canvas) {
+      if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'UL', 'OL', 'DIV'].includes(window._lastActiveBlock.tagName)) {
+        targetBlocks.push(window._lastActiveBlock);
+      }
+    }
+
+    if (targetBlocks.length === 0) return;
+    if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+
+    targetBlocks.forEach(block => {
+      const curLevel = parseInt(block.getAttribute('data-indent') || '0', 10) || 0;
+      let nextLevel = curLevel;
+      if (direction === 'indent') {
+        nextLevel = Math.min(4, curLevel + 1);
+      } else if (direction === 'outdent') {
+        nextLevel = Math.max(0, curLevel - 1);
+      } else {
+        // 'toggle' from toolbar button: if unindented -> 1; if already indented -> 0
+        nextLevel = curLevel > 0 ? 0 : 1;
+      }
+
+      if (nextLevel > 0) {
+        block.setAttribute('data-indent', String(nextLevel));
+      } else {
+        block.removeAttribute('data-indent');
+      }
+    });
+
+    saveCurrentSelection();
+    updateToolbarActiveStates();
+    if (typeof window.recordAction === 'function') window.recordAction('indent', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
@@ -1219,18 +1483,21 @@
     // Native queryCommandState for inline styles & lists
     let isBold = false;
     let isItalic = false;
+    let isUnderline = false;
     let isStrike = false;
     let isUl = false;
     let isOl = false;
 
     try { isBold = document.queryCommandState('bold'); } catch (e) {}
     try { isItalic = document.queryCommandState('italic'); } catch (e) {}
+    try { isUnderline = document.queryCommandState('underline'); } catch (e) {}
     try { isStrike = document.queryCommandState('strikeThrough'); } catch (e) {}
     try { isUl = document.queryCommandState('insertUnorderedList'); } catch (e) {}
     try { isOl = document.queryCommandState('insertOrderedList'); } catch (e) {}
 
-    // Walk ancestry for code, links, blockquote, headings, and custom font color inside prose
+    // Walk ancestry for code, highlight, links, blockquote, headings, and custom font color inside prose
     let isCode = false;
+    let isHighlight = false;
     let isLink = false;
     let isQuote = false;
     let activeCustomColor = 'default';
@@ -1263,6 +1530,8 @@
           currentBlock = 'divider';
         }
         if (tag === 'code') isCode = true;
+        if (tag === 'mark') isHighlight = true;
+        if (tag === 'u') isUnderline = true;
         if (tag === 'a') isLink = true;
         if (activeCustomColor === 'default' && curr.classList && curr.classList.contains('cedar-custom-color')) {
           const customHex = (curr.getAttribute('data-custom-color') || '').trim().toLowerCase();
@@ -1304,7 +1573,9 @@
     // Toggle button active classes
     setBtnActive('bold', isBold);
     setBtnActive('italic', isItalic);
+    setBtnActive('underline', isUnderline);
     setBtnActive('strikethrough', isStrike);
+    setBtnActive('highlight', isHighlight);
     setBtnActive('code', isCode);
     setBtnActive('link', isLink);
     setBtnActive('quote', isQuote);
@@ -1359,6 +1630,23 @@
     setBtnActive('align-left', currentAlign === 'left');
     setBtnActive('align-center', currentAlign === 'center');
     setBtnActive('align-right', currentAlign === 'right');
+
+    // Check block indent
+    let currentIndent = 0;
+    if (targetAlignEl) {
+      let block = targetAlignEl;
+      while (block && block !== canvas && block !== document.body) {
+        if (block.getAttribute) {
+          const ind = parseInt(block.getAttribute('data-indent') || '0', 10);
+          if (ind > 0) {
+            currentIndent = ind;
+            break;
+          }
+        }
+        block = block.parentNode;
+      }
+    }
+    setBtnActive('indent', currentIndent > 0);
 
     // Map to the Block Types: Text, Images, Embedded Media, Quote, Share Button, Subscribe, Individual Post, Recent Posts, Divider Line
     const isNonTextBlock = ['images', 'media', 'quote', 'share', 'rss', 'recent-posts', 'individual-post', 'divider'].includes(currentBlock);
@@ -1485,6 +1773,9 @@
     setBtnActive('align-left', false);
     setBtnActive('align-center', false);
     setBtnActive('align-right', false);
+    setBtnActive('indent', false);
+    setBtnActive('underline', false);
+    setBtnActive('highlight', false);
     const styleLabel = document.getElementById('tb-current-style-label');
     const styleBtn = document.getElementById('tb-btn-style-dropdown');
     if (styleLabel) styleLabel.textContent = 'Style';
@@ -1683,6 +1974,21 @@
         return;
       }
 
+      // Tab / Shift+Tab inside prose canvas -> Indent / Outdent block
+      if (e.key === 'Tab' && !isCtrlOrCmd && !e.altKey) {
+        const active = document.activeElement;
+        const canvas = document.getElementById('rich-canvas-prose');
+        if (canvas && (active === canvas || canvas.contains(active))) {
+          if (e.target && e.target.closest && e.target.closest('.individual-post-url-input, figcaption, .gallery-caption, pre')) {
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          applyBlockIndent(e.shiftKey ? 'outdent' : 'indent');
+          return;
+        }
+      }
+
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
       if (modKey) {
@@ -1711,30 +2017,44 @@
         }
 
         if (active === title || active === sub) {
-          if (['b', 'i', 'u', 's', 'k', 'e'].includes(key)) {
+          if (['b', 'i', 'u', 's', 'k', 'e', 'h', 'x'].includes(key)) {
             e.preventDefault();
             return;
           }
         }
 
         // Bold: Ctrl+B
-        if (key === 'b') {
+        if (key === 'b' && !e.shiftKey) {
           e.preventDefault();
           formatInline('bold');
           return;
         }
 
         // Italic: Ctrl+I
-        if (key === 'i') {
+        if (key === 'i' && !e.shiftKey) {
           e.preventDefault();
           formatInline('italic');
           return;
         }
 
-        // Strikethrough: Ctrl+U
-        if (key === 'u' || (e.shiftKey && (key === 'x' || key === 's'))) {
+        // Underline: Ctrl+U
+        if (key === 'u' && !e.shiftKey) {
+          e.preventDefault();
+          formatInline('underline');
+          return;
+        }
+
+        // Strikethrough: Ctrl+Shift+X or Ctrl+Shift+S
+        if (e.shiftKey && (key === 'x' || key === 's')) {
           e.preventDefault();
           formatInline('strikeThrough');
+          return;
+        }
+
+        // Highlight: Ctrl+Shift+H
+        if (e.shiftKey && key === 'h') {
+          e.preventDefault();
+          applyHighlight();
           return;
         }
 
@@ -1891,14 +2211,23 @@
         case 'italic':
           insertMarkdownAtCursor('*', '*', 'italic text');
           break;
+        case 'underline':
+          insertMarkdownAtCursor('<u>', '</u>', 'underlined text');
+          break;
         case 'strikethrough':
           insertMarkdownAtCursor('~~', '~~', 'strikethrough text');
+          break;
+        case 'highlight':
+          insertMarkdownAtCursor('<mark class="cedar-highlight">', '</mark>', 'highlighted text');
           break;
         case 'code':
           insertMarkdownAtCursor('`', '`', 'code');
           break;
         case 'font-color':
           applyFontColor(value || 'default');
+          break;
+        case 'indent':
+          applyBlockIndent('toggle');
           break;
         case 'align-left': {
           const mdInput = document.getElementById('markdown-input');
@@ -2047,8 +2376,14 @@
       case 'italic':
         formatInline('italic');
         break;
+      case 'underline':
+        formatInline('underline');
+        break;
       case 'strikethrough':
         formatInline('strikeThrough');
+        break;
+      case 'highlight':
+        applyHighlight();
         break;
       case 'code':
         applyInlineCode();
@@ -2064,6 +2399,9 @@
         break;
       case 'align-right':
         applyBlockAlignment('right');
+        break;
+      case 'indent':
+        applyBlockIndent('toggle');
         break;
       case 'link':
         if (typeof window.openLinkModal === 'function') window.openLinkModal();
@@ -2313,7 +2651,9 @@
   window.restoreEditorSelection = restoreEditorSelection;
   window.formatInline = formatInline;
   window.applyInlineCode = applyInlineCode;
+  window.applyHighlight = applyHighlight;
   window.applyFontColor = applyFontColor;
+  window.applyBlockIndent = applyBlockIndent;
   window.normalizeCustomColorNodes = normalizeCustomColorNodes;
   window.formatBlockStyle = formatBlockStyle;
   window.focusNodeCaret = focusNodeCaret;
@@ -2340,7 +2680,9 @@
     restoreEditorSelection,
     formatInline,
     applyInlineCode,
+    applyHighlight,
     applyFontColor,
+    applyBlockIndent,
     normalizeCustomColorNodes,
     formatBlockStyle,
     focusNodeCaret,
