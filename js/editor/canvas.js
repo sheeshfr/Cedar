@@ -650,6 +650,7 @@
         clickedPageBlock.classList.add('selected');
         window._selectedImageBlock = null;
         window._lastActiveBlock = clickedPageBlock;
+        window._savedSelectionRange = null;
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
         return;
       }
@@ -661,6 +662,7 @@
         clickedHr.classList.add('selected');
         window._selectedImageBlock = null;
         window._lastActiveBlock = clickedHr;
+        window._savedSelectionRange = null;
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
         return;
       }

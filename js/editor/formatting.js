@@ -43,16 +43,31 @@
   function saveCurrentSelection() {
     const activeEl = document.activeElement;
     if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && isProseContainer(activeEl)) {
+      const parentBlock = activeEl.closest('.page-individual-post-block, .page-recent-posts-block, .captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block');
+      if (parentBlock) {
+        window._lastActiveBlock = parentBlock;
+        savedSelectionRange = null;
+        window._savedSelectionRange = null;
+      }
+      updateToolbarActiveStates();
       return;
     }
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
       if (isProseContainer(range.commonAncestorContainer)) {
-        savedSelectionRange = range.cloneRange();
-        window._savedSelectionRange = savedSelectionRange;
         let node = range.commonAncestorContainer;
         if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+        const nonEditableBar = node && node.closest ? node.closest('[contenteditable="false"]') : null;
+        if (nonEditableBar) {
+          window._lastActiveBlock = nonEditableBar;
+          savedSelectionRange = null;
+          window._savedSelectionRange = null;
+          updateToolbarActiveStates();
+          return;
+        }
+        savedSelectionRange = range.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
         const canvas = document.getElementById('rich-canvas-prose');
         while (node && node.parentNode !== canvas && node !== canvas) {
           node = node.parentNode;
@@ -68,6 +83,10 @@
   function restoreEditorSelection() {
     const canvas = document.getElementById('rich-canvas-prose');
     const sel = window.getSelection();
+
+    if (window._savedSelectionRange === null) {
+      savedSelectionRange = null;
+    }
 
     if (savedSelectionRange && isProseContainer(savedSelectionRange.commonAncestorContainer)) {
       sel.removeAllRanges();
@@ -779,10 +798,10 @@
   }
 
   function swapCurrentBlock(targetType) {
-    restoreEditorSelection();
     if (typeof coreSwapCurrentBlock === 'function') {
       return coreSwapCurrentBlock(targetType);
     }
+    restoreEditorSelection();
     if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
     const canvas = document.getElementById('rich-canvas-prose');
     const sel = window.getSelection();

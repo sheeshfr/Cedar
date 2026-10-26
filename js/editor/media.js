@@ -1336,24 +1336,24 @@
     }
 
     function isBlockEmpty(el) {
+      if (typeof window.isTrulyEmptyBlock === 'function') {
+        return window.isTrulyEmptyBlock(el);
+      }
       if (!el) return true;
       if (el.tagName !== 'P' && el.tagName !== 'DIV') return false;
-      if (el.querySelector('img, iframe, video, .custom-gallery-grid')) return false;
+      if (el.getAttribute('contenteditable') === 'false') return false;
+      if (el.querySelector('img, iframe, video, hr, input, button, .custom-gallery-grid')) return false;
       const clean = el.textContent.replace(/[\s\u200B\u00A0]+/g, '');
       return clean.length === 0;
     }
 
     if (window.commitCheckpoint) window.commitCheckpoint();
 
-    if (!currentBlock) {
+    if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
+      window.insertOrReplaceBlockInCanvas(currentBlock, figureEl, canvasProse);
+    } else if (!currentBlock) {
       canvasProse.appendChild(figureEl);
-    } else if (isTargetSwap || isBlockEmpty(currentBlock)) {
-      if (isTargetSwap && currentBlock.textContent.trim()) {
-        const figcap = figureEl.querySelector('figcaption');
-        if (figcap && !figcap.textContent.trim()) {
-          figcap.textContent = currentBlock.textContent.trim();
-        }
-      }
+    } else if (isBlockEmpty(currentBlock)) {
       currentBlock.parentNode.replaceChild(figureEl, currentBlock);
     } else {
       currentBlock.parentNode.insertBefore(figureEl, currentBlock.nextSibling);
@@ -1407,7 +1407,9 @@
       const newBlock = tempDiv.firstElementChild;
 
       if (newBlock) {
-        if (currentBlock && (!currentBlock.textContent.trim() || currentBlock.innerHTML === '<br>')) {
+        if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
+          window.insertOrReplaceBlockInCanvas(currentBlock, newBlock, canvasProse);
+        } else if (currentBlock && (!currentBlock.textContent.trim() || currentBlock.innerHTML === '<br>')) {
           currentBlock.parentNode.replaceChild(newBlock, currentBlock);
         } else if (currentBlock) {
           currentBlock.parentNode.insertBefore(newBlock, currentBlock.nextSibling);
@@ -2020,8 +2022,10 @@
     placeholderDiv.id = placeholderId;
     placeholderDiv.innerHTML = `<div class="sanitizing-spinner"></div><span class="sanitizing-text">Sanitizing & saving image for blog/images/...</span>`;
 
-    // Insert placeholder cleanly without creating stray blank lines
-    if (currentBlock && (isTargetSwap || !currentBlock.textContent.trim() || currentBlock.innerHTML === '<br>')) {
+    // Insert placeholder cleanly: only replace currentBlock if it is a truly blank block
+    if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
+      window.insertOrReplaceBlockInCanvas(currentBlock, placeholderDiv, canvasProse);
+    } else if (currentBlock && (!currentBlock.textContent.trim() || currentBlock.innerHTML === '<br>')) {
       currentBlock.parentNode.replaceChild(placeholderDiv, currentBlock);
     } else if (currentBlock) {
       currentBlock.parentNode.insertBefore(placeholderDiv, currentBlock.nextSibling);
@@ -2222,7 +2226,7 @@
         }
 
         const canvasProse = document.getElementById('rich-canvas-prose');
-        // Check if an active block was targeted for swapping to Images
+        // Check if an active block was targeted for Images
         if (window._activeInsertTargetBlock && window._activeInsertTargetBlock.parentNode) {
           const target = window._activeInsertTargetBlock;
           window._activeInsertTargetBlock = null;
@@ -2230,7 +2234,11 @@
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = createFigureHtml(url, url, "img", alt, cap, "full");
           const newFigure = tempDiv.firstElementChild;
-          target.parentNode.replaceChild(newFigure, target);
+          if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
+            window.insertOrReplaceBlockInCanvas(target, newFigure, canvasProse);
+          } else {
+            target.parentNode.insertBefore(newFigure, target.nextSibling);
+          }
           window._lastActiveBlock = newFigure;
           if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
@@ -2268,7 +2276,11 @@
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = videoHtml;
           const newVideo = tempDiv.firstElementChild;
-          target.parentNode.replaceChild(newVideo, target);
+          if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
+            window.insertOrReplaceBlockInCanvas(target, newVideo, canvasProse);
+          } else {
+            target.parentNode.insertBefore(newVideo, target.nextSibling);
+          }
           window._lastActiveBlock = newVideo;
           if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();

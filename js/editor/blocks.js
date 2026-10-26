@@ -1373,13 +1373,113 @@
   }
 
   /**
-   * Swap the current block into one of the allowed block types.
+   * Returns true ONLY if el is a truly blank paragraph/div block (no words, no elements, not a non-text bar).
+   */
+  function isTrulyEmptyBlock(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+    if (el.tagName !== 'P' && el.tagName !== 'DIV') return false;
+    if (el.classList && (
+      el.classList.contains('gallery-caption') ||
+      el.classList.contains('captioned-image-container') ||
+      el.classList.contains('custom-gallery-grid') ||
+      el.classList.contains('video-wrapper') ||
+      el.classList.contains('article-share-block') ||
+      el.classList.contains('article-rss-block') ||
+      el.classList.contains('page-recent-posts-block') ||
+      el.classList.contains('page-individual-post-block') ||
+      el.classList.contains('canvas-divider') ||
+      el.classList.contains('post-nav-grid')
+    )) {
+      return false;
+    }
+    if (el.getAttribute('contenteditable') === 'false') return false;
+    if (el.querySelector('img, iframe, video, audio, hr, svg, input, button, textarea, select, canvas, .custom-gallery-grid, .captioned-image-container')) {
+      return false;
+    }
+    const cleanText = (el.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '');
+    return cleanText.length === 0;
+  }
+
+  /**
+   * Inserts newEl into canvas relative to targetBlock:
+   * - Replaces targetBlock ONLY if targetBlock is a truly blank text block (isTrulyEmptyBlock(targetBlock)).
+   * - Otherwise, ALWAYS inserts newEl into a freshly created space immediately below targetBlock.
+   */
+  function insertOrReplaceBlockInCanvas(targetBlock, newEl, canvas) {
+    if (!canvas) canvas = document.getElementById('rich-canvas-prose');
+    if (!canvas || !newEl) return newEl;
+
+    if (!targetBlock || targetBlock.parentNode !== canvas) {
+      const recent = canvas.querySelector('.page-recent-posts-block');
+      if (recent && recent.parentNode === canvas) {
+        canvas.insertBefore(newEl, recent);
+      } else {
+        canvas.appendChild(newEl);
+      }
+      return newEl;
+    }
+
+    if (isTrulyEmptyBlock(targetBlock)) {
+      targetBlock.parentNode.replaceChild(newEl, targetBlock);
+      return newEl;
+    }
+
+    let anchor = targetBlock;
+    if (anchor.classList && anchor.classList.contains('custom-gallery-grid') &&
+        anchor.nextElementSibling && anchor.nextElementSibling.classList.contains('gallery-caption')) {
+      anchor = anchor.nextElementSibling;
+    }
+
+    if (anchor.classList && anchor.classList.contains('page-recent-posts-block')) {
+      canvas.insertBefore(newEl, anchor);
+    } else {
+      canvas.insertBefore(newEl, anchor.nextSibling);
+    }
+    return newEl;
+  }
+
+  function isExistingNonTextBar(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+    if (el.tagName === 'HR') return true;
+    if (el.getAttribute('contenteditable') === 'false') return true;
+    if (el.classList && (
+      el.classList.contains('captioned-image-container') ||
+      el.classList.contains('custom-gallery-grid') ||
+      el.classList.contains('video-wrapper') ||
+      el.classList.contains('article-share-block') ||
+      el.classList.contains('article-rss-block') ||
+      el.classList.contains('page-recent-posts-block') ||
+      el.classList.contains('page-individual-post-block') ||
+      el.classList.contains('canvas-divider') ||
+      el.classList.contains('post-nav-grid')
+    )) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Swap or insert the target block type relative to the currently active/clicked block.
    */
   function swapCurrentBlock(targetType) {
-    if (typeof window.restoreEditorSelection === 'function') window.restoreEditorSelection();
-    if (typeof commitCheckpoint === 'function') commitCheckpoint();
     const canvas = document.getElementById('rich-canvas-prose');
     if (!canvas) return;
+
+    const activeEl = document.activeElement;
+    const activeBlockFromFocus = (activeEl && canvas.contains(activeEl) && activeEl !== canvas)
+      ? (() => {
+          let curr = activeEl;
+          while (curr && curr.parentNode !== canvas && curr !== canvas) curr = curr.parentNode;
+          return (curr && curr.parentNode === canvas) ? curr : null;
+        })()
+      : null;
+
+    const selectedNonText = canvas.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected, blockquote.selected');
+
+    if (!selectedNonText && !activeBlockFromFocus && typeof window.restoreEditorSelection === 'function') {
+      window.restoreEditorSelection();
+    }
+    if (typeof commitCheckpoint === 'function') commitCheckpoint();
 
     // 1. Markdown Mode
     if (window.activeMode === 'markdown') {
@@ -1394,6 +1494,7 @@
       const curLine = val.substring(lineStart, lineEnd);
       let cleanLine = curLine.replace(/^(#{1,6}\s*|>(\s*\[!(NOTE|WARNING|TIP)\])?\s*|---\s*|```[a-z]*\s*)/i, '').trim();
 
+      const isInsertAction = ['share', 'share-button', 'rss', 'rss-button', 'subscribe-rss', 'recent-posts', 'individual-post', 'divider', 'hr'].includes(targetType);
       let rep = cleanLine;
       switch (targetType) {
         case 'text':
@@ -1431,11 +1532,22 @@
         case 'individual-post':
           rep = `\n:::individual-post id="" layout="grid":::\n`;
           break;
+        case 'divider':
+        case 'hr':
+          rep = `\n---\n`;
+          break;
       }
 
-      mdInput.value = val.substring(0, lineStart) + rep + val.substring(lineEnd);
-      mdInput.selectionStart = lineStart + rep.length;
-      mdInput.selectionEnd = lineStart + rep.length;
+      if (isInsertAction && curLine.trim().length > 0) {
+        const appended = curLine + '\n' + rep;
+        mdInput.value = val.substring(0, lineStart) + appended + val.substring(lineEnd);
+        mdInput.selectionStart = lineStart + appended.length;
+        mdInput.selectionEnd = lineStart + appended.length;
+      } else {
+        mdInput.value = val.substring(0, lineStart) + rep + val.substring(lineEnd);
+        mdInput.selectionStart = lineStart + rep.length;
+        mdInput.selectionEnd = lineStart + rep.length;
+      }
       mdInput.focus();
       if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       return;
@@ -1580,7 +1692,15 @@
 
     let block = null;
 
-    if (sel && sel.rangeCount) {
+    // 1. Prioritize an actively selected non-text block or focused element inside canvas
+    if (selectedNonText && selectedNonText.parentNode === canvas) {
+      block = selectedNonText;
+    } else if (activeBlockFromFocus && activeBlockFromFocus.parentNode === canvas) {
+      block = activeBlockFromFocus;
+    }
+
+    // 2. Otherwise check the active DOM selection range inside canvas
+    if (!block && sel && sel.rangeCount) {
       const range = sel.getRangeAt(0);
       let node = range.commonAncestorContainer;
       if (node && node.nodeType === Node.TEXT_NODE) node = node.parentNode;
@@ -1593,15 +1713,7 @@
       }
     }
 
-    // Check for an active selected non-text block
-    if (!block) {
-      const selectedNonText = canvas.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, blockquote.selected');
-      if (selectedNonText && selectedNonText.parentNode === canvas) {
-        block = selectedNonText;
-      }
-    }
-
-    // Fall back to last active block tracked during canvas focus/typing
+    // 3. Fall back to last active block tracked during canvas focus/typing
     if (!block && window._lastActiveBlock && window._lastActiveBlock.parentNode === canvas) {
       block = window._lastActiveBlock;
     }
@@ -1660,22 +1772,15 @@
           break;
         }
 
-        // If it's an image block, convert to paragraph with caption text if present
-        if (block.classList && (block.classList.contains('captioned-image-container') || block.classList.contains('custom-gallery-grid'))) {
-          const cap = block.querySelector('figcaption')?.textContent?.trim() || '';
-          const newP = document.createElement('p');
-          newP.innerHTML = cap ? (typeof escapeHtml === 'function' ? escapeHtml(cap) : cap) : '<br>';
-          block.parentNode.replaceChild(newP, block);
-          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
-          break;
-        }
-
-        // If it's a video, share block, rss block, hr divider, or page block, replace with paragraph
-        if (block.tagName === 'HR' || (block.classList && (block.classList.contains('canvas-divider') || block.classList.contains('video-wrapper') || block.classList.contains('article-share-block') || block.classList.contains('article-rss-block') || block.classList.contains('page-recent-posts-block') || block.classList.contains('page-individual-post-block')))) {
+        // If current block is an existing non-text bar (image, gallery, video, share, rss, divider, url/page block),
+        // NEVER replace it—insert a fresh paragraph below it!
+        if (isExistingNonTextBar(block)) {
           const newP = document.createElement('p');
           newP.innerHTML = '<br>';
-          block.parentNode.replaceChild(newP, block);
-          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
+          insertOrReplaceBlockInCanvas(block, newP, canvas);
+          canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+          window._lastActiveBlock = newP;
+          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP, true);
           break;
         }
 
@@ -1724,6 +1829,15 @@
       case 'h3':
       case 'h4': {
         const targetTag = targetType.toUpperCase();
+        if (isExistingNonTextBar(block)) {
+          const headingEl = document.createElement(targetType);
+          headingEl.innerHTML = '<br>';
+          insertOrReplaceBlockInCanvas(block, headingEl, canvas);
+          canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+          window._lastActiveBlock = headingEl;
+          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(headingEl, true);
+          break;
+        }
         if (block.tagName === targetTag) {
           const newP = document.createElement('p');
           if (block.style && block.style.textAlign) newP.style.textAlign = block.style.textAlign;
@@ -1748,6 +1862,17 @@
 
       case 'codeblock':
       case 'pre': {
+        if (isExistingNonTextBar(block)) {
+          const newPre = document.createElement('pre');
+          const newCode = document.createElement('code');
+          newCode.innerHTML = '<br>';
+          newPre.appendChild(newCode);
+          insertOrReplaceBlockInCanvas(block, newPre, canvas);
+          canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+          window._lastActiveBlock = newPre;
+          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newCode, true);
+          break;
+        }
         if (block.tagName === 'PRE') {
           const newP = document.createElement('p');
           newP.innerHTML = rawText ? (typeof escapeHtml === 'function' ? escapeHtml(rawText) : rawText) : '<br>';
@@ -1825,15 +1950,23 @@
         const newQuote = document.createElement('blockquote');
         newQuote.setAttribute('data-block-type', 'quote');
         const quoteP = document.createElement('p');
-        const htmlContent = (block.tagName === 'P' || /^H[1-6]$/.test(block.tagName)) ? block.innerHTML.trim() : '';
-        if (htmlContent && htmlContent !== '<br>') {
-          quoteP.innerHTML = block.innerHTML;
-        } else {
+        if (isExistingNonTextBar(block)) {
           quoteP.innerHTML = '<br>';
           quoteP.setAttribute('data-placeholder', 'Empty quote...');
+          newQuote.appendChild(quoteP);
+          insertOrReplaceBlockInCanvas(block, newQuote, canvas);
+          canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+        } else {
+          const htmlContent = (block.tagName === 'P' || /^H[1-6]$/.test(block.tagName)) ? block.innerHTML.trim() : '';
+          if (htmlContent && htmlContent !== '<br>') {
+            quoteP.innerHTML = block.innerHTML;
+          } else {
+            quoteP.innerHTML = '<br>';
+            quoteP.setAttribute('data-placeholder', 'Empty quote...');
+          }
+          newQuote.appendChild(quoteP);
+          block.parentNode.replaceChild(newQuote, block);
         }
-        newQuote.appendChild(quoteP);
-        block.parentNode.replaceChild(newQuote, block);
         window._lastActiveBlock = newQuote;
         if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(quoteP, false);
         break;
@@ -1841,11 +1974,10 @@
 
       case 'share':
       case 'share-button': {
-        if (block.classList && block.classList.contains('article-share-block')) break;
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = createShareBlockHtml();
         const shareEl = tempDiv.firstElementChild;
-        block.parentNode.replaceChild(shareEl, block);
+        insertOrReplaceBlockInCanvas(block, shareEl, canvas);
         canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
         cleanConsecutiveEmptyParagraphs(canvas);
         const trailingP = ensureTrailingTextBlock();
@@ -1865,11 +1997,10 @@
       case 'rss':
       case 'rss-button':
       case 'subscribe-rss': {
-        if (block.classList && block.classList.contains('article-rss-block')) break;
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = createRssBlockHtml();
         const rssEl = tempDiv.firstElementChild;
-        block.parentNode.replaceChild(rssEl, block);
+        insertOrReplaceBlockInCanvas(block, rssEl, canvas);
         canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
         cleanConsecutiveEmptyParagraphs(canvas);
         const trailingP = ensureTrailingTextBlock();
@@ -1896,8 +2027,7 @@
         const tempRecent = document.createElement('div');
         tempRecent.innerHTML = createRecentPostsBlockHtml('grid');
         const recentEl = tempRecent.firstElementChild;
-        const isCurrentEmpty = !rawText && !block.querySelector('img, iframe, video, audio');
-        if (isCurrentEmpty && canvas.children.length > 1) {
+        if (isTrulyEmptyBlock(block) && canvas.children.length > 1) {
           block.remove();
         }
         canvas.appendChild(recentEl);
@@ -1909,7 +2039,11 @@
         const tempInd = document.createElement('div');
         tempInd.innerHTML = createIndividualPostBlockHtml('', 'grid', '');
         const indEl = tempInd.firstElementChild;
-        block.parentNode.replaceChild(indEl, block);
+        insertOrReplaceBlockInCanvas(block, indEl, canvas);
+        canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+        indEl.classList.add('selected');
+        window._lastActiveBlock = indEl;
+        window._savedSelectionRange = null;
         hydrateSingleIndividualPostBlock(indEl, window.currentDraft, { isEditor: true });
         setTimeout(() => {
           const urlInput = indEl.querySelector('.individual-post-url-input');
@@ -1920,12 +2054,11 @@
 
       case 'divider':
       case 'hr': {
-        if (block.tagName === 'HR') break;
         const hr = document.createElement('hr');
         hr.className = 'canvas-divider';
         hr.setAttribute('contenteditable', 'false');
         hr.setAttribute('draggable', 'true');
-        block.parentNode.replaceChild(hr, block);
+        insertOrReplaceBlockInCanvas(block, hr, canvas);
         canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
         let nextP = hr.nextElementSibling;
         if (!nextP || !isTextBlock(nextP)) {
@@ -2084,6 +2217,8 @@
   window.Cedar.editor.getPageTargetCategory = getPageTargetCategory;
   window.Cedar.editor.deleteBlock = deleteBlock;
   window.Cedar.editor.isTextBlock = isTextBlock;
+  window.Cedar.editor.isTrulyEmptyBlock = isTrulyEmptyBlock;
+  window.Cedar.editor.insertOrReplaceBlockInCanvas = insertOrReplaceBlockInCanvas;
 
   window.resetActiveInlineFormatting = resetActiveInlineFormatting;
   window.maintainCaretScrollBuffer = maintainCaretScrollBufferLocal;
@@ -2110,4 +2245,6 @@
   window.getPageTargetCategory = getPageTargetCategory;
   window.deleteBlock = deleteBlock;
   window.isTextBlock = isTextBlock;
+  window.isTrulyEmptyBlock = isTrulyEmptyBlock;
+  window.insertOrReplaceBlockInCanvas = insertOrReplaceBlockInCanvas;
 })();
