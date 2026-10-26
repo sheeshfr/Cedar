@@ -11,10 +11,10 @@
 
 - **Visual Studio & Block Editor:** Write articles and custom pages with rich formatting, image galleries, callouts, audio/video embeds, tables, and live side-by-side preview.
 - **Real-Time Theme & Layout Designer:** Customize palettes, typography, post card layouts, header/footer navigation, and profile widgets with zero code.
-- **Mandatory Image Sanitization:** All uploaded images (JPEG, PNG, WebP, GIF) are automatically re-rasterized client-side to strip EXIF metadata, GPS coordinates, camera serial numbers, and embedded comments before being compressed into WebP.
-- **100% Local-First Storage:** Keep your entire site vault (`config.json`, posts, pages, and media) in a folder on your local drive. Zero external databases, accounts, or telemetry.
+- **Image Sanitization:** All uploaded images (JPEG, PNG, WebP, GIF) are automatically re-rasterized client-side to strip EXIF metadata, GPS coordinates, camera serial numbers, and embedded comments before being compressed into WebP.
+- **Draft Quarantine:** Published articles compile into standalone, SEO-ready HTML (`blog/<slug>/index.html`) alongside an automatic RSS feed (`rss.xml`) and search index, while drafts (`drafts/`) and archived posts (`hidden/`) stay excluded from public builds via `.cfignore`.
 - **GitHub Publishing & `.zip` Export:** Push your compiled static site directly to your GitHub repository in a single atomic commit (ready for Cloudflare Pages or GitHub Pages), or export a standalone production `.zip` archive in one click.
-- **Draft Quarantine & Clean Static Output:** Published articles compile into standalone, SEO-ready HTML (`blog/<slug>/index.html`) alongside an automatic RSS feed (`rss.xml`) and search index, while drafts (`drafts/`) and archived posts (`hidden/`) stay excluded from public builds via `.cfignore`.
+- **100% Local-First Storage:** Keep your entire site vault (`config.json`, posts, pages, and media) in a folder on your local drive. Zero external databases, accounts, or telemetry.
 
 ---
 
