@@ -3669,6 +3669,7 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
     const rawAuths = (Array.isArray(draft.authors) && draft.authors.length > 0) ? draft.authors : [draft.authorName || 'Staff'];
     const authName = rawAuths.map(a => a?.name || a).join(', ');
 
+    const categoryEyebrowHtml = '';
     const cfgDesign = (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.design) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.design) || {};
     const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
     const swooshSvgHtml = swooshType === 'none'
@@ -3687,7 +3688,7 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
             <path d="M16,120 C54,82 88,48 108,44 C120,42 96,102 110,108 C126,114 196,42 228,36 C242,33 214,94 230,100 C248,106 318,40 350,36 C364,34 336,86 352,92 C368,98 394,68 412,56" fill="none" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
             <path d="M36,132 C72,98 100,68 116,64 C126,62 108,112 122,116 C138,120 206,58 234,52 C246,50 224,104 238,108 C254,112 322,56 352,52" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
           </g>
-        </svg>`;
+        </svg>`);
 
     const noCoverClass = !coverImage ? ' post-card-no-cover' : '';
     const coverLayerHtml = coverImage
@@ -5262,16 +5263,23 @@ ${page.markdown || ''}`;
       const isRssOn = !rssDraft.hidden && !rssDraft.retired;
       if (window.projectConfig) window.projectConfig.rssEnabled = isRssOn;
       if (cfg) cfg.rssEnabled = isRssOn;
-      try { localStorage.setItem('cedar_rss_enabled', isRssOn ? 'true' : 'false'); } catch (e) {}
+      try {
+        const rssStr = isRssOn ? 'true' : 'false';
+        if (localStorage.getItem('cedar_rss_enabled') !== rssStr) {
+          localStorage.setItem('cedar_rss_enabled', rssStr);
+        }
+      } catch (e) {}
 
       // Refresh default RSS page template while preserving custom user edits
       const curRssMd = String(rssDraft.markdown || '').trim();
       if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+        if (rssDraft.subtitle !== rssData.subtitle || rssDraft.markdown !== rssData.markdown) {
+          rssDraft.updatedAt = Date.now();
+        }
         rssDraft.subtitle = rssData.subtitle;
         rssDraft.markdown = rssData.markdown;
         rssDraft.proseHtml = rssData.proseHtml;
       }
-      rssDraft.updatedAt = Date.now();
     } else {
       const isRssOn = (typeof resolveProjectRssEnabled === 'function') ? resolveProjectRssEnabled() : (cfg.rssEnabled !== undefined ? Boolean(cfg.rssEnabled) : false);
       rssDraft = {

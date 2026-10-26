@@ -400,10 +400,14 @@
   function updateAllPreviewFrames() {
     const frames = [
       document.getElementById('designer-preview-site-frame'),
-      document.getElementById('preview-site-frame')
+      document.getElementById('preview-site-frame'),
+      document.getElementById('live-preview-iframe')
     ].filter(Boolean);
 
     const themeId = window.projectConfig?.design?.blogTheme || window.projectConfig?.design?.activeTheme || 'basalt';
+    const activeDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+      ? window.CedarStore.getAllDrafts()
+      : window.drafts;
 
     frames.forEach(frame => {
       if (!frame) return;
@@ -413,10 +417,10 @@
         frame._hasUniversalSyncListener = true;
         frame.addEventListener('load', () => {
           updateAllPreviewFrames();
-          setTimeout(updateAllPreviewFrames, 40);
-          setTimeout(updateAllPreviewFrames, 180);
         });
       }
+
+      let syncedDirectly = false;
 
       // 1. Direct cross-window synchronization (same origin)
       try {
@@ -435,9 +439,6 @@
               cw.setProjectConfig(window.projectConfig);
             }
           }
-          const activeDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
-            ? window.CedarStore.getAllDrafts()
-            : window.drafts;
           if (Array.isArray(activeDrafts)) {
             cw.drafts = JSON.parse(JSON.stringify(activeDrafts));
             if (typeof cw.setDrafts === 'function') {
@@ -460,8 +461,10 @@
           }
           if (typeof cw.renderApp === 'function') {
             cw.renderApp({ preserveScroll: true, scrollY: currentScrollY });
+            syncedDirectly = true;
           } else if (typeof cw.renderHome === 'function') {
             cw.renderHome({ preserveScroll: true, scrollY: currentScrollY });
+            syncedDirectly = true;
           }
 
           // Restore scroll position immediately and on animation frame
@@ -478,25 +481,27 @@
         // Suppressed cross-origin or accessing errors
       }
 
-      // 2. PostMessage synchronization (guaranteed delivery across execution contexts)
-      try {
-        if (frame.contentWindow) {
-          const currentScrollY = (frame.contentWindow.pageYOffset !== undefined)
-            ? frame.contentWindow.pageYOffset
-            : (frame.contentWindow.scrollY !== undefined
-                ? frame.contentWindow.scrollY
-                : ((frame.contentWindow.document && frame.contentWindow.document.documentElement ? frame.contentWindow.document.documentElement.scrollTop : 0) || 0));
+      // 2. PostMessage synchronization fallback (if direct sync was not possible)
+      if (!syncedDirectly) {
+        try {
+          if (frame.contentWindow) {
+            const currentScrollY = (frame.contentWindow.pageYOffset !== undefined)
+              ? frame.contentWindow.pageYOffset
+              : (frame.contentWindow.scrollY !== undefined
+                  ? frame.contentWindow.scrollY
+                  : ((frame.contentWindow.document && frame.contentWindow.document.documentElement ? frame.contentWindow.document.documentElement.scrollTop : 0) || 0));
 
-          const payload = {
-            projectConfig: window.projectConfig,
-            drafts: window.drafts,
-            themeId: themeId,
-            preserveScroll: true,
-            scrollY: currentScrollY
-          };
-          frame.contentWindow.postMessage(Object.assign({ type: 'CEDAR_WORKSPACE_UPDATED' }, payload), '*');
-        }
-      } catch (_) {}
+            const payload = {
+              projectConfig: window.projectConfig ? JSON.parse(JSON.stringify(window.projectConfig)) : null,
+              drafts: Array.isArray(activeDrafts) ? JSON.parse(JSON.stringify(activeDrafts)) : [],
+              themeId: themeId,
+              preserveScroll: true,
+              scrollY: currentScrollY
+            };
+            frame.contentWindow.postMessage(Object.assign({ type: 'CEDAR_WORKSPACE_UPDATED' }, payload), '*');
+          }
+        } catch (_) {}
+      }
     });
   }
 

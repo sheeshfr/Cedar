@@ -22,6 +22,12 @@
                     <span class="settings-toc-text">Region</span>
                   </a>
                 </li>
+                <li class="settings-toc-item">
+                  <a href="#settings-sec-restore-pages" class="settings-toc-link" data-target="settings-sec-restore-pages">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    <span class="settings-toc-text">Built-In Page Restoration</span>
+                  </a>
+                </li>
               </ul>
             </nav>
           </aside>
@@ -171,6 +177,39 @@
                     <label for="setting-modal-timezone" class="form-label">System Timezone</label>
                     <select id="setting-modal-timezone" class="form-input"></select>
                     <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin-top: 0.35rem; line-height: 1.4;">Dates and post publish timestamps will use this timezone.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 5: Built-In Page Restoration -->
+            <div class="settings-section-group" id="settings-sec-restore-pages">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                  <h4>Built-In Page Restoration</h4>
+                </div>
+              </div>
+              <div class="project-settings-card">
+                <div class="form-row" style="margin-bottom: 0;">
+                  <div class="form-group flex-1">
+                    <label for="setting-restore-builtin-select" class="form-label">Built-In Page</label>
+                    <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin: 0 0 0.45rem 0; line-height: 1.4;">Restore any built-in page back to its default options and content if something breaks or you want the original version back.</p>
+                    <select id="setting-restore-builtin-select" class="form-input">
+                      <option value="" selected>Select one</option>
+                      <hr>
+                      <optgroup label="Built-In Options">
+                        <option value="page_about">About</option>
+                        <option value="page_links">Links</option>
+                        <option value="page_rss">RSS</option>
+                      </optgroup>
+                    </select>
+                    <div class="settings-validation-error" id="setting-restore-builtin-error" style="display: none; color: var(--accent-red, #ef4444); font-size: 0.8rem; margin-top: 0.35rem;">
+                      Please choose a built-in page from the dropdown to restore.
+                    </div>
+                    <div style="margin-top: 0.85rem;">
+                      <button type="button" class="btn btn-sm btn-secondary" id="btn-restore-builtin-page">Restore Page</button>
+                    </div>
                   </div>
                 </div>
               </div>

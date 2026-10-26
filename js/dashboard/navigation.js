@@ -383,8 +383,9 @@
       try {
         if (window.Cedar && window.Cedar.designer && typeof window.Cedar.designer.updateAllPreviewFrames === 'function' && window.Cedar.designer.updateAllPreviewFrames !== updateAllPreviewFrames) {
           window.Cedar.designer.updateAllPreviewFrames();
+          return;
         }
-        const frames = document.querySelectorAll('#designer-preview-site-frame, #preview-site-frame, iframe[title*="Preview"], iframe[title*="preview"]');
+        const frames = document.querySelectorAll('#designer-preview-site-frame, #preview-site-frame, #live-preview-iframe, iframe[title*="Preview"], iframe[title*="preview"]');
         const rawProj = (typeof window.projectConfig !== 'undefined') ? window.projectConfig : ((typeof projectConfig !== 'undefined') ? projectConfig : null);
         const rawDrfts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
           ? window.CedarStore.getAllDrafts()

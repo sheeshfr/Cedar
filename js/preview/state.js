@@ -106,7 +106,13 @@
         try {
           const p = projectConfig || window.projectConfig || {};
           const dList = (Array.isArray(drafts) && drafts.length > 0) ? drafts : (Array.isArray(window.drafts) ? window.drafts : []);
-          const dPart = dList.map(d => `${d.id}:${d.updatedAt || d.date || ''}:${d.title || ''}:${d.coverImage || ''}:${d.status || ''}:${d.tag || ''}:${Array.isArray(d.categories) ? d.categories.join(',') : ''}:${Boolean(d.starred || d.featured || d.isFeatured)}:${(d.proseHtml || '').length}:${(d.markdown || '').length}`).join(';');
+          const filteredList = dList.filter(d => d && d.id !== 'page_about_cedar' && d.slug !== 'about-cedar');
+          const dPart = filteredList.map(d => {
+            const isRss = d.id === 'page_rss' || d.slug === 'rss';
+            const timeToken = isRss ? '' : (d.updatedAt || d.date || '');
+            const proseLen = isRss ? '' : (d.proseHtml || '').length;
+            return `${d.id}:${timeToken}:${d.title || ''}:${d.coverImage || ''}:${d.status || ''}:${Boolean(d.hidden || d.retired)}:${d.tag || ''}:${Array.isArray(d.categories) ? d.categories.join(',') : ''}:${Boolean(d.starred || d.featured || d.isFeatured)}:${proseLen}:${(d.markdown || '').length}`;
+          }).join(';');
           const authPart = (p.authors || []).map(a => `${(typeof a === 'object' ? a?.name : a) || ''}:${(typeof a === 'object' ? a?.avatar : '') || ''}`).join(';');
           const blocksPart = (p.design && Array.isArray(p.design.homeBlocks))
             ? p.design.homeBlocks.map(b => `${b.id}:${b.type}:${b.x}:${b.y}:${b.w}:${b.h}:${b.stretchWidth}:${b.align}:${JSON.stringify(b.config || {})}`).join(';')
@@ -121,7 +127,7 @@
             ? `${Boolean(p.design.featured)}:${p.design.featuredMode || 'latest'}:${p.design.featuredCategory || ''}:${Boolean(p.design.categoryBar)}:${p.design.postLayout || ''}:${p.design.showcaseSwoosh || ''}:${p.design.showcaseSwooshSeed || ''}:${JSON.stringify(p.design.showcaseSwooshMap || {})}:${p.design.siteFont || ''}:${p.design.titleFont || ''}:${p.design.headerAlign || ''}:${p.design.brandingMode || ''}:${p.design.logoScale || ''}:${p.design.titleScale || ''}`
             : '';
           const catPart = Array.isArray(p.categories) ? p.categories.join(',') : '';
-          return `${p.name || ''}|${p.domain || ''}|${themePart}|${customPart}|${layoutPart}|${designFlagsPart}|${radiusPart}|${catPart}|${authPart}|${dList.length}|${dPart}|${blocksPart}|${brandPart}`;
+          return `${p.name || ''}|${p.domain || ''}|${themePart}|${customPart}|${layoutPart}|${designFlagsPart}|${radiusPart}|${catPart}|${authPart}|${filteredList.length}|${dPart}|${blocksPart}|${brandPart}`;
         } catch (e) {
           return '';
         }
@@ -137,7 +143,8 @@
         // Guard: if running in an iframe inside Cedar Studio, Studio parent is the authoritative source of truth.
         // Direct memory & postMessage updates keep preview in sync without background fetch race conditions.
         try {
-          if (window.parent && window.parent !== window && window.parent.projectConfig && Array.isArray(window.parent.drafts) && window.parent.drafts.length > 0) {
+          if (window.parent && window.parent !== window && (window.parent.projectConfig || window.parent.CedarStore)) {
+            window.__hasSyncedWithServer = true;
             return;
           }
         } catch (_) {}
@@ -380,17 +387,22 @@
                   });
                 }
                 window.drafts = drafts; window.OutpostPreview.drafts = drafts;
-                try {
-                  localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(drafts));
-                } catch (e) {}
+                if (!rawLocal) {
+                  try {
+                    localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(drafts));
+                  } catch (e) {}
+                }
               }
             }
             const rssPage = drafts.find(d => d.type === 'page' && (d.slug === 'rss' || (d.title || '').trim().toLowerCase() === 'rss'));
             if (rssPage && typeof window.generateRssPageData === 'function') {
               const rssData = window.generateRssPageData(projectConfig);
-              rssPage.subtitle = rssData.subtitle;
-              rssPage.markdown = rssData.markdown;
-              rssPage.proseHtml = rssData.proseHtml;
+              const curRssMd = String(rssPage.markdown || '').trim();
+              if ((!curRssMd && !rssPage.proseHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+                rssPage.subtitle = rssData.subtitle;
+                rssPage.markdown = rssData.markdown;
+                rssPage.proseHtml = rssData.proseHtml;
+              }
             }
             const existingCedarPage = drafts.find(d => d.type === 'page' && (d.slug === 'about-cedar' || d.id === 'page_about_cedar'));
             if (existingCedarPage) {
@@ -634,10 +646,16 @@
           } else {
             const isRssOn = !rssPage.hidden && !rssPage.retired;
             projectConfig.rssEnabled = isRssOn;
-            try { localStorage.setItem('cedar_rss_enabled', isRssOn ? 'true' : 'false'); } catch (e) {}
+            try {
+              const rssStr = isRssOn ? 'true' : 'false';
+              if (localStorage.getItem('cedar_rss_enabled') !== rssStr) {
+                localStorage.setItem('cedar_rss_enabled', rssStr);
+              }
+            } catch (e) {}
             if (typeof window.generateRssPageData === 'function') {
               const rssData = window.generateRssPageData(getConfig());
-              if (!rssPage.markdown && !rssPage.proseHtml) {
+              const curRssMd = String(rssPage.markdown || '').trim();
+              if ((!curRssMd && !rssPage.proseHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
                 rssPage.subtitle = rssData.subtitle;
                 rssPage.markdown = rssData.markdown;
                 rssPage.proseHtml = rssData.proseHtml;
@@ -713,6 +731,18 @@
               retired: false,
               date: new Date().toISOString().split('T')[0]
             });
+          }
+          const existingCedar = drafts.find(d => d && d.type === 'page' && (d.slug === 'about-cedar' || d.id === 'page_about_cedar'));
+          if (existingCedar) {
+            existingCedar.subtitle = '';
+            existingCedar.showSubtitle = false;
+            const canonicalCedar = typeof window.createDefaultAboutCedarPage === 'function' ? window.createDefaultAboutCedarPage() : null;
+            if (canonicalCedar) {
+              existingCedar.markdown = canonicalCedar.markdown;
+              existingCedar.proseHtml = canonicalCedar.proseHtml;
+            }
+          } else if (typeof window.createDefaultAboutCedarPage === 'function') {
+            drafts.push(window.createDefaultAboutCedarPage());
           }
           if (typeof indexImages === 'function') indexImages();
           if (Array.isArray(projectConfig.design.homeBlocks)) {
@@ -1091,7 +1121,7 @@
 
   if (typeof window.createDefaultAboutCedarPage !== 'function') {
     window.createDefaultAboutCedarPage = function() {
-      const now = Date.now();
+      const fixedTs = 1735689600000;
       return {
         id: 'page_about_cedar',
         type: 'page',
@@ -1109,11 +1139,11 @@
         markdown: `> After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.\n\n**Cedar** is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:\n\n- **Gives you a focused writing studio** for drafting and formatting posts.\n- **Manages your posts, pages, and media** in one place.\n- **Organizes your static site files** automatically so they are always ready to publish.\n- **Makes deploying effortless**—whether pushing straight to GitHub or exporting a \`.zip\`.\n\n### 100% Local-First\n\nEven though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.\n\nWhatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.\n\n[Try Cedar at cedar.pub](https://cedar.pub) • [View Source on GitHub](https://github.com/sheeshfr/Cedar)`,
         proseHtml: `<blockquote>After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.</blockquote><p><strong>Cedar</strong> is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:</p><ul><li><strong>Gives you a focused writing studio</strong> for drafting and formatting posts.</li><li><strong>Manages your posts, pages, and media</strong> in one place.</li><li><strong>Organizes your static site files</strong> automatically so they are always ready to publish.</li><li><strong>Makes deploying effortless</strong>—whether pushing straight to GitHub or exporting a <code>.zip</code>.</li></ul><h3>100% Local-First</h3><p>Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.</p><p>Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.</p><p><a href="https://cedar.pub" target="_blank" rel="noopener noreferrer">Try Cedar at cedar.pub</a> &nbsp;&bull;&nbsp; <a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">View Source on GitHub</a></p>`,
         images: [],
-        createdAt: now - 86400000 * 3,
-        updatedAt: now - 86400000 * 3,
-        publishedAt: now - 86400000 * 3,
-        date: new Date(now - 86400000 * 3).toISOString().split('T')[0],
-        publishedDate: new Date(now - 86400000 * 3).toISOString().split('T')[0]
+        createdAt: fixedTs,
+        updatedAt: fixedTs,
+        publishedAt: fixedTs,
+        date: '2025-01-01',
+        publishedDate: '2025-01-01'
       };
     };
   }

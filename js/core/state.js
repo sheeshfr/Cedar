@@ -3069,7 +3069,7 @@ function createDefaultAboutPage() {
 
   function createDefaultAboutCedarPage() {
 
-    const now = Date.now();
+    const fixedTs = 1735689600000;
 
     return {
 
@@ -3120,15 +3120,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       images: [],
 
-      createdAt: now - 86400000 * 3,
+      createdAt: fixedTs,
 
-      updatedAt: now - 86400000 * 3,
+      updatedAt: fixedTs,
 
-      publishedAt: now - 86400000 * 3,
+      publishedAt: fixedTs,
 
-      date: new Date(now - 86400000 * 3).toISOString().split('T')[0],
+      date: '2025-01-01',
 
-      publishedDate: new Date(now - 86400000 * 3).toISOString().split('T')[0]
+      publishedDate: '2025-01-01'
 
     };
 
@@ -3255,6 +3255,18 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         if (!inUl) { closeLists(); out.push('<ul>'); inUl = true; }
 
         out.push(`<li>${fmtInlines(trimmed.replace(/^[\*\-\+]\s+/, ''))}</li>`);
+
+      } else if (/^:::rss-box(?:\s+([^\n:]+))?:::$/i.test(trimmed)) {
+
+        closeLists();
+
+        const m = trimmed.match(/^:::rss-box(?:\s+([^\n:]+))?:::$/i);
+
+        const siteBase = (typeof resolveAutoDetectedSiteBaseUrl === 'function') ? resolveAutoDetectedSiteBaseUrl() : '';
+
+        const feedUrl = (m && m[1] && m[1].trim()) ? m[1].trim() : (siteBase ? `${siteBase}/feed.xml` : '/feed.xml');
+
+        out.push(`<div class="rss-feed-showcase-card" data-block-type="rss-box" contenteditable="false"><div class="rss-feed-url-display"><span class="rss-feed-icon-badge" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1.5" fill="currentColor"></circle></svg></span><code class="rss-live-feed-url">${escapeHtml(feedUrl)}</code></div><button type="button" class="popout-3d btn-rss-subscribe rss-copy-btn" title="Copy RSS feed link to clipboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy Link</span></button></div>`);
 
       } else if (/^\d+\.\s+/.test(trimmed)) {
 
@@ -3970,19 +3982,25 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       if (cfg) cfg.rssEnabled = isRssOn;
 
-      try { localStorage.setItem(STORAGE_KEY_RSS_ENABLED, isRssOn ? 'true' : 'false'); } catch (e) {}
+      try {
+        const rssStr = isRssOn ? 'true' : 'false';
+        if (localStorage.getItem(STORAGE_KEY_RSS_ENABLED) !== rssStr) {
+          localStorage.setItem(STORAGE_KEY_RSS_ENABLED, rssStr);
+        }
+      } catch (e) {}
 
 
 
       // Refresh default RSS page template while preserving custom user edits
       const curRssMd = String(rssDraft.markdown || '').trim();
       if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+        if (rssDraft.subtitle !== rssData.subtitle || rssDraft.markdown !== rssData.markdown) {
+          rssDraft.updatedAt = Date.now();
+        }
         rssDraft.subtitle = rssData.subtitle;
         rssDraft.markdown = rssData.markdown;
         rssDraft.proseHtml = rssData.proseHtml;
       }
-
-      rssDraft.updatedAt = Date.now();
 
     } else {
 

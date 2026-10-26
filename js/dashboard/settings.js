@@ -740,6 +740,14 @@
     }
 
     if (typeof updateCedarTitle === 'function') updateCedarTitle(); else if (typeof updateOutpostTitle === 'function') updateOutpostTitle();
+    const restoreSelectEl = document.getElementById('setting-restore-builtin-select');
+    const restoreErrorEl = document.getElementById('setting-restore-builtin-error');
+    if (restoreSelectEl) {
+      restoreSelectEl.classList.remove('ftue-input-error');
+    }
+    if (restoreErrorEl) {
+      restoreErrorEl.style.display = 'none';
+    }
     if (typeof window.updateSettingsBackButton === 'function') {
       window.updateSettingsBackButton();
     }
@@ -2317,6 +2325,202 @@
     const btnSaveTech = document.getElementById('btn-save-technical-settings');
     if (btnSaveTech) btnSaveTech.addEventListener('click', handleSaveExportSettings);
 
+    // 9. Built-In Page Restoration
+    const restoreSelect = document.getElementById('setting-restore-builtin-select');
+    const restoreError = document.getElementById('setting-restore-builtin-error');
+    const btnRestorePage = document.getElementById('btn-restore-builtin-page');
+
+    if (restoreSelect && !restoreSelect._hasRestoreChangeListener) {
+      restoreSelect._hasRestoreChangeListener = true;
+      restoreSelect.addEventListener('change', () => {
+        if (restoreSelect.value) {
+          restoreSelect.classList.remove('ftue-input-error');
+          if (restoreError) restoreError.style.display = 'none';
+        }
+      });
+    }
+
+    async function restoreBuiltInPageToDefaults(pageId) {
+      const targetDrafts = Array.isArray(window.drafts) ? window.drafts : [];
+      let defaultPage = null;
+
+      if (pageId === 'page_about') {
+        defaultPage = (typeof window.createDefaultAboutPage === 'function')
+          ? window.createDefaultAboutPage()
+          : {
+              id: 'page_about',
+              type: 'page',
+              status: 'published',
+              title: 'About',
+              slug: 'about',
+              subtitle: '',
+              markdown: '',
+              proseHtml: '',
+              hidden: true,
+              retired: true,
+              images: []
+            };
+      } else if (pageId === 'page_links') {
+        defaultPage = (typeof window.createDefaultLinksPage === 'function')
+          ? window.createDefaultLinksPage()
+          : {
+              id: 'page_links',
+              type: 'page',
+              status: 'published',
+              title: 'Links',
+              slug: 'links',
+              subtitle: 'See what I am up to.',
+              markdown: '',
+              proseHtml: '',
+              linksData: { profile: { headline: 'Welcome!', bio: 'See what I am up to.', avatar: '' }, items: [] },
+              hidden: true,
+              retired: true,
+              images: []
+            };
+        if (typeof window.generateLinksPageData === 'function' && defaultPage.linksData) {
+          const generated = window.generateLinksPageData(defaultPage.linksData, window.projectConfig);
+          if (generated) {
+            defaultPage.subtitle = generated.subtitle || defaultPage.subtitle;
+            defaultPage.markdown = generated.markdown || '';
+            defaultPage.proseHtml = generated.proseHtml || '';
+          }
+        }
+      } else if (pageId === 'page_rss') {
+        defaultPage = (typeof window.createDefaultRssPage === 'function')
+          ? window.createDefaultRssPage(window.projectConfig)
+          : {
+              id: 'page_rss',
+              type: 'page',
+              status: 'published',
+              title: 'RSS',
+              slug: 'rss',
+              subtitle: '',
+              markdown: '',
+              proseHtml: '',
+              hidden: true,
+              retired: true,
+              images: []
+            };
+      }
+
+      if (!defaultPage) return false;
+
+      const existing = targetDrafts.find(d =>
+        d && (
+          d.id === pageId ||
+          (d.type === 'page' && (d.slug || '').trim().toLowerCase() === defaultPage.slug)
+        )
+      );
+
+      if (existing) {
+        const preserveHidden = existing.hidden !== undefined ? Boolean(existing.hidden) : Boolean(defaultPage.hidden);
+        const preserveRetired = existing.retired !== undefined ? Boolean(existing.retired) : Boolean(defaultPage.retired);
+        defaultPage.hidden = preserveHidden;
+        defaultPage.retired = preserveRetired;
+        defaultPage.createdAt = existing.createdAt || defaultPage.createdAt || Date.now();
+        defaultPage.updatedAt = Date.now();
+
+        Object.keys(existing).forEach(k => delete existing[k]);
+        Object.assign(existing, defaultPage);
+      } else {
+        defaultPage.updatedAt = Date.now();
+        targetDrafts.push(defaultPage);
+      }
+
+      const finalPage = existing || defaultPage;
+
+      if (window.CedarStore) {
+        if (typeof window.CedarStore.upsertPage === 'function') {
+          window.CedarStore.upsertPage(finalPage);
+        }
+        if (typeof window.CedarStore._syncWindowDrafts === 'function') {
+          window.CedarStore._syncWindowDrafts();
+        }
+      }
+
+      if (window.currentDraft && (window.currentDraft.id === pageId || (window.currentDraft.type === 'page' && (window.currentDraft.slug || '').trim().toLowerCase() === finalPage.slug))) {
+        window.currentDraft = finalPage;
+        if (typeof window.loadDraftIntoEditor === 'function') {
+          try { window.loadDraftIntoEditor(finalPage); } catch (e) {}
+        }
+      }
+
+      if (pageId === 'page_links' && typeof window.renderLinksStudio === 'function') {
+        try { window.renderLinksStudio(); } catch (e) {}
+      }
+
+      if (typeof window.saveDraftsToStorage === 'function') {
+        await window.saveDraftsToStorage();
+      }
+      if (typeof window.saveProjectToStorage === 'function') {
+        window.saveProjectToStorage();
+      }
+      if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
+        window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
+      }
+      if (typeof window.renderStaticPages === 'function') {
+        window.renderStaticPages();
+      }
+      if (typeof window.renderHomeActivityStream === 'function') {
+        window.renderHomeActivityStream();
+      }
+      if (typeof window.updateAllPreviewFrames === 'function') {
+        window.updateAllPreviewFrames();
+      }
+      return true;
+    }
+
+    if (btnRestorePage && !btnRestorePage._hasRestoreClickListener) {
+      btnRestorePage._hasRestoreClickListener = true;
+      btnRestorePage.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (!restoreSelect) return;
+
+        const selectedVal = (restoreSelect.value || '').trim();
+        if (!selectedVal) {
+          restoreSelect.classList.add('ftue-input-error');
+          if (restoreError) {
+            restoreError.textContent = 'Please choose a built-in page from the dropdown instead.';
+            restoreError.style.display = 'block';
+          }
+          restoreSelect.focus();
+          if (typeof window.showToast === 'function') {
+            window.showToast('Please choose a built-in page from the dropdown instead.');
+          }
+          return;
+        }
+
+        restoreSelect.classList.remove('ftue-input-error');
+        if (restoreError) restoreError.style.display = 'none';
+
+        const pageLabels = {
+          page_about: 'About',
+          page_links: 'Links',
+          page_rss: 'RSS'
+        };
+        const pageLabel = pageLabels[selectedVal] || 'selected';
+
+        const confirmed = (typeof window.showConfirmDialog === 'function')
+          ? await window.showConfirmDialog({
+              title: 'Are you sure?',
+              message: `Are you sure you want to restore the "${pageLabel}" page back to its default options? Any custom changes you made to this page will be replaced.`,
+              confirmText: 'Restore Page',
+              cancelText: 'Cancel',
+              isDanger: true
+            })
+          : confirm(`Are you sure you want to restore the "${pageLabel}" page back to its default options?`);
+
+        if (!confirmed) return;
+
+        const restored = await restoreBuiltInPageToDefaults(selectedVal);
+        if (restored) {
+          restoreSelect.value = '';
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Restored "${pageLabel}" page back to default options.`);
+          }
+        }
+      });
+    }
 
   }
 

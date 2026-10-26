@@ -172,11 +172,19 @@
     const token = (tokenInput || '').trim();
 
     if (!repo || !repo.includes('/')) {
+      appendPublishLog('Validation failed: Repository must be in "username/repo" format.', 'error', '!');
+      setPublishTerminalStatus('error', 'Error');
       return { ok: false, error: 'Please enter a valid GitHub repository URL or "username/repository-name".' };
     }
     if (!token) {
+      appendPublishLog('Validation failed: Personal Access Token is missing.', 'error', '!');
+      setPublishTerminalStatus('error', 'Error');
       return { ok: false, error: 'Personal Access Token is required.' };
     }
+
+    appendPublishLog(`cedar auth test --repo ${repo}`, 'cmd', '$');
+    appendPublishLog(`Connecting to https://api.github.com/repos/${repo}...`, 'info', '>');
+    setPublishTerminalStatus('running', 'Testing...');
 
     try {
       const res = await fetch(`https://api.github.com/repos/${repo}`, {
@@ -193,26 +201,40 @@
           const j = await res.json();
           msg = j.message || msg;
         } catch (e) {}
-        if (res.status === 401) return { ok: false, error: 'Authentication failed: Invalid Personal Access Token.' };
-        if (res.status === 404) return { ok: false, error: 'Repository not found or token lacks access. For private repos, ensure your Fine-Grained token has your repo selected + "Contents: Read and write" saved together (or use a Classic token with "repo" checked).' };
-        return { ok: false, error: `GitHub error (${res.status}): ${msg}` };
+        const errOut = res.status === 401
+          ? 'Authentication failed: Invalid Personal Access Token.'
+          : (res.status === 404
+              ? 'Repository not found or token lacks access. For private repos, ensure your Fine-Grained token has your repo selected + "Contents: Read and write" saved together (or use a Classic token with "repo" checked).'
+              : `GitHub error (${res.status}): ${msg}`);
+        appendPublishLog(`[HTTP ${res.status}] ${errOut}`, 'error', '✗');
+        setPublishTerminalStatus('error', 'Failed');
+        return { ok: false, error: errOut };
       }
 
       const data = await res.json();
       if (data.permissions && data.permissions.push === false) {
+        const roErr = 'Connected to repo, but token is Read-Only! Enable "Contents: Read and write" (Fine-Grained token) or check "repo" (Classic token) so Cedar can publish.';
+        appendPublishLog(roErr, 'error', '✗');
+        setPublishTerminalStatus('error', 'Read-Only');
         return {
           ok: false,
-          error: 'Connected to repo, but token is Read-Only! Enable "Contents: Read and write" (Fine-Grained token) or check "repo" (Classic token) so Cedar can publish.'
+          error: roErr
         };
       }
+      const visLabel = data.private ? 'private' : 'public';
+      const defBranch = data.default_branch || 'main';
+      appendPublishLog(`Authenticated: ${data.full_name} (${visLabel}, default branch: ${defBranch}, push: allowed)`, 'success', '✓');
+      setPublishTerminalStatus('success', 'Connected');
       return {
         ok: true,
         repoName: data.full_name,
         isPrivate: data.private,
-        defaultBranch: data.default_branch || 'main',
+        defaultBranch: defBranch,
         permissions: data.permissions || {}
       };
     } catch (e) {
+      appendPublishLog(`Network error: ${e.message}`, 'error', '✗');
+      setPublishTerminalStatus('error', 'Error');
       return { ok: false, error: `Network error: ${e.message}` };
     }
   }
@@ -383,13 +405,18 @@
 
     if (typeof window.showToast === 'function') window.showToast('Checking repository state...');
 
+    appendPublishLog(`cedar publish --repo ${repo} --branch ${branch}`, 'cmd', '$');
+    setPublishTerminalStatus('running', 'Publishing...');
+
     try {
       // 1. Get branch head (auto-detect default branch or auto-initialize if empty 0-commit repo)
+      appendPublishLog(`Connecting to repository ${repo} (branch: ${branch})...`, 'info', '>');
       let branchRef = null;
       try {
         branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
       } catch (refErr) {
         if (refErr.status === 404 || refErr.status === 409) {
+          appendPublishLog(`Branch ref heads/${branch} not found (${refErr.status}). Inspecting repository metadata...`, 'warn', '!');
           let repoMeta = null;
           try {
             repoMeta = await apiRequest(`/repos/${repo}`);
@@ -405,6 +432,7 @@
           if (repoMeta && repoMeta.default_branch && repoMeta.default_branch !== branch) {
             branch = repoMeta.default_branch;
             localStorage.setItem(STORAGE_KEYS.BRANCH, branch);
+            appendPublishLog(`Detected repository default branch: ${branch}`, 'info', '>');
             try {
               branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
             } catch (e2) {}
@@ -412,6 +440,7 @@
           // If branchRef is still null, the repository has 0 commits (empty repo without a README). Auto-bootstrap it!
           if (!branchRef) {
             if (typeof window.showToast === 'function') window.showToast('Initializing empty GitHub repository...');
+            appendPublishLog(`Empty repository detected (0 commits). Bootstrapping initial commit on ${branch}...`, 'info', '>');
             const siteTitle = window.projectConfig?.name || 'Cedar Blog';
             const readmeB64 = btoa(unescape(encodeURIComponent(`# ${siteTitle}\n\nPublished with [Cedar](https://cedar.pub).\n`)));
             await apiRequest(`/repos/${repo}/contents/README.md`, {
@@ -423,6 +452,7 @@
               }
             });
             branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
+            appendPublishLog(`Initialized branch ${branch} (${String(branchRef.object.sha).slice(0, 7)})`, 'success', '✓');
           }
         } else {
           throw refErr;
@@ -431,6 +461,7 @@
       const headSha = branchRef.object.sha;
       const lastSyncedSha = localStorage.getItem(STORAGE_KEYS.LAST_SHA);
       let baseRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
+      appendPublishLog(`Remote HEAD at ${String(headSha).slice(0, 7)} (local rev #${baseRev})`, 'info', '>');
 
       // Collision Check: Only warn if a DIFFERENT Cedar device pushed a newer revision since our last sync
       if (!isForce && lastSyncedSha && headSha !== lastSyncedSha) {
@@ -447,8 +478,11 @@
         );
         const localRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
         if (isDifferentDevice && remoteStatus.revision > localRev) {
+          appendPublishLog(`Remote revision #${remoteStatus.revision} from ${remoteStatus.device} is newer than local #${localRev}. Prompting conflict resolution...`, 'warn', '!');
           const proceed = await showConflictModal(remoteStatus);
           if (!proceed) {
+            appendPublishLog('Publish cancelled by user.', 'warn', '!');
+            setPublishTerminalStatus('idle', 'Cancelled');
             if (typeof window.showToast === 'function') window.showToast('Push cancelled.');
             return false;
           }
@@ -481,8 +515,10 @@
             }
           }
         }
+        appendPublishLog(`Indexed remote tree ${String(baseTreeSha).slice(0, 7)} (${remotePathToSha.size} existing file blobs)`, 'info', '>');
       } catch (e) {
         console.warn('[GitHubSync] Could not fetch remote tree for delta diffing / orphan pruning:', e);
+        appendPublishLog(`Warning: Could not index recursive remote tree (${e.message})`, 'warn', '!');
       }
 
       // Compute Git's exact blob SHA-1: SHA1("blob " + byteLength + "\0" + rawBytes)
@@ -550,6 +586,8 @@
 
       let uploadedCount = 0;
       let skippedCount = 0;
+      let reusedCount = 0;
+      let prunedCount = 0;
 
       let detectedSiteUrl = '';
       try {
@@ -578,62 +616,80 @@
           } catch (_) {}
         }
       } catch (_) {}
+      if (detectedSiteUrl) {
+        appendPublishLog(`Detected live site domain: ${detectedSiteUrl}`, 'info', '>');
+      }
 
-      if (typeof window.buildProductionSiteFiles === 'function') {
-        const prodFiles = await window.buildProductionSiteFiles({ includeEngineAssets: true, detectedSiteUrl });
-        for (const f of prodFiles) {
-          if (!f || !f.name || f.data === undefined || f.data === null) continue;
-          const cleanPath = String(f.name).replace(/^\/+/, '');
-          activePaths.add(cleanPath);
+      if (typeof window.buildProductionSiteFiles !== 'function') {
+        throw new Error('Site compiler (buildProductionSiteFiles) is not available. Please reload Cedar and try again.');
+      }
 
-          const localSha = await computeGitBlobSha(f.data);
+      appendPublishLog('Compiling production static site files...', 'info', '>');
+      const prodFiles = await window.buildProductionSiteFiles({ includeEngineAssets: true, detectedSiteUrl });
+      if (!Array.isArray(prodFiles) || prodFiles.length === 0 || !prodFiles.some(f => f && f.name === 'index.html')) {
+        throw new Error('Site compilation failed to produce index.html. Aborting publish to protect remote repository.');
+      }
 
-          // Skip completely if file at this path is already byte-for-byte identical in base_tree
-          if (localSha && remotePathToSha.get(cleanPath) === localSha) {
-            skippedCount++;
-            continue;
-          }
+      const htmlCount = prodFiles.filter(f => f && String(f.name).endsWith('.html')).length;
+      const assetCount = prodFiles.length - htmlCount;
+      appendPublishLog(`Compiled ${prodFiles.length} production files (${htmlCount} HTML routes, ${assetCount} assets/data/feeds)`, 'success', '✓');
 
-          // Reuse existing blob SHA if an identical blob already exists in the repo or was uploaded earlier in this push
-          if (localSha && knownRemoteBlobShas.has(localSha)) {
+      for (const f of prodFiles) {
+        if (!f || !f.name || f.data === undefined || f.data === null) continue;
+        const cleanPath = String(f.name).replace(/^\/+/, '');
+        activePaths.add(cleanPath);
+
+        const localSha = await computeGitBlobSha(f.data);
+
+        // Skip completely if file at this path is already byte-for-byte identical in base_tree
+        if (localSha && remotePathToSha.get(cleanPath) === localSha) {
+          skippedCount++;
+          continue;
+        }
+
+        // Reuse existing blob SHA if an identical blob already exists in the repo or was uploaded earlier in this push
+        if (localSha && knownRemoteBlobShas.has(localSha)) {
+          treeEntries.push({
+            path: cleanPath,
+            mode: '100644',
+            type: 'blob',
+            sha: localSha
+          });
+          reusedCount++;
+          appendPublishLog(`[stage] ${cleanPath} (reused blob ${localSha.slice(0, 7)})`, 'dim', '+');
+          continue;
+        }
+
+        if (typeof f.data === 'string' && f.data.length < 250000) {
+          treeEntries.push({
+            path: cleanPath,
+            mode: '100644',
+            type: 'blob',
+            content: f.data
+          });
+          uploadedCount++;
+          appendPublishLog(`[stage] ${cleanPath} (${(f.data.length / 1024).toFixed(1)} KB)`, 'info', '+');
+        } else {
+          const blobObj = (f.data instanceof Blob) ? f.data : new Blob([f.data]);
+          appendPublishLog(`[upload] ${cleanPath} (${(blobObj.size / 1024).toFixed(1)} KB binary blob)...`, 'info', '↑');
+          const b64 = await blobToBase64(blobObj);
+          const blobRes = await apiRequest(`/repos/${repo}/git/blobs`, {
+            method: 'POST',
+            body: {
+              content: b64,
+              encoding: 'base64'
+            }
+          });
+          if (blobRes && blobRes.sha) {
+            knownRemoteBlobShas.add(blobRes.sha);
+            if (localSha) knownRemoteBlobShas.add(localSha);
             treeEntries.push({
               path: cleanPath,
               mode: '100644',
               type: 'blob',
-              sha: localSha
-            });
-            continue;
-          }
-
-          if (typeof f.data === 'string' && f.data.length < 250000) {
-            treeEntries.push({
-              path: cleanPath,
-              mode: '100644',
-              type: 'blob',
-              content: f.data
+              sha: blobRes.sha
             });
             uploadedCount++;
-          } else {
-            const blobObj = (f.data instanceof Blob) ? f.data : new Blob([f.data]);
-            const b64 = await blobToBase64(blobObj);
-            const blobRes = await apiRequest(`/repos/${repo}/git/blobs`, {
-              method: 'POST',
-              body: {
-                content: b64,
-                encoding: 'base64'
-              }
-            });
-            if (blobRes && blobRes.sha) {
-              knownRemoteBlobShas.add(blobRes.sha);
-              if (localSha) knownRemoteBlobShas.add(localSha);
-              treeEntries.push({
-                path: cleanPath,
-                mode: '100644',
-                type: 'blob',
-                sha: blobRes.sha
-              });
-              uploadedCount++;
-            }
           }
         }
       }
@@ -647,12 +703,16 @@
             type: 'blob',
             sha: null // Delete orphaned file from GitHub
           });
+          prunedCount++;
+          appendPublishLog(`[prune] ${remoteItem.path} (removed stale remote file)`, 'warn', '-');
         }
       }
 
+      appendPublishLog(`Delta summary: ${uploadedCount} uploaded, ${reusedCount} reused, ${skippedCount} unchanged skipped, ${prunedCount} pruned.`, 'info', '>');
       console.info(`[GitHubSync] Delta publish: ${uploadedCount} changed/new files uploaded, ${skippedCount} unchanged files skipped.`);
 
       // 3. Post Git Tree
+      appendPublishLog(`Creating Git tree (${treeEntries.length} tree delta entries)...`, 'info', '>');
       const treeRes = await apiRequest(`/repos/${repo}/git/trees`, {
         method: 'POST',
         body: {
@@ -661,9 +721,11 @@
         }
       });
       const newTreeSha = treeRes.sha;
+      appendPublishLog(`Created Git tree: ${String(newTreeSha).slice(0, 7)}`, 'info', '>');
 
       // 4. Create Git Commit
       const commitMsg = `Cedar Studio: Rev #${currentRev} (${getDeviceName()}) [Web Publish]`;
+      appendPublishLog(`Creating atomic commit: "${commitMsg}"...`, 'info', '>');
       const commitRes = await apiRequest(`/repos/${repo}/git/commits`, {
         method: 'POST',
         body: {
@@ -675,6 +737,7 @@
       let newCommitSha = commitRes.sha;
 
       // 5. Update Branch Ref (use force: true since collision check already ran, and auto-recover on 422)
+      appendPublishLog(`Updating branch ref heads/${branch} -> ${String(newCommitSha).slice(0, 7)}...`, 'info', '>');
       try {
         await apiRequest(`/repos/${repo}/git/refs/heads/${branch}`, {
           method: 'PATCH',
@@ -685,6 +748,7 @@
         });
       } catch (patchErr) {
         if (patchErr && patchErr.status === 422) {
+          appendPublishLog(`Ref update returned 422; reconciling with latest remote HEAD...`, 'warn', '!');
           const latestRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}?t=${Date.now()}`);
           const latestSha = latestRef?.object?.sha;
           if (latestSha && latestSha !== newCommitSha) {
@@ -721,12 +785,22 @@
       localStorage.setItem(STORAGE_KEYS.LAST_TIME, new Date().toISOString());
       updateSyncBadges();
 
+      appendPublishLog(`Published Rev #${currentRev} (${String(newCommitSha).slice(0, 7)}) to ${repo}@${branch}! (${activePaths.size} total files in live site)`, 'success', '✓');
+      setPublishTerminalStatus('success', `Rev #${currentRev} Live`);
+
       if (typeof window.showToast === 'function') {
         window.showToast(`Published rev #${currentRev} to GitHub! Live site updating.`);
       }
       return true;
     } catch (err) {
       console.error('[GitHubSync] Push error:', err);
+      appendPublishLog(`Publish failed: ${err.message}`, 'error', '✗');
+      setPublishTerminalStatus('error', 'Failed');
+      const credsPanel = document.getElementById('github-credentials-panel');
+      if (credsPanel) {
+        credsPanel._userToggled = true;
+        updateCredsPanelToggle(true);
+      }
       if (typeof window.showToast === 'function') {
         window.showToast(`Publish failed: ${err.message}`, 'error');
       }
@@ -862,7 +936,79 @@
       return 'Last published: Recently';
     }
   }
+  function ensurePublishTerminalDOM() {
+    if (typeof document === 'undefined') return;
+    const staleDisconnect = document.getElementById('btn-github-disconnect');
+    if (staleDisconnect) {
+      staleDisconnect.remove();
+    }
+
+    if (!document.getElementById('cedar-publish-terminal-styles') && document.head) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'cedar-publish-terminal-styles';
+      styleEl.textContent = `
+        .publish-terminal-wrap { width: 100%; margin-top: 1.1rem; text-align: left; }
+        .publish-terminal-window { background: #090d16; border: 1px solid rgba(129, 140, 248, 0.28); border-radius: 10px; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.35); }
+        .app-theme-light .publish-terminal-window { background: #0f172a; border-color: rgba(99, 102, 241, 0.35); box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18); }
+        .publish-terminal-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0.45rem 0.75rem; background: rgba(30, 41, 59, 0.65); border-bottom: 1px solid rgba(129, 140, 248, 0.18); }
+        .publish-terminal-title-group { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono, 'JetBrains Mono', Consolas, monospace); font-size: 0.73rem; font-weight: 600; letter-spacing: 0.03em; color: #cbd5e1; }
+        .publish-terminal-title-group svg { color: #818cf8; flex-shrink: 0; }
+        .publish-terminal-status-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 999px; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; background: rgba(148, 163, 184, 0.14); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.22); }
+        .publish-terminal-status-badge.status-running { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border-color: rgba(129, 140, 248, 0.4); }
+        .publish-terminal-status-badge.status-success { background: rgba(34, 197, 94, 0.18); color: #86efac; border-color: rgba(34, 197, 94, 0.35); }
+        .publish-terminal-status-badge.status-error { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); }
+        .publish-terminal-actions { display: inline-flex; align-items: center; gap: 5px; }
+        .publish-terminal-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 5px; font-family: var(--font-mono, 'JetBrains Mono', Consolas, monospace); font-size: 0.68rem; font-weight: 500; color: #94a3b8; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; transition: all 0.15s ease; }
+        .publish-terminal-btn:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.1); border-color: rgba(129, 140, 248, 0.35); }
+        .publish-terminal-body { max-height: 220px; min-height: 110px; overflow-y: auto; padding: 0.65rem 0.8rem; font-family: var(--font-mono, 'JetBrains Mono', Consolas, monospace); font-size: 0.74rem; line-height: 1.55; color: #e2e8f0; display: flex; flex-direction: column; gap: 2px; user-select: text; word-break: break-word; }
+        .publish-log-line { display: flex; align-items: flex-start; gap: 6px; white-space: pre-wrap; }
+        .publish-log-line .log-time { color: #64748b; flex-shrink: 0; user-select: none; }
+        .publish-log-line .log-prefix { color: #818cf8; font-weight: 700; flex-shrink: 0; user-select: none; }
+        .publish-log-line .log-text { color: #e2e8f0; flex: 1; min-width: 0; }
+        .publish-log-line.log-dim .log-text { color: #94a3b8; }
+        .publish-log-line.log-cmd .log-prefix { color: #38bdf8; }
+        .publish-log-line.log-cmd .log-text { color: #f8fafc; font-weight: 600; }
+        .publish-log-line.log-success .log-prefix, .publish-log-line.log-success .log-text { color: #4ade80; }
+        .publish-log-line.log-warn .log-prefix, .publish-log-line.log-warn .log-text { color: #facc15; }
+        .publish-log-line.log-error .log-prefix, .publish-log-line.log-error .log-text { color: #f87171; }
+      `;
+      document.head.appendChild(styleEl);
+    }
+
+    const credsPanel = document.getElementById('github-credentials-panel');
+    if (credsPanel && !document.getElementById('github-publish-terminal-wrap')) {
+      const wrap = document.createElement('div');
+      wrap.className = 'publish-terminal-wrap';
+      wrap.id = 'github-publish-terminal-wrap';
+      wrap.innerHTML = `
+        <div class="publish-terminal-window" id="github-publish-terminal">
+          <div class="publish-terminal-header">
+            <div class="publish-terminal-title-group">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              <span class="publish-terminal-title">Publish Console</span>
+              <span class="publish-terminal-status-badge status-idle" id="github-terminal-status">Idle</span>
+            </div>
+            <div class="publish-terminal-actions">
+              <button type="button" class="publish-terminal-btn" id="btn-github-log-copy" title="Copy console log to clipboard">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span id="btn-github-log-copy-text">Copy</span>
+              </button>
+              <button type="button" class="publish-terminal-btn" id="btn-github-log-clear" title="Clear console log">
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+          <div class="publish-terminal-body" id="github-publish-log-output" role="log" aria-live="polite" aria-label="GitHub publish console output">
+            <div class="publish-log-line log-dim"><span class="log-prefix">$</span> <span class="log-text">Ready. Click "Publish" or "Test Connection" to stream live output...</span></div>
+          </div>
+        </div>
+      `;
+      credsPanel.appendChild(wrap);
+    }
+  }
+
   function updateCredsPanelToggle(isExpanded) {
+    ensurePublishTerminalDOM();
     const credsPanel = document.getElementById('github-credentials-panel');
     const toggleConfigBtn = document.getElementById('btn-toggle-github-config');
     const toggleSpan = document.getElementById('btn-toggle-github-config-text');
@@ -917,9 +1063,69 @@
   }
 
   /**
+   * Update status badge in the Publish Console header
+   */
+  function setPublishTerminalStatus(state = 'idle', label = 'Idle') {
+    ensurePublishTerminalDOM();
+    const badge = document.getElementById('github-terminal-status');
+    if (!badge) return;
+    badge.className = `publish-terminal-status-badge status-${state}`;
+    badge.textContent = label;
+  }
+
+  /**
+   * Append a command-prompt log line to the Publish Console window
+   */
+  function appendPublishLog(message, type = 'info', prefix = '>') {
+    ensurePublishTerminalDOM();
+    const out = document.getElementById('github-publish-log-output');
+    if (!out) return;
+
+    const now = new Date();
+    const timeStr = [
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0')
+    ].join(':');
+
+    const line = document.createElement('div');
+    line.className = `publish-log-line log-${type}`;
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'log-time';
+    timeEl.textContent = `[${timeStr}]`;
+
+    const prefixEl = document.createElement('span');
+    prefixEl.className = 'log-prefix';
+    prefixEl.textContent = prefix;
+
+    const textEl = document.createElement('span');
+    textEl.className = 'log-text';
+    textEl.textContent = String(message || '');
+
+    line.appendChild(timeEl);
+    line.appendChild(prefixEl);
+    line.appendChild(textEl);
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  /**
+   * Clear the Publish Console window
+   */
+  function clearPublishLog() {
+    ensurePublishTerminalDOM();
+    const out = document.getElementById('github-publish-log-output');
+    if (!out) return;
+    out.innerHTML = `<div class="publish-log-line log-dim"><span class="log-prefix">$</span> <span class="log-text">Console cleared. Ready.</span></div>`;
+    setPublishTerminalStatus('idle', 'Idle');
+  }
+
+  /**
    * Update UI badges in Settings and Dashboard
    */
   function updateSyncBadges(isOutdated = false) {
+    ensurePublishTerminalDOM();
     const configured = isConfigured();
     const { repo, branch } = getCredentials();
     const lastTime = localStorage.getItem(STORAGE_KEYS.LAST_TIME);
@@ -949,11 +1155,6 @@
     const timeLabel = document.getElementById('label-github-last-published');
     if (timeLabel) {
       timeLabel.textContent = formatLastPublished(lastTime);
-    }
-
-    const btnDisconnect = document.getElementById('btn-github-disconnect');
-    if (btnDisconnect) {
-      btnDisconnect.style.display = configured ? 'inline-flex' : 'none';
     }
 
     const pushBtnText = document.getElementById('btn-github-push-text');
@@ -1040,6 +1241,7 @@
   }
 
   function initSyncUI() {
+    ensurePublishTerminalDOM();
     const creds = getCredentials();
     const inputRepo = document.getElementById('setting-github-repo');
     const inputToken = document.getElementById('setting-github-token');
@@ -1250,33 +1452,6 @@
         if (primaryPush) primaryPush.click();
       });
     }
-
-    // Disconnect button
-    const btnDisconnect = document.getElementById('btn-github-disconnect');
-    if (btnDisconnect && !btnDisconnect._hasGhDiscListener) {
-      btnDisconnect._hasGhDiscListener = true;
-      btnDisconnect.addEventListener('click', () => {
-        if (!confirm('Disconnect GitHub cloud sync?\n\nYour repository and local files will remain intact. Cedar will just forget the saved token.')) return;
-        clearCredentials();
-        const inRepo = document.getElementById('setting-github-repo');
-        const inToken = document.getElementById('setting-github-token');
-        if (inRepo) {
-          inRepo.value = '';
-          inRepo.classList.remove('ftue-input-error');
-        }
-        if (inToken) {
-          inToken.value = '';
-          inToken.classList.remove('ftue-input-error');
-        }
-        const repoErr = document.getElementById('github-repo-error');
-        const tokenErr = document.getElementById('github-token-error');
-        if (repoErr) repoErr.style.display = 'none';
-        if (tokenErr) tokenErr.style.display = 'none';
-        setPublishReadout(null);
-        updateSyncBadges();
-        if (typeof window.showToast === 'function') window.showToast('Disconnected from GitHub.');
-      });
-    }
   }
 
   // Delegated document listeners to guarantee clicks & inputs always work regardless of injection timing
@@ -1303,6 +1478,33 @@
           window.exportWebProductionZip();
         } else if (typeof window.showToast === 'function') {
           window.showToast('Web export engine initializing...');
+        }
+        return;
+      }
+
+      // 3. Publish Console: Clear button
+      const btnLogClear = e.target.closest('#btn-github-log-clear');
+      if (btnLogClear) {
+        e.preventDefault();
+        clearPublishLog();
+        return;
+      }
+
+      // 4. Publish Console: Copy button
+      const btnLogCopy = e.target.closest('#btn-github-log-copy');
+      if (btnLogCopy) {
+        e.preventDefault();
+        const out = document.getElementById('github-publish-log-output');
+        if (!out) return;
+        const lines = Array.from(out.querySelectorAll('.publish-log-line')).map(el => el.textContent.trim()).join('\n');
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard.writeText(lines).then(() => {
+            const copySpan = document.getElementById('btn-github-log-copy-text');
+            if (copySpan) {
+              copySpan.textContent = 'Copied!';
+              setTimeout(() => { copySpan.textContent = 'Copy'; }, 1500);
+            }
+          }).catch(() => {});
         }
         return;
       }

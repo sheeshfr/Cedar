@@ -410,10 +410,11 @@
   function maybeRenderApp() {
     const currentHash = getWorkspaceFingerprint();
     if (currentHash === lastRenderedFingerprint) {
-      return; // No change: DO NOT touch DOM, completely eliminates flickering
+      return false; // No change: DO NOT touch DOM, completely eliminates flickering
     }
     lastRenderedFingerprint = currentHash;
-    renderApp();
+    renderApp({ preserveScroll: true });
+    return true;
   }
 
   function route(options = {}) {
@@ -571,15 +572,30 @@
   }
 
   // Storage & tab focus event listeners for real-time reactivity across tabs
-  function refreshPreviewFromWorkspace() {
+  function refreshPreviewFromWorkspace(e) {
+    if (e && e.type === 'storage') {
+      if (e.newValue === e.oldValue) return;
+      const allowedKeys = new Set([
+        'sheesh_static_writer_drafts_v2',
+        'sheesh_static_writer_drafts',
+        'sheesh_static_writer_project_v1',
+        'cedar_user_domain',
+        'cedar_theme',
+        'cedar_editor_theme',
+        'cedar_rss_enabled',
+        'outpost_rss_enabled',
+        'cedar_all_disabled'
+      ]);
+      if (e.key && !allowedKeys.has(e.key)) return;
+    }
     const prevScrollY = window.pageYOffset || window.scrollY || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
     loadWorkspaceData();
     applyThemeToPreview();
-    maybeRenderApp();
+    const didRender = maybeRenderApp();
     if (!window.__CEDAR_PRODUCTION__ && !window.__CEDAR_STATIC_DATA__) {
       syncWithServer();
     }
-    if (prevScrollY > 0) {
+    if (didRender && prevScrollY > 0) {
       window.scrollTo({ top: prevScrollY, behavior: 'instant' });
       requestAnimationFrame(() => window.scrollTo({ top: prevScrollY, behavior: 'instant' }));
     }
@@ -733,12 +749,14 @@
     applyThemeToPreview();
     const drafts = (typeof getDrafts === 'function') ? getDrafts() : [];
     const hasPosts = Array.isArray(drafts) && drafts.some(d => d && (!d.type || d.type === 'post') && !d.isCategoryAggregate && !String(d.id || '').startsWith('page_'));
-    const isStandalone = !(window.parent && window.parent !== window && window.parent.projectConfig);
+    const isStandalone = !(window.parent && window.parent !== window && (window.parent.projectConfig || window.parent.CedarStore));
     if (isStandalone && !hasPosts) {
       await syncWithServer();
     }
     renderApp();
-    syncWithServer();
+    if (isStandalone && hasPosts) {
+      syncWithServer();
+    }
     initMobileHeadroom();
     try {
       if (window.parent && window.parent !== window) {

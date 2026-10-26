@@ -47,9 +47,9 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '4.6.6';
+    let staticVersion = '4.6.26';
     try {
-      const versionedEl = document.querySelector('script[src*="?v="], link[href*="?v="]');
+      const versionedEl = document.querySelector('link[href*="style.css?v="], script[src*="compiler.js?v="], script[src*="?v="]');
       if (versionedEl) {
         const rawAttr = versionedEl.getAttribute('src') || versionedEl.getAttribute('href') || '';
         const match = rawAttr.match(/[?&]v=([^&#]+)/);
@@ -69,9 +69,8 @@
             const fetchUrl = src + (src.includes('?') ? '&' : '?') + 't=' + Date.now();
             res = await fetch(fetchUrl, { cache: 'no-store' });
           } else {
-            const baseSrc = src.split('?')[0];
-            const fetchUrl = `${baseSrc}?v=${staticVersion}`;
-            res = await fetch(fetchUrl);
+            const fetchUrl = src.includes('?v=') ? src : `${src.split('?')[0]}?v=${staticVersion}`;
+            res = await fetch(fetchUrl, { cache: 'no-cache' });
           }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const html = await res.text();
