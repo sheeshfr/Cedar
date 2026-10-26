@@ -1,5 +1,5 @@
 /**
- * Cedar — Vault (BYOC Local Drive & Storage Engine)
+ * Cedar â€” Vault (BYOC Local Drive & Storage Engine)
  * 100% Client-Side, Zero Dependencies, Standalone & Offline Ready
  * Uses the Native File System Access API with IndexedDB Persistence & PKZIP Backup/Restore.
  */
@@ -995,6 +995,13 @@ else {
       }
     }
 
+    // Hydrate binary images from the connected folder into memory (imageRegistry, authors, mediaLibrary, drafts) and Virtual Storage
+    try {
+      await hydrateImagesFromFolder(dirHandle);
+    } catch (imgHydrateErr) {
+      console.warn('[Vault] Image hydration notice:', imgHydrateErr);
+    }
+
     // Refresh views
     if (typeof window.updateCedarTitle === 'function') window.updateCedarTitle(); else if (typeof window.updateOutpostTitle === 'function') window.updateOutpostTitle();
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
@@ -1006,8 +1013,194 @@ else {
     if (typeof window.renderTaxonomy === 'function') window.renderTaxonomy();
     if (typeof window.renderSettingsAuthorProfile === 'function') window.renderSettingsAuthorProfile();
     if (typeof window.renderDesigner === 'function') window.renderDesigner();
+    if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
 
     return true;
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve) => {
+      if (!blob || !(blob instanceof Blob)) return resolve('');
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function applyHydratedImageMap(hydratedMap) {
+    if (!hydratedMap || hydratedMap.size === 0) return false;
+    window.imageRegistry = window.imageRegistry || new Map();
+    let configChanged = false;
+    let draftsChanged = false;
+
+    for (const [cleanName, info] of hydratedMap.entries()) {
+      const regEntry = {
+        filename: cleanName,
+        relativePath: info.relPath.startsWith('/') ? info.relPath : '/' + info.relPath,
+        blob: info.blob,
+        objectUrl: info.objectUrl,
+        dataUrl: info.dataUrl,
+        src: info.dataUrl || info.objectUrl
+      };
+      const keys = [
+        cleanName,
+        info.relPath,
+        '/' + info.relPath.replace(/^\/+/, ''),
+        `blog/images/${cleanName}`,
+        `/blog/images/${cleanName}`,
+        `images/${cleanName}`,
+        `/images/${cleanName}`,
+        `media/${cleanName}`,
+        `media/authors/${cleanName}`,
+        `media/branding/${cleanName}`
+      ];
+      keys.forEach(k => {
+        if (k) window.imageRegistry.set(k, regEntry);
+      });
+    }
+
+    // 1. Reconcile Author Avatars & Branding in window.projectConfig
+    const cfg = window.projectConfig;
+    if (cfg && typeof cfg === 'object') {
+      if (Array.isArray(cfg.authors)) {
+        cfg.authors.forEach(auth => {
+          if (!auth || typeof auth !== 'object' || !auth.avatar) return;
+          if (!auth.avatar.startsWith('data:')) {
+            const base = String(auth.avatar).split('/').pop().split('\\').pop();
+            const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+            if (found && found.dataUrl) {
+              auth.avatarFile = auth.avatar;
+              auth.avatar = found.dataUrl;
+              configChanged = true;
+            }
+          }
+        });
+      }
+      if (cfg.authorAvatar && typeof cfg.authorAvatar === 'string' && !cfg.authorAvatar.startsWith('data:')) {
+        const base = cfg.authorAvatar.split('/').pop().split('\\').pop();
+        const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+        if (found && found.dataUrl) {
+          cfg.authorAvatar = found.dataUrl;
+          configChanged = true;
+        }
+      }
+      if (Array.isArray(cfg.mediaLibrary)) {
+        cfg.mediaLibrary.forEach(m => {
+          if (!m || !m.filename) return;
+          const base = String(m.filename).split('/').pop().split('\\').pop();
+          const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+          if (found) {
+            m.blob = found.blob;
+            m.objectUrl = found.objectUrl;
+            m.dataUrl = found.dataUrl || found.objectUrl;
+            m.src = found.dataUrl || found.objectUrl;
+          }
+        });
+      }
+    }
+
+    // 2. Reconcile Draft Images in window.drafts & CedarStore
+    const allDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+      ? window.CedarStore.getAllDrafts()
+      : (Array.isArray(window.drafts) ? window.drafts : []);
+    allDrafts.forEach(d => {
+      if (!d) return;
+      if (Array.isArray(d.images)) {
+        d.images.forEach(im => {
+          if (!im) return;
+          const fn = typeof im === 'string' ? im : (im.filename || im.relativePath || im.src || '');
+          const base = String(fn).split('/').pop().split('\\').pop();
+          const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+          if (found && typeof im === 'object') {
+            im.blob = found.blob;
+            im.objectUrl = found.objectUrl;
+            im.dataUrl = found.dataUrl || found.objectUrl;
+            im.src = found.dataUrl || found.objectUrl;
+            draftsChanged = true;
+          }
+        });
+      }
+    });
+
+    if (configChanged && typeof window.saveProjectToStorage === 'function') {
+      try { window.saveProjectToStorage(); } catch (e) {}
+    }
+    return configChanged || draftsChanged;
+  }
+
+  async function hydrateImagesFromFolder(dirHandle) {
+    if (!dirHandle) return;
+    const isImgFile = (name) => /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(name || ''));
+    const candidateDirs = new Set([
+      'images',
+      'blog/images',
+      'media',
+      'media/authors',
+      'media/branding'
+    ]);
+
+    const allDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+      ? window.CedarStore.getAllDrafts()
+      : (Array.isArray(window.drafts) ? window.drafts : []);
+    allDrafts.forEach(d => {
+      if (d && d.slug) {
+        const s = d.slug;
+        if (d.type === 'page') {
+          candidateDirs.add(`pages/published/${s}`);
+          candidateDirs.add(`pages/hidden/${s}`);
+        } else {
+          candidateDirs.add(`blog/published/${s}`);
+          candidateDirs.add(`blog/drafts/${s}`);
+          candidateDirs.add(`blog/hidden/${s}`);
+        }
+      }
+    });
+
+    const filePathsToRead = [];
+    const seenFilenames = new Set();
+
+    await Promise.all(Array.from(candidateDirs).map(async (subDir) => {
+      try {
+        const entries = await listSubfolderEntries(dirHandle, subDir);
+        if (!Array.isArray(entries)) return;
+        for (const entry of entries) {
+          if (entry.kind === 'file' && isImgFile(entry.name)) {
+            const key = entry.name.toLowerCase();
+            if (!seenFilenames.has(key)) {
+              seenFilenames.add(key);
+              filePathsToRead.push({ name: entry.name, relPath: `${subDir}/${entry.name}` });
+            }
+          }
+        }
+      } catch (e) {}
+    }));
+
+    if (filePathsToRead.length === 0) return;
+
+    const hydratedMap = new Map();
+    const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+
+    await Promise.all(filePathsToRead.map(async ({ name, relPath }) => {
+      try {
+        const blob = await readFileFromDirHandle(dirHandle, relPath, 'blob');
+        if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
+        const objectUrl = URL.createObjectURL(blob);
+        const dataUrl = await blobToDataUrl(blob);
+        const info = { filename: name, relPath, blob, objectUrl, dataUrl };
+        hydratedMap.set(name, info);
+        hydratedMap.set(name.toLowerCase(), info);
+
+        if (vStorage && typeof vStorage.writeBlob === 'function') {
+          try {
+            await vStorage.writeBlob(`blog/images/${name}`, blob);
+            await vStorage.writeBlob(relPath, blob);
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }));
+
+    applyHydratedImageMap(hydratedMap);
   }
 
   async function resolveVisiblePath() {
@@ -1400,6 +1593,22 @@ else {
               this.emit('connected', { name: savedHandle.name, info: vaultInfo });
               updateAllVaultBadges();
               return true;
+            } else {
+              // Permission requires a user gesture (e.g. after browser restart); unlock automatically on first interaction
+              updateAllVaultBadges('needs-permission');
+              if (!window.__cedarAutoUnlockBound) {
+                window.__cedarAutoUnlockBound = true;
+                const unlockOnGesture = async () => {
+                  window.removeEventListener('pointerdown', unlockOnGesture, true);
+                  window.removeEventListener('keydown', unlockOnGesture, true);
+                  window.__cedarAutoUnlockBound = false;
+                  try {
+                    await Vault.requestSavedPermission();
+                  } catch (e) {}
+                };
+                window.addEventListener('pointerdown', unlockOnGesture, { capture: true, once: true });
+                window.addEventListener('keydown', unlockOnGesture, { capture: true, once: true });
+              }
             }
           }
         } catch (e) {
@@ -1440,6 +1649,9 @@ else {
         if (hasPerm) {
           rootHandle = savedHandle;
           await ensureVaultStructure();
+          await loadBlogFromFolder(rootHandle);
+          localStorage.setItem('cedar_vault_connected', '1');
+          localStorage.setItem('cedar_vault_name', savedHandle.name);
           this.emit('connected', { name: savedHandle.name, info: vaultInfo });
           updateAllVaultBadges();
           return true;
@@ -1701,7 +1913,7 @@ else {
     if (Vault.isConnected()) {
       const folderName = Vault.getFolderName();
       if (statusTitle) statusTitle.innerHTML = `<span class="vault-dot connected"></span> Connected to Hard Drive`;
-      if (folderPathText) folderPathText.textContent = `📁 ${folderName} (Active Read/Write Sync)`;
+      if (folderPathText) folderPathText.textContent = `ðŸ“ ${folderName} (Active Read/Write Sync)`;
       if (btnConnect) btnConnect.textContent = 'Switch Folder';
       if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
       if (storageNotice) storageNotice.textContent = 'All changes auto-sync to your hard drive in real time.';
@@ -1716,7 +1928,7 @@ else {
           } else {
             let html = '<div class="vault-file-tree">';
             files.slice(0, 15).forEach(f => {
-              const icon = f.kind === 'directory' ? '📁' : '📄';
+              const icon = f.kind === 'directory' ? 'ðŸ“' : 'ðŸ“„';
               html += `<div class="vault-file-item"><span>${icon} ${escapeHtml(f.path)}</span></div>`;
             });
             if (files.length > 15) {
@@ -1755,7 +1967,7 @@ else {
         <div class="modal-header">
           <div class="vault-modal-header-title">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-            <h3 class="modal-title">Sheesh Vault — Hard Drive BYOC</h3>
+            <h3 class="modal-title">Sheesh Vault â€” Hard Drive BYOC</h3>
           </div>
           <button type="button" class="modal-close-btn" data-close-vault-modal>&times;</button>
         </div>

@@ -418,26 +418,88 @@
     });
   }
 
-  async function resolveMediaBlob(filename) {
+  async function resolveMediaBlob(filename, imgObj) {
     if (!filename) return null;
-    if ((window.CedarVirtualStorage || window.OutpostVirtualStorage)) {
-      try {
-        const b1 = await (window.CedarVirtualStorage || window.OutpostVirtualStorage).readBlob(`blog/images/${filename}`);
-        if (b1) return b1;
-      } catch (e) {}
-      try {
-        const b2 = await (window.CedarVirtualStorage || window.OutpostVirtualStorage).readBlob(`media/${filename}`);
-        if (b2) return b2;
-      } catch (e) {}
-      try {
-        const b3 = await (window.CedarVirtualStorage || window.OutpostVirtualStorage).readBlob(filename);
-        if (b3) return b3;
-      } catch (e) {}
+    const cleanName = String(filename).split('/').pop().split('\\').pop();
+
+    // 1. Check in-memory window.imageRegistry first
+    if (typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
+      const regCandidates = [
+        filename,
+        cleanName,
+        `blog/images/${cleanName}`,
+        `/blog/images/${cleanName}`,
+        `images/${cleanName}`,
+        `/images/${cleanName}`,
+        `media/${cleanName}`,
+        `media/authors/${cleanName}`
+      ];
+      for (const k of regCandidates) {
+        if (!k) continue;
+        const reg = window.imageRegistry.get(k);
+        if (reg && typeof reg === 'object') {
+          if (reg.blob instanceof Blob) return reg.blob;
+          if (reg.dataUrl && reg.dataUrl.startsWith('data:') && typeof dataUrlToBlob === 'function') {
+            const b = dataUrlToBlob(reg.dataUrl);
+            if (b) return b;
+          }
+        }
+      }
     }
+
+    // 2. Check High-Capacity Virtual Vault (OPFS / IndexedDB)
+    const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+    if (vStorage && typeof vStorage.readBlob === 'function') {
+      const vPaths = [
+        `blog/images/${cleanName}`,
+        `images/${cleanName}`,
+        `media/${cleanName}`,
+        `media/authors/${cleanName}`,
+        `media/branding/${cleanName}`,
+        cleanName
+      ];
+      if (imgObj && imgObj.src && typeof imgObj.src === 'string' && !imgObj.src.startsWith('data:') && !imgObj.src.startsWith('blob:')) {
+        vPaths.unshift(imgObj.src.replace(/^\/+/, ''));
+      }
+      for (const vp of vPaths) {
+        if (!vp) continue;
+        try {
+          const b = await vStorage.readBlob(vp);
+          if (b && b.size > 0) return b;
+        } catch (e) {}
+      }
+    }
+
+    // 3. Check connected local folder (SheeshVault) across all standard media directories
     if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
-      try {
-        return await window.SheeshVault.readFile(`blog/images/${filename}`, 'blob');
-      } catch (e) {}
+      const vaultPaths = [
+        `blog/images/${cleanName}`,
+        `images/${cleanName}`,
+        `media/authors/${cleanName}`,
+        `media/${cleanName}`,
+        `media/branding/${cleanName}`,
+        cleanName
+      ];
+      if (imgObj && imgObj.src && typeof imgObj.src === 'string' && !imgObj.src.startsWith('data:') && !imgObj.src.startsWith('blob:')) {
+        vaultPaths.unshift(imgObj.src.replace(/^\/+/, ''));
+      }
+      if (imgObj && imgObj.postSlug) {
+        const ps = imgObj.postSlug;
+        vaultPaths.push(
+          `blog/published/${ps}/${cleanName}`,
+          `blog/drafts/${ps}/${cleanName}`,
+          `blog/hidden/${ps}/${cleanName}`,
+          `pages/published/${ps}/${cleanName}`,
+          `pages/hidden/${ps}/${cleanName}`
+        );
+      }
+      for (const vp of vaultPaths) {
+        if (!vp) continue;
+        try {
+          const b = await window.SheeshVault.readFile(vp, 'blob');
+          if (b && b.size > 0) return b;
+        } catch (e) {}
+      }
     }
     return null;
   }
@@ -580,7 +642,25 @@
     item.className = 'media-masonry-item' + (img.isSiteMedia ? ' is-site-media' : '');
     item.dataset.filename = img.filename;
 
-    let src = img.objectUrl || img.dataUrl || img.src || img.url || (img.blob ? URL.createObjectURL(img.blob) : '');
+    let src = img.objectUrl || img.dataUrl || (img.blob ? URL.createObjectURL(img.blob) : '');
+    if (!src && typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
+      const cleanFn = String(img.filename || '').split('/').pop().split('\\').pop();
+      const reg = window.imageRegistry.get(img.filename)
+        || window.imageRegistry.get(cleanFn)
+        || (img.src && window.imageRegistry.get(img.src))
+        || (img.relativePath && window.imageRegistry.get(img.relativePath))
+        || window.imageRegistry.get(`images/${cleanFn}`)
+        || window.imageRegistry.get(`blog/images/${cleanFn}`);
+      if (reg && typeof reg === 'object') {
+        src = reg.objectUrl || reg.dataUrl || (reg.blob instanceof Blob ? URL.createObjectURL(reg.blob) : '');
+        if (src) {
+          img.objectUrl = reg.objectUrl || src;
+          img.dataUrl = reg.dataUrl || src;
+          if (reg.blob instanceof Blob) img.blob = reg.blob;
+        }
+      }
+    }
+    if (!src) src = img.src || img.url || '';
     if (!src && img.relativePath) src = img.relativePath;
     if (!src && img.filename) {
       if (img.filename.startsWith('images/') || img.filename.startsWith('icon') || img.filename.startsWith('/') || img.filename.startsWith('http')) {
@@ -599,13 +679,15 @@
       </div>
     `;
 
-    // Asynchronously resolve blob from Virtual Vault if missing from memory
-    if (!src || (!src.startsWith('data:') && !src.startsWith('blob:') && !src.includes('/'))) {
-      resolveMediaBlob(img.filename).then(blob => {
+    const isBuiltInStaticAsset = /^(?:\/)?(?:logo\.(?:png|svg)|icon\.(?:png|ico)|images\/(?:Lamp\.png|sunflower-showcase\.jpg))$/i.test(String(src || '').trim());
+    const hydrateThumbFromVault = () => {
+      resolveMediaBlob(img.filename, img).then(blob => {
         if (blob) {
           img.blob = blob;
           img.objectUrl = URL.createObjectURL(blob);
-          img.dataUrl = img.objectUrl;
+          if (!img.dataUrl || !img.dataUrl.startsWith('data:')) {
+            img.dataUrl = img.objectUrl;
+          }
           if (window.imageRegistry) {
             imageRegistry.set(img.filename, img);
             imageRegistry.set(relPath, img);
@@ -614,6 +696,16 @@
           if (thumbImg) thumbImg.src = img.objectUrl;
         }
       });
+    };
+
+    // Asynchronously resolve blob from Virtual Vault / SheeshVault if not already a data: or blob: URL
+    if (!src || (!src.startsWith('data:') && !src.startsWith('blob:') && !src.startsWith('http') && !isBuiltInStaticAsset)) {
+      hydrateThumbFromVault();
+    } else {
+      const thumbImg = item.querySelector('.media-masonry-img');
+      if (thumbImg) {
+        thumbImg.addEventListener('error', () => hydrateThumbFromVault(), { once: true });
+      }
     }
 
     // Click: Highlights the image and opens centered image lightbox right away
@@ -664,13 +756,15 @@
     lightboxImg.src = src || '';
     lightboxImg.alt = img.filename || 'Media Asset';
 
-    // Asynchronously resolve if not yet in memory
-    if (!src || (!src.startsWith('data:') && !src.startsWith('blob:') && !src.includes('/'))) {
-      resolveMediaBlob(img.filename).then(blob => {
+    // Asynchronously resolve if not yet a data: or blob: URL in memory
+    if (!src || (!src.startsWith('data:') && !src.startsWith('blob:') && !src.startsWith('http'))) {
+      resolveMediaBlob(img.filename, img).then(blob => {
         if (blob) {
           img.blob = blob;
           img.objectUrl = URL.createObjectURL(blob);
-          img.dataUrl = img.objectUrl;
+          if (!img.dataUrl || !img.dataUrl.startsWith('data:')) {
+            img.dataUrl = img.objectUrl;
+          }
           lightboxImg.src = img.objectUrl;
         }
       });

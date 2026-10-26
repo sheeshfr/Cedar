@@ -1602,10 +1602,24 @@
    * Looks up the author in projectConfig.authors (case-insensitive) so that
    * any photo updates saved in the Authors tab or Settings immediately reflect on the home feed.
    */
+  function resolveAvatarViaRegistry(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    const trimmed = rawUrl.trim();
+    if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    if (typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
+      const base = trimmed.split('/').pop().split('\\').pop();
+      const reg = window.imageRegistry.get(trimmed) || window.imageRegistry.get(base) || window.imageRegistry.get(`images/${base}`);
+      if (reg && typeof reg === 'object' && (reg.dataUrl || reg.objectUrl)) {
+        return reg.dataUrl || reg.objectUrl;
+      }
+    }
+    return trimmed;
+  }
+
   function resolveAuthorAvatar(authorName, fallbackAvatar = '') {
     // 1. Explicit fallback passed in
     if (fallbackAvatar && typeof fallbackAvatar === 'string' && fallbackAvatar.trim()) {
-      return fallbackAvatar.trim();
+      return resolveAvatarViaRegistry(fallbackAvatar.trim());
     }
 
     const cleanName = (authorName || '').trim().toLowerCase();
@@ -1618,7 +1632,7 @@
         return aName.trim().toLowerCase() === cleanName;
       });
       if (match && typeof match === 'object' && match.avatar && typeof match.avatar === 'string' && match.avatar.trim()) {
-        return match.avatar.trim();
+        return resolveAvatarViaRegistry(match.avatar.trim());
       }
     }
 
@@ -1716,7 +1730,7 @@
           <span class="milestone-marker-desc">${renderFormattedNoteText(text)}</span>
         </div>
         <div class="milestone-marker-right">
-          <span class="milestone-marker-trophy" aria-hidden="true">🏆</span>
+          <span class="milestone-marker-trophy" aria-hidden="true">ðŸ†</span>
         </div>
       `;
 

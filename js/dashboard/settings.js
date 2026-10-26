@@ -182,7 +182,10 @@
     if (bioInput) {
       bioInput.value = (typeof primaryAuthor === 'object' ? primaryAuthor.bio : '') || '';
     }
-    currentSettingsAuthorAvatar = (typeof primaryAuthor === 'object' ? (primaryAuthor.avatar || primaryAuthor.image || '') : '') || '';
+    const rawAvatar = (typeof primaryAuthor === 'object' ? (primaryAuthor.avatar || primaryAuthor.image || '') : '') || '';
+    currentSettingsAuthorAvatar = (typeof window.resolveAuthorAvatar === 'function' && primaryAuthor?.name)
+      ? (window.resolveAuthorAvatar(primaryAuthor.name, rawAvatar) || rawAvatar)
+      : rawAvatar;
     updateSettingsAuthorAvatarUI();
   }
 

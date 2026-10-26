@@ -1,5 +1,5 @@
 /**
- * Cedar Static Writing Engine — Token Versioning & Migration Pipeline (v3.3.4)
+ * Cedar Static Writing Engine â€” Token Versioning & Migration Pipeline (v3.3.4)
  * Schema Version: 150 (Token: v150)
  * Minimum Compatible Version: 125 (Breaking Engine Rewrite Threshold)
  * Zero Dependencies, Standalone & Offline Ready
@@ -326,6 +326,54 @@
     let importedDraftsCount = 0;
     let configUpdated = false;
 
+    // 0. Extract and cache binary media files into Virtual Vault & build base64 lookup for avatars
+    const vStorage = (typeof window !== 'undefined' && (window.CedarVirtualStorage || window.OutpostVirtualStorage)) || null;
+    const importedMediaBlobs = new Map();
+    const getMimeForExt = (fn) => {
+      const ext = String(fn || '').split('.').pop().toLowerCase();
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+      if (ext === 'png') return 'image/png';
+      if (ext === 'gif') return 'image/gif';
+      if (ext === 'svg') return 'image/svg+xml';
+      if (ext === 'ico') return 'image/x-icon';
+      if (ext === 'avif') return 'image/avif';
+      return 'application/octet-stream';
+    };
+    const uint8ToDataUrl = (u8, mime) => {
+      try {
+        let binary = '';
+        const len = u8.byteLength;
+        const chunkSize = 0x8000;
+        for (let i = 0; i < len; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, u8.subarray(i, Math.min(i + chunkSize, len)));
+        }
+        return `data:${mime};base64,${btoa(binary)}`;
+      } catch (e) {
+        return '';
+      }
+    };
+
+    for (const file of files) {
+      if (!file || !file.name || !/\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(file.name)) continue;
+      try {
+        const cleanPath = String(file.name).replace(/\\/g, '/').replace(/^\/+/, '');
+        const cleanFilename = cleanPath.split('/').pop();
+        const mime = getMimeForExt(cleanFilename);
+        const bytes = file.data instanceof Uint8Array
+          ? file.data
+          : (file.data instanceof ArrayBuffer ? new Uint8Array(file.data) : null);
+        if (!bytes || bytes.byteLength === 0) continue;
+        const blob = new Blob([bytes], { type: mime });
+        importedMediaBlobs.set(cleanFilename, { bytes, blob, mime, cleanPath });
+        importedMediaBlobs.set(cleanFilename.toLowerCase(), { bytes, blob, mime, cleanPath });
+        if (vStorage && typeof vStorage.writeBlob === 'function') {
+          await vStorage.writeBlob(`blog/images/${cleanFilename}`, blob);
+          await vStorage.writeBlob(cleanPath, blob);
+        }
+      } catch (e) {}
+    }
+
     // 1. Sync drafts.json
     const draftsFile = files.find(f =>
       f.name === 'editor/drafts.json' ||
@@ -356,7 +404,23 @@
       const configText = decodeContent(configFile.data);
       try {
         const cfg = JSON.parse(configText);
-        localStorage.setItem('sheesh_static_writer_project_v1', configText);
+        if (Array.isArray(cfg.authors)) {
+          cfg.authors.forEach(auth => {
+            if (auth && typeof auth === 'object' && auth.avatar && !String(auth.avatar).startsWith('data:')) {
+              const avBase = String(auth.avatar).split('/').pop().split('\\').pop();
+              const matched = importedMediaBlobs.get(avBase) || importedMediaBlobs.get(avBase.toLowerCase());
+              if (matched && matched.bytes) {
+                const dUrl = uint8ToDataUrl(matched.bytes, matched.mime);
+                if (dUrl) {
+                  auth.avatarFile = auth.avatar;
+                  auth.avatar = dUrl;
+                }
+              }
+            }
+          });
+        }
+        const finalConfigText = JSON.stringify(cfg);
+        localStorage.setItem('sheesh_static_writer_project_v1', finalConfigText);
         if (cfg.domain) {
           localStorage.setItem('cedar_user_domain', cfg.domain);
         try { localStorage.setItem('outpost_user_domain', cfg.domain); } catch (e) {}
