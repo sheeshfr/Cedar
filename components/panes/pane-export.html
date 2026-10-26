@@ -106,29 +106,36 @@
                     </div>
                   </div>
 
-                  <!-- 5. Manual Web Export Divider & Zone (Outside of Deep Purple Space) -->
-                  <div class="publish-cockpit-divider">
-                    <span>or static package</span>
-                  </div>
+                </div>
+              </div>
 
-                  <div class="publish-manual-zone" id="export-sec-web">
-                    <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #fff); display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <!-- Section 2: Publish to .zip (Standalone Production Static Website) -->
+              <div class="settings-section-group" id="export-sec-web">
+                <div class="settings-section-header">
+                  <div class="settings-section-title-wrap">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <h4>Publish to .zip</h4>
+                  </div>
+                </div>
+
+                <div class="project-settings-card export-hero-card export-sync-hero-card publish-manual-zone">
+                  <div class="publish-cockpit-header" style="margin-bottom: 0.9rem !important;">
+                    <h4 class="publish-cockpit-title">
                       <svg class="export-service-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                       </svg>
                       <span>Standalone Production Static Website</span>
-                    </div>
-                    <p style="font-size: 0.8rem; color: var(--text-muted, #a1a1aa); max-width: 640px; margin: 0.45rem auto 1rem auto; line-height: 1.45;">
+                    </h4>
+                    <p class="publish-cockpit-subtitle" style="max-width: 640px !important;">
                       Download a clean, production-ready static website package containing only your published articles, pages, images, and RSS feeds. Zero drafts or internal data. Ready to upload to Cloudflare Pages, GitLab Pages, Codeberg, Neocities, Netlify, or any static host.
                     </p>
-                    <button type="button" class="btn btn-secondary popout-3d" id="btn-export-web-zip" title="Export clean public website (.ZIP)" style="display: inline-flex; align-items: center; gap: 8px;">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                      <span>Export Web Package (.ZIP)</span>
-                    </button>
                   </div>
-
+                  <button type="button" class="btn btn-secondary popout-3d" id="btn-export-web-zip" title="Export clean public website (.ZIP)" style="display: inline-flex; align-items: center; gap: 8px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span>Export Web Package (.ZIP)</span>
+                  </button>
                 </div>
               </div>
 

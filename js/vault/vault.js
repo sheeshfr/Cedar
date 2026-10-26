@@ -7,6 +7,19 @@
 (function () {
   'use strict';
 
+  window.Cedar = window.Cedar || window.Outpost || {};
+  window.Outpost = window.Cedar;
+
+  if (typeof window.Cedar.isLocalServer !== 'boolean') {
+    const _host = (typeof location !== 'undefined' && location.hostname) ? location.hostname : '';
+    window.Cedar.isLocalServer = (
+      _host === 'localhost' ||
+      _host === '127.0.0.1' ||
+      _host.endsWith('.local')
+    );
+  }
+  const isLocalServer = () => Boolean(window.Cedar && window.Cedar.isLocalServer);
+
   // --- Storage & DB Constants ---
   const DB_NAME = 'sheesh_vault_db';
   const DB_VERSION = 1;
@@ -388,6 +401,7 @@
 
   async function writeFileToDirHandle(dirHandle, path, data) {
     if (dirHandle && dirHandle.isServerBridge) {
+      if (!isLocalServer()) return false;
       let content = data;
       let encoding = 'utf-8';
       if (data instanceof Blob) {
@@ -436,6 +450,7 @@
 
   async function readFileFromDirHandle(dirHandle, path, as = 'text') {
     if (dirHandle && dirHandle.isServerBridge) {
+      if (!isLocalServer()) return null;
       try {
         const res = await fetch(`/api/vault-read?folder=${encodeURIComponent(dirHandle.path)}&file=${encodeURIComponent(path)}&as=${encodeURIComponent(as)}`);
         if (!res.ok) return null;
@@ -470,6 +485,7 @@
   async function removeDirEntry(dirHandle, path) {
     if (!dirHandle) return false;
     if (dirHandle.isServerBridge && dirHandle.path) {
+      if (!isLocalServer()) return false;
       try {
         const res = await fetch('/api/vault-delete', {
           method: 'POST',
@@ -506,7 +522,7 @@
         try { await dirHandle.getFileHandle('config.json'); return true; } catch (e) {}
         try { await dirHandle.getFileHandle('vault.json'); return true; } catch (e) {}
       }
-      if (dirHandle.path) {
+      if (dirHandle.path && isLocalServer()) {
         const resp = await fetch(`/api/check-folder?path=${encodeURIComponent(dirHandle.path)}`);
         if (resp.ok) {
           const data = await resp.json();
@@ -520,6 +536,7 @@
   async function _legacyIsExistingOutpostFolder(dirHandle) {
     if (!dirHandle) return false;
     if (dirHandle.isServerBridge) {
+      if (!isLocalServer()) return false;
       try {
         const res = await fetch(`/api/check-folder?path=${encodeURIComponent(dirHandle.path)}`);
         if (res.ok) {
@@ -814,6 +831,7 @@
   async function listSubfolderEntries(dirHandle, subPath) {
     if (!dirHandle) return [];
     if (dirHandle.isServerBridge && dirHandle.path) {
+      if (!isLocalServer()) return [];
       try {
         const res = await fetch(`/api/vault-list?folder=${encodeURIComponent(dirHandle.path)}&subpath=${encodeURIComponent(subPath)}`);
         if (!res.ok) return [];
@@ -1282,7 +1300,7 @@ else {
       return savedPath;
     }
 
-    if (folderName) {
+    if (folderName && isLocalServer()) {
       try {
         const res = await fetch(`/api/vault-path?folder=${encodeURIComponent(folderName)}`);
         if (res.ok) {
@@ -1689,26 +1707,28 @@ else {
       }
 
       // 2. Check stored external user Vault path (never use the Cedar application directory itself)
-      let savedPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || window.projectConfig?.vaultPath || '').trim();
-      if (savedPath && /[\\/]website[\\/]cedar[\\/]?$/i.test(savedPath)) {
-        savedPath = '';
-        localStorage.removeItem('cedar_vault_path');
-        try { localStorage.removeItem('outpost_vault_path'); } catch (e) {}
-        if (window.projectConfig) delete window.projectConfig.vaultPath;
-      }
-      let isConn = (localStorage.getItem('cedar_vault_connected') || localStorage.getItem('outpost_vault_connected')) === '1' || Boolean(savedPath);
+      if (isLocalServer()) {
+        let savedPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || window.projectConfig?.vaultPath || '').trim();
+        if (savedPath && /[\\/]website[\\/]cedar[\\/]?$/i.test(savedPath)) {
+          savedPath = '';
+          localStorage.removeItem('cedar_vault_path');
+          try { localStorage.removeItem('outpost_vault_path'); } catch (e) {}
+          if (window.projectConfig) delete window.projectConfig.vaultPath;
+        }
+        let isConn = (localStorage.getItem('cedar_vault_connected') || localStorage.getItem('outpost_vault_connected')) === '1' || Boolean(savedPath);
 
-      if ((isConn || savedPath) && savedPath) {
-        const savedName = (localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name')) || savedPath.split(/[\\/]/).filter(Boolean).pop() || 'Vault';
-        rootHandle = createServerBridgeHandle(savedPath, savedName);
-        await ensureVaultStructure();
-        await loadBlogFromFolder(rootHandle);
-        localStorage.setItem('cedar_vault_connected', '1');
-        localStorage.setItem('cedar_vault_path', savedPath);
-        localStorage.setItem('cedar_vault_name', savedName);
-        this.emit('connected', { name: rootHandle.name, info: vaultInfo });
-        updateAllVaultBadges();
-        return true;
+        if ((isConn || savedPath) && savedPath) {
+          const savedName = (localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name')) || savedPath.split(/[\\/]/).filter(Boolean).pop() || 'Vault';
+          rootHandle = createServerBridgeHandle(savedPath, savedName);
+          await ensureVaultStructure();
+          await loadBlogFromFolder(rootHandle);
+          localStorage.setItem('cedar_vault_connected', '1');
+          localStorage.setItem('cedar_vault_path', savedPath);
+          localStorage.setItem('cedar_vault_name', savedName);
+          this.emit('connected', { name: rootHandle.name, info: vaultInfo });
+          updateAllVaultBadges();
+          return true;
+        }
       }
 
       return false;

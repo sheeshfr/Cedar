@@ -549,7 +549,7 @@
     // 4. Check Server Bridge (/api/vault-read) if local vault path is configured
     const savedVaultPath = ((typeof localStorage !== 'undefined' && (localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path'))) || (window.projectConfig && window.projectConfig.vaultPath) || '').trim();
     const isDisconnect = typeof localStorage !== 'undefined' && localStorage.getItem('cedar_vault_disconnected') === '1';
-    if (savedVaultPath && !isDisconnect) {
+    if (savedVaultPath && !isDisconnect && (window.Cedar && window.Cedar.isLocalServer)) {
       for (const vp of vaultPaths) {
         if (!vp) continue;
         try {

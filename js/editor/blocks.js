@@ -180,29 +180,31 @@
     }
     const cleanDomainTitle = domain.includes('.') ? (domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1)) : domain;
 
-    try {
-      const resp = await fetch('/api/fetch-link-meta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: target })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data && data.success) {
-          const finalImg = data.image || computeSmartLinkFallbackImage(target, data.domain || domain);
-          return {
-            success: true,
-            url: data.url || target,
-            domain: data.domain || domain,
-            title: data.title || cleanDomainTitle,
-            subtitle: data.subtitle || domain,
-            image: finalImg,
-            icon: data.icon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
-          };
+    if (window.Cedar && window.Cedar.isLocalServer) {
+      try {
+        const resp = await fetch('/api/fetch-link-meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: target })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.success) {
+            const finalImg = data.image || computeSmartLinkFallbackImage(target, data.domain || domain);
+            return {
+              success: true,
+              url: data.url || target,
+              domain: data.domain || domain,
+              title: data.title || cleanDomainTitle,
+              subtitle: data.subtitle || domain,
+              image: finalImg,
+              icon: data.icon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
+            };
+          }
         }
+      } catch (e) {
+        console.warn('Backend link meta fetch failed, using fallback:', e);
       }
-    } catch (e) {
-      console.warn('Backend link meta fetch failed, using fallback:', e);
     }
 
     const fallbackImg = computeSmartLinkFallbackImage(target, domain);

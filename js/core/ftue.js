@@ -3303,13 +3303,15 @@
     window.activeNotesAuthor = authorName;
 
     // Reset server-side sync cache so it never contaminates the new blog
-    try {
-      fetch('/api/live-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project: newConfig, drafts: [], blogPath: baseUrl.replace(/^\/+|\/+$/g, '') || 'blog' })
-      }).catch(() => {});
-    } catch (e) {}
+    if (window.Cedar && window.Cedar.isLocalServer) {
+      try {
+        fetch('/api/live-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project: newConfig, drafts: [], blogPath: baseUrl.replace(/^\/+|\/+$/g, '') || 'blog' })
+        }).catch(() => {});
+      } catch (e) {}
+    }
 
     // Sync UI elements
     updatePageIdentity(siteTitle, uploadedLogoDataUrl);
@@ -3882,16 +3884,18 @@
           try { localStorage.setItem('outpost_vault_name', targetFolderHandle.name); } catch(e){}
 
           // Try resolving backend path if available
-          try {
-            const res = await fetch(`/api/vault-path?folder=${encodeURIComponent(targetFolderHandle.name)}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data && data.defaultPath) {
-                localStorage.setItem('cedar_vault_path', data.defaultPath);
-                try { localStorage.setItem('outpost_vault_path', data.defaultPath); } catch(e){}
+          if (window.Cedar && window.Cedar.isLocalServer) {
+            try {
+              const res = await fetch(`/api/vault-path?folder=${encodeURIComponent(targetFolderHandle.name)}`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.defaultPath) {
+                  localStorage.setItem('cedar_vault_path', data.defaultPath);
+                  try { localStorage.setItem('outpost_vault_path', data.defaultPath); } catch(e){}
+                }
               }
-            }
-          } catch(e) {}
+            } catch(e) {}
+          }
 
         } catch (vaultErr) {
           console.warn('[FTUE] Connecting folder to vault notice:', vaultErr);

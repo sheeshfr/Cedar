@@ -2614,7 +2614,7 @@
 
       } catch (e) {}
 
-    } else if (savedVaultPath) {
+    } else if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
 
       try {
 
@@ -5702,7 +5702,7 @@ Full-text and excerpt syndication for all published articles.
 
       }
 
-    } else if (savedVaultPath) {
+    } else if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
 
       try {
 
@@ -6096,7 +6096,7 @@ Full-text and excerpt syndication for all published articles.
           } catch (e) {}
         }
         const savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || '').trim();
-        if (savedVaultPath) {
+        if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
           try {
             fetch('/api/vault-delete', {
               method: 'POST',
@@ -6363,7 +6363,7 @@ Full-text and excerpt syndication for all published articles.
       } catch (e) {}
     }
     const bridgeVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
-    if (bridgeVaultPath && candidatePaths.length > 0) {
+    if (bridgeVaultPath && candidatePaths.length > 0 && (window.Cedar && window.Cedar.isLocalServer)) {
       candidatePaths.forEach(cp => {
         fetch('/api/vault-delete', {
           method: 'POST',

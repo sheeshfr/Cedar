@@ -16,6 +16,15 @@
   window.Cedar = window.Cedar || window.Outpost || {};
   window.Outpost = window.Cedar;
 
+  if (typeof window.Cedar.isLocalServer !== 'boolean') {
+    const _host = (typeof location !== 'undefined' && location.hostname) ? location.hostname : '';
+    window.Cedar.isLocalServer = (
+      _host === 'localhost' ||
+      _host === '127.0.0.1' ||
+      _host.endsWith('.local')
+    );
+  }
+
   const IDB_NAME = 'cedar_virtual_vault_db';
   const IDB_VERSION = 1;
   const STORE_FILES = 'files';

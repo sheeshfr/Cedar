@@ -17,6 +17,11 @@
   window.Cedar = window.Cedar || window.Outpost || {};
 
   window.Outpost = window.Cedar;
+  if (typeof window.Cedar.isLocalServer !== 'boolean') {
+    const _host = (typeof location !== 'undefined' && location.hostname) ? location.hostname : '';
+    window.Cedar.isLocalServer = (_host === 'localhost' || _host === '127.0.0.1' || _host.endsWith('.local'));
+  }
+  const isLocalServer = () => Boolean(window.Cedar && window.Cedar.isLocalServer);
 
   function dataUrlToBlob(dataUrl) {
 
@@ -796,7 +801,7 @@
 
     try {
 
-      const res = await fetch(`/api/vault-path?folder=${encodeURIComponent(folderName)}`);
+      const res = isLocalServer() ? await fetch(`/api/vault-path?folder=${encodeURIComponent(folderName)}`) : { ok: false };
 
       if (res.ok) {
 
@@ -1042,7 +1047,7 @@
 
     // If no path stored but not explicitly disconnected, check /api/vault-path
 
-    if (!storedPath && !isExplicitlyDisconnected) {
+    if (!storedPath && !isExplicitlyDisconnected && isLocalServer()) {
 
       try {
 
@@ -1076,7 +1081,7 @@
 
     // Auto-attach bridge if vault engine is not connected in memory but storedPath exists
 
-    if (!isVaultActive && storedPath && !isExplicitlyDisconnected && window.SheeshVault && typeof window.SheeshVault.createServerBridgeHandle === 'function') {
+    if (!isVaultActive && storedPath && !isExplicitlyDisconnected && isLocalServer() && window.SheeshVault && typeof window.SheeshVault.createServerBridgeHandle === 'function') {
 
       try {
 
@@ -2319,7 +2324,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
         try {
 
-          const res = await fetch('/api/open-vault-explorer', {
+          const res = isLocalServer() ? await fetch('/api/open-vault-explorer', {
 
             method: 'POST',
 
@@ -2327,7 +2332,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
             body: JSON.stringify({ folderName, savedPath })
 
-          });
+          }) : { ok: false };
 
           if (res.ok) {
 
@@ -2705,7 +2710,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
         try {
 
-          const res = await fetch('/api/browse-folder');
+          const res = isLocalServer() ? await fetch('/api/browse-folder') : { ok: false };
 
           if (res.ok) {
 
@@ -2789,7 +2794,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
         try {
 
-          const res = await fetch(`/api/check-folder?path=${encodeURIComponent(rawPath)}`);
+          const res = isLocalServer() ? await fetch(`/api/check-folder?path=${encodeURIComponent(rawPath)}`) : { ok: false };
 
           if (!res.ok) {
 

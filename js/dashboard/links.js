@@ -947,7 +947,7 @@
       scheduleSaveLinks(true);
 
       // Step B: Query backend for high-res apple-touch-icon / html favicon / rich metadata for non-brands
-      if (!brandRule || !brandRule.icon) {
+      if ((!brandRule || !brandRule.icon) && (window.Cedar && window.Cedar.isLocalServer)) {
         try {
           const resp = await fetch(`/api/fetch-link-meta?url=${encodeURIComponent(url)}`, { method: 'GET' });
           if (resp.ok) {

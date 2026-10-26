@@ -851,7 +851,7 @@
     if (btnDashSettings) {
       btnDashSettings.addEventListener('click', async () => {
         const pathInput = document.getElementById('setting-vault-folder-path');
-        if (pathInput && !pathInput.value && !(localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path'))) {
+        if (pathInput && !pathInput.value && !(localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) && (window.Cedar && window.Cedar.isLocalServer)) {
           try {
             const res = await fetch('/api/vault-path');
             if (res.ok) {
@@ -908,31 +908,33 @@
           ? window.SheeshVault.getFolderName()
           : (savedPath ? (savedPath.split(/[\\/]/).filter(Boolean).pop() || '') : '');
 
-        try {
-          const res = await fetch('/api/open-vault-explorer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderName, savedPath })
-          });
+        if (window.Cedar && window.Cedar.isLocalServer) {
+          try {
+            const res = await fetch('/api/open-vault-explorer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ folderName, savedPath })
+            });
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.path) {
-              localStorage.setItem('cedar_vault_path', data.path);
-              projectConfig.vaultPath = data.path;
-              const pathInput = document.getElementById('setting-vault-folder-path');
-              if (pathInput) pathInput.value = data.path;
-              renderProjectSettings();
-              showToast(`Opened "${data.path}" in Explorer`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.path) {
+                localStorage.setItem('cedar_vault_path', data.path);
+                projectConfig.vaultPath = data.path;
+                const pathInput = document.getElementById('setting-vault-folder-path');
+                if (pathInput) pathInput.value = data.path;
+                renderProjectSettings();
+                showToast(`Opened "${data.path}" in Explorer`);
+                return;
+              }
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              alert(errData.error || 'Could not open vault folder in Explorer');
               return;
             }
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            alert(errData.error || 'Could not open vault folder in Explorer');
-            return;
+          } catch (e) {
+            console.warn('[Cedar] Open vault explorer request error:', e);
           }
-        } catch (e) {
-          console.warn('[Cedar] Open vault explorer request error:', e);
         }
 
         const userPath = prompt(
@@ -948,17 +950,19 @@
           const pathInput = document.getElementById('setting-vault-folder-path');
           if (pathInput) pathInput.value = cleanPath;
           renderProjectSettings();
-          try {
-            const retryRes = await fetch('/api/open-vault-explorer', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ folderName, savedPath: cleanPath })
-            });
-            if (retryRes.ok) {
-              showToast(`Opened "${cleanPath}" in Explorer`);
-              return;
-            }
-          } catch (e) {}
+          if (window.Cedar && window.Cedar.isLocalServer) {
+            try {
+              const retryRes = await fetch('/api/open-vault-explorer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folderName, savedPath: cleanPath })
+              });
+              if (retryRes.ok) {
+                showToast(`Opened "${cleanPath}" in Explorer`);
+                return;
+              }
+            } catch (e) {}
+          }
           alert(`Vault folder: ${cleanPath}`);
         }
       });
@@ -1027,13 +1031,15 @@
         if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
 
         // Also sync drafts: [] to server live-sync
-        try {
-          fetch('/api/live-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project: window.projectConfig, drafts: [] })
-          }).catch(() => {});
-        } catch (e) {}
+        if (window.Cedar && window.Cedar.isLocalServer) {
+          try {
+            fetch('/api/live-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ project: window.projectConfig, drafts: [] })
+            }).catch(() => {});
+          } catch (e) {}
+        }
 
         // Also sync to physical vault if connected
         if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
@@ -1165,14 +1171,16 @@
           }
 
           // 5b. Reset server live workspace cache and active vault
-          try {
-            await fetch('/api/nuclear-reset', { method: 'POST' }).catch(() => {});
-            await fetch('/api/live-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ project: null, drafts: [] })
-            }).catch(() => {});
-          } catch (e) {}
+          if (window.Cedar && window.Cedar.isLocalServer) {
+            try {
+              await fetch('/api/nuclear-reset', { method: 'POST' }).catch(() => {});
+              await fetch('/api/live-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project: null, drafts: [] })
+              }).catch(() => {});
+            } catch (e) {}
+          }
 
           // 6. Clear localStorage & sessionStorage
           localStorage.clear();

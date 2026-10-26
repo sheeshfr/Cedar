@@ -9,6 +9,15 @@
   window.Cedar = window.Cedar || window.Outpost || {};
   window.Outpost = window.Cedar;
 
+  if (typeof window.Cedar.isLocalServer !== 'boolean') {
+    const _host = (typeof location !== 'undefined' && location.hostname) ? location.hostname : '';
+    window.Cedar.isLocalServer = (
+      _host === 'localhost' ||
+      _host === '127.0.0.1' ||
+      _host.endsWith('.local')
+    );
+  }
+
   // Seamless legacy storage migration from Outpost to Cedar
   (function migrateOutpostStorageToCedar() {
     if (typeof localStorage === 'undefined') return;
@@ -34,6 +43,20 @@
   // COMPONENT PARTIAL LOADER
   // =========================================================================
   async function loadHTMLPartials() {
+    const isLocal = Boolean(
+      typeof location !== 'undefined' &&
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
+    );
+    let staticVersion = '4.6.6';
+    try {
+      const versionedEl = document.querySelector('script[src*="?v="], link[href*="?v="]');
+      if (versionedEl) {
+        const rawAttr = versionedEl.getAttribute('src') || versionedEl.getAttribute('href') || '';
+        const match = rawAttr.match(/[?&]v=([^&#]+)/);
+        if (match && match[1]) staticVersion = match[1];
+      }
+    } catch (e) {}
+
     let targets = Array.from(document.querySelectorAll('[data-include]'));
     let depth = 0;
     while (targets.length > 0 && depth < 5) {
@@ -41,8 +64,15 @@
         const src = el.getAttribute('data-include');
         if (!src) return;
         try {
-          const fetchUrl = src + (src.includes('?') ? '&' : '?') + 't=' + Date.now();
-          const res = await fetch(fetchUrl, { cache: 'no-store' });
+          let res;
+          if (isLocal) {
+            const fetchUrl = src + (src.includes('?') ? '&' : '?') + 't=' + Date.now();
+            res = await fetch(fetchUrl, { cache: 'no-store' });
+          } else {
+            const baseSrc = src.split('?')[0];
+            const fetchUrl = `${baseSrc}?v=${staticVersion}`;
+            res = await fetch(fetchUrl);
+          }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const html = await res.text();
           el.outerHTML = html;
@@ -86,27 +116,28 @@
 
     // Auto-populate and reconcile drafts and config from connected external Vault (if any)
     let hasExternalVault = false;
-    try {
-      let savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
-      const savedVaultName = ((localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name')) || '').trim();
-      const isDisconnect = localStorage.getItem('cedar_vault_disconnected') === '1';
-      if (!savedVaultPath && !isDisconnect) {
-        try {
-          const vpUrl = '/api/vault-path' + (savedVaultName ? '?folder=' + encodeURIComponent(savedVaultName) : '');
-          const vpRes = await fetch(vpUrl);
-          if (vpRes.ok) {
-            const vpData = await vpRes.json();
-            const resolvedVp = (vpData && (vpData.path || vpData.defaultPath) || '').trim();
-            if (resolvedVp) {
-              savedVaultPath = resolvedVp;
-              localStorage.setItem('cedar_vault_path', savedVaultPath);
-              localStorage.setItem('cedar_vault_connected', '1');
-              if (vpData.folderName) localStorage.setItem('cedar_vault_name', vpData.folderName);
+    if (window.Cedar.isLocalServer) {
+      try {
+        let savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
+        const savedVaultName = ((localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name')) || '').trim();
+        const isDisconnect = localStorage.getItem('cedar_vault_disconnected') === '1';
+        if (!savedVaultPath && !isDisconnect) {
+          try {
+            const vpUrl = '/api/vault-path' + (savedVaultName ? '?folder=' + encodeURIComponent(savedVaultName) : '');
+            const vpRes = await fetch(vpUrl);
+            if (vpRes.ok) {
+              const vpData = await vpRes.json();
+              const resolvedVp = (vpData && (vpData.path || vpData.defaultPath) || '').trim();
+              if (resolvedVp) {
+                savedVaultPath = resolvedVp;
+                localStorage.setItem('cedar_vault_path', savedVaultPath);
+                localStorage.setItem('cedar_vault_connected', '1');
+                if (vpData.folderName) localStorage.setItem('cedar_vault_name', vpData.folderName);
+              }
             }
-          }
-        } catch (e) {}
-      }
-      hasExternalVault = Boolean(savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath));
+          } catch (e) {}
+        }
+        hasExternalVault = Boolean(savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath));
 
       if (hasExternalVault) {
         const draftsKey = window.STORAGE_KEY_DRAFTS || 'sheesh_static_writer_drafts_v2';
@@ -274,8 +305,9 @@
           }
         } catch (e) {}
       }
-    } catch (e) {
-      console.warn('[Cedar] Storage hydration:', e);
+      } catch (e) {
+        console.warn('[Cedar] Storage hydration:', e);
+      }
     }
 
     const stepNames = [

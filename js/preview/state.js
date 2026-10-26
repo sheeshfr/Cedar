@@ -145,7 +145,7 @@
         try {
           let data = null;
           const h = (window.location && window.location.hostname) || '';
-          const isLocalServer = h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+          const isLocalServer = Boolean((window.Cedar && window.Cedar.isLocalServer) || h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h.endsWith('.local'));
           if (isLocalServer) {
             try {
               const res = await fetch('/api/live-sync');

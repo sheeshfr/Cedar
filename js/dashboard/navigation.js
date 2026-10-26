@@ -407,6 +407,7 @@
 
     // Live workspace synchronization with local server
     syncLiveWorkspaceData = window.syncLiveWorkspaceData = () => {
+      if (!(window.Cedar && window.Cedar.isLocalServer)) return;
       try {
         const proj = (typeof window.projectConfig !== 'undefined') ? window.projectConfig : ((typeof projectConfig !== 'undefined') ? projectConfig : null);
         const drfts = (typeof window.drafts !== 'undefined' && Array.isArray(window.drafts)) ? window.drafts : ((typeof drafts !== 'undefined') ? drafts : []);
@@ -427,6 +428,7 @@
 
     // Fetch live workspace sync on startup to recover any server-persisted avatars or state
     async function pullLiveWorkspaceData() {
+      if (!(window.Cedar && window.Cedar.isLocalServer)) return;
       try {
         const res = await fetch('/api/live-sync');
         if (res.ok) {
