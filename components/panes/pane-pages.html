@@ -1,0 +1,62 @@
+      <section class="dash-pane" id="pane-pages" style="display: none;">
+        <div class="dash-pane-header standardized-pane-header">
+          <div class="pane-header-left">
+            <h2 class="dash-pane-title">Pages</h2>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-pages-toggle-edit" title="Edit Pages and Categories">Edit</button>
+          </div>
+          <div class="pane-header-center">
+            <div class="header-search-box">
+              <svg viewBox="0 0 24 24" class="header-search-icon" style="width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="search" id="pages-search-input" class="header-search-input" placeholder="Search Pages" autocomplete="off">
+            </div>
+            <!-- Edit Mode Actions Bar: Replaces search bar during edit mode -->
+            <div class="pages-edit-mode-actions" id="pages-edit-mode-actions">
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-pages-edit-cancel">Cancel</button>
+              <button type="button" class="btn btn-sm btn-primary" id="btn-pages-edit-save">Save</button>
+            </div>
+          </div>
+          <div class="pane-header-right" style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="posts-view-toggle" id="pages-view-toggle" role="group" aria-label="Pages View Mode" style="display: none;">
+              <button type="button" class="posts-view-btn" data-pages-view="grid" title="Grid View">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <span>Grid</span>
+              </button>
+              <button type="button" class="posts-view-btn active" data-pages-view="list" title="List View">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                <span>List</span>
+              </button>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" id="btn-pages-new-page">+ Add Page</button>
+          </div>
+        </div>
+
+        <!-- 1. OVERVIEW VIEW: Unified Pages List -->
+        <div class="posts-overview-container" id="pages-overview-container">
+          <div class="posts-horizontal-section section-all-pages" style="width: 100%;">
+            <div class="posts-horizontal-grid is-list-view" id="pages-cards-all">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. INDEPENDENT SUBPAGE VIEW (My Pages, Built-In, Hidden) -->
+        <div class="posts-overview-container posts-subpage-container" id="pages-subpage-container" style="display: none;">
+          <div class="posts-horizontal-section">
+            <div class="posts-section-header">
+              <div class="section-title-wrap">
+                <span class="col-dot" id="pages-subpage-dot"></span>
+                <h3 class="section-title" id="pages-subpage-heading">Static Pages</h3>
+                <span class="posts-section-count" id="pages-subpage-count">0</span>
+              </div>
+              <div class="posts-section-actions">
+                <a class="posts-section-more-btn" id="btn-pages-subpage-back" href="#pages" data-pages-sub-link="all">
+                  &larr; Back to Pages
+                </a>
+              </div>
+            </div>
+            <div class="posts-horizontal-grid is-list-view" id="pages-cards-subpage">
+              <!-- Full list of cards for this subpage -->
+            </div>
+          </div>
+        </div>
+      </section>

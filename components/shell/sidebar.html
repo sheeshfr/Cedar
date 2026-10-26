@@ -1,0 +1,151 @@
+    <aside class="sidebar dash-sidebar" id="dash-sidebar" aria-label="Dashboard navigation">
+      <header class="sidebar-header">
+        <a class="brand-logo" id="brand-logo-btn" href="#home" title="Cedar">
+          <img src="logo.png" alt="Cedar Logo">
+          <h1>Cedar</h1>
+        </a>
+        <button type="button" class="sidebar-mobile-close-btn" id="sidebar-mobile-close-btn" title="Close navigation menu" aria-label="Close menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <!-- Collapsed Mini Nav Rail (Icon on top + 9px text underneath) -->
+      <div class="sidebar-mini">
+        <div class="mini-nav">
+          <a class="mini-item active" data-dash-tab="home" href="#home" title="Home">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span>Home</span>
+          </a>
+          <hr class="sidebar-divider mini-divider">
+          <a class="mini-item" data-dash-tab="posts" href="#posts" title="Posts">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            <span>Posts</span>
+          </a>
+          <a class="mini-item" data-dash-tab="pages" href="#pages" title="Pages">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+            <span>Pages</span>
+          </a>
+          <a class="mini-item" data-dash-tab="media" href="#media" title="Media">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            <span>Media</span>
+          </a>
+          <hr class="sidebar-divider mini-divider">
+          <a class="mini-item" data-dash-tab="designer" href="#design" title="Design">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M3 3v18h18V3H3zm16 16H5V5h14v14zM11 7H7v4h4V7zm6 0h-4v2h4V7zm0 4h-4v2h4v-2zm-6 2H7v4h4v-4zm6 2h-4v2h4v-2z"/></svg>
+            <span>Design</span>
+          </a>
+          <a class="mini-item" data-dash-tab="settings" href="#settings" title="Site Info">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            <span>Site Info</span>
+          </a>
+          <a class="mini-item" data-dash-tab="publish" href="#publish" title="Publish">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            <span>Publish</span>
+          </a>
+          <hr class="sidebar-divider mini-divider" id="mini-sidebar-live-divider" style="display: none;">
+          <a class="mini-item" id="mini-sidebar-tab-visit-online" title="Visit live blog online" role="button" tabindex="0" style="display: none;">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"></circle><line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" stroke-width="2" fill="none"></path></svg>
+            <span>Live</span>
+          </a>
+        </div>
+        <div class="mini-nav sidebar-mini-bottom" style="margin-top: auto; padding-bottom: 4px;">
+          <a class="mini-item" data-dash-tab="help" id="mini-sidebar-tab-help" href="/help/" title="Help &amp; Documentation">
+            <svg viewBox="0 0 24 24" class="sidebar-icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg>
+            <span>Help</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Expanded Navigation (Lists Manager) -->
+      <div class="lists-manager">
+        <div class="lists-nav">
+          <a class="list-item dash-tab-btn active" data-dash-tab="home" href="#home" title="Home">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span>Home</span>
+          </a>
+        </div>
+
+        <hr class="sidebar-divider">
+
+        <div class="lists-nav">
+          <a class="list-item dash-tab-btn" data-dash-tab="posts" id="sidebar-tab-posts" href="#posts" title="Posts">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            <span>Posts</span>
+          </a>
+          <div class="sidebar-sub-nav-wrap" id="sidebar-posts-sub-wrap" style="display: none;">
+            <a class="sidebar-sub-item" data-posts-sub="drafts" href="#drafts" title="Drafts">
+              <span class="sub-nav-label">Drafts</span>
+            </a>
+            <a class="sidebar-sub-item" data-posts-sub="published" href="#published" title="Published">
+              <span class="sub-nav-label">Published</span>
+            </a>
+          </div>
+          <a class="list-item dash-tab-btn" data-dash-tab="pages" id="sidebar-tab-pages" href="#pages" title="Pages">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+            <span>Pages</span>
+          </a>
+          <div class="sidebar-sub-nav-wrap" id="sidebar-pages-sub-wrap" style="display: none;">
+            <a class="sidebar-sub-item" data-pages-sub="categories" href="#pages/categories" title="Categories">
+              <span class="sub-nav-label">Categories</span>
+            </a>
+            <a class="sidebar-sub-item" data-pages-sub="my-pages" href="#pages/my-pages" title="My Pages">
+              <span class="sub-nav-label">My Pages</span>
+            </a>
+            <a class="sidebar-sub-item" data-pages-sub="builtin" href="#pages/builtin" title="Built-In">
+              <span class="sub-nav-label">Built-In</span>
+            </a>
+          </div>
+          <a class="list-item dash-tab-btn" data-dash-tab="media" href="#media" title="Media">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            <span>Media</span>
+          </a>
+        </div>
+
+        <hr class="sidebar-divider">
+
+        <div class="lists-nav">
+          <a class="list-item dash-tab-btn" data-dash-tab="designer" href="#design" title="Design">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M3 3v18h18V3H3zm16 16H5V5h14v14zM11 7H7v4h4V7zm6 0h-4v2h4V7zm0 4h-4v2h4v-2zm-6 2H7v4h4v-4zm6 2h-4v2h4v-2z"/></svg>
+            <span>Design</span>
+          </a>
+          <a class="list-item dash-tab-btn" data-dash-tab="settings" href="#settings" title="Site Info">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            <span>Site Info</span>
+          </a>
+          <a class="list-item dash-tab-btn" data-dash-tab="publish" href="#publish" title="Publish">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><path fill="currentColor" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            <span>Publish</span>
+          </a>
+        </div>
+
+        <hr class="sidebar-divider" id="sidebar-live-divider" style="display: none;">
+
+        <div class="lists-nav" id="sidebar-live-nav-list" style="display: none;">
+          <a class="list-item" id="sidebar-tab-visit-online" title="Visit live blog on your domain" role="button" tabindex="0" style="display: none;">
+            <svg viewBox="0 0 24 24" class="sidebar-icon"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"></circle><line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" stroke-width="2" fill="none"></path></svg>
+            <span>Visit Blog</span>
+            <span class="badge-subtle" style="font-size: 0.65rem; padding: 2px 5px; border-radius: 4px; background: var(--btn-primary-glow, rgba(113,113,122,0.12)); color: var(--accent-primary, #71717a); border: 1px solid var(--accent-primary, rgba(113,113,122,0.25)); margin-left: auto; margin-right: 6px;">Live</span>
+            <svg viewBox="0 0 24 24" class="sidebar-external-icon" style="width: 13px; height: 13px; opacity: 0.55; flex-shrink: 0;"><path fill="currentColor" d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+          </a>
+        </div>
+
+        <div class="lists-nav sidebar-bottom-rail" style="margin-top: auto; padding-top: 8px; padding-bottom: 6px;">
+          <a class="list-item dash-tab-btn" data-dash-tab="help" id="sidebar-tab-help" href="/help/" title="Help &amp; Documentation">
+            <svg viewBox="0 0 24 24" class="sidebar-icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg>
+            <span>Help</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Footer: Toggle -->
+      <footer class="sidebar-footer">
+        <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" title="Collapse sidebar">
+          <svg viewBox="0 0 24 24" class="sidebar-toggle-icon collapse-icon"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          <svg viewBox="0 0 24 24" class="sidebar-toggle-icon expand-icon"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z"/></svg>
+          <span class="sidebar-toggle-text">Collapse</span>
+        </button>
+      </footer>
+    </aside>

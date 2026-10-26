@@ -1,0 +1,51 @@
+      <!-- TAB: PREVIEW -->
+      <section class="dash-pane" id="pane-preview" style="display: none; flex-direction: column; height: 100%; padding: 0; background: var(--bg-primary, #121214);">
+        <!-- Top Preview Bar -->
+        <div class="preview-pane-header" style="height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 1.25rem; background: var(--topbar-bg, #121214); border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); flex-shrink: 0; z-index: 10;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: #86efac; background: rgba(34, 197, 94, 0.14); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 999px; padding: 2px 8px;">
+              <span style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e;"></span>
+              Local Site Preview
+            </span>
+            <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1)); border-radius: 6px; padding: 2px 8px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted, #a1a1aa); flex-shrink: 0;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span id="preview-pane-url-display" style="font-size: 0.76rem; color: #a1a1aa; font-family: var(--font-mono, monospace); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">preview.html#/</span>
+              <button type="button" id="btn-copy-preview-url" title="Copy preview URL" style="background: none; border: none; padding: 0; margin-left: 2px; cursor: pointer; color: var(--text-muted, #a1a1aa); display: inline-flex; align-items: center;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Preview Device Viewport Switcher -->
+          <div class="device-switcher-wrap preview-device-switcher" id="preview-device-switcher">
+            <button type="button" class="device-btn active" id="btn-preview-device-desktop" data-device="desktop" title="Desktop View (Full Screen)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              <span>Desktop</span>
+            </button>
+            <button type="button" class="device-btn" id="btn-preview-device-tablet" data-device="tablet" title="Tablet View (640px)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+              <span>Tablet (640px)</span>
+            </button>
+            <button type="button" class="device-btn" id="btn-preview-device-mobile" data-device="mobile" title="Mobile View — Google Pixel 10 (412px • ~2.75x DPI)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+              <span>Mobile (Pixel 10)</span>
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-refresh-preview" title="Refresh local preview">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Refresh</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" id="btn-open-preview-tab" title="Open full site in new browser tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>Open in New Tab</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Preview Iframe Container -->
+        <div id="preview-iframe-wrapper" style="flex: 1; width: 100%; height: calc(100% - 48px); position: relative; background: var(--bg-secondary, #121214); display: flex; justify-content: center; align-items: flex-start; overflow: auto; padding: 0;">
+          <iframe id="preview-site-frame" src="" style="width: 100%; height: 100%; border: none; transition: width 0.25s ease, height 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease;" title="Cedar Site Local Preview"></iframe>
+        </div>
+      </section>

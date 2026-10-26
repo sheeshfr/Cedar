@@ -1,0 +1,22 @@
+# Cedar Cloudflare Guardrails - Do NOT deploy internal, draft, or hidden assets
+writer/
+static-writer/
+blog/drafts/
+blog/hidden/
+pages/hidden/
+drafts/
+hidden/
+backups/
+notes/
+*.draft.*
+**/draft.json
+drafts.json
+vault.json
+notes.json
+sync.json
+_authors_archive/
+_designer_archive/
+_legacy_archive/
+_notes_archive/
+__pycache__/
+

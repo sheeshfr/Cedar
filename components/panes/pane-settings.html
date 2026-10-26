@@ -1,0 +1,223 @@
+      <section class="dash-pane" id="pane-settings" style="display: none;">
+        <div class="settings-layout-wrap">
+          <!-- Table of Contents Navigation Bar -->
+          <aside class="settings-toc-bar" id="settings-toc-bar" aria-label="Settings Table of Contents">
+            <nav class="settings-toc-nav">
+              <ul class="settings-toc-list" id="settings-toc-list">
+                <li class="settings-toc-item">
+                  <a href="#settings-sec-site" class="settings-toc-link active" data-target="settings-sec-site">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    <span class="settings-toc-text">Title &amp; Domain</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#settings-sec-author" class="settings-toc-link" data-target="settings-sec-author">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <span class="settings-toc-text">Author Profile</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#settings-sec-logo" class="settings-toc-link" data-target="settings-sec-logo">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <span class="settings-toc-text">Brand Logo</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#settings-sec-region" class="settings-toc-link" data-target="settings-sec-region">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span class="settings-toc-text">Region</span>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+
+            <!-- Save Site Info Button: sitting underneath Danger Zone clickable tab in the side panel -->
+            <div class="settings-toc-action-wrap">
+              <button type="button" class="btn btn-primary btn-save-settings-toc" id="btn-modal-save-settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                <span>Save Site Info</span>
+              </button>
+            </div>
+          </aside>
+
+          <!-- Settings Sections Content Column -->
+          <div class="settings-pane-container">
+            <!-- Section 1: Title & Domain (Blog Title & Custom Domain) -->
+            <div class="settings-section-group" id="settings-sec-site">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  <h4>Title &amp; Domain</h4>
+                </div>
+              </div>
+              <div class="project-settings-card">
+                <!-- 1. Blog Title -->
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="setting-site-title" class="form-label">
+                      Title <span class="required" title="Required">*</span>
+                    </label>
+                    <input type="text" id="setting-site-title" class="form-input" placeholder="" required spellcheck="false" autocomplete="off">
+                    <div class="settings-validation-error" id="setting-site-title-error" style="display: none; color: var(--accent-red, #ef4444); font-size: 0.8rem; margin-top: 0.35rem;">
+                      Please enter a blog title.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Custom Domain -->
+                <div class="form-row" style="margin-top: 1.25rem;">
+                  <div class="form-group flex-1">
+                    <label for="setting-modal-domain" class="form-label">Custom Domain</label>
+                    <input type="text" id="setting-modal-domain" class="form-input" placeholder="" spellcheck="false" autocomplete="off">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 2: Author Profile -->
+            <div class="settings-section-group" id="settings-sec-author">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  <h4>Author Profile</h4>
+                </div>
+              </div>
+              <div class="project-settings-card">
+                <!-- 1. Author Photo (Centered: Picture up top, two buttons underneath) -->
+                <div class="form-row" style="margin-bottom: 1.5rem;">
+                  <div class="form-group flex-1" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                    <!-- Picture up top -->
+                    <div class="settings-author-avatar-wrap" id="setting-author-avatar-wrap">
+                      <img id="setting-author-avatar-img" src="" alt="Author Avatar" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                      <span id="setting-author-avatar-placeholder"></span>
+                    </div>
+                    <!-- Two buttons underneath -->
+                    <div class="settings-author-photo-actions" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center;">
+                      <button type="button" class="btn btn-sm btn-secondary" id="btn-settings-upload-author-photo">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <span>Upload Photo</span>
+                      </button>
+                      <input type="file" id="setting-author-file-input" accept="image/*" style="display: none;">
+                      <button type="button" class="btn btn-sm btn-secondary" id="btn-settings-pick-author-media">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        <span>Media Library</span>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-subtle" id="btn-settings-remove-author-photo" style="display: none; color: var(--accent-red, #ef4444);">
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Author Name -->
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="setting-author-name" class="form-label">
+                      Author Name <span class="required" title="Required">*</span>
+                    </label>
+                    <input type="text" id="setting-author-name" class="form-input" placeholder="" required autocomplete="off">
+                    <div class="settings-validation-error" id="setting-author-name-error" style="display: none; color: var(--accent-red, #ef4444); font-size: 0.8rem; margin-top: 0.35rem;">
+                      Please enter an author name.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3. Author Bio -->
+                <div class="form-row" style="margin-top: 1.25rem;">
+                  <div class="form-group flex-1">
+                    <label for="setting-author-bio" class="form-label">Bio</label>
+                    <textarea id="setting-author-bio" class="form-input" rows="3"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 3: Brand Logo -->
+            <div class="settings-section-group" id="settings-sec-logo">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  <h4>Brand Logo</h4>
+                </div>
+              </div>
+              <div class="project-settings-card">
+                <!-- Brand Logo Dropzone -->
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <div class="ftue-logo-dropzone" id="settings-logo-dropzone" style="border-style: solid;">
+                      <input type="file" id="settings-logo-file-input" accept="image/*" style="display: none;">
+                      
+                      <!-- Drag Feedback Overlay (Active during dragover & drop errors) -->
+                      <div class="ftue-logo-drag-overlay" id="settings-logo-drag-overlay" style="display: none;" aria-live="polite">
+                        <div class="ftue-drag-feedback-content">
+                          <div class="ftue-drag-feedback-icon" id="settings-drag-feedback-icon"></div>
+                          <div class="ftue-drag-feedback-title" id="settings-drag-feedback-title">Okay to release</div>
+                          <div class="ftue-drag-feedback-sub" id="settings-drag-feedback-sub">Drop to set brand logo</div>
+                        </div>
+                      </div>
+
+                      <!-- Empty State in Dropzone -->
+                      <div class="ftue-logo-empty-state" id="settings-logo-empty-state">
+                        <div class="ftue-upload-icon">
+                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        </div>
+                        <div class="ftue-upload-text">
+                          <span>Drop logo image here, or <strong>browse file</strong></span>
+                        </div>
+                        <div class="ftue-upload-sub">Supports images up to 1200x1200</div>
+                      </div>
+
+                      <!-- Preview State in Dropzone -->
+                      <div class="ftue-logo-preview-state" id="settings-logo-preview-state" style="display: none;">
+                        <div class="ftue-logo-stage" id="settings-logo-stage">
+                          <img id="settings-logo-preview-img" class="ftue-logo-preview-img" src="" alt="Brand Logo Preview">
+                        </div>
+                        <div class="ftue-logo-preview-meta" style="justify-content: center; border-top: none; padding-top: 0.25rem;">
+                          <div class="ftue-logo-file-info" style="display: none;">
+                            <span class="ftue-logo-file-name" id="settings-logo-file-name">logo.png</span>
+                            <span class="ftue-logo-dims-badge" id="settings-logo-dims-badge">--</span>
+                          </div>
+                          <div class="ftue-logo-preview-actions" style="justify-content: center;">
+                            <button type="button" class="btn btn-sm btn-secondary" id="settings-btn-change-logo">Change Image</button>
+                            <button type="button" class="btn btn-sm btn-danger-ghost" id="settings-btn-remove-logo">Remove Image</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 4: Region -->
+            <div class="settings-section-group" id="settings-sec-region">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <h4>Region</h4>
+                </div>
+              </div>
+              <div class="project-settings-card">
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="setting-modal-timezone" class="form-label">System Timezone</label>
+                    <select id="setting-modal-timezone" class="form-input"></select>
+                    <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin-top: 0.35rem; line-height: 1.4;">Dates and post publish timestamps will use this timezone.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Save Site Info Button (Underneath last option in the list) -->
+            <div class="pane-bottom-save-wrap" id="settings-bottom-save-wrap">
+              <button type="button" class="btn btn-primary btn-save-settings-toc popout-3d" id="btn-settings-save-bottom" title="Save site settings">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                <span>Save Site Info</span>
+              </button>
+            </div>
+
+          </div>
+          <!-- Balancing spacer to ensure centerpiece is mathematically dead center (matches designer) -->
+          <div class="settings-spacer-right" aria-hidden="true"></div>
+        </div>
+      </section>

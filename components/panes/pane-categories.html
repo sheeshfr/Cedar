@@ -1,0 +1,36 @@
+      <section class="dash-pane" id="pane-categories" style="display: none;">
+        <div class="dash-pane-header standardized-pane-header">
+          <div class="pane-header-left">
+            <h2 class="dash-pane-title">Categories</h2>
+          </div>
+          <div class="pane-header-center">
+            <div class="dash-search-wrap">
+              <svg class="dash-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="categories-search-input" class="dash-search-input" placeholder="Search categories and tags..." autocomplete="off" spellcheck="false">
+              <button type="button" class="dash-search-clear-btn" id="btn-categories-search-clear" title="Clear search" style="display: none;">&times;</button>
+            </div>
+          </div>
+          <div class="pane-header-right">
+            <button type="button" class="btn btn-sm btn-primary" id="btn-header-new-category">+ New Category</button>
+          </div>
+        </div>
+
+        <div class="taxonomy-layout">
+          <div class="taxonomy-add-box">
+            <h4>Add New Category</h4>
+            <div class="taxonomy-add-form">
+              <input type="text" id="input-new-category" class="form-input" placeholder="e.g. Deep Dives">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-category">Add</button>
+            </div>
+          </div>
+
+          <div class="taxonomy-list-box">
+            <h4>Active Categories</h4>
+            <div class="categories-list" id="list-categories">
+              <!-- Dynamically populated category chips -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4.5: DESIGNER -->

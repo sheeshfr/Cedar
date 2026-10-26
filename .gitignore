@@ -1,0 +1,26 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local runtime state & sync cache
+.live-sync.json
+*.bak
+*.tmp
+
+# OS & Editor metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Local AI agent rules & internal dev docs
+AGENTS.md
+GEMINI.md
+docs/
+
+# Test & build artifacts
+node_modules/
+test-results/
+playwright-report/

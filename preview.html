@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">Cedar — Local Site Preview</title>
+  <meta name="description" id="meta-description" content="Local preview of your Cedar static site.">
+  <link rel="icon" type="image/png" id="site-favicon" href="/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link rel="alternate" type="application/rss+xml" title="Recent Posts RSS Feed" href="/blog/feed.xml" id="rss-link-posts">
+  <!-- Modular Preview Stylesheets -->
+  <link rel="stylesheet" href="/css/fonts.css?v=1.0.0">
+  <link rel="stylesheet" href="/css/preview/theme.css?v=172">
+  <link rel="stylesheet" href="/css/preview/blocks.css?v=176">
+  <link rel="stylesheet" href="/css/preview/reader.css?v=171">
+  <link rel="stylesheet" href="/css/preview/gallery.css?v=171">
+</head>
+<body>
+
+  <!-- Site Header -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="/preview.html" class="brand-link" id="header-brand-link">
+        <img src="/logo.png" alt="Logo" class="brand-logo-img" id="header-logo">
+        <div class="brand-text">
+          <span class="brand-name" id="header-title">Cedar</span>
+          <span class="brand-tagline" id="header-tagline" style="display: none !important;"></span>
+        </div>
+      </a>
+      <nav style="display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;">
+        <ul class="nav-links" id="header-nav-links">
+          <li class="nav-search-item" style="display: inline-flex; align-items: center; margin: 0; padding: 0;">
+            <button id="nav-search-btn" title="Search" style="background: transparent; border: none; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; padding: 0; margin: 0; transition: color 0.15s ease;">
+              <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
+            </button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Dynamic Main Content Wrapper -->
+  <main id="main-content">
+    <!-- Home View Container (Landing / Index Page) -->
+    <div id="view-home">
+      <!-- Designer Hero Beacon / Announcements Banner -->
+      <section class="hero-beacon-section" id="section-hero-beacon" style="display: none;">
+        <div class="container" id="hero-beacon-container">
+          <div class="hero-beacon-card" id="hero-beacon-card">
+            <div class="hero-beacon-content">
+              <h1 class="hero-beacon-title" id="hero-beacon-title"></h1>
+              <p class="hero-beacon-sub" id="hero-beacon-sub"></p>
+            </div>
+            <div id="hero-beacon-btn-wrap">
+              <a href="#/blog" class="hero-beacon-btn" id="hero-beacon-btn">Explore Articles &rarr;</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Featured Post Hero Section (Single or Carousel) -->
+      <section class="hero-section" id="section-spotlight" style="display: none;">
+        <div class="container" id="spotlight-container">
+          <div class="spotlight-carousel-viewport" id="spotlight-carousel-viewport">
+            <div class="spotlight-carousel-track" id="spotlight-carousel-track">
+              <!-- Slides rendered by JS -->
+            </div>
+            <!-- Top Right Navigation Arrows for Carousel -->
+            <div class="spotlight-carousel-nav" id="spotlight-carousel-nav" style="display: none;">
+              <button type="button" class="spotlight-carousel-arrow btn-prev" id="spotlight-arrow-prev" aria-label="Previous Featured Post">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+              <button type="button" class="spotlight-carousel-arrow btn-next" id="spotlight-arrow-next" aria-label="Next Featured Post">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+            </div>
+          </div>
+          <!-- Single Card Fallback Container -->
+          <a href="#" class="spotlight-card" id="spotlight-link" style="display: none;">
+            <div class="spotlight-img-wrap">
+              <div class="spotlight-img-ambient" id="spotlight-img-ambient"></div>
+              <img src="" alt="" class="spotlight-img" id="spotlight-img">
+            </div>
+            <div class="spotlight-content">
+              <h2 class="spotlight-title" id="spotlight-title">Featured Article</h2>
+              <div class="post-meta-row" id="spotlight-meta"></div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+
+
+      <!-- Posts Feed Section -->
+      <section class="posts-section" id="section-feed" style="display: none;">
+        <div class="container" id="feed-container">
+          <div class="feed-header-wrap" id="feed-header-wrap" style="display: none;">
+            <!-- Category Filter Pills Bar -->
+            <div class="feed-header-categories" id="feed-header-categories" style="display: none;">
+              <div class="filter-bar" id="category-filter-bar">
+                <!-- Filter pills populated by JS -->
+              </div>
+            </div>
+          </div>
+          <div class="posts-grid" id="posts-grid">
+            <!-- Cards populated by JS -->
+          </div>
+        </div>
+      </section>
+
+      
+
+      <!-- Newsletter Wire Section -->
+      <section class="wire-section" id="section-wire" style="display: none;">
+        <div class="container" id="wire-container">
+          <div class="wire-card" id="wire-card">
+            <h3 class="wire-title" id="wire-title"></h3>
+            <p class="wire-sub" id="wire-sub"></p>
+            <form class="wire-form-row" onsubmit="event.preventDefault(); alert('Subscribed!');">
+              <input type="email" class="wire-input" placeholder="Enter your email address..." required>
+              <button type="submit" class="hero-beacon-btn" style="cursor: pointer; border: none;">Subscribe</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- Static Pages Shelf (if any) -->
+      <section class="shelf-section" id="section-pages" style="display: none; border-radius: 16px; margin-bottom: 4rem;">
+        <div class="container" id="pages-container">
+          <div class="section-heading-wrap">
+            <h3 class="section-heading">Pages</h3>
+          </div>
+          <div class="shelf-grid" id="pages-grid">
+            <!-- Static pages cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Station Authors Showcase -->
+      <section class="authors-section" id="section-authors" style="display: none;">
+        <div class="container" id="authors-container">
+          <div class="section-heading-wrap">
+            <h3 class="section-heading">Authors</h3>
+          </div>
+          <div class="authors-grid" id="authors-grid">
+            <!-- Author cards -->
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- All Posts View Container -->
+    <div id="view-posts" style="display: none;">
+      <div class="container" style="padding-top: 2rem;">
+        <div style="margin-bottom: 1.5rem;">
+          <a href="#/" class="reader-back-btn" id="btn-posts-back-home" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 0.88rem; color: var(--text-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Back to Home</span>
+          </a>
+        </div>
+        <div class="section-heading-wrap" style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+          <h2 class="section-heading" id="all-posts-heading" style="font-size: 1.85rem; margin: 0;">All Posts</h2>
+          <span style="font-size: 0.85rem; color: var(--text-dim); display: none;" id="all-posts-count"></span>
+        </div>
+        <div class="filter-section" id="section-all-filters" style="display: none;">
+          <div class="filter-bar" id="all-category-filter-bar"></div>
+        </div>
+        <section class="posts-section">
+          <div class="posts-grid" id="all-posts-grid"></div>
+          <nav class="pagination-bar" id="all-posts-pagination" style="display: none;"></nav>
+        </section>
+      </div>
+    </div>
+
+    <!-- Reader / Article View Container -->
+    <div id="view-reader" class="reader-wrapper" style="display: none;">
+      <div class="reader-container">
+        <div class="reader-top-bar">
+          <button type="button" class="reader-back-btn" id="btn-reader-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Back to Posts</span>
+          </button>
+          <span class="reader-tag" id="reader-tag">Post</span>
+        </div>
+
+        <header class="reader-header" id="reader-header">
+          <h1 class="reader-title" id="reader-title"></h1>
+          <p class="reader-subtitle" id="reader-subtitle"></p>
+          <div class="reader-meta-bar" id="reader-meta-bar"></div>
+        </header>
+
+        <div class="reader-cover-wrap" id="reader-cover-wrap" style="display: none;">
+          <img src="" alt="" class="reader-cover-img" id="reader-cover-img">
+        </div>
+
+        <article class="article-prose" id="reader-prose">
+          <!-- Prose content populated by JS -->
+        </article>
+
+        <!-- Prev / Next Navigation (disabled per design) -->
+        <div class="post-nav-grid" id="reader-post-nav" style="display: none;"></div>
+
+        <div style="text-align: center; margin: 3rem 0 1rem;">
+          <button type="button" class="reader-back-btn" style="font-weight: 600; font-size: 0.95rem;" id="btn-reader-bottom-back">
+            &larr; See More Posts
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dedicated Author Profile View Container -->
+    <div id="view-author" class="author-profile-wrapper" style="display: none;">
+      <div class="author-profile-container">
+        <!-- Back Button -->
+        <div class="author-profile-back-wrap" style="margin-bottom: 2rem;">
+          <button type="button" class="reader-back-btn" id="btn-author-back" title="Back" style="background: none; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; font-weight: 500; color: var(--text-muted); padding: 0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Back</span>
+          </button>
+        </div>
+
+        <!-- Centered Profile Header -->
+        <div class="author-profile-header-centered">
+          <div class="author-profile-avatar-wrap" id="author-profile-avatar-wrap"></div>
+          <h1 class="author-profile-display-name" id="author-profile-display-name">Author Name</h1>
+          <div class="author-profile-stats-row">
+            <span class="author-stat-item"><strong id="author-stat-posts">0</strong> <span id="author-stat-posts-label">articles</span></span>
+            <span class="author-stat-item author-stat-date" id="author-stat-join">Joined 2026</span>
+          </div>
+          <div class="author-profile-bio" id="author-profile-bio" style="display: none;"></div>
+        </div>
+
+        <!-- Author Articles Stream -->
+        <div class="author-tab-content-stream" id="author-tab-content-stream"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <div class="footer-left">
+        <a href="/preview.html/about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none;">Powered by <strong style="color: var(--text-primary);">Cedar</strong></a>
+      </div>
+      <div class="footer-copyright-wrap" style="color: var(--text-dim);">
+        <span class="footer-copyright-date">&copy; <span id="footer-year"></span></span>
+        <span class="footer-copyright-rights">All rights reserved.</span>
+      </div>
+      <span style="display: none;" id="footer-site-name"></span>
+      <span style="display: none;" id="footer-domain-label"></span>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/core/sanitizer.js?v=3.8.5"></script>
+  <script src="/js/compiler/compiler.js?v=4.3.5"></script>
+  <!-- Modular Preview Application Scripts -->
+  <script src="/js/preview/theme.js?v=3.9.2"></script>
+  <script src="/js/preview/state.js?v=4.0.2"></script>
+  <script src="/js/preview/home.js?v=4.2.0"></script>
+  <script src="/js/editor/blocks.js?v=4.2.1"></script>
+  <script src="/js/preview/reader.js?v=4.0.5"></script>
+  <script src="/js/preview/app.js?v=4.0.5"></script>
+  <script src="/js/preview/search.js?v=4.0.0"></script>
+    <!-- Search Modal -->
+    <div id="search-modal" class="search-modal-wrap" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: flex-start; padding-top: 8vh; backdrop-filter: blur(4px);">
+      <div class="search-modal-content" style="background: var(--bg-primary); width: 100%; max-width: 600px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-subtle);">
+        <div style="display: flex; align-items: center; padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-subtle);">
+          <svg width="20" height="20" fill="none" stroke="var(--text-dim)" stroke-width="2.5" viewBox="0 0 24 24" style="margin-right: 12px;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
+          <input type="text" id="search-modal-input" placeholder="Search people and posts" style="flex: 1; background: transparent; border: none; outline: none; font-size: 1.1rem; color: var(--text-primary);">
+        </div>
+        <div id="search-modal-results" style="max-height: 60vh; overflow-y: auto; padding: 1rem 0;"></div>
+      </div>
+    </div>
+  </body>
+</html>
+
+

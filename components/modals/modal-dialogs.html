@@ -1,0 +1,1745 @@
+  <!-- Modal: Future Date / Schedule Post Confirmation -->
+
+<div class="modal-overlay" id="modal-schedule-future-post" style="display: none; z-index: 10040;" role="dialog" aria-modal="true">
+
+<div class="modal-card modal-sm" style="max-width: 440px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div style="display: flex; align-items: center; gap: 8px;">
+
+<span style="font-size: 1.25rem;">📅</span>
+
+<div>
+
+<h2 class="modal-title" id="future-modal-title">Schedule Post?</h2>
+
+<p class="modal-desc" id="future-modal-desc">This date is in the future.</p>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-future-modal" data-close-modal title="Close">&times;</button>
+
+</div>
+
+<!-- Step 1: Ask if user wants to schedule -->
+
+<div class="modal-body" id="future-modal-step-ask">
+
+<p style="font-size: 0.9rem; color: var(--text-primary, #f4f4f5); line-height: 1.5; margin: 0 0 1rem;">
+
+You selected <strong id="future-modal-date-display" style="color: #60a5fa;"></strong>, which hasn't happened yet.
+
+</p>
+
+<p style="font-size: 0.85rem; color: var(--text-muted, #a1a1aa); line-height: 1.4; margin: 0;">
+
+Would you like to schedule this post to release automatically at that date, or simply keep it as a dated post?
+
+</p>
+
+</div>
+
+<!-- Step 2: Ask release time -->
+
+<div class="modal-body" id="future-modal-step-time" style="display: none;">
+
+<p style="font-size: 0.9rem; color: var(--text-primary, #f4f4f5); line-height: 1.5; margin: 0 0 0.85rem;">
+
+What time should this post be released on <strong id="future-modal-date-time-display" style="color: #60a5fa;"></strong>?
+
+</p>
+
+<div class="setup-group" style="margin-bottom: 0;">
+
+<label class="setup-label" for="future-modal-time-input">Release Time</label>
+
+<input type="time" class="setup-input form-input" id="future-modal-time-input" value="09:00" style="font-size: 1rem; padding: 0.55rem 0.75rem;">
+
+<p class="setup-hint" style="margin-top: 0.45rem;">The post will appear in your Future feed and automatically switch to published at this time.</p>
+
+</div>
+
+</div>
+
+<!-- Footer Step 1 -->
+
+<div class="modal-footer" id="future-modal-footer-step1" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-future-no-just-date">No, Just Set Date</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-future-yes-schedule">Yes, Schedule It</button>
+
+</div>
+
+<!-- Footer Step 2 -->
+
+<div class="modal-footer" id="future-modal-footer-step2" style="display: none; justify-content: space-between; align-items: center;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-future-time-back">Back</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-future-confirm-schedule">Schedule Release</button>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-overlay" id="modal-add-category" style="display: none; z-index: 10030;">
+
+<div class="modal-card modal-sm" style="max-width: 440px; border-radius: 12px; overflow: hidden;">
+
+<div class="modal-header">
+
+<div style="display: flex; align-items: center; gap: 0.75rem;">
+
+<div style="color: var(--accent-cat, #c084fc); display: flex; align-items: center;">
+
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+
+<line x1="7" y1="7" x2="7.01" y2="7"></line>
+
+</svg>
+
+</div>
+
+<div>
+
+<h2 class="modal-title" style="margin: 0; font-size: 1.15rem; font-weight: 700;">Add Category</h2>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-cat-modal" title="Close">&times;</button>
+
+</div>
+
+<div class="modal-body" style="padding: 1.5rem 1.75rem;">
+
+<div class="setup-group" style="margin-bottom: 0;">
+
+<label class="setup-label" for="modal-category-name-input" style="display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.55rem; color: var(--text-primary, #ffffff);">Category Name</label>
+
+<input type="text" class="modal-input" id="modal-category-name-input" placeholder="e.g. Technology, Essays, Photos" autocomplete="off" spellcheck="false">
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem; padding: 0.9rem 1.5rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-cat-modal">Cancel</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-save-cat-modal">Save</button>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-overlay" id="modal-paste-image" style="display: none; z-index: 10010;">
+
+<div class="modal-card modal-sm">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Paste Image</h2>
+
+<p class="modal-desc">Paste an image from your clipboard to use as featured media.</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-paste-modal">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div class="paste-zone-box" id="paste-zone-box" tabindex="0">
+
+<div class="paste-zone-icon">
+
+<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+
+</div>
+
+<p class="paste-zone-title">Right-click and select <strong>Paste</strong>, or press <strong>Ctrl + V</strong> (<strong>⌘ + V</strong>)</p>
+
+<p class="paste-zone-sub">Click here first, then paste your image to crop</p>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-read-clipboard">
+
+📋 Paste from Clipboard
+
+</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-paste-modal">Cancel</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- 1280x720 Crop Window Modal -->
+
+<div class="modal-overlay" id="modal-crop-image" style="display: none; z-index: 10020;">
+
+<div class="modal-card modal-lg modal-crop-card">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Crop to Size</h2>
+
+<p class="modal-desc">Standardize your featured image to the 16:9 banner specification.</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-crop-modal">&times;</button>
+
+</div>
+
+<div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+
+<!-- 16:9 Interactive Crop Viewport -->
+
+<div class="crop-stage-wrap">
+
+<div class="crop-viewport" id="crop-viewport">
+
+<canvas id="crop-canvas" width="1280" height="720"></canvas>
+
+<div class="crop-grid-overlay">
+
+<div class="grid-line grid-line-h1"></div>
+
+<div class="grid-line grid-line-h2"></div>
+
+<div class="grid-line grid-line-v1"></div>
+
+<div class="grid-line grid-line-v2"></div>
+
+</div>
+
+<div class="crop-drag-hint" id="crop-drag-hint">Drag image to position</div>
+
+</div>
+
+<div class="crop-dimension-badge">1280 × 720 (16:9 Standard)</div>
+
+</div>
+
+<!-- Toolbar controls -->
+
+<div class="crop-toolbar">
+
+<div class="crop-btn-group">
+
+<button type="button" class="btn btn-sm btn-secondary active" id="btn-crop-fit" title="Fit image within 16:9 frame">
+
+↔️ Fit to Frame
+
+</button>
+
+</div>
+
+<div class="crop-zoom-control">
+
+<span class="crop-zoom-label">Zoom:</span>
+
+<input type="range" id="crop-zoom-slider" min="10" max="300" value="100" class="crop-slider">
+
+<span class="crop-zoom-val" id="crop-zoom-val">100%</span>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+
+<button type="button" class="btn btn-secondary" id="btn-cancel-crop-modal">Cancel</button>
+
+<button type="button" class="btn btn-primary" id="btn-apply-crop">
+
+✓ Apply &amp; Set Featured Image (1280 × 720)
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Drafts Manager Modal -->
+
+<div class="modal-overlay" id="modal-drafts" style="display: none;">
+
+<div class="modal-card">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Your Local Drafts</h2>
+
+<p class="modal-desc">All drafts and images are saved automatically in browser storage.</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div class="drafts-actions-bar">
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-create-new-draft">
+
++ New Blank Draft
+
+</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-export-all-drafts">
+
+Backup All Drafts (JSON)
+
+</button>
+
+</div>
+
+<div class="drafts-list" id="drafts-list-container">
+
+<!-- Dynamically populated draft cards -->
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button type="button" class="btn btn-secondary" data-close-modal>Close</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Import Modal -->
+
+<div class="modal-overlay" id="modal-import" style="display: none;">
+
+<div class="modal-card">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Import Post or Backup</h2>
+
+<p class="modal-desc">Paste HTML from an existing article or upload a file.</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<!-- Vault Hard Drive Quick Load -->
+
+<div class="vault-import-box" id="vault-import-section" style="display: none;">
+
+<div class="vault-import-header">
+
+<span class="vault-import-title">
+
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+
+<span>Load from Connected Hard Drive Storage</span>
+
+</span>
+
+<span style="font-size: 0.75rem; color: #34d399;" id="vault-import-count">0 items</span>
+
+</div>
+
+<div class="vault-import-items" id="vault-import-items-list">
+
+<!-- Dynamically populated from vault/blog/ -->
+
+</div>
+
+</div>
+
+<div class="drop-zone" id="file-drop-zone">
+
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+
+<p class="drop-text">Drag & drop an <code>index.html</code>, <code>.json</code>, or <code>.zip</code> archive here</p>
+
+<label class="btn btn-sm btn-secondary file-upload-btn">
+
+Browse File
+
+<input type="file" id="file-input" accept=".html,.htm,.json,.md,.zip" style="display: none;">
+
+</label>
+
+</div>
+
+<div class="form-group" style="margin-top: 1.25rem;">
+
+<label for="import-paste-area" class="form-label">Or Paste HTML / Markdown / JSON directly:</label>
+
+<textarea id="import-paste-area" class="form-textarea" placeholder="Paste full HTML code from blog/*/index.html or JSON draft here..."></textarea>
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary" id="btn-do-import">Parse & Load into Editor</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Insert Media Dialogs -->
+
+<!-- Dialog: Insert Captioned Image (3-Column Media Popup) -->
+
+<div class="modal-overlay" id="modal-insert-image" style="display: none; z-index: 10040;">
+
+<div class="modal-card modal-editor-media">
+
+<div class="modal-header editor-media-header">
+
+<div class="editor-media-header-left">
+
+<h3 class="modal-title">Insert Image</h3>
+
+</div>
+
+<div class="editor-media-header-right">
+
+<div class="editor-media-search-wrap">
+
+<svg class="dash-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+
+<input type="text" id="editor-media-search" class="dash-search-input" placeholder="Search images by tag, file, or post..." autocomplete="off">
+
+<button type="button" class="dash-search-clear-btn" id="btn-editor-media-search-clear" style="display: none;">&times;</button>
+
+</div>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-editor-upload-image">
+
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+
+<span>Upload</span>
+
+</button>
+
+<input type="file" id="input-editor-media-upload" accept="image/*" multiple style="display: none;">
+
+<button type="button" class="modal-close-btn" data-close-modal title="Close">&times;</button>
+
+</div>
+
+</div>
+
+<div class="modal-body editor-media-body" id="editor-media-modal-body">
+
+<!-- Draft lingering images section (shown when post has draft images) -->
+
+<div class="editor-media-section" id="sec-editor-draft-images" style="display: none;">
+
+<div class="editor-media-section-header">
+
+<span class="editor-media-section-badge">This Post</span>
+
+<span class="editor-media-section-title">Draft Images</span>
+
+<span class="editor-media-section-sub">Images in or removed from this post</span>
+
+</div>
+
+<div class="editor-media-masonry-3col editor-draft-images-grid" id="grid-editor-draft-images">
+
+<!-- Dynamically populated draft images -->
+
+</div>
+
+</div>
+
+<div class="editor-media-separator" id="sep-editor-media" style="display: none;">
+
+<span>Media Library</span>
+
+</div>
+
+<div class="editor-media-masonry-3col" id="grid-editor-media-library">
+
+<!-- Dynamically populated 3-column masonry images -->
+
+</div>
+
+</div>
+
+<div class="modal-footer editor-media-footer" style="display: flex; justify-content: flex-end; align-items: center;">
+
+<div style="display: flex; gap: 0.5rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-insert-selected-image" disabled>Insert Selected</button>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Dialog: Insert / Edit Link -->
+
+<div class="modal-overlay" id="modal-insert-link" style="display: none;">
+
+<div class="modal-card modal-sm">
+
+<div class="modal-header">
+
+<h3 class="modal-title">Insert / Edit Link</h3>
+
+<button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div class="form-group">
+
+<label for="link-dialog-url" class="form-label">Destination URL <span class="required">*</span></label>
+
+<input type="text" id="link-dialog-url" class="form-input" placeholder="https://...">
+
+</div>
+
+<div class="form-group">
+
+<label for="link-dialog-text" class="form-label">Display Text (Optional)</label>
+
+<input type="text" id="link-dialog-text" class="form-input" placeholder="Leave empty to use highlighted text">
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary" id="btn-confirm-insert-link">Apply Link</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Dialog: Insert YouTube Video -->
+
+<div class="modal-overlay" id="modal-insert-youtube" style="display: none;">
+
+<div class="modal-card modal-sm">
+
+<div class="modal-header">
+
+<h3 class="modal-title">Insert YouTube Video</h3>
+
+<button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div class="form-group">
+
+<label for="yt-dialog-url" class="form-label">YouTube Video URL or ID <span class="required">*</span></label>
+
+<input type="text" id="yt-dialog-url" class="form-input" placeholder="https://www.youtube.com/watch?v=... or Video ID">
+
+<p class="form-hint" style="margin-top: 0.4rem;">Supports full URLs, youtu.be shortlinks, or 11-char video IDs.</p>
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary" id="btn-confirm-insert-youtube">Insert Video</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Dialog: Insert Gallery -->
+
+<div class="modal-overlay" id="modal-insert-gallery" style="display: none;">
+
+<div class="modal-card modal-sm">
+
+<div class="modal-header">
+
+<h3 class="modal-title">Insert Image Gallery Grid</h3>
+
+<button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div class="form-group">
+
+<label for="gallery-dialog-urls" class="form-label">Image URLs (One per line) <span class="required">*</span></label>
+
+<textarea id="gallery-dialog-urls" class="form-textarea" rows="4" placeholder="https://image1.png&#10;https://image2.png"></textarea>
+
+</div>
+
+<div class="form-group">
+
+<label for="gallery-dialog-caption" class="form-label">Gallery Caption (Optional)</label>
+
+<input type="text" id="gallery-dialog-caption" class="form-input" placeholder="e.g. Image gallery caption">
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary" id="btn-confirm-insert-gallery">Insert Gallery</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Dialog: Insert Adjacent Post Links Block -->
+
+<div class="modal-overlay" id="modal-insert-adjacent-posts" style="display: none;">
+
+<div class="modal-card modal-sm" style="max-width: 480px;">
+
+<div class="modal-header">
+
+<h3 class="modal-title">Insert Next / Previous Post Links</h3>
+
+<button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p class="form-hint" style="margin-bottom: 0.85rem;">Add navigational cards linking readers to your older and newer posts.</p>
+
+<div class="form-group">
+
+<label for="dialog-nav-prev-title" class="form-label">&larr; Older Article Title</label>
+
+<input type="text" id="dialog-nav-prev-title" class="form-input" placeholder="e.g. Previous Post Title">
+
+</div>
+
+<div class="form-group">
+
+<label for="dialog-nav-prev-slug" class="form-label">Older Article Slug or URL</label>
+
+<input type="text" id="dialog-nav-prev-slug" class="form-input" placeholder="previous-post-slug">
+
+</div>
+
+<hr style="border: 0; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); margin: 0.85rem 0;">
+
+<div class="form-group">
+
+<label for="dialog-nav-next-title" class="form-label">Newer Article Title &rarr;</label>
+
+<input type="text" id="dialog-nav-next-title" class="form-input" placeholder="e.g. Next Post Title">
+
+</div>
+
+<div class="form-group">
+
+<label for="dialog-nav-next-slug" class="form-label">Newer Article Slug or URL</label>
+
+<input type="text" id="dialog-nav-next-slug" class="form-input" placeholder="next-post-slug">
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary" id="btn-confirm-insert-adjacent-posts">Insert Block</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Import Vault Confirmation with Backup Option -->
+
+<div class="modal-overlay" id="modal-vault-import-confirm" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 480px;">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Import Local Storage (.ZIP)</h2>
+
+<p class="modal-desc" id="import-confirm-filename">Confirm storage replacement</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-vault-import-confirm">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="color: var(--text-main); font-size: 0.95rem; line-height: 1.55; margin-bottom: 1rem;">
+
+Do you want to <strong>save and export your existing Local Storage backup</strong> before overwriting your Cedar workspace?
+
+</p>
+
+<div style="background: var(--btn-primary-glow, rgba(113, 113, 122, 0.08)); border: 1px solid var(--accent-primary, rgba(113, 113, 122, 0.25)); border-radius: 8px; padding: 0.75rem 1rem; color: var(--accent-primary, #71717a); font-size: 0.82rem; line-height: 1.4;">
+
+⚠️ Overwriting will replace all existing drafts, posts, pages, and taxonomy in your active Cedar workspace with the contents of the imported ZIP.
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-import-confirm-cancel">Cancel</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-import-confirm-overwrite">Overwrite Without Saving</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-import-confirm-save-first">💾 Save &amp; Export First</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Sanitization Warning Confirmation -->
+
+<div class="modal-overlay" id="modal-sanitization-warning" style="display: none; z-index: 10030;">
+
+<div class="modal-card modal-sm" style="max-width: 480px;">
+
+<div class="modal-header">
+
+<div style="display: flex; align-items: center; gap: 0.65rem;">
+
+<div style="color: #f59e0b; display: flex; align-items: center;">
+
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+
+</div>
+
+<div>
+
+<h2 class="modal-title">Turn Off Image Sanitization?</h2>
+
+<p class="modal-desc">Personal metadata exposure warning</p>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-sanitization-warning">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; padding: 0.9rem 1rem;">
+
+<p style="font-size: 0.85rem; line-height: 1.5; color: #f4f4f5; margin: 0;">
+
+By turning this off, things like image metadata will be uploaded along with the image itself, which could allow for personal data (such as <strong style="color: #fbbf24;">GPS location coordinates, camera models, device details, and creation timestamps</strong>) to be revealed to those who go looking.
+
+</p>
+
+<p style="font-size: 0.82rem; line-height: 1.4; color: #d4d4d8; margin: 0.5rem 0 0 0;">
+
+Original image files will be preserved byte-for-byte and stored directly in your images folder.
+
+</p>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-disable-sanitization">Keep Sanitization On</button>
+
+<button type="button" class="btn btn-danger-outline btn-sm" id="btn-confirm-disable-sanitization">Turn Off Sanitization</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Confirm Disable Auto Category Pages -->
+
+<div class="modal-overlay" id="modal-confirm-disable-cat-pages" style="display: none; z-index: 100050;" role="dialog" aria-modal="true">
+
+<div class="modal-card modal-sm" style="max-width: 480px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div style="display: flex; align-items: center; gap: 0.65rem;">
+
+<div style="color: #00d2ff; display: flex; align-items: center;">
+
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+
+</div>
+
+<div>
+
+<h2 class="modal-title">Turn Off Auto Category Pages?</h2>
+
+<p class="modal-desc">Do you wish to leave existing category pages?</p>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-disable-cat-pages" data-close-modal title="Close">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div style="background: rgba(0, 210, 255, 0.08); border: 1px solid rgba(0, 210, 255, 0.25); border-radius: 8px; padding: 0.9rem 1rem;">
+
+<p style="font-size: 0.88rem; line-height: 1.5; color: #f4f4f5; margin: 0; font-weight: 500;">
+
+Do you wish to leave the existing pages created for your categories?
+
+</p>
+
+<div style="font-size: 0.82rem; line-height: 1.45; color: #a1a1aa; margin: 0.75rem 0 0 0;">
+
+<div style="margin-bottom: 6px;"><strong style="color: #f4f4f5;">Yes:</strong> Don't remove anything. All current pages will be kept intact.</div>
+
+<div><strong style="color: #f4f4f5;">No:</strong> Remove only the pages that have the exact same name as your current categories.</div>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-disable-cat-pages" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-danger btn-sm" id="btn-confirm-remove-cat-pages">No, Remove Pages</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-confirm-keep-cat-pages">Yes, Leave Pages</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Confirm Delete In-Use Image -->
+
+<div class="modal-overlay" id="modal-image-delete-confirm" style="display: none; z-index: 10060;" role="dialog" aria-modal="true">
+
+<div class="modal-card modal-sm" style="max-width: 480px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div style="display: flex; align-items: center; gap: 0.65rem;">
+
+<div style="color: #ef4444; display: flex; align-items: center;">
+
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+
+</div>
+
+<div>
+
+<h2 class="modal-title">Delete Image?</h2>
+
+<p class="modal-desc" id="media-delete-confirm-subtitle">This image is currently in use</p>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-delete-img-modal" title="Close">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="font-size: 0.88rem; line-height: 1.5; color: var(--text-primary, #f4f4f5); margin: 0 0 0.85rem 0;">
+
+Are you sure you want to delete this image? It is currently referenced in the following location(s) across your site:
+
+</p>
+
+<div class="media-usage-locations-list" id="media-delete-usage-list">
+
+<!-- Dynamically populated clickable links with target="_blank" -->
+
+</div>
+
+<p style="font-size: 0.8rem; line-height: 1.4; color: var(--text-muted, #a1a1aa); margin: 0.75rem 0 0 0;">
+
+Deleting this asset may result in broken images in those locations.
+
+</p>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-delete-img">Cancel</button>
+
+<button type="button" class="btn btn-danger btn-sm" id="btn-confirm-delete-img">Delete Anyway</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- =========================================================================
+
+LOCAL INSTANCE & SYNC MODALS
+
+========================================================================= -->
+
+<!-- Modal 1: Step 1 - Turn Current Blog into Local Instance -->
+
+<div class="modal-overlay" id="modal-sync-turn-into-blog" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 500px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Point to Local Blog</h2>
+
+<p class="modal-desc" id="sync-turn-folder-desc">Target: <strong id="sync-turn-into-folder-name" class="sync-folder-highlight">📁 [Folder]</strong></p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal id="btn-close-sync-turn">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="color: var(--text-primary, #f4f4f5); font-size: 0.98rem; font-weight: 600; line-height: 1.5; margin-bottom: 0.6rem;">
+
+Do you want to turn what you have now into your blog?
+
+</p>
+
+<p style="color: var(--text-secondary, #a1a1aa); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1rem;">
+
+If yes, Cedar will copy all your current articles, static pages, media, and site configuration directly into this local folder.
+
+</p>
+
+<div class="sync-callout-box info">
+
+<span>📁 This folder will become your live local blog workspace.</span>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-turn-cancel" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-turn-no">No, Just Point Here</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-sync-turn-yes">Yes, Turn into My Blog</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal 2: Step 2 - Remove Browser Data or Leave as Backup -->
+
+<div class="modal-overlay" id="modal-sync-browser-data" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 520px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Browser Data &amp; Backup</h2>
+
+<p class="modal-desc">Synced to: <strong id="sync-browser-folder-name" class="sync-folder-highlight">📁 [Folder]</strong></p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal id="btn-close-sync-browser">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="color: var(--text-primary, #f4f4f5); font-size: 0.98rem; font-weight: 600; line-height: 1.5; margin-bottom: 0.75rem;">
+
+Do you want to remove your browser data or leave it as backup?
+
+</p>
+
+<div class="sync-choice-options-grid">
+
+<!-- Choice 1: Leave as Backup (Recommended) -->
+
+<div class="sync-choice-card active" id="choice-browser-backup" role="button" tabindex="0">
+
+<div class="sync-choice-radio-wrap">
+
+<span class="sync-choice-radio"></span>
+
+</div>
+
+<div class="sync-choice-info">
+
+<div class="sync-choice-title">
+
+<span>Leave it as Backup</span>
+
+<span class="badge-subtle" style="font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">Recommended</span>
+
+</div>
+
+<div class="sync-choice-desc">
+
+If you ever disconnect from the folder you've assigned now, you'll be returned to this exact moment in your blog's history.
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Choice 2: Remove Browser Data -->
+
+<div class="sync-choice-card" id="choice-browser-remove" role="button" tabindex="0">
+
+<div class="sync-choice-radio-wrap">
+
+<span class="sync-choice-radio"></span>
+
+</div>
+
+<div class="sync-choice-info">
+
+<div class="sync-choice-title">
+
+<span>Remove Browser Data</span>
+
+<span class="badge-subtle" style="font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25);">Gone for Good</span>
+
+</div>
+
+<div class="sync-choice-desc">
+
+Your browser data is gone for good. Cedar will run exclusively from your assigned local folder.
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-sync-browser-confirm">Confirm Choice</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal 3: Change Local Storage - Carry Over Work -->
+
+<div class="modal-overlay" id="modal-sync-change-carry" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 530px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Change Local Folder</h2>
+
+<p class="modal-desc">
+
+Moving to: <strong id="sync-change-new-folder" class="sync-folder-highlight">📁 [New Folder]</strong>
+
+</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal id="btn-close-sync-carry">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="color: var(--text-primary, #f4f4f5); font-size: 0.98rem; font-weight: 600; line-height: 1.5; margin-bottom: 0.75rem;">
+
+Do you want to carry over your work?
+
+</p>
+
+<div class="sync-choice-options-grid">
+
+<!-- Choice 1: Move Over -->
+
+<div class="sync-choice-card active" id="choice-carry-move" role="button" tabindex="0">
+
+<div class="sync-choice-radio-wrap">
+
+<span class="sync-choice-radio"></span>
+
+</div>
+
+<div class="sync-choice-info">
+
+<div class="sync-choice-title">
+
+<span>Move Over</span>
+
+</div>
+
+<div class="sync-choice-desc">
+
+Copies all blog files to the new folder and cleans them out of the previous folder.
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Choice 2: Copy Over -->
+
+<div class="sync-choice-card" id="choice-carry-copy" role="button" tabindex="0">
+
+<div class="sync-choice-radio-wrap">
+
+<span class="sync-choice-radio"></span>
+
+</div>
+
+<div class="sync-choice-info">
+
+<div class="sync-choice-title">
+
+<span>Copy Over</span>
+
+</div>
+
+<div class="sync-choice-desc">
+
+Copies all blog files to the new folder, keeping your old folder intact.
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Choice 3: No -->
+
+<div class="sync-choice-card" id="choice-carry-no" role="button" tabindex="0">
+
+<div class="sync-choice-radio-wrap">
+
+<span class="sync-choice-radio"></span>
+
+</div>
+
+<div class="sync-choice-info">
+
+<div class="sync-choice-title">
+
+<span>No, Just Point at New Spot</span>
+
+</div>
+
+<div class="sync-choice-desc">
+
+Simply points your blog at the new spot without copying or moving any files.
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-carry-cancel" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-sync-carry-confirm">Continue</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal 4: Existing Cedar Folder Detected -->
+
+<div class="modal-overlay" id="modal-sync-existing-cedar" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 530px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Cedar Folder Detected</h2>
+
+<p class="modal-desc">Target: <strong id="sync-existing-folder-name" class="sync-folder-highlight">📁 [Folder]</strong></p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal id="btn-close-sync-existing">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<div style="display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.85rem;">
+
+<span style="font-size: 1.5rem; line-height: 1;">💡</span>
+
+<div>
+
+<p style="color: var(--text-primary, #f4f4f5); font-size: 0.98rem; font-weight: 700; line-height: 1.45; margin: 0 0 0.35rem 0;">
+
+Hey, you're pointing me at a Cedar folder!
+
+</p>
+
+<p style="color: var(--text-secondary, #a1a1aa); font-size: 0.85rem; line-height: 1.5; margin: 0;">
+
+Do you want to save what you have now and start using this instance?
+
+</p>
+
+</div>
+
+</div>
+
+<div class="sync-callout-box warning" style="margin-bottom: 1rem;">
+
+<span>This target folder already contains a Cedar blog. Switching to it will load its existing posts, pages, and configuration.</span>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-existing-dont-change" data-close-modal>Don't Change</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-existing-no-save">Change without Saving</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-sync-existing-save-export">Change while exporting</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal 5: Remove / Disconnect Local Storage Confirmation -->
+
+<div class="modal-overlay" id="modal-sync-remove-confirm" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 490px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div>
+
+<h2 class="modal-title">Disconnect Local Storage</h2>
+
+<p class="modal-desc">Disconnecting from: <strong id="sync-remove-folder-name" class="sync-folder-highlight">📁 [Folder]</strong></p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal id="btn-close-sync-remove">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="color: var(--text-primary, #f4f4f5); font-size: 0.95rem; font-weight: 600; line-height: 1.5; margin-bottom: 0.35rem;">
+
+Are you sure you want to disconnect from this local folder?
+
+</p>
+
+<div id="sync-remove-explanation" style="font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary, #a1a1aa); margin-bottom: 0.75rem;">
+
+Disconnecting unassigns this local folder. Your files on disk will remain untouched.
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-remove-cancel" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-danger btn-sm" id="btn-sync-remove-do-disconnect">Disconnect Local Storage</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal 6: Firefox & Server Bridge Directory Picker -->
+
+<div class="modal-overlay" id="modal-sync-bridge-picker" style="display: none; z-index: 10060;">
+
+<div class="modal-card modal-sm" style="max-width: 530px; border-radius: 12px;">
+
+<div class="modal-header">
+
+<div>
+
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+
+<span style="font-size: 1.2rem;">🦊</span>
+
+<h2 class="modal-title">Assign Local Storage Folder</h2>
+
+</div>
+
+<p class="modal-desc">
+
+Mozilla Firefox &amp; Local Server Sync Bridge
+
+</p>
+
+</div>
+
+<button type="button" class="modal-close-btn" data-close-modal id="btn-close-sync-bridge">&times;</button>
+
+</div>
+
+<div class="modal-body">
+
+<p style="color: var(--text-secondary, #a1a1aa); font-size: 0.88rem; line-height: 1.5; margin-bottom: 0.85rem;">
+
+Mozilla Firefox does not allow web pages to invoke browser directory pickers directly. Because Cedar is running with Python locally on your computer, Cedar can sync directly with any folder on your hard drive!
+
+</p>
+
+<div class="form-group" style="margin-bottom: 0.75rem;">
+
+<label class="form-label" for="input-sync-bridge-path" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+
+<span>Target Blog Folder Path:</span>
+
+<button type="button" class="btn btn-xs btn-secondary" id="btn-sync-bridge-browse" style="padding: 2px 8px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;">
+
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+
+<span>Browse Computer...</span>
+
+</button>
+
+</label>
+
+<input type="text" id="input-sync-bridge-path" class="form-input" placeholder="e.g. C:\Users\YourName\Documents\MyBlog" spellcheck="false" autocomplete="off">
+
+</div>
+
+<!-- Quick 1-click helper -->
+
+<div style="margin-bottom: 0.85rem;">
+
+<button type="button" class="btn btn-xs btn-ghost" id="btn-sync-bridge-use-current" style="font-size: 0.75rem; color: var(--accent-primary, #6366f1); padding: 4px 6px; display: inline-flex; align-items: center; gap: 4px;">
+
+<span>💡 Quick Pick:</span>
+
+<span id="label-sync-bridge-current-path" style="text-decoration: underline; font-family: monospace;">Use Current Cedar Directory</span>
+
+</button>
+
+</div>
+
+<div id="sync-bridge-feedback" class="sync-callout-box warning" style="display: none; margin-bottom: 0.5rem; font-size: 0.82rem;">
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-sync-bridge-cancel" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-sync-bridge-continue">
+
+<span>Continue</span>
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Category Change & URL Link Warning -->
+
+<div class="modal-overlay" id="modal-category-warning" style="display: none; z-index: 10070;" role="dialog" aria-modal="true">
+
+<div class="modal-card modal-sm" style="max-width: 480px; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.65); border: 1px solid var(--border-color, rgba(255,255,255,0.12));">
+
+<div class="modal-header" style="align-items: flex-start; padding-bottom: 0.75rem;">
+
+<div style="display: flex; align-items: center; gap: 10px;">
+
+<div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; color: #ef4444; flex-shrink: 0;">
+
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+
+<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+
+<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+
+<line x1="8" y1="12" x2="16" y2="12"></line>
+
+</svg>
+
+</div>
+
+<div>
+
+<h2 class="modal-title" style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary, #fff); margin: 0 0 2px;">URL Link Warning</h2>
+
+<p class="modal-desc" style="font-size: 0.8rem; color: var(--text-muted, #a1a1aa); margin: 0;">This post has already been published</p>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-cat-warn-modal" title="Cancel">&times;</button>
+
+</div>
+
+<div class="modal-body" style="padding-top: 0.5rem; padding-bottom: 0.75rem;">
+
+<p style="font-size: 0.92rem; color: var(--text-primary, #e4e4e7); line-height: 1.5; margin: 0 0 1rem;">
+
+Updating the category after the post gets uploaded will break existing links. Do you want to update the category without changing the URL?
+
+</p>
+
+<!-- Informative URL diff comparison -->
+
+<div style="background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 0.5rem; font-size: 0.82rem; font-family: monospace;">
+
+<div style="margin-bottom: 0.4rem; color: var(--text-muted, #a1a1aa); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+
+<span style="font-family: inherit; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">Current URL:</span>
+
+<span style="color: #60a5fa; word-break: break-all; text-align: right;" id="cat-warn-current-url">/uncategorized/post-slug/</span>
+
+</div>
+
+<div style="color: var(--text-muted, #a1a1aa); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+
+<span style="font-family: inherit; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">New URL (if changed):</span>
+
+<span style="color: #f87171; word-break: break-all; text-align: right;" id="cat-warn-new-url">/category/post-slug/</span>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.75rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cat-warn-cancel">Cancel</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cat-warn-keep" style="border-color: #3b82f6; color: #60a5fa; font-weight: 500;">Keep URL</button>
+
+<button type="button" class="btn btn-danger btn-sm" id="btn-cat-warn-change" style="font-weight: 500;">Change URL</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Add Page or Category Choice -->
+
+<div class="modal-overlay" id="modal-add-page-choice" style="display: none; z-index: 100050;" role="dialog" aria-modal="true">
+
+<div class="modal-card modal-sm" style="max-width: 500px; border-radius: 12px; overflow: hidden;">
+
+<div class="modal-header">
+
+<div style="display: flex; align-items: center; gap: 0.75rem;">
+
+<div id="add-page-modal-icon-wrap" style="color: var(--accent-primary, #60a5fa); display: flex; align-items: center;">
+
+<svg id="add-page-modal-icon-page" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+
+<polyline points="14 2 14 8 20 8"></polyline>
+
+<line x1="12" y1="18" x2="12" y2="12"></line>
+
+<line x1="9" y1="15" x2="15" y2="15"></line>
+
+</svg>
+
+<svg id="add-page-modal-icon-redirect" style="display: none;" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+<svg id="add-page-modal-icon-cat" style="display: none;" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+
+<line x1="7" y1="7" x2="7.01" y2="7"></line>
+
+</svg>
+
+</div>
+
+<div>
+
+<h2 class="modal-title" id="add-page-modal-title" style="margin: 0; font-size: 1.15rem; font-weight: 700;">Add Page</h2>
+
+<p class="modal-desc" id="add-page-modal-desc" style="display: none; margin: 0;"></p>
+
+</div>
+
+</div>
+
+<button type="button" class="modal-close-btn" id="btn-close-add-page-choice" data-close-modal title="Close">&times;</button>
+
+</div>
+
+<!-- Step 1: Selection Cards -->
+
+<div class="modal-body" id="add-page-step-choice" style="padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.85rem;">
+
+<button type="button" class="add-page-choice-card" id="btn-choice-static-page">
+
+<div class="choice-card-icon choice-icon-static">
+
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+
+<polyline points="14 2 14 8 20 8"></polyline>
+
+<line x1="16" y1="13" x2="8" y2="13"></line>
+
+<line x1="16" y1="17" x2="8" y2="17"></line>
+
+<line x1="10" y1="9" x2="8" y2="9"></line>
+
+</svg>
+
+</div>
+
+<div class="choice-card-text">
+
+<div class="choice-card-title">Static Page</div>
+
+<div class="choice-card-sub">Custom standalone page with its own layout, content, and blocks.</div>
+
+</div>
+
+<div class="choice-card-arrow">&rarr;</div>
+
+</button>
+
+<button type="button" class="add-page-choice-card" id="btn-choice-category">
+          <div class="choice-card-icon choice-icon-category">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+              <line x1="7" y1="7" x2="7.01" y2="7"></line>
+            </svg>
+          </div>
+          <div class="choice-card-text">
+            <div class="choice-card-title">Category</div>
+            <div class="choice-card-sub">Topic category for grouping posts, with an auto-generated aggregate feed page.</div>
+          </div>
+          <div class="choice-card-arrow">&rarr;</div>
+        </button>
+
+        <button type="button" class="add-page-choice-card" id="btn-choice-redirect">
+          <div class="choice-card-icon choice-icon-redirect">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </div>
+          <div class="choice-card-text">
+            <div class="choice-card-title">Redirect</div>
+            <div class="choice-card-sub">Link directly to an external website, portfolio, shop, or bookmark.</div>
+          </div>
+          <div class="choice-card-arrow">&rarr;</div>
+        </button>
+      </div>
+
+<!-- Step 2: Category Name Input -->
+
+<div class="modal-body" id="add-page-step-category" style="display: none; padding: 1.5rem 1.75rem; flex-direction: column; gap: 0.85rem;">
+
+<div style="width: 100%;">
+
+<label for="input-add-page-cat-name" style="display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.55rem; color: var(--text-primary, #ffffff);">Category Name</label>
+
+<input type="text" id="input-add-page-cat-name" class="modal-input" placeholder="e.g. Technology, Essays, Photos" maxlength="50" autocomplete="off" spellcheck="false">
+
+</div>
+
+</div>
+      <!-- Step 3: Redirect Name & URL Input -->
+      <div class="modal-body" id="add-page-step-redirect" style="display: none; padding: 1.5rem 1.75rem; flex-direction: column; gap: 1rem;">
+        <div style="width: 100%;">
+          <label for="input-add-page-redirect-title" style="display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.45rem; color: var(--text-primary, #ffffff);">Page Name</label>
+          <input type="text" id="input-add-page-redirect-title" class="modal-input" placeholder="e.g. Portfolio, Store, Main Site" maxlength="60" autocomplete="off" spellcheck="false">
+        </div>
+        <div style="width: 100%;">
+          <label for="input-add-page-redirect-url" style="display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.45rem; color: var(--text-primary, #ffffff);">Bookmark / Target URL</label>
+          <input type="text" id="input-add-page-redirect-url" class="modal-input" placeholder="https://example.com" autocomplete="off" spellcheck="false">
+          <span style="font-size: 0.78rem; color: var(--text-muted, #94a3b8); margin-top: 0.35rem; display: block;">Visitors clicking this page in the navigation bar will be redirected to this link.</span>
+        </div>
+      </div>
+
+<div class="modal-footer" id="add-page-modal-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 0.6rem; padding: 0.9rem 1.5rem;">
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-add-page-choice" data-close-modal>Cancel</button>
+
+<button type="button" class="btn btn-secondary btn-sm" id="btn-back-add-page-choice" style="display: none;">&larr; Back</button>
+
+<button type="button" class="btn btn-primary btn-sm" id="btn-submit-new-category" style="display: none;">Create Category</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-submit-new-redirect" style="display: none;">Create Redirect</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Modal: Generic In-App Confirmation Dialog -->
+  <div class="modal-overlay" id="modal-app-confirm" style="display: none; z-index: 100060;" role="dialog" aria-modal="true">
+    <div class="modal-card modal-sm" style="max-width: 440px; border-radius: 12px; background: var(--bg-secondary, #18181b); border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12)); box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 1.15rem 1.4rem; border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div style="color: #ef4444; display: flex; align-items: center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </div>
+          <h2 class="modal-title" id="app-confirm-title" style="margin: 0; font-size: 1.12rem; font-weight: 700; color: var(--text-primary, #ffffff);">Are you sure?</h2>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-app-confirm-close" title="Close" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-muted, #71717a); line-height: 1;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem 1.4rem;">
+        <p id="app-confirm-message" style="font-size: 0.92rem; line-height: 1.5; color: var(--text-primary, #f4f4f5); margin: 0;">Are you sure you want to proceed?</p>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding: 0.9rem 1.4rem 1.15rem; border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));">
+        <button type="button" class="btn btn-secondary" id="btn-app-confirm-cancel" style="padding: 6px 14px; border-radius: 6px; font-weight: 500;">Cancel</button>
+        <button type="button" class="btn btn-danger" id="btn-app-confirm-ok" style="background: #ef4444; color: #fff; border: 1px solid #dc2626; padding: 6px 14px; border-radius: 6px; font-weight: 600;">Delete</button>
+      </div>
+    </div>
+  </div>

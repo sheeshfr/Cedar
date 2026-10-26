@@ -1,0 +1,404 @@
+  <div class="modal-overlay" id="modal-export" style="display: none;">
+    <div class="modal-card modal-lg modal-export-card">
+      <span id="export-modal-title" style="display: none;">Post Settings</span>
+
+      <div class="modal-body">
+        <!-- Main Menu: Post Settings (Default) -->
+        <div class="export-tab-panel active" id="tab-publish-setup">
+          
+          <!-- Top Header: Title, Stats and Close Button -->
+          <div class="publish-drawer-top-header setup-url-preview-card">
+            <div class="publish-drawer-header-left">
+              <h3 id="modal-settings-heading">Post Settings</h3>
+              <span class="setup-stats-text" id="export-badge-stats">0 min read · 0 words · 0 characters</span>
+            </div>
+            <button type="button" class="publish-drawer-close-btn modal-close-btn" data-close-modal title="Close" aria-label="Close">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <span id="url-preview-domain" style="display: none;"></span>
+            <span id="url-preview-slug" style="display: none;"></span>
+          </div>
+
+          <!-- Featured Image Studio (Full Width, Top) -->
+          <div class="setup-group setup-featured-img-group" id="setup-featured-img-group">
+            <div class="setup-group-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <label class="setup-label" style="margin-bottom: 0;">Featured Image</label>
+              <div class="featured-img-cycle-controls" id="featured-img-cycle-controls">
+                <button type="button" class="btn-cycle-arrow" id="btn-cycle-prev-img" title="Previous image in article" aria-label="Previous image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <span class="featured-img-cycle-count" id="featured-img-cycle-count">(0/0)</span>
+                <button type="button" class="btn-cycle-arrow" id="btn-cycle-next-img" title="Next image in article" aria-label="Next image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            
+            <div class="featured-image-card">
+              <div class="featured-img-preview-box" id="featured-img-preview-box" title="Click to view full size and choose featured image" tabindex="0" role="button" aria-label="View featured image lightbox">
+                <img id="setup-featured-img" src="" alt="" style="display: none;">
+                <div class="featured-img-empty" id="setup-featured-img-empty">
+                  <span>✍️ No image selected</span>
+                </div>
+              </div>
+
+              <div class="featured-img-actions">
+                <label class="btn btn-sm btn-secondary file-upload-btn" id="btn-browse-featured-img" title="Upload custom image from computer">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: -1px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                  Custom Image
+                  <input type="file" id="setup-browse-img-input" accept="image/*" style="display: none;">
+                </label>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-reset-featured-img" title="Reset to first image from post">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: -1px;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Title -->
+          <div class="setup-group setup-title-group" style="margin-bottom: 0.65rem;">
+            <label class="setup-label" for="setup-post-title">Title</label>
+            <textarea class="setup-input setup-input-title" id="setup-post-title" rows="2" placeholder="Enter article title..."></textarea>
+          </div>
+
+          <!-- Subtitle -->
+          <div class="setup-group setup-subtitle-group" style="margin-bottom: 0.65rem;">
+            <label class="setup-label" for="setup-post-subtitle">Subtitle</label>
+            <textarea class="setup-input setup-textarea-subtitle" id="setup-post-subtitle" rows="2" placeholder="Brief summary for cards and previews..."></textarea>
+          </div>
+
+          <!-- Page Header Visibility Sliders (Page Settings Only) -->
+          <div class="setup-group page-setting-only setup-page-visibility-group" id="setup-page-visibility-group" style="display: none; margin-bottom: 0.75rem;">
+            <div class="setup-page-visibility-card">
+              <!-- Title Visibility Slider -->
+              <div class="setup-visibility-item">
+                <div class="setup-visibility-info">
+                  <span class="setup-visibility-title">Title Visibility</span>
+                  <span class="setup-visibility-desc">Display title on page</span>
+                </div>
+                <label class="pages-switch" title="Toggle Title Visibility on Page">
+                  <input type="checkbox" id="setup-toggle-show-title" checked>
+                  <span class="pages-switch-slider"></span>
+                </label>
+              </div>
+              <div class="setup-visibility-divider"></div>
+              <!-- Subtitle Visibility Slider -->
+              <div class="setup-visibility-item">
+                <div class="setup-visibility-info">
+                  <span class="setup-visibility-title">Subtitle Visibility</span>
+                  <span class="setup-visibility-desc">Display subtitle on page</span>
+                </div>
+                <label class="pages-switch" title="Toggle Subtitle Visibility on Page">
+                  <input type="checkbox" id="setup-toggle-show-subtitle" checked>
+                  <span class="pages-switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Featured Story Toggle (Posts Only) -->
+          <div class="setup-group post-setting-only setup-featured-group" id="setup-featured-group" style="margin-bottom: 0.75rem; display: none;">
+            <div class="setup-visibility-item setup-featured-story-card" id="setup-featured-story-card">
+              <div class="setup-visibility-info">
+                <div class="setup-featured-title-wrap">
+                  <span class="setup-featured-star-icon" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="1.5">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                  </span>
+                  <span class="setup-visibility-title setup-featured-title">Featured Story</span>
+                  <span class="setup-featured-badge">SPOTLIGHT</span>
+                </div>
+                <span class="setup-visibility-desc setup-featured-desc">Highlight this story in the homepage spotlight banner</span>
+              </div>
+              <label class="pages-switch pages-switch-gold" title="Toggle Featured Story">
+                <input type="checkbox" id="setup-toggle-featured">
+                <span class="pages-switch-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Meta Fields Grid: Author, Category, Publish Date, Slug -->
+          <div class="publish-setup-two-col-row publish-setup-fields-grid" id="setup-fields-grid">
+            <!-- Authors Dropdown (Left for post) -->
+            <div class="setup-group setup-author-group" id="setup-author-group">
+              <div class="setup-group-header">
+                <label class="setup-label" for="setup-author-dropdown-btn">Author</label>
+                <button type="button" class="btn-setup-inline-action" id="btn-setup-manage-authors" title="Manage authors (opens in new window)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                  <span>Manage Authors</span>
+
+                </button>
+              </div>
+              <div class="setup-author-dropdown-wrap" id="setup-author-dropdown-wrap">
+                <button type="button" class="setup-dropdown-trigger setup-input" id="setup-author-dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="setup-dropdown-value" id="setup-author-selected-text">Select author...</span>
+                  <svg class="setup-dropdown-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div class="setup-dropdown-menu" id="setup-author-dropdown-menu" style="display: none;">
+                  <div class="setup-author-menu-list" id="setup-author-chips">
+                    <!-- Populated dynamically with author checkboxes -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category Dropdown (Right for post, Left for page) -->
+            <div class="setup-group setup-category-group" id="setup-category-group">
+              <div class="setup-group-header">
+                <label class="setup-label" for="setup-category-dropdown-btn">Category</label>
+
+<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 2px; opacity: 0.65;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </button>
+              </div>
+              <div class="setup-category-dropdown-wrap" id="setup-category-dropdown-wrap">
+                <button type="button" class="setup-dropdown-trigger setup-input" id="setup-category-dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="setup-dropdown-value" id="setup-category-selected-text">Select category...</span>
+                  <svg class="setup-dropdown-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div class="setup-dropdown-menu" id="setup-category-dropdown-menu" style="display: none;">
+                  <div class="setup-category-menu-list" id="setup-category-chips">
+                    <!-- Populated dynamically with category checkboxes -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Publish Date (Left for post, hidden for page) -->
+            <div class="setup-group setup-date-group" id="setup-date-group">
+              <div class="setup-group-header">
+                <label class="setup-label" for="setup-post-date">Publish Date</label>
+                <span class="setup-date-badge date-badge-edited" id="pill-edited-on" style="display: none;">Edited&nbsp;<strong id="val-edited-on"></strong></span>
+              </div>
+              <input type="date" class="setup-input" id="setup-post-date">
+              <div class="setup-date-meta-badges" id="setup-date-meta-badges" style="display: none;"></div>
+            </div>
+
+            <!-- Slug (Right for post, Right for page) -->
+            <div class="setup-group setup-slug-group" id="setup-slug-group">
+              <div class="setup-group-header">
+                <label class="setup-label" for="setup-post-slug">Slug</label>
+
+              </div>
+              <div class="setup-slug-input-wrap">
+                <input type="text" class="setup-input" id="setup-post-slug" placeholder="my-awesome-post">
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons (Sitting underneath the slug area, not attached to bottom) -->
+          <div class="publish-setup-actions-row" id="export-modal-footer">
+            <div class="modal-footer-left">
+              <button type="button" class="btn btn-secondary" id="btn-open-full-preview" title="Open rendered article in a new tab">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                <span>Open Preview</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-delete-page" id="btn-export-delete-page" title="Delete this page" style="display: none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+                <span>Delete Page</span>
+              </button>
+            </div>
+            <div class="modal-footer-right">
+              <button type="button" class="btn btn-secondary" id="btn-export-close" data-close-modal>Close</button>
+              <button type="button" class="btn btn-primary btn-publish-modal-action" id="btn-publish-post-footer">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                <span id="label-publish-post-footer">Publish Post</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optional Secondary Menu: Code Formats -->
+        <div class="export-tab-panel" id="tab-code-export" style="display: none;">
+          <div class="export-step-box" style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div class="step-badge">Code Formats</div>
+              <p class="step-instructions">
+                All raw code snippets, generated standalone files, and machine-readable backups. Code previews are hidden by default to keep things clean.
+              </p>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary btn-back-to-setup" title="Return to Post Settings">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              <span>Back</span>
+            </button>
+          </div>
+
+          <div class="code-format-cards">
+            <!-- Format 1: Standalone HTML Page -->
+            <div class="code-format-card">
+              <div class="format-card-header">
+                <div class="format-info">
+                  <div class="format-title">
+                    <span class="format-icon">📄</span>
+                    <strong>Standalone Article Page (<code>index.html</code>)</strong>
+                  </div>
+                  <div class="format-desc">Complete standalone page with header, footer, SEO meta tags, and open graph markup.</div>
+                  <code class="format-path" id="export-target-path-card">blog/slug/index.html</code>
+                </div>
+                <div class="format-actions">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-download-html-code-card">
+                    Download <code>index.html</code>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-copy-html">
+                    📋 Copy HTML
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline btn-toggle-code" data-toggle-target="export-html-code-wrap">
+                    👁️ Show Code
+                  </button>
+                </div>
+              </div>
+              <div class="code-preview-wrap" id="export-html-code-wrap" style="display: none;">
+                <pre><code id="export-html-code" class="code-box"></code></pre>
+              </div>
+            </div>
+
+            <!-- Format 2: Blog Card Snippet -->
+            <div class="code-format-card">
+              <div class="format-card-header">
+                <div class="format-info">
+                  <div class="format-title">
+                    <span class="format-icon">🗂️</span>
+                    <strong>Blog Feed Card Snippet</strong>
+                  </div>
+                  <div class="format-desc">Card component markup for the blog index grid (<code>#blog-grid</code>).</div>
+                </div>
+                <div class="format-actions">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-copy-blog-card-2">
+                    📋 Copy Snippet
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline btn-toggle-code" data-toggle-target="export-blog-card-code-2-wrap">
+                    👁️ Show Code
+                  </button>
+                </div>
+              </div>
+              <div class="code-preview-wrap" id="export-blog-card-code-2-wrap" style="display: none;">
+                <pre><code id="export-blog-card-code-2" class="code-box"></code></pre>
+              </div>
+            </div>
+
+            <!-- Format 3: Featured Banner Snippet -->
+            <div class="code-format-card">
+              <div class="format-card-header">
+                <div class="format-info">
+                  <div class="format-title">
+                    <span class="format-icon">⭐</span>
+                    <strong>Featured Banner Snippet</strong>
+                  </div>
+                  <div class="format-desc">Hero banner markup for top spotlight placement (<code>#featured-section</code>).</div>
+                </div>
+                <div class="format-actions">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-copy-featured-card-2">
+                    📋 Copy Snippet
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline btn-toggle-code" data-toggle-target="export-featured-card-code-2-wrap">
+                    👁️ Show Code
+                  </button>
+                </div>
+              </div>
+              <div class="code-preview-wrap" id="export-featured-card-code-2-wrap" style="display: none;">
+                <pre><code id="export-featured-card-code-2" class="code-box"></code></pre>
+              </div>
+            </div>
+
+            <!-- Format 4: Markdown with YAML Frontmatter -->
+            <div class="code-format-card">
+              <div class="format-card-header">
+                <div class="format-info">
+                  <div class="format-title">
+                    <span class="format-icon">📝</span>
+                    <strong>Markdown + YAML Frontmatter (<code>.md</code>)</strong>
+                  </div>
+                  <div class="format-desc">Universal Markdown file with title, slug, canonical, tags, and date frontmatter.</div>
+                </div>
+                <div class="format-actions">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-download-md">
+                    Download <code>.md</code>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-copy-markdown">
+                    📋 Copy Markdown
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline btn-toggle-code" data-toggle-target="export-markdown-code-wrap">
+                    👁️ Show Code
+                  </button>
+                </div>
+              </div>
+              <div class="code-preview-wrap" id="export-markdown-code-wrap" style="display: none;">
+                <pre><code id="export-markdown-code" class="code-box"></code></pre>
+              </div>
+            </div>
+
+            <!-- Format 5: JSON Draft Backup -->
+            <div class="code-format-card">
+              <div class="format-card-header">
+                <div class="format-info">
+                  <div class="format-title">
+                    <span class="format-icon">💾</span>
+                    <strong>Complete Draft State (<code>.json</code>)</strong>
+                  </div>
+                  <div class="format-desc">Raw JSON data with complete post state, metadata, and history for easy import on any device.</div>
+                </div>
+                <div class="format-actions">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-download-json">
+                    Download <code>.json</code> Draft
+                  </button>
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-copy-json">
+                    📋 Copy JSON
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline btn-toggle-code" data-toggle-target="export-json-code-wrap">
+                    👁️ Show Code
+                  </button>
+                </div>
+              </div>
+              <div class="code-preview-wrap" id="export-json-code-wrap" style="display: none;">
+                <pre><code id="export-json-code" class="code-box"></code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Featured Image Fullscreen Lightbox / Selector -->
+  <div class="featured-img-lightbox-overlay" id="modal-featured-img-lightbox" style="display: none;">
+    <div class="lightbox-stage">
+      <!-- Left Navigation Arrow -->
+      <button type="button" class="lightbox-arrow lightbox-arrow-prev" id="lightbox-btn-prev" title="Previous image (Left arrow)" aria-label="Previous image">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+
+      <!-- Center Card Stage -->
+      <div class="lightbox-card-container" id="lightbox-card-container">
+        <div class="lightbox-img-wrap">
+          <img id="lightbox-img-el" src="" alt="" loading="eager">
+        </div>
+        
+        <!-- Footer Toolbar below image -->
+        <div class="lightbox-toolbar">
+          <span class="lightbox-count" id="lightbox-cycle-count">1 / 1</span>
+          <div class="lightbox-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="lightbox-btn-cancel">Cancel</button>
+            <button type="button" class="btn btn-primary btn-sm" id="lightbox-btn-confirm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px; vertical-align: -1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              This One
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Navigation Arrow -->
+      <button type="button" class="lightbox-arrow lightbox-arrow-next" id="lightbox-btn-next" title="Next image (Right arrow)" aria-label="Next image">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </div>
+  </div>

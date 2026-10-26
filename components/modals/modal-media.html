@@ -1,0 +1,30 @@
+  <div class="modal-overlay" id="modal-images" style="display: none;">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Post Images & Sanitizer</h2>
+          <p class="modal-desc" id="img-mgr-count-label">0 image(s) attached</p>
+        </div>
+        <button type="button" class="modal-close-btn" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="image-manager-dropzone" id="img-mgr-dropzone">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          <p class="drop-text">Drag & drop images here to automatically sanitize EXIF and optimize</p>
+          <label class="btn btn-sm btn-secondary file-upload-btn">
+            Browse Image
+            <input type="file" id="img-mgr-file-input" accept="image/*" multiple style="display: none;">
+          </label>
+        </div>
+
+        <div class="img-manager-grid" id="img-manager-grid">
+          <!-- Dynamically populated image cards -->
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>

@@ -1,0 +1,359 @@
+<!-- =========================================================================
+     CEDAR FIRST TIME USER EXPERIENCE (FTUE) ONBOARDING WIZARD
+     Triggered on Blank Slate Detection & Nuclear Factory Reset
+     ========================================================================= -->
+<div class="modal-ftue-overlay modal-ftue-backdrop" id="modal-ftue" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="ftue-heading">
+  <div class="modal-dialog modal-ftue-dialog">
+    <div class="modal-content ftue-modal-content">
+
+      <!-- Close Setup (Only active in recovery modes) -->
+      <button type="button" class="ftue-close-btn" id="ftue-btn-close" title="Close Setup" style="display: none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+      </button>
+
+      <!-- =====================================================================
+           SCREEN 0: UNSUPPORTED BROWSER (Safari, Firefox on web)
+           ===================================================================== -->
+      <div class="ftue-screen" id="ftue-screen-unsupported" style="display: none;">
+        <div class="ftue-hero-lamp">
+          <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem auto; color: #f59e0b;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="12" y1="9" x2="12.01" y2="9"></line></svg>
+          </div>
+        </div>
+
+        <h1 class="ftue-title">Local Folder Access Required</h1>
+        <p class="ftue-lead">
+          Cedar is built on 100% local data ownership. Your entire blog is saved directly to a real folder on your computer—never in temporary browser cache.
+        </p>
+
+        <div class="ftue-callout callout-legacy" style="margin: 1.5rem 0; text-align: left;">
+          <div class="ftue-callout-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <div class="ftue-callout-text" style="font-size: 0.88rem; line-height: 1.5;">
+            To allow Cedar to create and manage blog folders directly on your disk, please open this page in <strong>Chrome, Edge or most Chromium-based browsers like Vivaldi</strong>.
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-primary" id="ftue-btn-copy-link">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span>Copy Link</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- =====================================================================
+           SCREEN 1: PATH CHOICE (Create New vs Import)
+           ===================================================================== -->
+      <div class="ftue-screen" id="ftue-screen-choice">
+        <div class="ftue-hero-lamp">
+          <img src="images/Lamp.png" alt="Cedar Tree" class="ftue-lamp-img">
+        </div>
+
+        <h1 class="ftue-title" id="ftue-heading">Signal Established. Welcome to Cedar.</h1>
+        <p class="ftue-lead">
+          An off-grid writing post. Stake your ground.
+        </p>
+
+        <div class="ftue-choice-grid">
+          <!-- Choice A: Create New Blog -->
+          <div class="ftue-choice-card" id="ftue-card-new" tabindex="0" role="button">
+            <div class="ftue-choice-card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+            </div>
+            <div class="ftue-choice-card-body">
+              <h3 class="ftue-choice-card-title">Create a New Blog</h3>
+              <p class="ftue-choice-card-desc">
+                Start fresh with a blank canvas. Name your blog, and Cedar will create your dedicated blog folder on your machine.
+              </p>
+            </div>
+            <div class="ftue-choice-card-action">
+              <span>Get Started</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </div>
+          </div>
+
+          <!-- Choice B: Import Existing Blog -->
+          <div class="ftue-choice-card" id="ftue-card-import" tabindex="0" role="button">
+            <div class="ftue-choice-card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            </div>
+            <div class="ftue-choice-card-body">
+              <h3 class="ftue-choice-card-title">Import an Existing Blog</h3>
+              <p class="ftue-choice-card-desc">
+                Open an existing blog folder from your computer, or unzip an archive into a new local blog directory.
+              </p>
+            </div>
+            <div class="ftue-choice-card-action">
+              <span>Select Archive or Folder</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =====================================================================
+           SCREEN 2A: CREATE NEW BLOG DETAILS
+           ===================================================================== -->
+      <div class="ftue-screen" id="ftue-screen-new" style="display: none;">
+        <form id="ftue-form-new" class="ftue-form" onsubmit="return false;">
+          <!-- 1. Title (Required) -->
+          <div class="ftue-form-group">
+            <label for="ftue-site-title" class="ftue-label">
+              Title <span class="ftue-required-star" title="Required">*</span>
+            </label>
+            <input type="text" id="ftue-site-title" class="ftue-input" autocomplete="off" required>
+            <div class="ftue-validation-error" id="ftue-title-error" style="display: none;">
+              Please enter a blog title to proceed.
+            </div>
+          </div>
+
+          <!-- 2. Author Name (Required) -->
+          <div class="ftue-form-group">
+            <label for="ftue-site-author" class="ftue-label">
+              Author Name <span class="ftue-required-star" title="Required">*</span>
+            </label>
+            <input type="text" id="ftue-site-author" class="ftue-input" autocomplete="off" required>
+            <div class="ftue-validation-error" id="ftue-author-error" style="display: none;">
+              Please enter an author name to proceed.
+            </div>
+          </div>
+
+          <!-- 3. Author Bio -->
+          <div class="ftue-form-group">
+            <label for="ftue-site-bio" class="ftue-label">
+              Author Bio
+            </label>
+            <textarea id="ftue-site-bio" class="ftue-input ftue-textarea-2lines" rows="2"></textarea>
+          </div>
+
+          <!-- 4. Blog Folder Location (Required) -->
+          <div class="ftue-form-group" id="ftue-folder-group">
+            <label for="ftue-folder-location-input" class="ftue-label">
+              Blog Folder Location <span class="ftue-required-star" title="Required">*</span>
+            </label>
+            <div class="ftue-folder-browse-bar">
+              <div class="ftue-folder-path-display-wrap">
+                <span class="ftue-folder-path-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                </span>
+                <input type="text" id="ftue-folder-location-input" class="ftue-input ftue-folder-input" readonly placeholder="Select a folder on your computer..." title="Blog workspace destination">
+              </div>
+              <button type="button" class="btn btn-secondary ftue-btn-browse-folder" id="ftue-btn-browse-folder" title="Browse for destination folder">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                <span>Browse...</span>
+              </button>
+            </div>
+            <div class="ftue-folder-target-badge" id="ftue-folder-target-badge">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              <span>Cedar will create: <strong id="ftue-preview-folder-name">[Title] - a Cedar blog</strong> in this directory</span>
+            </div>
+            <div class="ftue-validation-error" id="ftue-folder-error" style="display: none;">
+              A folder location on your computer is required to save your blog workspace.
+            </div>
+          </div>
+
+          <!-- 5. Brand Logo -->
+          <div class="ftue-form-group">
+            <label class="ftue-label">
+              Brand Logo
+            </label>
+            <div class="ftue-logo-dropzone" id="ftue-logo-dropzone">
+              <input type="file" id="ftue-logo-file-input" accept="image/*" style="display: none;">
+              
+              <!-- Drag Feedback Overlay (Active during dragover & drop errors) -->
+              <div class="ftue-logo-drag-overlay" id="ftue-logo-drag-overlay" style="display: none;" aria-live="polite">
+                <div class="ftue-drag-feedback-content">
+                  <div class="ftue-drag-feedback-icon" id="ftue-drag-feedback-icon"></div>
+                  <div class="ftue-drag-feedback-title" id="ftue-drag-feedback-title">Okay to release</div>
+                  <div class="ftue-drag-feedback-sub" id="ftue-drag-feedback-sub">Drop to set brand logo</div>
+                </div>
+              </div>
+
+              <!-- Empty State in Dropzone -->
+              <div class="ftue-logo-empty-state" id="ftue-logo-empty-state">
+                <div class="ftue-upload-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                </div>
+                <div class="ftue-upload-text">
+                  <span>Drop logo image here, or <strong>browse file</strong></span>
+                </div>
+                <div class="ftue-upload-sub">Supports images up to 1200x1200</div>
+              </div>
+
+              <!-- Preview State in Dropzone -->
+              <div class="ftue-logo-preview-state" id="ftue-logo-preview-state" style="display: none;">
+                <div class="ftue-logo-stage" id="ftue-logo-stage">
+                  <img id="ftue-logo-preview-img" src="" alt="Brand Logo Preview">
+                </div>
+                <div class="ftue-logo-preview-meta">
+                  <div class="ftue-logo-file-info">
+                    <span class="ftue-logo-file-name" id="ftue-logo-file-name">logo.png</span>
+                    <span class="ftue-logo-dims-badge" id="ftue-logo-dims-badge">--</span>
+                  </div>
+                  <div class="ftue-logo-preview-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" id="ftue-btn-change-logo">Change Image</button>
+                    <button type="button" class="btn btn-sm btn-danger-ghost" id="ftue-btn-remove-logo">Remove Image</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. System Timezone -->
+          <div class="ftue-tz-section" id="ftue-tz-section" style="margin-top: 1rem;">
+            <!-- 6A: Detected State (Shown when auto-detected) -->
+            <div class="ftue-tz-banner" id="ftue-tz-banner" style="display: none;">
+              <div class="ftue-tz-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              </div>
+              <div class="ftue-tz-content">
+                <div class="ftue-tz-title">
+                  Detected System Timezone: <strong id="ftue-tz-name">UTC</strong>
+                </div>
+                <div class="ftue-tz-time">
+                  Current Local Time: <span id="ftue-tz-clock">--:--</span> (Auto-configured)
+                </div>
+              </div>
+              <button type="button" class="ftue-tz-btn-toggle" id="ftue-btn-toggle-manual-tz" title="Choose a different timezone">Change</button>
+            </div>
+
+            <!-- 6B: Manual Selection State (Shown when system timezone cannot be detected) -->
+            <div class="ftue-tz-manual-box" id="ftue-tz-manual-box">
+              <div class="ftue-tz-manual-header">
+                <div class="ftue-tz-manual-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+                <div class="ftue-tz-manual-title-wrap">
+                  <div class="ftue-tz-manual-title">System Timezone Undetected</div>
+                </div>
+              </div>
+              <div class="ftue-tz-manual-select-wrap">
+                <select id="ftue-tz-select-main" class="ftue-input ftue-select ftue-tz-select-input"></select>
+              </div>
+              <div class="ftue-tz-manual-time-bar">
+                <span>Current Time for Selected Zone:</span>
+                <strong id="ftue-tz-manual-clock">--:--</strong>
+              </div>
+            </div>
+          </div>
+
+<!-- Primary Actions Bar -->
+          <div class="ftue-actions-bar">
+            <button type="button" class="btn btn-secondary btn-ftue-back" id="ftue-back-from-new">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              <span>Back</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-ftue-launch" id="ftue-btn-jump-in">
+              <span>Ready, Set, GO!</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- =====================================================================
+           SCREEN 2B: IMPORT EXISTING BLOG ARCHIVE OR FOLDER
+           ===================================================================== -->
+      <div class="ftue-screen" id="ftue-screen-import" style="display: none;">
+        <div class="ftue-screen-top">
+          <button type="button" class="ftue-back-btn" id="ftue-back-from-import">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <span>Back</span>
+          </button>
+        </div>
+
+        <h2 class="ftue-title">Import Existing Blog</h2>
+        <p class="ftue-lead">
+          Point directly to a local Cedar blog folder or select a <code>.zip</code> backup archive. Our migration engine inspects token compatibility and updates legacy structures automatically.
+        </p>
+
+        <!-- Source Selector: Segmented Pill Control -->
+        <div class="ftue-import-mode-bar" id="ftue-import-mode-bar" style="display: flex; justify-content: center; margin-bottom: 1.25rem;">
+          <div class="segmented-pills-container" id="ftue-import-type-control" role="tablist">
+            <button type="button" class="segmented-pill-btn is-active" id="ftue-tab-import-folder" role="tab" aria-selected="true" data-type="folder">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              <span>Blog Folder</span>
+            </button>
+            <button type="button" class="segmented-pill-btn" id="ftue-tab-import-zip" role="tab" aria-selected="false" data-type="zip">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+              <span>.ZIP Archive</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dropzone / Picker for Blog Folder -->
+        <div class="ftue-folder-dropzone" id="ftue-folder-dropzone">
+          <input type="file" id="ftue-folder-file-input" webkitdirectory directory style="display: none;">
+          <div class="ftue-upload-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <div class="ftue-upload-text">
+            <span>Select a local blog folder, or <strong>browse directory</strong></span>
+          </div>
+        </div>
+
+        <!-- Dropzone for Blog ZIP File -->
+        <div class="ftue-zip-dropzone" id="ftue-zip-dropzone" style="display: none;">
+          <input type="file" id="ftue-zip-file-input" accept=".zip,application/zip" style="display: none;">
+          <div class="ftue-upload-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </div>
+          <div class="ftue-upload-text">
+            <span>Drop your blog archive (<strong>.zip</strong>) here, or <strong>browse files</strong></span>
+          </div>
+        </div>
+
+        <!-- Inspection Result Container -->
+        <div class="ftue-inspection-container" id="ftue-inspection-container" style="display: none;">
+          <div class="ftue-inspection-meta-card">
+            <div class="ftue-inspection-meta-left">
+              <div class="ftue-inspection-filename" id="ftue-inspect-filename">blog_backup.zip</div>
+              <div class="ftue-inspection-stats" id="ftue-inspect-stats" style="display: none;"></div>
+            </div>
+            <div class="ftue-inspection-meta-right" style="display: none;">
+              <span class="ftue-token-badge" id="ftue-inspect-token-badge" style="display: none;"></span>
+            </div>
+          </div>
+
+          <!-- Dynamic Status Callout -->
+          <div class="ftue-callout" id="ftue-inspect-callout">
+            <div class="ftue-callout-icon" id="ftue-callout-icon">
+              <!-- Rendered dynamically: Check, Warning, or Error -->
+            </div>
+            <div class="ftue-callout-text" id="ftue-callout-text">
+              <!-- Message dynamically rendered -->
+            </div>
+          </div>
+
+          <!-- Inspection Action Buttons -->
+          <div class="ftue-inspection-actions">
+            <button type="button" class="btn btn-secondary" id="ftue-btn-choose-diff-zip">
+              Choose Another Archive
+            </button>
+            
+            <!-- Direct Clean Import Button (v125 - v150) -->
+            <button type="button" class="btn btn-primary" id="ftue-btn-direct-import" style="display: none;">
+              <span>Import Blog</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+
+            <!-- Translate & Import Button (< v125) -->
+            <button type="button" class="btn btn-primary btn-accent-amber" id="ftue-btn-translate-import" style="display: none;">
+              <span>Translate & Modernize Import</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Spinner & Status Bar -->
+        <div class="ftue-progress-bar-wrap" id="ftue-progress-bar-wrap" style="display: none;">
+          <div class="ftue-spinner"></div>
+          <div class="ftue-progress-label" id="ftue-progress-label">Inspecting archive contents...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

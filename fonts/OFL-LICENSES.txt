@@ -1,0 +1,14 @@
+Cedar Bundled Fonts — SIL Open Font License 1.1 (OFL-1.1)
+=========================================================
+
+All 8 fonts bundled in `/fonts/*.woff2` are licensed under the SIL Open Font License, Version 1.1:
+1. Inter (Copyright The Inter Project Authors)
+2. Plus Jakarta Sans (Copyright Tokotype)
+3. Lora (Copyright Cyreal)
+4. Space Grotesk (Copyright Florian Karsten)
+5. Fraunces (Copyright Undercase Type)
+6. Syne (Copyright Bonjour Monde)
+7. JetBrains Mono (Copyright JetBrains s.r.o.)
+8. Shantell Sans (Copyright Shantell Martin, Arrow Type)
+
+Full license text: https://openfontlicense.org

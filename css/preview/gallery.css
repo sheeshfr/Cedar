@@ -1,0 +1,196 @@
+    /* =========================================================================
+       Multi-Image Gallery Grid Styles (1:1 with Editor & Compiler)
+       ========================================================================= */
+    .custom-gallery-grid {
+      position: relative;
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 2.2rem 0 0.5rem;
+      width: 100%;
+      max-width: 100% !important;
+      border-radius: 12px;
+      box-sizing: border-box;
+    }
+
+    .custom-gallery-item {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid var(--border-card);
+      background: var(--bg-card, #121214);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    .custom-gallery-item img,
+    .gallery-split-half img {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      display: block !important;
+      border-radius: inherit;
+      margin: 0 !important;
+      background: transparent !important;
+      box-sizing: border-box;
+    }
+
+    .custom-gallery-grid[data-count="1"] {
+      grid-template-columns: 1fr !important;
+      height: auto;
+    }
+    .custom-gallery-grid[data-count="1"] .custom-gallery-item {
+      aspect-ratio: 16 / 9;
+      max-height: 480px;
+    }
+
+    .custom-gallery-grid[data-count="2"],
+    .custom-gallery-grid:has(> .custom-gallery-item:nth-child(2):last-child),
+    .custom-gallery-grid:has(> .custom-gallery-item:nth-child(2)) {
+      grid-template-columns: 1fr 1fr !important;
+      aspect-ratio: 16 / 9;
+      max-height: 420px;
+      min-height: 240px;
+    }
+    .custom-gallery-grid[data-count="2"] .custom-gallery-item,
+    .custom-gallery-grid:has(> .custom-gallery-item:nth-child(2)) .custom-gallery-item {
+      height: 100%;
+    }
+
+    .custom-gallery-grid[data-count="3"] {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      aspect-ratio: 16 / 10;
+      max-height: 460px;
+      min-height: 280px;
+    }
+    .custom-gallery-grid[data-count="3"] .custom-gallery-item:nth-child(1) {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      height: 100%;
+    }
+    .custom-gallery-grid[data-count="3"] .custom-gallery-item:nth-child(2) {
+      grid-column: 2;
+      grid-row: 1;
+      height: 100%;
+    }
+    .custom-gallery-grid[data-count="3"] .custom-gallery-item:nth-child(3) {
+      grid-column: 2;
+      grid-row: 2;
+      height: 100%;
+    }
+
+    .custom-gallery-grid[data-count="4"] {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      aspect-ratio: 16 / 10;
+      max-height: 480px;
+      min-height: 300px;
+    }
+    .custom-gallery-grid[data-count="4"] .custom-gallery-item {
+      height: 100%;
+    }
+
+    .custom-gallery-grid[data-count="5"],
+    .custom-gallery-grid[data-count="more"],
+    .custom-gallery-grid:has(.gallery-item-split) {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      aspect-ratio: 16 / 10;
+      max-height: 480px;
+      min-height: 300px;
+    }
+
+    .custom-gallery-item.gallery-item-split {
+      grid-column: 2;
+      grid-row: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    .gallery-split-half {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-card);
+      background: var(--bg-card, #121214);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .gallery-split-half img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .gallery-split-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(22, 22, 26, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      user-select: none;
+    }
+
+    .gallery-badge-number {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+
+    .custom-gallery-item.gallery-item-hidden {
+      display: none !important;
+    }
+
+    .gallery-caption {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-style: italic;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    /* =========================================================================
+       Light Theme Styling for Cedar Site Preview
+       ========================================================================= */
+    .app-theme-light.site-header,
+    .app-theme-light .site-header {
+      background: rgba(255, 255, 255, 0.9) !important;
+      border-bottom: none !important;
+    }
+    .app-theme-light .site-header .nav-wrap {
+      border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+    }
+    .app-theme-light .brand-name,
+    .app-theme-light .header-title-text {
+      color: #0f172a !important;
+    }
+    .app-theme-light .brand-tagline {
+      color: #64748b !important;
+    }
+    .app-theme-light .nav-link {
+      color: #64748b !important;
+    }
+    .app-theme-light .nav-link:hover,
+    .app-theme-light .nav-link.active {
+      color: #0f172a !important;
+    }
+    .app-theme-light .hero-beacon-card {
+      background: var(--bg-card, #ffffff) !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06) !important;
+    }
+    .app-theme-light .hero-beacon-title,

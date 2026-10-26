@@ -1,0 +1,120 @@
+      <section class="dash-pane" id="pane-media" style="display: none;">
+        <div class="dash-pane-header standardized-pane-header">
+          <div class="pane-header-left">
+            <h2 class="dash-pane-title">Media</h2>
+          </div>
+          <div class="pane-header-center">
+            <div class="dash-search-wrap">
+              <svg class="dash-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="media-search-input" class="dash-search-input" placeholder="Search images by filename or post..." autocomplete="off" spellcheck="false">
+              <button type="button" class="dash-search-clear-btn" id="btn-media-search-clear" title="Clear search" style="display: none;">&times;</button>
+            </div>
+          </div>
+          <div class="pane-header-right">
+            <button type="button" class="btn btn-primary btn-sm" id="btn-media-upload">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              <span>Upload Media</span>
+            </button>
+            <input type="file" id="input-media-upload" accept="image/*,video/*,audio/*" multiple style="display: none;">
+          </div>
+        </div>
+
+        <div class="media-stream-filter-bar">
+          <div class="media-filter-pills" role="tablist" aria-label="Media Filter">
+            <button type="button" class="media-filter-btn is-active" data-filter="all">All</button>
+            <button type="button" class="media-filter-btn" data-filter="site">Site</button>
+            <button type="button" class="media-filter-btn" data-filter="post">Post</button>
+            <button type="button" class="media-filter-btn" data-filter="page">Page</button>
+            <button type="button" class="media-filter-btn" data-filter="upload">Uploads</button>
+          </div>
+        </div>
+
+        <div class="media-library-masonry" id="grid-media-library">
+          <!-- Dynamically populated 4-column masonry images -->
+        </div>
+      </section>
+
+      <!-- Centered Lightbox Overlay & Slide-Out Tag Drawer -->
+      <div class="media-lightbox-overlay" id="media-lightbox-overlay" style="display: none;">
+        <div class="media-lightbox-stage" id="media-lightbox-stage">
+          <div class="media-lightbox-content" id="media-lightbox-content">
+            <div class="media-lightbox-topbar">
+              <div class="media-lightbox-tags-preview" id="media-lightbox-tags-preview" title="Tags">
+                <!-- Hashtags preview taking up to ~2/3 of space directly above image -->
+              </div>
+              <div class="media-lightbox-top-actions">
+                <button type="button" class="media-lightbox-close-btn" id="btn-lightbox-close" title="Close image" onclick="if(window.closeMediaLightbox)window.closeMediaLightbox();">&times;</button>
+              </div>
+            </div>
+            <div class="media-lightbox-img-wrap">
+              <img id="media-lightbox-img" src="" alt="" loading="lazy">
+            </div>
+            <div class="media-lightbox-caption" id="media-lightbox-caption">
+              <!-- Bold title • regular filename -->
+            </div>
+            <div class="media-lightbox-bottom-actions">
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-lightbox-add-tags">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                <span>Add Tags</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" id="btn-lightbox-download-img">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Download</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-danger-outline" id="btn-lightbox-delete-img">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                <span>Delete Image</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="media-tag-drawer" id="media-tag-drawer">
+          <div class="media-tag-drawer-header">
+            <div class="drawer-header-info">
+              <h3 class="drawer-title">Image Tags</h3>
+              <p class="drawer-subtitle">Organize and search images by tags</p>
+            </div>
+            <button type="button" class="drawer-close-btn" id="btn-drawer-close" title="Close tags menu">&times;</button>
+          </div>
+
+          <div class="media-tag-drawer-body">
+            <!-- 1) Associated Tags -->
+            <div class="drawer-section">
+              <label class="drawer-section-title">
+                <span>Associated Tags</span>
+                <span class="drawer-count-badge" id="drawer-associated-count">0</span>
+              </label>
+              <div class="tag-chips-wrap" id="drawer-associated-tags">
+                <!-- Associated tag chips with x button -->
+              </div>
+            </div>
+
+            <!-- 2) Add New Tag Form -->
+            <div class="drawer-section">
+              <label class="drawer-section-title" for="input-new-tag">Add New Tag</label>
+              <form class="drawer-tag-form" id="form-add-tag">
+                <input type="text" class="drawer-tag-input" id="input-new-tag" placeholder="Type tag and press Enter..." autocomplete="off">
+                <button type="submit" class="btn btn-primary btn-sm" id="btn-submit-tag">Add</button>
+              </form>
+            </div>
+
+            <!-- 3) Existing Tags in System (sorted by usage frequency) -->
+            <div class="drawer-section flex-1">
+              <label class="drawer-section-title">
+                <span>Existing Tags</span>
+                <span class="drawer-subtitle-hint">Click to assign</span>
+              </label>
+              <div class="tag-chips-wrap tag-existing-wrap" id="drawer-existing-tags">
+                <!-- Existing tags sorted by frequency -->
+              </div>
+            </div>
+          </div>
+
+          <div class="media-tag-drawer-footer">
+            <button type="button" class="btn btn-primary btn-block" id="btn-drawer-finish">Finish</button>
+          </div>
+        </aside>
+      </div>
+
+      <!-- TAB 4: CATEGORIES & TAGS -->

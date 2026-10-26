@@ -1,0 +1,1351 @@
+      <section class="dash-pane" id="pane-designer" style="display: none;">
+        <div class="settings-layout-wrap designer-layout-wrap">
+
+          <!-- Table of Contents Navigation Bar -->
+          <aside class="settings-toc-bar designer-toc-bar" id="designer-toc-bar" aria-label="Design Table of Contents">
+            <nav class="settings-toc-nav">
+              <ul class="settings-toc-list" id="designer-toc-list">
+                <li class="settings-toc-item">
+                  <a href="#design-sec-theme" class="settings-toc-link active" data-target="design-sec-theme">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
+                    <span class="settings-toc-text">Website Theme</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#design-sec-logo-title-size" class="settings-toc-link" data-target="design-sec-logo-title-size">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                    <span class="settings-toc-text">Logo &amp; Title Size</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#design-sec-header" class="settings-toc-link" data-target="design-sec-header">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line></svg>
+                    <span class="settings-toc-text">Header Layout</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#design-sec-sections" class="settings-toc-link" data-target="design-sec-sections">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    <span class="settings-toc-text">Feed &amp; Sections</span>
+                  </a>
+                </li>
+                <li class="settings-toc-item">
+                  <a href="#design-sec-style" class="settings-toc-link" data-target="design-sec-style">
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path></svg>
+                    <span class="settings-toc-text">Style</span>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+
+            <!-- Save Design Action Button -->
+            <div class="settings-toc-action-wrap">
+              <button type="button" class="btn btn-primary btn-save-settings-toc" id="btn-designer-save" title="Save design settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                <span>Save Design</span>
+              </button>
+            </div>
+          </aside>
+
+          <!-- Design Sections Content Column (All visible in a row / column like Settings) -->
+          <div class="settings-pane-container designer-pane-container">
+
+            <style>
+              .dash-main-content:has(#pane-designer.active) {
+                padding-right: 2rem !important;
+              }
+
+              #pane-designer {
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+              }
+
+              /* 3-Column Designer Layout Wrap */
+              .designer-layout-wrap {
+                display: flex;
+                align-items: flex-start;
+                gap: 1.5rem;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                position: relative;
+                box-sizing: border-box;
+              }
+
+              /* Column 1: TOC Bar */
+              .designer-toc-bar {
+                width: 195px !important;
+                flex-shrink: 0;
+                position: sticky;
+                top: 0.5rem !important;
+                max-height: calc(100vh - 2rem);
+              }
+
+              /* Column 2: Design Settings Content (~2/3 of previous size) */
+              .designer-layout-wrap .designer-pane-container {
+                flex: 0 0 460px;
+                min-width: 360px;
+                max-width: 480px;
+                padding-bottom: 12rem;
+              }
+
+              /* Column 3: Live Preview Column (Expanded to take all remaining room) */
+              .designer-preview-column-wrap {
+                flex: 1 1 0;
+                min-width: 480px;
+                width: auto;
+                position: sticky;
+                top: 0.5rem;
+                height: calc(100vh - 2.5rem);
+                max-height: 880px;
+                display: flex;
+                flex-direction: column;
+                z-index: 10;
+              }
+
+              .designer-preview-column {
+                width: 100%;
+                height: 100%;
+                background: var(--bg-card, #18181b);
+                border-radius: 12px;
+                border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+                box-sizing: border-box;
+              }
+
+              .preview-browser-header {
+                background: var(--bg-secondary, #18181b);
+                border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+                padding: 8px 12px;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                flex-shrink: 0;
+              }
+
+              .preview-traffic-dots {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                flex-shrink: 0;
+              }
+
+              .preview-traffic-dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                flex-shrink: 0;
+              }
+
+              .preview-browser-address-bar {
+                flex: 1;
+                min-width: 0;
+                background: var(--bg-primary, #09090b);
+                border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+                border-radius: 6px;
+                padding: 3px 8px;
+                font-size: 0.72rem;
+                font-weight: 500;
+                color: var(--text-muted, #a1a1aa);
+                text-align: center;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+              }
+
+              .designer-device-switcher-pill {
+                display: inline-flex;
+                align-items: center;
+                background: rgba(0, 0, 0, 0.35);
+                border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+                border-radius: 6px;
+                padding: 2px;
+                gap: 2px;
+                flex-shrink: 0;
+              }
+
+              .btn-designer-device {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                border: none;
+                background: transparent;
+                color: var(--text-muted, #a1a1aa);
+                font-size: 0.68rem;
+                font-weight: 600;
+                padding: 3px 8px;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                line-height: 1;
+              }
+
+              .btn-designer-device:hover {
+                color: var(--text-primary, #ffffff);
+                background: rgba(255, 255, 255, 0.08);
+              }
+
+              .btn-designer-device.active {
+                background: var(--accent-primary, #71717a);
+                color: #ffffff;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+              }
+
+              .preview-browser-body {
+                flex: 1;
+                background: transparent;
+                overflow: hidden;
+                padding: 0;
+                color: #fafafa;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                min-height: 0;
+                position: relative;
+              }
+
+              .designer-device-viewport {
+                width: 100%;
+                height: 100%;
+                box-sizing: border-box;
+                transition: max-width 0.22s cubic-bezier(0.22, 1, 0.36, 1), width 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+                display: flex;
+                flex-direction: column;
+                margin: 0 auto;
+                flex: 1;
+                min-height: 0;
+                position: relative;
+              }
+
+              .designer-device-viewport.device-tablet {
+                max-width: 100%;
+                width: 100%;
+                padding: 0;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+              }
+
+              .designer-device-viewport.device-mobile {
+                max-width: 420px;
+                width: 420px;
+                padding: 0;
+                border: none;
+                border-radius: 0;
+                box-shadow: 0 0 24px rgba(0, 0, 0, 0.4);
+              }
+
+              .designer-preview-site-frame {
+                width: 100%;
+                height: 100%;
+                flex: 1;
+                min-height: 0;
+                border: none;
+                display: block;
+                background: transparent;
+              }
+
+              /* Light mode overrides for live preview frame */
+              .app-theme-light .designer-preview-column {
+                background: var(--bg-card, #ffffff);
+                border-color: rgba(0, 0, 0, 0.12);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+              }
+              .app-theme-light .preview-browser-header {
+                background: #f4f4f5;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+              }
+              .app-theme-light .preview-browser-address-bar {
+                background: #ffffff;
+                border-color: rgba(0, 0, 0, 0.1);
+                color: #71717a;
+              }
+              .app-theme-light .designer-device-switcher-pill {
+                background: rgba(0, 0, 0, 0.06);
+                border-color: rgba(0, 0, 0, 0.12);
+              }
+              .app-theme-light .btn-designer-device {
+                color: #71717a;
+              }
+              .app-theme-light .btn-designer-device:hover {
+                color: #18181b;
+                background: rgba(0, 0, 0, 0.06);
+              }
+              .app-theme-light .btn-designer-device.active {
+                background: var(--accent-primary, #71717a);
+                color: #ffffff;
+              }
+              .app-theme-light .preview-browser-body {
+                color: #18181b;
+                scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+              }
+              .app-theme-light .preview-browser-body::-webkit-scrollbar-thumb {
+                background: rgba(0, 0, 0, 0.15);
+              }
+
+              .designer-item-label {
+                font-size: 0.82rem;
+                font-weight: 600;
+                color: var(--text-secondary, #cbd5e1);
+                margin-bottom: 6px;
+              }
+
+              .designer-toggle-group {
+                display: flex;
+                background: var(--bg-primary, #09090b);
+                border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+                border-radius: 8px;
+                padding: 3px;
+                gap: 3px;
+                width: 100%;
+                box-sizing: border-box;
+              }
+
+              .designer-toggle-btn {
+                flex: 1 1 0;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 7px 4px;
+                font-size: 0.82rem;
+                font-weight: 500;
+                color: var(--text-muted, #a1a1aa);
+                background: transparent;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                user-select: none;
+                white-space: nowrap;
+                text-align: center;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                box-sizing: border-box;
+              }
+
+              .designer-toggle-btn:hover:not(.active) {
+                color: var(--text-primary, #fafafa);
+                background: rgba(255, 255, 255, 0.06);
+              }
+
+              .designer-toggle-btn.active {
+                background: var(--btn-primary-bg, var(--accent-primary, #71717a));
+                color: var(--btn-primary-color, #ffffff);
+                font-weight: 600;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+              }
+
+              .app-theme-light .designer-toggle-btn.active,
+              :root.app-theme-light .designer-toggle-btn.active {
+                background: var(--btn-primary-bg, #18181b);
+                color: var(--btn-primary-color, #ffffff);
+              }
+
+              .app-theme-light .designer-toggle-btn:hover:not(.active),
+              :root.app-theme-light .designer-toggle-btn:hover:not(.active) {
+                color: var(--text-primary, #18181b);
+                background: rgba(0, 0, 0, 0.05);
+              }
+
+              .designer-slider-group {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                box-sizing: border-box;
+              }
+
+              .designer-slider-badge {
+                font-family: var(--font-mono, 'JetBrains Mono', monospace);
+                font-size: 0.75rem;
+                font-weight: 600;
+                padding: 2px 8px;
+                border-radius: 6px;
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--text-primary, #fafafa);
+                border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+                min-width: 44px;
+                text-align: center;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                box-sizing: border-box;
+                transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+              }
+
+              .app-theme-light .designer-slider-badge,
+              :root.app-theme-light .designer-slider-badge {
+                background: var(--bg-secondary, #f4f4f5);
+                color: var(--text-primary, #18181b);
+                border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+              }
+
+              .designer-slider-group:focus-within .designer-slider-badge,
+              .designer-slider-group:hover .designer-slider-badge {
+                border-color: var(--border-color-hover, rgba(255, 255, 255, 0.25));
+              }
+
+              .app-theme-light .designer-slider-group:focus-within .designer-slider-badge,
+              .app-theme-light .designer-slider-group:hover .designer-slider-badge,
+              :root.app-theme-light .designer-slider-group:focus-within .designer-slider-badge,
+              :root.app-theme-light .designer-slider-group:hover .designer-slider-badge {
+                border-color: var(--border-color-hover, rgba(0, 0, 0, 0.22));
+              }
+
+              .designer-slider-track-wrap {
+                position: relative;
+                width: 100%;
+                height: 24px;
+                display: flex;
+                align-items: center;
+              }
+
+              .designer-range-slider {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100%;
+                height: 4px;
+                background: var(--border-color, rgba(255, 255, 255, 0.16));
+                border-radius: 999px;
+                outline: none;
+                cursor: pointer;
+                position: relative;
+                z-index: 2;
+                margin: 0;
+                padding: 0;
+              }
+
+              .app-theme-light .designer-range-slider,
+              :root.app-theme-light .designer-range-slider {
+                background: rgba(0, 0, 0, 0.12);
+              }
+
+              .designer-range-slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: var(--btn-primary-bg, var(--accent-primary, #2563eb));
+                border: 2px solid #ffffff;
+                box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+                cursor: pointer;
+                transition: transform 0.12s ease;
+                position: relative;
+                z-index: 4;
+              }
+
+              .app-theme-light .designer-range-slider::-webkit-slider-thumb,
+              :root.app-theme-light .designer-range-slider::-webkit-slider-thumb {
+                background: var(--btn-primary-bg, #18181b);
+                border: 2px solid #ffffff;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+              }
+
+              .designer-range-slider::-webkit-slider-thumb:hover {
+                transform: scale(1.15);
+              }
+
+              .designer-range-slider::-webkit-slider-thumb:active {
+                transform: scale(0.95);
+              }
+
+              .designer-range-slider::-moz-range-thumb {
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: var(--btn-primary-bg, var(--accent-primary, #2563eb));
+                border: 2px solid #ffffff;
+                box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+                cursor: pointer;
+                transition: transform 0.12s ease;
+              }
+
+              .app-theme-light .designer-range-slider::-moz-range-thumb,
+              :root.app-theme-light .designer-range-slider::-moz-range-thumb {
+                background: var(--btn-primary-bg, #18181b);
+                border: 2px solid #ffffff;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+              }
+
+              .designer-range-slider::-moz-range-thumb:hover {
+                transform: scale(1.15);
+              }
+
+              /* Notched points / little bumps in the line */
+              .designer-slider-notches {
+                position: absolute;
+                left: 0;
+                top: 50%;
+                width: 100%;
+                height: 0;
+                pointer-events: none;
+                z-index: 3;
+              }
+
+              .designer-notch {
+                position: absolute;
+                top: 0;
+                transform: translate(-50%, -50%);
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #52525b;
+                border: 1.5px solid var(--bg-card, #1e293b);
+                box-sizing: border-box;
+                transition: background 0.15s ease, transform 0.15s ease;
+              }
+
+              .app-theme-light .designer-notch,
+              :root.app-theme-light .designer-notch {
+                background: #9ca3af;
+                border: 1.5px solid var(--bg-card, #ffffff);
+              }
+
+              .designer-slider-labels {
+                position: relative;
+                width: 100%;
+                height: 16px;
+                margin-top: 3px;
+              }
+
+              .designer-slider-label-point {
+                position: absolute;
+                top: 0;
+                transform: translateX(-50%);
+                font-family: var(--font-mono, 'JetBrains Mono', monospace);
+                font-size: 0.72rem;
+                color: var(--text-dim, #71717a);
+                user-select: none;
+                white-space: nowrap;
+              }
+
+              #pane-designer .settings-section-group {
+                scroll-margin-top: 1rem;
+              }
+
+              /* Responsive Stage 1: When screen width needs to afford more horizontal width (<= 1300px),
+                 the Table of Contents element is the FIRST TO GO!
+                 The remaining layout adopts a 40/60 split (Selection controls ~40%, Live Preview ~60%) */
+              @media (max-width: 1300px) {
+                .designer-toc-bar {
+                  display: none !important;
+                }
+                .designer-layout-wrap {
+                  display: flex !important;
+                  flex-direction: row !important;
+                  align-items: flex-start !important;
+                  gap: 1.25rem !important;
+                  width: 100% !important;
+                }
+                /* Left Column: Selection items (~38-40% narrower) */
+                .designer-layout-wrap .designer-pane-container {
+                  flex: 0 0 38% !important;
+                  width: 38% !important;
+                  max-width: 40% !important;
+                  min-width: 280px !important;
+                  padding-bottom: 3rem !important;
+                }
+                /* Right Column: Live preview (~60% wider) */
+                .designer-preview-column-wrap {
+                  flex: 1 1 60% !important;
+                  width: 60% !important;
+                  min-width: 0 !important;
+                  display: flex !important;
+                }
+              }
+
+              /* Responsive Stage 2: When screen becomes truly compact (<= 860px),
+                 the live preview column goes away, letting the designer controls use full width */
+              @media (max-width: 860px) {
+                .designer-preview-column-wrap {
+                  display: none !important;
+                }
+                .designer-layout-wrap {
+                  display: block !important;
+                  width: 100% !important;
+                }
+                .designer-layout-wrap .designer-pane-container {
+                  flex: none !important;
+                  max-width: 720px !important;
+                  min-width: 0 !important;
+                  width: 100% !important;
+                  margin: 0 auto !important;
+                  padding-bottom: 3rem !important;
+                }
+                .dash-main-content:has(#pane-designer.active) {
+                  padding-right: 10px !important;
+                  padding-left: 10px !important;
+                }
+              }
+
+              @media (max-width: 768px) {
+                .dash-main-content:has(#pane-designer.active) {
+                  padding-right: 10px !important;
+                  padding-left: 10px !important;
+                }
+              }
+
+              /* Background Swoosh Showcase Buttons in Designer */
+              .designer-swoosh-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                width: 100%;
+              }
+
+              .designer-swoosh-btn {
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 68px;
+                padding: 12px 10px;
+                border-radius: 10px;
+                background: var(--swoosh-preview-bg, var(--bg-primary, #09090b));
+                border: 1.5px solid var(--border-color, rgba(255, 255, 255, 0.14));
+                cursor: pointer;
+                overflow: hidden;
+                transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s ease, box-shadow 0.18s ease;
+                user-select: none;
+              }
+
+              .designer-swoosh-btn:last-child:nth-child(odd) {
+                grid-column: 1 / -1;
+              }
+
+              .designer-swoosh-btn:hover {
+                transform: translateY(-2px);
+                border-color: var(--swoosh-preview-accent, var(--accent-primary, #fb7185));
+              }
+
+              .designer-swoosh-btn.active {
+                border-color: var(--swoosh-preview-accent, var(--accent-primary, #fb7185));
+                box-shadow: 0 0 0 2px var(--swoosh-preview-ring, rgba(251, 113, 133, 0.32)), 0 6px 16px rgba(0, 0, 0, 0.25);
+              }
+
+              .designer-swoosh-btn-cluster {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: fit-content;
+                padding: 3px 0;
+                isolation: isolate;
+              }
+
+              .designer-swoosh-btn-cluster .post-card-showcase-splash {
+                position: absolute;
+                top: -16%;
+                left: 0;
+                right: 0;
+                width: 100%;
+                height: 128%;
+                pointer-events: none;
+                z-index: 0;
+                overflow: visible;
+                transform: rotate(-2.5deg);
+              }
+
+              .designer-swoosh-btn-cluster .splash-brush-base {
+                fill: var(--swoosh-preview-surface, var(--popout-3d-bg, var(--bg-secondary, #27272a)));
+                stroke: var(--swoosh-preview-accent, var(--accent-primary, #fb7185));
+                stroke-opacity: 0.32;
+                stroke-width: 1.5px;
+                opacity: 0.95;
+              }
+
+              .designer-swoosh-btn-cluster .splash-brush-accent {
+                stroke: var(--swoosh-preview-accent, var(--accent-primary, #fb7185));
+                opacity: 0.52;
+              }
+
+              .designer-swoosh-label {
+                position: relative;
+                z-index: 1;
+                font-family: var(--swoosh-preview-font, inherit);
+                font-size: 1.05rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                color: var(--swoosh-preview-text, var(--text-primary, #ffffff));
+                text-shadow: 0 1px 10px var(--swoosh-preview-surface, var(--bg-secondary)), 0 1px 3px var(--swoosh-preview-bg, var(--bg-primary));
+                white-space: nowrap;
+              }
+
+              .designer-font-select {
+                width: 100%;
+                height: 38px;
+                padding: 0 12px;
+                font-size: 0.86rem;
+                font-weight: 600;
+                border-radius: 8px;
+                background: var(--bg-primary, #09090b);
+                color: var(--text-primary, #fafafa);
+                border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+                cursor: pointer;
+                outline: none;
+                transition: border-color 0.15s ease, box-shadow 0.15s ease;
+              }
+
+              .designer-font-select:hover,
+              .designer-font-select:focus {
+                border-color: var(--accent-primary, #71717a);
+              }
+
+              .app-theme-light .designer-font-select {
+                background: #ffffff;
+                color: #18181b;
+                border-color: rgba(0, 0, 0, 0.14);
+              }
+            </style>
+
+            <!-- Section 1: Website Theme -->
+            <div class="settings-section-group" id="design-sec-theme">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
+                  <h4>Website Theme</h4>
+                </div>
+                <button type="button" class="btn btn-xs btn-secondary" id="btn-toggle-advanced-theme" title="Toggle advanced custom color palette options" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text-primary, #f4f4f5); transition: all 0.15s ease;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10a10 10 0 0 1-10-10"></path>
+                    <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"></circle>
+                    <circle cx="15.5" cy="8.5" r="1.5" fill="currentColor"></circle>
+                    <circle cx="15.5" cy="15.5" r="1.5" fill="currentColor"></circle>
+                  </svg>
+                  <span id="btn-toggle-advanced-theme-text">Advanced</span>
+                  <svg class="chevron-toggle" id="chevron-advanced-theme" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition: transform 0.2s ease;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+              </div>
+
+              <div class="project-settings-card">
+                <div style="font-size: 0.8rem; color: var(--text-muted, #a1a1aa); margin-bottom: 14px;">Theme applied to your Cedar Editor workspace, live blog, articles, and static site export.</div>
+
+                <!-- 14 Presets Grid -->
+                <div class="theme-palettes-grid" id="designer-color-palettes" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
+                  <!-- ROW 1: LIGHT THEMES -->
+                  <!-- 1. Canvas -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="canvas" title="Canvas (Ultra Light Plain)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #ffffff;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f4f4f5;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #09090b;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 2. Linen -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="linen" title="Linen (Warm Natural In-Line)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #faf8f5;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f2ede4;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #9c8b74;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 3. Oasis -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="oasis_moss" title="Oasis (Sage &amp; Emerald)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f4f8f5;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #e6f0e9;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #10b981;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 4. Coast -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="riviera_azure" title="Coast (Sky &amp; Cobalt)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f5f8fc;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #e5edf7;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #2563eb;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 5. Peony -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="peony_blush" title="Peony (Blush &amp; Berry)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #fdf6f7;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #fae3e8;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #e11d48;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 6. Solar -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="solstice_warm" title="Solar (Peach &amp; Tangerine)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #fdfaf6;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f6e8dc;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #ea580c;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 7. Tropic -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="tropic" title="Tropic (Mint Teal &amp; Flamingo Rose)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f0fdfa;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #ccfbf1;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f43f5e;"></div>
+                    </div>
+                  </button>
+
+                  <!-- ROW 2: DARK THEMES -->
+                  <!-- 8. Basalt -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="basalt" title="Basalt (Ultra Dark Plain)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #09090b;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #18181b;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #71717a;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 9. Slate -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="slate" title="Slate (Cool Frost In-Line)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #0b1120;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #1e293b;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #94a3b8;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 10. Matcha -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="matcha_moss" title="Matcha (Forest &amp; Lime)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #0f241a;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #3f6239;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #bef264;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 11. Indigo -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="indigo" title="Indigo (Midnight Void &amp; Indigo Glow)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #0b0f19;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #172033;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #6366f1;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 12. Plum -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="mulberry_plum" title="Plum (Grape &amp; Rose)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #180e29;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #702459;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #fb7185;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 13. Cinder -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="cinder" title="Cinder (Dark Espresso &amp; Ember Glow)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #14100e;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #241c18;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #ea580c;"></div>
+                    </div>
+                  </button>
+
+                  <!-- 14. Cyber -->
+                  <button type="button" class="ftue-theme-swatch" data-theme-id="cyber" title="Cyber (Midnight Violet &amp; Neon Aqua)">
+                    <div class="ftue-swatch-stack">
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #070b19;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #22123b;"></div>
+                      <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #00f5d4;"></div>
+                    </div>
+                  </button>
+                </div>
+
+                <!-- Advanced Theme Options Panel (Collapsible) -->
+                <div id="designer-advanced-theme-panel" style="display: none; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));">
+                  <!-- Part 1: 3 Blank / Custom Palettes (Centered) -->
+                  <div class="custom-palettes-section-wrap" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); width: 100%;">
+                    <div style="text-align: center; width: 100%;">
+                      <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; text-align: center;">Custom Palettes</div>
+                      <div style="font-size: 0.74rem; color: var(--text-muted); max-width: 320px; margin: 0 auto; line-height: 1.4; text-align: center;">Pick a custom slot. Colors apply live; click Save to lock them into the slot.</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+                      <!-- 3 Custom Palette Buttons -->
+                      <div class="custom-palettes-slots-row" id="custom-palettes-slots-row" style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+                        <!-- Slot 1 -->
+                        <button type="button" class="ftue-theme-swatch custom-palette-slot-btn active" data-custom-slot="0" title="Custom Palette 1" style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px; border-radius: 8px; width: 64px; cursor: pointer;">
+                          <div class="ftue-swatch-stack" id="custom-swatch-stack-0" style="margin-bottom: 0;">
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #09090b;"></div>
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #18181b;"></div>
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #71717a;"></div>
+                          </div>
+                          <span class="custom-slot-label" style="font-size: 0.68rem; font-weight: 600; color: var(--text-secondary);">Custom 1</span>
+                          <span class="custom-slot-status" id="custom-slot-status-0" style="font-size: 0.62rem; color: var(--text-muted); opacity: 0.8;">Blank</span>
+                        </button>
+
+                        <!-- Slot 2 -->
+                        <button type="button" class="ftue-theme-swatch custom-palette-slot-btn" data-custom-slot="1" title="Custom Palette 2" style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px; border-radius: 8px; width: 64px; cursor: pointer;">
+                          <div class="ftue-swatch-stack" id="custom-swatch-stack-1" style="margin-bottom: 0;">
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #ffffff;"></div>
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #f4f4f5;"></div>
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #18181b;"></div>
+                          </div>
+                          <span class="custom-slot-label" style="font-size: 0.68rem; font-weight: 600; color: var(--text-secondary);">Custom 2</span>
+                          <span class="custom-slot-status" id="custom-slot-status-1" style="font-size: 0.62rem; color: var(--text-muted); opacity: 0.8;">Blank</span>
+                        </button>
+
+                        <!-- Slot 3 -->
+                        <button type="button" class="ftue-theme-swatch custom-palette-slot-btn" data-custom-slot="2" title="Custom Palette 3" style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px; border-radius: 8px; width: 64px; cursor: pointer;">
+                          <div class="ftue-swatch-stack" id="custom-swatch-stack-2" style="margin-bottom: 0;">
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #0b1120;"></div>
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #1e293b;"></div>
+                            <div class="ftue-swatch-layer ftue-layer-33" style="background-color: #38bdf8;"></div>
+                          </div>
+                          <span class="custom-slot-label" style="font-size: 0.68rem; font-weight: 600; color: var(--text-secondary);">Custom 3</span>
+                          <span class="custom-slot-status" id="custom-slot-status-2" style="font-size: 0.62rem; color: var(--text-muted); opacity: 0.8;">Blank</span>
+                        </button>
+                      </div>
+
+                      <!-- Save Palette Button Underneath Swatches -->
+                      <button type="button" class="btn btn-xs btn-primary" id="btn-save-custom-palette" title="Save current custom colors to this slot" style="display: inline-flex; align-items: center; justify-content: center; margin: 0 auto; gap: 5px; font-size: 0.72rem; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer;">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                        <span id="btn-save-custom-palette-text">Save to Custom 1</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Part 2: Individual Element Color Pickers -->
+                  <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">Individual Element Colors</div>
+                  <div class="custom-colors-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <!-- Background -->
+                    <div class="custom-color-field" style="display: flex; flex-direction: column; gap: 4px;">
+                      <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);">Background</label>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="color" id="picker-color-bg" data-color-prop="c60" style="width: 30px; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; background: transparent;">
+                        <input type="text" id="hex-color-bg" data-color-prop="c60" maxlength="7" placeholder="#09090b" style="flex: 1; min-width: 0; font-family: monospace; font-size: 0.76rem; padding: 4px 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--text-primary);">
+                      </div>
+                    </div>
+
+                    <!-- Windows / Cards -->
+                    <div class="custom-color-field" style="display: flex; flex-direction: column; gap: 4px;">
+                      <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);">Windows / Cards</label>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="color" id="picker-color-card" data-color-prop="c30" style="width: 30px; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; background: transparent;">
+                        <input type="text" id="hex-color-card" data-color-prop="c30" maxlength="7" placeholder="#18181b" style="flex: 1; min-width: 0; font-family: monospace; font-size: 0.76rem; padding: 4px 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--text-primary);">
+                      </div>
+                    </div>
+
+                    <!-- Text -->
+                    <div class="custom-color-field" style="display: flex; flex-direction: column; gap: 4px;">
+                      <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);">Text</label>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="color" id="picker-color-text" data-color-prop="textPrimary" style="width: 30px; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; background: transparent;">
+                        <input type="text" id="hex-color-text" data-color-prop="textPrimary" maxlength="7" placeholder="#fafafa" style="flex: 1; min-width: 0; font-family: monospace; font-size: 0.76rem; padding: 4px 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--text-primary);">
+                      </div>
+                    </div>
+
+                    <!-- Muted Text -->
+                    <div class="custom-color-field" style="display: flex; flex-direction: column; gap: 4px;">
+                      <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);">Muted Text</label>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="color" id="picker-color-muted" data-color-prop="textMuted" style="width: 30px; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; background: transparent;">
+                        <input type="text" id="hex-color-muted" data-color-prop="textMuted" maxlength="7" placeholder="#a1a1aa" style="flex: 1; min-width: 0; font-family: monospace; font-size: 0.76rem; padding: 4px 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--text-primary);">
+                      </div>
+                    </div>
+
+                    <!-- Highlighted Text / Accent -->
+                    <div class="custom-color-field" style="display: flex; flex-direction: column; gap: 4px;">
+                      <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);">Accent / Highlight</label>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="color" id="picker-color-accent" data-color-prop="c10" style="width: 30px; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; background: transparent;">
+                        <input type="text" id="hex-color-accent" data-color-prop="c10" maxlength="7" placeholder="#71717a" style="flex: 1; min-width: 0; font-family: monospace; font-size: 0.76rem; padding: 4px 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--text-primary);">
+                      </div>
+                    </div>
+
+                    <!-- Borders -->
+                    <div class="custom-color-field" style="display: flex; flex-direction: column; gap: 4px;">
+                      <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);">Borders</label>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="color" id="picker-color-border" data-color-prop="border" style="width: 30px; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; background: transparent;">
+                        <input type="text" id="hex-color-border" data-color-prop="border" maxlength="7" placeholder="#27272a" style="flex: 1; min-width: 0; font-family: monospace; font-size: 0.76rem; padding: 4px 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; background: rgba(0,0,0,0.35); color: var(--text-primary);">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 2: Logo & Title Size -->
+            <div class="settings-section-group" id="design-sec-logo-title-size">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                  <h4>Logo &amp; Title Size</h4>
+                </div>
+              </div>
+
+              <div class="project-settings-card" style="display: flex; flex-direction: column; gap: 24px;">
+
+                <!-- Logo Size Slider -->
+                <div class="designer-slider-group">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <label for="designer-logo-scale-slider" class="designer-item-label" style="margin-bottom: 0;">Logo Size</label>
+                    <span class="designer-slider-badge" id="designer-logo-scale-val">1.0x</span>
+                  </div>
+                  <div class="designer-slider-track-wrap">
+                    <input type="range" id="designer-logo-scale-slider" class="designer-range-slider" min="0.5" max="3" step="0.5" value="1.0" aria-label="Logo Size">
+                    <div class="designer-slider-notches" aria-hidden="true">
+                      <span class="designer-notch" data-val="0.5" style="left: calc(9px + (100% - 18px) * 0.00);"></span>
+                      <span class="designer-notch" data-val="1.0" style="left: calc(9px + (100% - 18px) * 0.20);"></span>
+                      <span class="designer-notch" data-val="1.5" style="left: calc(9px + (100% - 18px) * 0.40);"></span>
+                      <span class="designer-notch" data-val="2.0" style="left: calc(9px + (100% - 18px) * 0.60);"></span>
+                      <span class="designer-notch" data-val="2.5" style="left: calc(9px + (100% - 18px) * 0.80);"></span>
+                      <span class="designer-notch" data-val="3.0" style="left: calc(9px + (100% - 18px) * 1.00);"></span>
+                    </div>
+                  </div>
+                  <div class="designer-slider-labels">
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 0.00);">0.5x</span>
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 0.20);">1.0x</span>
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 0.60);">2.0x</span>
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 1.00);">3.0x</span>
+                  </div>
+                </div>
+
+                <!-- Title Size Slider -->
+                <div class="designer-slider-group">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <label for="designer-title-scale-slider" class="designer-item-label" style="margin-bottom: 0;">Title Size</label>
+                    <span class="designer-slider-badge" id="designer-title-scale-val">1.0x</span>
+                  </div>
+                  <div class="designer-slider-track-wrap">
+                    <input type="range" id="designer-title-scale-slider" class="designer-range-slider" min="0.5" max="3" step="0.5" value="1.0" aria-label="Title Size">
+                    <div class="designer-slider-notches" aria-hidden="true">
+                      <span class="designer-notch" data-val="0.5" style="left: calc(9px + (100% - 18px) * 0.00);"></span>
+                      <span class="designer-notch" data-val="1.0" style="left: calc(9px + (100% - 18px) * 0.20);"></span>
+                      <span class="designer-notch" data-val="1.5" style="left: calc(9px + (100% - 18px) * 0.40);"></span>
+                      <span class="designer-notch" data-val="2.0" style="left: calc(9px + (100% - 18px) * 0.60);"></span>
+                      <span class="designer-notch" data-val="2.5" style="left: calc(9px + (100% - 18px) * 0.80);"></span>
+                      <span class="designer-notch" data-val="3.0" style="left: calc(9px + (100% - 18px) * 1.00);"></span>
+                    </div>
+                  </div>
+                  <div class="designer-slider-labels">
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 0.00);">0.5x</span>
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 0.20);">1.0x</span>
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 0.60);">2.0x</span>
+                    <span class="designer-slider-label-point" style="left: calc(9px + (100% - 18px) * 1.00);">3.0x</span>
+                  </div>
+                </div>
+
+                <!-- Title Font Selector (Underneath Scale Section) -->
+                <div style="padding-top: 6px; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));">
+                  <label for="designer-title-font-select" class="designer-item-label">Title Font</label>
+                  <select id="designer-title-font-select" class="designer-font-select" aria-label="Title Font">
+                    <option value="inter" style="font-family: 'Inter', sans-serif;">Inter — Clean Sans</option>
+                    <option value="plus_jakarta" style="font-family: 'Plus Jakarta Sans', sans-serif;">Plus Jakarta — Geometric Sans</option>
+                    <option value="lora" style="font-family: 'Lora', serif;">Lora — Editorial Serif</option>
+                    <option value="space_grotesk" style="font-family: 'Space Grotesk', sans-serif;">Space Grotesk — Tech Quirky</option>
+                    <option value="fraunces" style="font-family: 'Fraunces', serif;">Fraunces — 70s Soft Serif</option>
+                    <option value="syne" style="font-family: 'Syne', sans-serif;">Syne — Art House Wide</option>
+                    <option value="jetbrains_mono" style="font-family: 'JetBrains Mono', monospace;">JetBrains Mono — Typewriter Zine</option>
+                    <option value="shantell_sans" style="font-family: 'Shantell Sans', cursive;">Shantell Sans — Handcrafted Marker</option>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Section 3: Header Layout -->
+            <div class="settings-section-group" id="design-sec-header">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line></svg>
+                  <h4>Header Layout</h4>
+                </div>
+              </div>
+
+              <div class="project-settings-card" style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="font-size: 0.8rem; color: var(--text-muted, #a1a1aa); margin-bottom: 2px;">Header alignment and branding mark appearance.</div>
+
+                <div>
+                  <div class="designer-item-label">Header Alignment</div>
+                  <div class="designer-toggle-group" data-toggle-group="header-align">
+                    <button type="button" class="designer-toggle-btn active" data-toggle="header-align" data-value="left">Left</button>
+                    <button type="button" class="designer-toggle-btn" data-toggle="header-align" data-value="center">Centered</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="designer-item-label">Branding</div>
+                  <div class="designer-toggle-group" data-toggle-group="branding">
+                    <button type="button" class="designer-toggle-btn" data-toggle="branding" data-value="logo">Just Logo</button>
+                    <button type="button" class="designer-toggle-btn active" data-toggle="branding" data-value="both">Logo &amp; Title</button>
+                    <button type="button" class="designer-toggle-btn" data-toggle="branding" data-value="title">Just Title</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 4: Feed & Sections -->
+            <div class="settings-section-group" id="design-sec-sections">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                  <h4>Feed &amp; Sections</h4>
+                </div>
+              </div>
+
+              <div class="project-settings-card" style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="font-size: 0.8rem; color: var(--text-muted, #a1a1aa); margin-bottom: 2px;">Configure spotlights, post feed card style, and shelves.</div>
+
+                <div>
+                  <div class="designer-item-label">Featured Story</div>
+                  <div class="designer-toggle-group" data-toggle-group="featured">
+                    <button type="button" class="designer-toggle-btn active" data-toggle="featured" data-value="true">Featured</button>
+                    <button type="button" class="designer-toggle-btn" data-toggle="featured" data-value="false">No Featured</button>
+                  </div>
+
+                  <div id="designer-featured-logic-wrap" style="margin-top: 12px; padding-left: 12px; border-left: 2px solid var(--border-color, rgba(255,255,255,0.1)); display: flex; flex-direction: column; gap: 10px;">
+                    <div>
+                      <div class="designer-item-label" style="font-size: 0.78rem; color: var(--text-muted, #a1a1aa);">Featured Logic</div>
+                      <div class="designer-toggle-group" data-toggle-group="featured-mode">
+                        <button type="button" class="designer-toggle-btn active" data-toggle="featured-mode" data-value="latest" title="Always feature the most recent post from all published posts">All - Recent</button>
+                        <button type="button" class="designer-toggle-btn" data-toggle="featured-mode" data-value="category" title="Always feature the most recent post from a particular category">Category - Recent</button>
+                      </div>
+                    </div>
+
+                    <div id="designer-featured-category-wrap" style="display: none;">
+                      <div class="designer-item-label" style="font-size: 0.78rem; color: var(--text-muted, #a1a1aa);">Featured Category</div>
+                      <select id="designer-featured-category-select" class="form-input" style="width: 100%; height: 36px; padding: 0 10px; font-size: 0.85rem; border-radius: 6px; background: var(--input-bg, #18181b); color: var(--input-color, var(--text-primary, #fafafa)); border: 1px solid var(--input-border, var(--border-color, rgba(255,255,255,0.12))); cursor: pointer;">
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="designer-item-label">Post Feed Cards</div>
+                  <div class="designer-toggle-group" data-toggle-group="post-layout">
+                    <button type="button" class="designer-toggle-btn active" data-toggle="post-layout" data-value="grid">Grid</button>
+                    <button type="button" class="designer-toggle-btn" data-toggle="post-layout" data-value="row">Row</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="designer-item-label">Category Bar</div>
+                  <div class="designer-toggle-group" data-toggle-group="cat-bar">
+                    <button type="button" class="designer-toggle-btn" data-toggle="cat-bar" data-value="true">Category Bar</button>
+                    <button type="button" class="designer-toggle-btn active" data-toggle="cat-bar" data-value="false">No Category Bar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 5: Style -->
+            <div class="settings-section-group" id="design-sec-style">
+              <div class="settings-section-header">
+                <div class="settings-section-title-wrap">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path></svg>
+                  <h4>Style</h4>
+                </div>
+              </div>
+
+              <div class="project-settings-card" style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- Website Font Selector -->
+                <div>
+                  <label for="designer-site-font-select" class="designer-item-label">Website Font</label>
+                  <select id="designer-site-font-select" class="designer-font-select" aria-label="Website Font">
+                    <option value="inter" style="font-family: 'Inter', sans-serif;">Inter — Clean Sans</option>
+                    <option value="plus_jakarta" style="font-family: 'Plus Jakarta Sans', sans-serif;">Plus Jakarta — Geometric Sans</option>
+                    <option value="lora" style="font-family: 'Lora', serif;">Lora — Editorial Serif</option>
+                    <option value="space_grotesk" style="font-family: 'Space Grotesk', sans-serif;">Space Grotesk — Tech Quirky</option>
+                    <option value="fraunces" style="font-family: 'Fraunces', serif;">Fraunces — 70s Soft Serif</option>
+                    <option value="syne" style="font-family: 'Syne', sans-serif;">Syne — Art House Wide</option>
+                    <option value="jetbrains_mono" style="font-family: 'JetBrains Mono', monospace;">JetBrains Mono — Typewriter Zine</option>
+                    <option value="shantell_sans" style="font-family: 'Shantell Sans', cursive;">Shantell Sans — Handcrafted Marker</option>
+                  </select>
+                </div>
+
+                <!-- Background Swooshes -->
+                <div style="padding-top: 12px; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));">
+                  <div class="designer-item-label" style="margin-bottom: 10px;">Background Swooshes</div>
+
+                  <div class="designer-swoosh-grid" id="designer-swoosh-grid" data-toggle-group="showcase-swoosh">
+                  <!-- 1. 90s Cup -->
+                  <button type="button" class="designer-swoosh-btn active" data-toggle="showcase-swoosh" data-value="jazz_cup" title="90s Cup — Sweeping brush strokes &amp; zig-zag ribbon">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" />
+                          <path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" />
+                          <path d="M138,168 C210,122 292,72 378,34 C398,25 412,39 392,54 C324,102 246,144 174,180 C150,190 122,180 138,168 Z" />
+                          <path d="M236,162 C292,128 352,94 404,68 C418,61 422,75 408,86 C362,118 308,148 262,172 C244,180 222,170 236,162 Z" />
+                          <circle cx="188" cy="18" r="5" /><circle cx="312" cy="22" r="6" /><circle cx="398" cy="36" r="4.5" /><circle cx="28" cy="158" r="5.5" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <path d="M16,120 C54,82 88,48 108,44 C120,42 96,102 110,108 C126,114 196,42 228,36 C242,33 214,94 230,100 C248,106 318,40 350,36 C364,34 336,86 352,92 C368,98 394,68 412,56" fill="none" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">90s Cup</span>
+                    </div>
+                  </button>
+
+                  <!-- 2. Highlighter -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="highlighter" title="Highlighter — Chisel-tip marker swipes">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <polygon points="18,46 392,24 408,76 4,98" />
+                          <polygon points="10,92 414,68 398,136 28,154" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <path d="M22,88 L396,62" fill="none" stroke-width="18" stroke-linecap="square" />
+                          <path d="M44,126 L372,104" fill="none" stroke-width="8" stroke-linecap="square" opacity="0.65" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">Highlighter</span>
+                    </div>
+                  </button>
+
+                  <!-- 3. Comic Pop -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="comic_pop" title="Comic Pop — Retro pop-art badge &amp; zig-zag burst">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <polygon points="24,34 398,18 412,138 8,158" />
+                          <circle cx="18" cy="24" r="6" /><circle cx="404" cy="154" r="7" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <polygon points="36,46 408,30 394,150 20,166" fill="none" stroke-width="6" stroke-linejoin="miter" />
+                          <path d="M28,96 L74,64 L112,110 L164,58 L208,108 L262,54 L308,106 L362,52 L398,88" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">Comic Pop</span>
+                    </div>
+                  </button>
+
+                  <!-- 4. Aura Wash -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="aura_wash" title="Aura Wash — Organic watercolor cloud &amp; silk wave">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <path d="M16,96 C10,50 68,20 142,32 C196,12 278,14 328,36 C384,26 418,62 408,104 C416,144 362,168 298,154 C238,172 152,170 98,150 C38,164 4,132 16,96 Z" />
+                          <circle cx="24" cy="34" r="6" /><circle cx="396" cy="28" r="5" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <path d="M18,102 C82,42 154,142 224,82 C288,28 346,128 404,72" fill="none" stroke-width="14" stroke-linecap="round" />
+                          <path d="M32,122 C96,68 166,156 236,102 C298,52 354,140 396,94" fill="none" stroke-width="6" stroke-linecap="round" opacity="0.6" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">Aura Wash</span>
+                    </div>
+                  </button>
+
+                  <!-- 5. Arcade Neon -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="arcade_neon" title="Arcade Neon — Synthwave speed louvers &amp; laser pulse">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <polygon points="28,28 408,16 386,62 6,74" />
+                          <polygon points="18,78 398,66 376,112 4,124" />
+                          <polygon points="34,128 412,116 392,158 14,168" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <polyline points="12,114 96,52 134,108 238,34 276,98 378,28 408,64" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+                          <polyline points="26,134 108,74 146,126 250,56 286,116 392,48" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">Arcade Neon</span>
+                    </div>
+                  </button>
+
+                  <!-- 6. ¿Random? -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="random" title="¿Random? — Assigns each post a random swoosh with a 2-post cooldown">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <polygon points="14,42 198,20 182,88 6,108" />
+                          <path d="M168,38 C236,12 334,16 398,46 C422,74 402,138 344,154 C272,172 194,158 148,136 C112,118 122,56 168,38 Z" />
+                          <polygon points="28,112 246,88 264,150 18,166" />
+                          <circle cx="34" cy="24" r="6" /><circle cx="394" cy="28" r="6.5" /><circle cx="404" cy="148" r="5.5" /><circle cx="18" cy="144" r="5" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <path d="M18,118 C64,46 118,144 172,64 L224,116 L278,44 C326,118 366,52 406,92" fill="none" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />
+                          <path d="M42,74 L148,54 M254,132 L382,114" fill="none" stroke-width="6" stroke-linecap="round" opacity="0.65" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">¿Random?</span>
+                    </div>
+                  </button>
+                  </div>
+                </div>
+
+                <!-- Media Preferences -->
+                <div style="padding-top: 12px; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));">
+                  <div class="designer-item-label" style="margin-bottom: 10px;">Media Preferences</div>
+
+                  <div class="media-corner-showcase-grid" id="media-corner-showcase-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                    <div class="media-corner-choice-card active" data-corner-pref="straight" id="pref-corner-straight" role="button" tabindex="0" title="Click for Square images">
+                      <div class="media-corner-preview-wrap">
+                        <img src="images/sunflower-showcase.jpg" alt="Square preview" class="media-corner-preview-img img-straight">
+                      </div>
+                      <div class="media-corner-meta">
+                        <span class="media-corner-title">Square</span>
+                      </div>
+                    </div>
+
+                    <div class="media-corner-choice-card" data-corner-pref="rounded" id="pref-corner-rounded" role="button" tabindex="0" title="Click for Rounded images">
+                      <div class="media-corner-preview-wrap">
+                        <img src="images/sunflower-showcase.jpg" alt="Rounded preview" class="media-corner-preview-img img-rounded">
+                      </div>
+                      <div class="media-corner-meta">
+                        <span class="media-corner-title">Rounded</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Save Design Button (Underneath last option in the list) -->
+            <div class="pane-bottom-save-wrap" id="designer-bottom-save-wrap">
+              <button type="button" class="btn btn-primary btn-save-settings-toc popout-3d" id="btn-designer-save-bottom" title="Save design settings">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                <span>Save Design</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- Column 3: Condensed Live Preview Column (Sticky on Right) -->
+          <div class="designer-preview-column-wrap" id="designer-preview-column-wrap">
+            <div class="designer-preview-column designer-condensed-preview">
+              <div class="preview-browser-header">
+                <div class="preview-traffic-dots">
+                  <div class="preview-traffic-dot" style="background: #ff5f56;"></div>
+                  <div class="preview-traffic-dot" style="background: #ffbd2e;"></div>
+                  <div class="preview-traffic-dot" style="background: #27c93f;"></div>
+                </div>
+                <div class="preview-browser-address-bar">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <span id="designer-preview-address-text">preview.html#/</span>
+                </div>
+                <div class="designer-device-switcher-pill" id="designer-preview-device-switcher">
+                  <button type="button" class="btn-designer-device active" id="btn-designer-dev-tablet" data-designer-device="tablet" title="Tablet View (Full Width)">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                    <span>Tablet</span>
+                  </button>
+                  <button type="button" class="btn-designer-device" id="btn-designer-dev-mobile" data-designer-device="mobile" title="Mobile View (420px)">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                    <span>Mobile</span>
+                  </button>
+                </div>
+              </div>
+              <div class="preview-browser-body designer-preview-body" id="designer-live-preview">
+                <div class="designer-device-viewport device-tablet" id="designer-preview-viewport">
+                  <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html#/" title="Cedar Live Site Preview"></iframe>
+                </div>
+              </div>
+          </div>
+        </div>
+      </section>
