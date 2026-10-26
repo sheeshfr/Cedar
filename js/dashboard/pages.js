@@ -160,10 +160,15 @@
       } else if (pageId && Array.isArray(window.drafts)) {
         const draft = window.drafts.find(d => d.id === pageId);
         if (draft) {
+          const isBuiltIn = isBuiltInPage(draft);
+          const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+          if (!isBuiltIn && reservedNames.has(newTitle.toLowerCase())) {
+            if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
+            return;
+          }
           const oldTitle = originalTitle;
           draft.title = newTitle;
           draft.updatedAt = Date.now();
-          const isBuiltIn = isBuiltInPage(draft);
           if (!isBuiltIn && typeof window.generateSlug === 'function') {
             draft.slug = window.generateSlug(newTitle);
           }
@@ -251,10 +256,15 @@
         if (Array.isArray(window.drafts)) {
           const draft = window.drafts.find(d => d.id === pageId);
           if (draft && draft.title !== newTitle) {
+            const isBuiltIn = isBuiltInPage(draft);
+            const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+            if (!isBuiltIn && reservedNames.has(newTitle.toLowerCase())) {
+              if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
+              continue;
+            }
             const oldTitle = draft.title;
             draft.title = newTitle;
             draft.updatedAt = Date.now();
-            const isBuiltIn = isBuiltInPage(draft);
             if (!isBuiltIn && typeof window.generateSlug === 'function') {
               draft.slug = window.generateSlug(newTitle);
             }
@@ -2094,6 +2104,12 @@
         if (inputRedirectTitle) inputRedirectTitle.focus();
         return;
       }
+      const reservedRedirectNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+      if (reservedRedirectNames.has(titleVal.toLowerCase())) {
+        if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
+        if (inputRedirectTitle) inputRedirectTitle.focus();
+        return;
+      }
       if (!urlVal) {
         if (typeof window.showToast === 'function') window.showToast('Please enter a bookmark / target URL.');
         if (inputRedirectUrl) inputRedirectUrl.focus();
@@ -2217,9 +2233,9 @@
         inputCat.focus();
         return;
       }
-      const forbiddenNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'feed', 'links', 'all']);
+      const forbiddenNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
       if (forbiddenNames.has(rawVal.toLowerCase())) {
-        if (typeof window.showToast === 'function') window.showToast(`"${rawVal}" is not allowed as a category name.`);
+        if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
         return;
       }
 

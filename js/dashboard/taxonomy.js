@@ -17,8 +17,9 @@
     const newTrimmed = newName.trim();
     if (!newTrimmed || oldTrimmed === newTrimmed) return false;
 
-    if (newTrimmed.toLowerCase() === 'uncategorized' || newTrimmed.toLowerCase() === 'posts') {
-      if (typeof window.showToast === 'function') window.showToast(`"${newTrimmed}" is not allowed as a category name.`);
+    const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+    if (reservedNames.has(newTrimmed.toLowerCase())) {
+      if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
       renderTaxonomy();
       return false;
     }
@@ -564,8 +565,9 @@
       btnAddCat.addEventListener('click', () => {
         const val = inputCat.value.trim();
         if (!val) return;
-        if (val.toLowerCase() === 'uncategorized' || val.toLowerCase() === 'posts') {
-          showToast(`"${val}" is not allowed as a category name.`);
+        const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+        if (reservedNames.has(val.toLowerCase())) {
+          showToast("Woah! That's a reserved name - pick something else.");
           return;
         }
         if (!projectConfig.categories.includes(val)) {

@@ -2298,8 +2298,9 @@
         catInput.focus();
         return;
       }
-      if (val.toLowerCase() === 'uncategorized') {
-        if (typeof showToast === 'function') showToast('"Uncategorized" is a reserved fallback name.');
+      const reservedCatNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+      if (reservedCatNames.has(val.toLowerCase())) {
+        if (typeof showToast === 'function') showToast("Woah! That's a reserved name - pick something else.");
         return;
       }
       if (!window.projectConfig) window.projectConfig = { categories: [] };

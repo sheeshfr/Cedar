@@ -411,6 +411,7 @@
     // Guard: Only scrape living canvas if canvas is bound to this curDraft!
     const isCanvasTitleBound = canvasTitle && (!canvasTitle.dataset.loadedDraftId || canvasTitle.dataset.loadedDraftId === curDraft.id);
 
+    const prevDraftTitle = curDraft.title || '';
     if (isExportOpen && setupTitle && setupTitle.value !== undefined) {
       curDraft.title = setupTitle.value.trim();
       if (canvasTitle && isCanvasTitleBound) canvasTitle.textContent = curDraft.title;
@@ -424,6 +425,16 @@
       curDraft.title = (setupTitle.value || '').trim();
     } else {
       curDraft.title = getVal('meta-title') || curDraft.title || '';
+    }
+    const reservedSyncNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+    const isBuiltInCurPage = Boolean(curDraft.id === 'page_about' || curDraft.id === 'page_rss' || curDraft.id === 'page_links' || curDraft.id === 'page_all' || curDraft.id === 'page_about_cedar');
+    if (curDraft.type === 'page' && !isBuiltInCurPage && reservedSyncNames.has((curDraft.title || '').trim().toLowerCase())) {
+      if (typeof window.showToast === 'function') {
+        window.showToast("Woah! That's a reserved name - pick something else.");
+      }
+      curDraft.title = reservedSyncNames.has(prevDraftTitle.trim().toLowerCase()) ? '' : prevDraftTitle;
+      if (canvasTitle && isCanvasTitleBound) canvasTitle.textContent = curDraft.title;
+      if (setupTitle) setupTitle.value = curDraft.title;
     }
     const metaTitle = document.getElementById('meta-title');
     if (metaTitle) metaTitle.value = curDraft.title;
@@ -1020,10 +1031,19 @@
     const canvasProse = document.getElementById('rich-canvas-prose');
 
     if (canvasTitle) {
+      const reservedPageNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+      const isBuiltInPageDraft = (d) => Boolean(d && (d.id === 'page_about' || d.id === 'page_rss' || d.id === 'page_links' || d.id === 'page_all' || d.id === 'page_about_cedar'));
+
       canvasTitle.addEventListener('input', () => {
         const curDraft = window.currentDraft;
         if (!curDraft) return;
         const val = canvasTitle.textContent.trim();
+        if (curDraft.type === 'page' && !isBuiltInPageDraft(curDraft) && reservedPageNames.has(val.toLowerCase())) {
+          if (typeof window.showToast === 'function') {
+            window.showToast("Woah! That's a reserved name - pick something else.");
+          }
+          return;
+        }
         const metaTitle = document.getElementById('meta-title');
         if (metaTitle) metaTitle.value = val;
         curDraft.title = val;
@@ -1054,6 +1074,13 @@
 
       canvasTitle.addEventListener('blur', () => {
         const curDraft = window.currentDraft;
+        const val = canvasTitle.textContent.trim();
+        if (curDraft && curDraft.type === 'page' && !isBuiltInPageDraft(curDraft) && reservedPageNames.has(val.toLowerCase())) {
+          if (typeof window.showToast === 'function') {
+            window.showToast("Woah! That's a reserved name - pick something else.");
+          }
+          canvasTitle.textContent = curDraft.title && !reservedPageNames.has(curDraft.title.trim().toLowerCase()) ? curDraft.title : '';
+        }
         if (curDraft && curDraft.type === 'page' && canvasProse) {
           const recentBlock = canvasProse.querySelector('.page-recent-posts-block');
           if (recentBlock && typeof window.hydrateSingleRecentPostsBlock === 'function') {
