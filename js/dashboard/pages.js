@@ -947,7 +947,7 @@
         return;
       }
       const inInteractive = target && typeof target.closest === 'function' &&
-        target.closest('input, textarea, button, select, a, .posts-view-toggle, .card-title-input, .card-url-input');
+        target.closest('input, textarea, button, select, a, .posts-view-toggle, .card-title-input, .card-url-input, .badge-redirect');
       if (inInteractive) {
         card._suppressCardDrag = true;
         card.draggable = false;
