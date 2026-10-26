@@ -200,12 +200,12 @@
       filter: blur(28px) brightness(0.42);
       opacity: 0.65;
       pointer-events: none;
-      z-index: 0;
+      z-index: 2;
     }
 
     .spotlight-img {
       position: relative;
-      z-index: 1;
+      z-index: 3;
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -857,13 +857,13 @@
       filter: blur(28px) brightness(0.35) saturate(1.3);
       opacity: 0.75;
       pointer-events: none;
-      z-index: 0;
+      z-index: 2;
       transform: scale(1.1);
     }
 
     .post-card-img {
       position: relative;
-      z-index: 1;
+      z-index: 3;
       max-width: 100%;
       max-height: 100%;
       width: 100%;
@@ -1017,8 +1017,64 @@
       color: var(--text-prose);
     }
 
-    /* Showcase Card Layout (when post has no featured image in Grid, Row/List, or Spotlight View) */
+    /* Unified Showcase Layer & Featureless Card Layout (sits underneath featured images and reveals automatically when featureless or on broken image link) */
+    .post-card:not(.post-card-no-cover) .post-card-img-wrap::before,
+    .spotlight-carousel-slide:not(.spotlight-no-cover) .spotlight-img-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: #090d16;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .post-card:not(.post-card-no-cover) .post-card-showcase-cluster,
+    .spotlight-carousel-slide:not(.spotlight-no-cover) .post-card-showcase-cluster {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 0 !important;
+      pointer-events: none !important;
+      overflow: hidden !important;
+    }
+
+    .post-card:not(.post-card-no-cover) .post-card-showcase-text,
+    .spotlight-carousel-slide:not(.spotlight-no-cover) .post-card-showcase-text {
+      display: none !important;
+    }
+
+    .post-card-showcase-byline,
+    .post-card-showcase-dateline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .post-card-no-cover .post-card-img-ambient,
+    .post-card-no-cover .post-card-img,
+    .spotlight-no-cover .spotlight-img-ambient,
+    .spotlight-no-cover .spotlight-img {
+      display: none !important;
+    }
+
+    .post-card-no-cover .post-card-body > .post-card-standard-title,
+    .post-card-no-cover .post-card-body > .post-card-desc,
+    .post-card-no-cover .post-card-body > .post-card-eyebrow,
+    .post-card-no-cover .post-card-meta-sep,
+    .spotlight-no-cover > .spotlight-standard-title,
+    .spotlight-no-cover > .spotlight-desc {
+      display: none !important;
+    }
+
     .post-card-no-cover .post-card-showcase-wrap,
+    .post-card-no-cover .post-card-img-wrap,
+    .spotlight-no-cover .spotlight-img-wrap,
     .spotlight-no-cover .spotlight-img-wrap.post-card-showcase-wrap {
       width: 100%;
       aspect-ratio: 16 / 9;
@@ -1034,53 +1090,65 @@
       padding: 0.75rem 0.75rem !important;
     }
 
+    .post-card-showcase-cluster,
     .post-card-no-cover .post-card-showcase-cluster {
       position: relative;
-      display: inline-flex;
+      display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: fit-content;
+      width: 100%;
+      height: 100%;
       min-width: 0;
-      max-width: 95%;
-      padding: 0.25rem 0;
+      max-width: 100%;
+      padding: 0.25rem 0.5rem;
       isolation: isolate;
       overflow: visible !important;
+      box-sizing: border-box;
     }
 
+    /* Fixed-size, fixed-position background swoosh on every card regardless of line length or subtitle presence */
+    .post-card .post-card-showcase-splash,
+    .spotlight-carousel-slide .post-card-showcase-splash,
     .post-card-no-cover .post-card-showcase-splash {
-      position: absolute;
-      top: -16%;
-      left: -7.5%;
-      right: auto;
-      bottom: auto;
-      width: 115%;
-      height: 78%;
-      pointer-events: none;
-      z-index: 0;
+      position: absolute !important;
+      top: 45% !important;
+      left: 50% !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: 88% !important;
+      height: 120px !important;
+      pointer-events: none !important;
+      z-index: 0 !important;
       overflow: visible !important;
-      transform: rotate(var(--splash-tilt, -2.5deg));
+      transform: translate(-50%, -50%) rotate(-2.5deg) !important;
+      transform-origin: center center !important;
       transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), filter 0.28s ease;
     }
 
-    .post-card-no-cover .post-card-showcase-cluster.title-only .post-card-showcase-splash {
-      top: -22%;
-      height: 144%;
+    .spotlight-carousel-slide .post-card-showcase-splash,
+    .spotlight-no-cover .post-card-showcase-splash {
+      width: min(620px, 84%) !important;
+      height: 160px !important;
+      top: 45% !important;
+      left: 50% !important;
     }
 
+    .post-card-showcase-splash g,
     .post-card-no-cover .post-card-showcase-splash g {
       filter: drop-shadow(0 6px 18px rgba(var(--accent-rgb, 113, 113, 122), 0.18));
       transition: filter 0.28s ease;
     }
 
     .post-card-no-cover:hover .post-card-showcase-splash {
-      transform: rotate(calc(var(--splash-tilt, -2.5deg) - 1deg)) scale(1.02);
+      transform: translate(-50%, -50%) rotate(-3.5deg) scale(1.02) !important;
     }
 
     .post-card-no-cover:hover .post-card-showcase-splash g {
       filter: drop-shadow(0 8px 22px rgba(var(--accent-rgb, 113, 113, 122), 0.26));
     }
 
+    .post-card-showcase-splash .splash-brush-base,
     .post-card-no-cover .post-card-showcase-splash .splash-brush-base {
       fill: var(--popout-3d-bg, var(--bg-secondary, #27272a));
       stroke: rgba(var(--accent-rgb, 245, 158, 11), 0.28);
@@ -1088,6 +1156,7 @@
       opacity: 0.94;
     }
 
+    .post-card-showcase-splash .splash-brush-accent,
     .post-card-no-cover .post-card-showcase-splash .splash-brush-accent {
       stroke: var(--accent-primary, #f59e0b);
       opacity: 0.42;
@@ -1101,6 +1170,7 @@
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
+      max-width: 95%;
       text-align: center;
       text-shadow: 0 1px 12px var(--popout-3d-bg, var(--bg-secondary)), 0 1px 3px var(--bg-primary);
     }
@@ -1123,7 +1193,8 @@
       font-size: 2.4rem !important;
     }
 
-    .post-card-no-cover .post-card-showcase-wrap .post-card-desc {
+    .post-card-no-cover .post-card-showcase-wrap .post-card-desc,
+    .post-card-no-cover .post-card-showcase-text .post-card-desc {
       display: -webkit-box !important;
       flex: 0 0 auto !important;
       font-size: 1.12rem !important;
@@ -1137,19 +1208,23 @@
       overflow: hidden !important;
     }
 
-    .spotlight-no-cover .post-card-showcase-wrap .post-card-desc {
+    .spotlight-no-cover .post-card-showcase-wrap .post-card-desc,
+    .spotlight-no-cover .post-card-showcase-text .post-card-desc {
       font-size: 1.22rem !important;
     }
 
-    .post-card-no-cover .post-card-showcase-body {
+    .post-card-no-cover .post-card-showcase-body,
+    .post-card-no-cover .post-card-body {
       align-items: center !important;
       justify-content: center !important;
       text-align: center !important;
       padding: 0.65rem 0.25rem 0.25rem !important;
       flex: 0 0 auto !important;
+      margin-top: auto !important;
     }
 
-    .post-card-no-cover .post-card-showcase-body .post-card-meta {
+    .post-card-no-cover .post-card-showcase-body .post-card-meta,
+    .post-card-no-cover .post-card-body .post-card-meta {
       display: flex !important;
       flex-direction: row !important;
       flex-wrap: wrap !important;
@@ -1174,23 +1249,38 @@
     }
 
     .post-card.post-card-no-cover.layout-horizontal .post-card-showcase-wrap,
-    .posts-list-view .post-card.post-card-no-cover .post-card-showcase-wrap {
+    .post-card.post-card-no-cover.layout-horizontal .post-card-img-wrap,
+    .posts-list-view .post-card.post-card-no-cover .post-card-showcase-wrap,
+    .posts-list-view .post-card.post-card-no-cover .post-card-img-wrap {
       width: 100% !important;
       min-width: 0 !important;
       max-width: 100% !important;
       aspect-ratio: auto !important;
       height: auto !important;
+      min-height: 140px !important;
       padding: 0.35rem 0.5rem !important;
       overflow: visible !important;
     }
 
     .post-card.post-card-no-cover.layout-horizontal .post-card-showcase-cluster,
     .posts-list-view .post-card.post-card-no-cover .post-card-showcase-cluster {
-      max-width: 88%;
+      width: 100% !important;
+      max-width: 88% !important;
+      min-height: 132px !important;
+    }
+
+    .post-card.post-card-no-cover.layout-horizontal .post-card-showcase-splash,
+    .posts-list-view .post-card.post-card-no-cover .post-card-showcase-splash {
+      width: min(460px, 86%) !important;
+      height: 118px !important;
+      top: 45% !important;
+      left: 50% !important;
     }
 
     .post-card.post-card-no-cover.layout-horizontal .post-card-showcase-body,
-    .posts-list-view .post-card.post-card-no-cover .post-card-showcase-body {
+    .post-card.post-card-no-cover.layout-horizontal .post-card-body,
+    .posts-list-view .post-card.post-card-no-cover .post-card-showcase-body,
+    .posts-list-view .post-card.post-card-no-cover .post-card-body {
       padding: 0.25rem 0 0 !important;
       width: 100% !important;
     }
@@ -1858,14 +1948,33 @@
         white-space: nowrap !important;
       }
 
-      /* 4) No subtitle or preview text anywhere */
-      .post-card-desc,
+      /* 4) No subtitle or preview text anywhere on standard image cards */
+      .post-card:not(.post-card-no-cover) .post-card-desc,
       .post-card-excerpt,
       .post-card-subtitle,
-      .posts-list-view .post-card-desc,
-      .article-prose .post-card-desc,
+      .posts-list-view .post-card:not(.post-card-no-cover) .post-card-desc,
+      .article-prose .post-card:not(.post-card-no-cover) .post-card-desc,
       .spotlight-sub {
         display: none !important;
+      }
+
+      .post-card.post-card-no-cover .post-card-img-wrap,
+      .posts-list-view .post-card.post-card-no-cover .post-card-img-wrap {
+        overflow: visible !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .post-card.post-card-no-cover .post-card-body > .post-card-standard-title,
+      .post-card.post-card-no-cover .post-card-body > .post-card-desc,
+      .post-card.post-card-no-cover .post-card-meta-sep {
+        display: none !important;
+      }
+
+      .post-card.post-card-no-cover .post-card-showcase-title {
+        font-size: 1.75rem !important;
+        line-height: 1.2 !important;
+        text-align: center !important;
       }
 
       /* Newsletter Wire Block */

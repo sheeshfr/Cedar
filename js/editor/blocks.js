@@ -441,30 +441,6 @@
       : rawAuths.map(a => (typeof a === 'object' && a ? a.name : a)).filter(Boolean).join(', ');
 
     const resolvedCover = resolveCardCoverImage(post);
-    let thumbWrapHtml = '';
-    if (resolvedCover) {
-      thumbWrapHtml = `
-        <div class="post-card-img-wrap" style="background-color: var(--bg-secondary, #18181b); aspect-ratio: 16 / 9;">
-          <div class="post-card-img-ambient" style="background-image: url('${esc(resolvedCover)}');"></div>
-          <img src="${esc(resolvedCover)}" alt="" class="post-card-img" loading="lazy" onerror="if(this.parentElement) this.parentElement.style.display='none';">
-        </div>
-      `;
-    } else {
-      thumbWrapHtml = `
-        <div class="post-card-img-wrap post-card-fallback-wrap" style="aspect-ratio: 16 / 9;">
-          <div class="post-card-fallback-glow"></div>
-          <div class="post-card-fallback-glyph">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              <line x1="9" y1="7" x2="15" y2="7"/>
-              <line x1="9" y1="11" x2="13" y2="11"/>
-            </svg>
-          </div>
-        </div>
-      `;
-    }
-
     const categoryEyebrowHtml = '';
 
     const starBadge = (post.starred || post.featured || post.isFeatured)
@@ -476,70 +452,49 @@
     const descHtml = descText ? `<p class="post-card-desc">${esc(descText)}</p>` : '';
     const cardLayoutClass = layoutStyle === 'horizontal' ? 'layout-horizontal' : '';
 
-    if (!resolvedCover && layoutStyle !== 'horizontal') {
-      const titleStr = String(post.title || 'Untitled Post').trim();
-      const subStr = descText ? String(descText).trim() : '';
-      const titleRows = Math.min(3, Math.max(1, Math.ceil(titleStr.length / 18)));
-      const subRows = subStr ? Math.min(3, Math.max(1, Math.ceil(subStr.length / 32))) : 0;
-      const totalRows = titleRows + subRows;
-      const maxRowChars = Math.max(Math.min(titleStr.length, 20) * 1.35, Math.min(subStr.length, 34));
-      const padX = Math.min(3.1, Math.max(1.65, 1.2 + maxRowChars * 0.048)).toFixed(2);
-      const padY = Math.min(1.9, Math.max(0.9, 0.58 + totalRows * 0.25)).toFixed(2);
-      const tiltDeg = (-4.2 / Math.sqrt(totalRows)).toFixed(2);
+    const cfgDesign = (window.projectConfig && window.projectConfig.design) || {};
+    const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
+    const swooshSvgHtml = (typeof window.buildShowcaseSwooshSvg === 'function')
+      ? window.buildShowcaseSwooshSvg(swooshType, post.id || post.slug || post.title, post)
+      : `<svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
+          <g class="splash-brush-base">
+            <path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" />
+            <path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" />
+            <path d="M138,168 C210,122 292,72 378,34 C398,25 412,39 392,54 C324,102 246,144 174,180 C150,190 122,180 138,168 Z" />
+            <path d="M236,162 C292,128 352,94 404,68 C418,61 422,75 408,86 C362,118 308,148 262,172 C244,180 222,170 236,162 Z" />
+            <circle cx="188" cy="18" r="5" /><circle cx="312" cy="22" r="6" /><circle cx="398" cy="36" r="4.5" /><circle cx="28" cy="158" r="5.5" /><circle cx="118" cy="176" r="4.5" />
+          </g>
+          <g class="splash-brush-accent">
+            <path d="M16,120 C54,82 88,48 108,44 C120,42 96,102 110,108 C126,114 196,42 228,36 C242,33 214,94 230,100 C248,106 318,40 350,36 C364,34 336,86 352,92 C368,98 394,68 412,56" fill="none" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M36,132 C72,98 100,68 116,64 C126,62 108,112 122,116 C138,120 206,58 234,52 C246,50 224,104 238,108 C254,112 322,56 352,52" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
+          </g>
+        </svg>`;
 
-      const cfgDesign = (window.projectConfig && window.projectConfig.design) || {};
-      const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
-      const swooshSvgHtml = (typeof window.buildShowcaseSwooshSvg === 'function')
-        ? window.buildShowcaseSwooshSvg(swooshType, post.id || post.slug || post.title, post)
-        : `<svg class="post-card-showcase-splash" viewBox="0 10 420 168" preserveAspectRatio="none" aria-hidden="true">
-            <g class="splash-brush-base">
-              <path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" />
-              <path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" />
-              <path d="M138,168 C210,122 292,72 378,34 C398,25 412,39 392,54 C324,102 246,144 174,180 C150,190 122,180 138,168 Z" />
-              <path d="M236,162 C292,128 352,94 404,68 C418,61 422,75 408,86 C362,118 308,148 262,172 C244,180 222,170 236,162 Z" />
-              <circle cx="188" cy="18" r="5" /><circle cx="312" cy="22" r="6" /><circle cx="398" cy="36" r="4.5" /><circle cx="28" cy="158" r="5.5" /><circle cx="118" cy="176" r="4.5" />
-            </g>
-            <g class="splash-brush-accent">
-              <path d="M16,120 C54,82 88,48 108,44 C120,42 96,102 110,108 C126,114 196,42 228,36 C242,33 214,94 230,100 C248,106 318,40 350,36 C364,34 336,86 352,92 C368,98 394,68 412,56" fill="none" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M36,132 C72,98 100,68 116,64 C126,62 108,112 122,116 C138,120 206,58 234,52 C246,50 224,104 238,108 C254,112 322,56 352,52" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" />
-            </g>
-          </svg>`;
-
-      return `
-        <a href="${esc(href)}" class="post-card post-card-no-cover ${cardLayoutClass}" data-post-id="${esc(post.id || '')}">
-          <div class="post-card-img-wrap post-card-showcase-wrap" style="aspect-ratio: 16 / 9;">
-            <div class="post-card-showcase-cluster" data-rows="${totalRows}" style="--splash-pad-x: ${padX}rem; --splash-pad-y: ${padY}rem; --splash-tilt: ${tiltDeg}deg;">
-              ${swooshSvgHtml}
-              <div class="post-card-showcase-text">
-                ${categoryEyebrowHtml}
-                <h4 class="post-card-title post-card-showcase-title">${esc(post.title || 'Untitled Post')}</h4>
-                ${descHtml}
-              </div>
-            </div>
-          </div>
-          <div class="post-card-body post-card-showcase-body">
-            <div class="post-card-meta post-card-showcase-meta">
-              <div class="post-card-showcase-byline">
-                ${starBadge}
-                <span class="post-card-author">By <span style="text-decoration: underline; text-underline-offset: 2px;">${esc(authName)}</span></span>
-              </div>
-              <div class="post-card-showcase-dateline">
-                <time>${esc(dateDisplay)}</time>
-                ${readTime ? `<span>&bull;</span><span>${esc(readTime)}</span>` : ''}
-              </div>
-            </div>
-          </div>
-        </a>
-      `;
-    }
+    const noCoverClass = !resolvedCover ? 'post-card-no-cover ' : '';
+    const coverLayerHtml = resolvedCover
+      ? `
+        <div class="post-card-img-ambient" style="background-image: url('${esc(resolvedCover)}');"></div>
+        <img src="${esc(resolvedCover)}" alt="" class="post-card-img" loading="lazy" onerror="const c=this.closest('.post-card');if(c)c.classList.add('post-card-no-cover');this.remove();">
+      `
+      : '';
 
     return `
-      <a href="${esc(href)}" class="post-card ${cardLayoutClass}" data-post-id="${esc(post.id || '')}">
-        ${thumbWrapHtml}
-        <div class="post-card-body">
+      <a href="${esc(href)}" class="post-card ${noCoverClass}${cardLayoutClass}" data-post-id="${esc(post.id || '')}">
+        <div class="post-card-img-wrap post-card-showcase-wrap" style="background-color: var(--bg-secondary, #18181b); aspect-ratio: 16 / 9;">
+          <div class="post-card-showcase-cluster">
+            ${swooshSvgHtml}
+            <div class="post-card-showcase-text">
+              ${categoryEyebrowHtml}
+              <h4 class="post-card-title post-card-showcase-title">${esc(post.title || 'Untitled Post')}</h4>
+              ${descHtml}
+            </div>
+          </div>
+          ${coverLayerHtml}
+        </div>
+        <div class="post-card-body post-card-showcase-body">
           ${categoryEyebrowHtml}
-          <h4 class="post-card-title">${esc(post.title || 'Untitled Post')}</h4>
-          <div class="post-card-meta">
+          <h4 class="post-card-title post-card-standard-title">${esc(post.title || 'Untitled Post')}</h4>
+          <div class="post-card-meta post-card-showcase-meta">
             ${starBadge}
             <span class="post-card-author">By <span style="text-decoration: underline; text-underline-offset: 2px;">${esc(authName)}</span></span>
             <span>&bull;</span>

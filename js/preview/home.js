@@ -700,32 +700,6 @@
         const resolvedCover = (typeof getPostFeaturedImage === 'function')
           ? getPostFeaturedImage(p)
           : (typeof resolvePostImage === 'function' ? resolvePostImage(p.coverImage || p.featuredImage, p) : '');
-        
-        let thumbWrapHtml = '';
-        if (showThumbnails) {
-          if (resolvedCover) {
-            thumbWrapHtml = `
-              <div class="post-card-img-wrap" style="background-color: ${mutedColor}; aspect-ratio: 16 / 9;">
-                <div class="post-card-img-ambient" style="background-image: url('${escapeHtml(resolvedCover)}');"></div>
-                <img src="${escapeHtml(resolvedCover)}" alt="" class="post-card-img" loading="lazy" onerror="if(this.parentElement) this.parentElement.style.display='none';">
-              </div>
-            `;
-          } else {
-            thumbWrapHtml = `
-              <div class="post-card-img-wrap post-card-fallback-wrap" style="background-color: ${mutedColor}; aspect-ratio: 16 / 9;">
-                <div class="post-card-fallback-glow"></div>
-                <div class="post-card-fallback-glyph">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                    <line x1="9" y1="7" x2="15" y2="7"/>
-                    <line x1="9" y1="11" x2="13" y2="11"/>
-                  </svg>
-                </div>
-              </div>
-            `;
-          }
-        }
 
         const categoryEyebrowHtml = '';
 
@@ -763,47 +737,34 @@
         const cardLayoutClass = layoutStyle === 'horizontal' ? 'layout-horizontal' : '';
         const indexAttr = (fCfg.index !== undefined && fCfg.index !== null) ? ` data-index="${fCfg.index}"` : '';
 
-        if (!resolvedCover) {
-          const titleStr = String(p.title || 'Untitled Post').trim();
-          const subStr = (showExcerpt && descText) ? String(descText).trim() : '';
-          const titleRows = Math.min(2, Math.max(1, Math.ceil(titleStr.length / 18)));
-          const subRows = subStr ? Math.min(3, Math.max(1, Math.ceil(subStr.length / 32))) : 0;
-          const totalRows = titleRows + subRows;
-          const maxRowChars = Math.max(Math.min(titleStr.length, 20) * 1.35, Math.min(subStr.length, 34));
-          const padX = Math.min(3.1, Math.max(1.65, 1.2 + maxRowChars * 0.048)).toFixed(2);
-          const padY = Math.min(1.9, Math.max(0.9, 0.58 + totalRows * 0.25)).toFixed(2);
-          const tiltDeg = (-4.2 / Math.sqrt(totalRows)).toFixed(2);
-
-          const cfgDesign = (getConfig() && getConfig().design) || {};
-          const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
-          const swooshSvgHtml = buildShowcaseSwooshSvg(swooshType, p.id || p.slug || p.title, p);
-          const clusterModeClass = subStr ? 'has-subtitle' : 'title-only';
-
-          return `
-            <a href="${window.buildPostUrl(p)}" class="post-card post-card-no-cover ${cardLayoutClass}"${indexAttr}>
-              <div class="post-card-img-wrap post-card-showcase-wrap" style="aspect-ratio: 16 / 9;">
-                <div class="post-card-showcase-cluster ${clusterModeClass}" data-rows="${totalRows}" style="--splash-pad-x: ${padX}rem; --splash-pad-y: ${padY}rem; --splash-tilt: ${tiltDeg}deg;">
-                  ${swooshSvgHtml}
-                  <div class="post-card-showcase-text">
-                    ${categoryEyebrowHtml}
-                    <h4 class="post-card-title post-card-showcase-title">${escapeHtml(p.title || 'Untitled Post')}</h4>
-                    ${descHtml}
-                  </div>
-                </div>
-              </div>
-              <div class="post-card-body post-card-showcase-body">
-                ${metaRowHtml}
-              </div>
-            </a>
-          `;
-        }
+        const cfgDesign = (getConfig() && getConfig().design) || {};
+        const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
+        const swooshSvgHtml = buildShowcaseSwooshSvg(swooshType, p.id || p.slug || p.title, p);
+        const hasCoverImage = Boolean(showThumbnails && resolvedCover);
+        const noCoverClass = !hasCoverImage ? 'post-card-no-cover ' : '';
+        const coverLayerHtml = hasCoverImage
+          ? `
+            <div class="post-card-img-ambient" style="background-image: url('${escapeHtml(resolvedCover)}');"></div>
+            <img src="${escapeHtml(resolvedCover)}" alt="" class="post-card-img" loading="lazy" onerror="const c=this.closest('.post-card');if(c)c.classList.add('post-card-no-cover');this.remove();">
+          `
+          : '';
 
         return `
-          <a href="${window.buildPostUrl(p)}" class="post-card ${cardLayoutClass}"${indexAttr}>
-            ${thumbWrapHtml}
-            <div class="post-card-body">
+          <a href="${window.buildPostUrl(p)}" class="post-card ${noCoverClass}${cardLayoutClass}"${indexAttr}>
+            <div class="post-card-img-wrap post-card-showcase-wrap" style="background-color: ${mutedColor}; aspect-ratio: 16 / 9;">
+              <div class="post-card-showcase-cluster">
+                ${swooshSvgHtml}
+                <div class="post-card-showcase-text">
+                  ${categoryEyebrowHtml}
+                  <h4 class="post-card-title post-card-showcase-title">${escapeHtml(p.title || 'Untitled Post')}</h4>
+                  ${descHtml}
+                </div>
+              </div>
+              ${coverLayerHtml}
+            </div>
+            <div class="post-card-body post-card-showcase-body">
               ${categoryEyebrowHtml}
-              <h4 class="post-card-title">${escapeHtml(p.title || 'Untitled Post')}</h4>
+              <h4 class="post-card-title post-card-standard-title">${escapeHtml(p.title || 'Untitled Post')}</h4>
               ${metaRowHtml}
               ${descHtml}
             </div>
@@ -1311,64 +1272,41 @@
           `
           : '';
 
-        if (!spotImgUrl) {
-          const titleStr = String(featured.title || 'Untitled Post').trim();
-          const rawSub = (featured.subtitle || featured.customDesc || '').trim() ||
-            extractPlainExcerpt(featured.markdown || featured.content || featured.proseHtml || '', 140);
-          const subStr = String(rawSub || '').trim();
-          const titleRows = Math.min(2, Math.max(1, Math.ceil(titleStr.length / 18)));
-          const subRows = subStr ? Math.min(3, Math.max(1, Math.ceil(subStr.length / 32))) : 0;
-          const totalRows = titleRows + subRows;
-          const maxRowChars = Math.max(Math.min(titleStr.length, 20) * 1.35, Math.min(subStr.length, 34));
-          const padX = Math.min(3.1, Math.max(1.65, 1.2 + maxRowChars * 0.048)).toFixed(2);
-          const padY = Math.min(1.9, Math.max(0.9, 0.58 + totalRows * 0.25)).toFixed(2);
-          const tiltDeg = (-4.2 / Math.sqrt(totalRows)).toFixed(2);
-
-          const cfgDesign = (getConfig() && getConfig().design) || {};
-          const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
-          const swooshSvgHtml = buildShowcaseSwooshSvg(swooshType, featured.id || featured.slug || featured.title, featured);
-          const spotDescHtml = subStr ? `<p class="post-card-desc">${escapeHtml(subStr)}</p>` : '';
-          const readTime = calcReadTime(featured.markdown || featured.proseHtml || featured.html || '');
-          const clusterModeClass = subStr ? 'has-subtitle' : 'title-only';
-
-          return `
-            <a href="${window.buildPostUrl(featured)}" class="spotlight-carousel-slide post-card-no-cover spotlight-no-cover">
-              <div class="spotlight-img-wrap post-card-img-wrap post-card-showcase-wrap" style="aspect-ratio: 16 / 9;">
-                <div class="post-card-showcase-cluster ${clusterModeClass}" data-rows="${totalRows}" style="--splash-pad-x: ${padX}rem; --splash-pad-y: ${padY}rem; --splash-tilt: ${tiltDeg}deg;">
-                  ${swooshSvgHtml}
-                  <div class="post-card-showcase-text">
-                    <h2 class="spotlight-title post-card-title post-card-showcase-title">${escapeHtml(featured.title || 'Untitled Post')}</h2>
-                    ${spotDescHtml}
-                  </div>
-                </div>
-              </div>
-              ${badgeHtml}
-              <div class="spotlight-meta">
-                <span class="spotlight-author" style="cursor: pointer; display: inline-flex; align-items: center;" onclick="event.stopPropagation(); event.preventDefault(); if (window.navigateTo) window.navigateTo('#/author/' + encodeURIComponent('${escapeHtml(authName)}')); else window.location.hash='#/author/' + encodeURIComponent('${escapeHtml(authName)}');">${avatarImgHtml}By <span style="text-decoration: underline; text-underline-offset: 2px;">${escapeHtml(authName)}</span></span>
-                <span class="spotlight-sep">&bull;</span>
-                <time class="spotlight-date">${escapeHtml(formattedDate)}</time>
-                ${readTime ? `<span class="spotlight-sep">&bull;</span><span>${readTime}</span>` : ''}
-              </div>
-            </a>
-          `;
-        }
-
-        const imgWrapHtml = `
-          <div class="spotlight-img-wrap" style="background-color: ${spotlightColor}; aspect-ratio: 16 / 9;">
+        const rawSub = (featured.subtitle || featured.customDesc || '').trim() ||
+          extractPlainExcerpt(featured.markdown || featured.content || featured.proseHtml || '', 140);
+        const subStr = String(rawSub || '').trim();
+        const cfgDesign = (getConfig() && getConfig().design) || {};
+        const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
+        const swooshSvgHtml = buildShowcaseSwooshSvg(swooshType, featured.id || featured.slug || featured.title, featured);
+        const spotDescHtml = subStr ? `<p class="post-card-desc">${escapeHtml(subStr)}</p>` : '';
+        const readTime = calcReadTime(featured.markdown || featured.proseHtml || featured.html || '');
+        const noCoverClasses = !spotImgUrl ? ' post-card-no-cover spotlight-no-cover' : '';
+        const spotCoverLayerHtml = spotImgUrl
+          ? `
             <div class="spotlight-img-ambient" style="background-image: url('${escapeHtml(spotImgUrl)}');"></div>
-            <img src="${escapeHtml(spotImgUrl)}" alt="" class="spotlight-img" onerror="this.parentElement.style.display='none';">
-          </div>
-        `;
+            <img src="${escapeHtml(spotImgUrl)}" alt="" class="spotlight-img" onerror="const c=this.closest('.spotlight-carousel-slide');if(c){c.classList.add('post-card-no-cover','spotlight-no-cover');}this.remove();">
+          `
+          : '';
 
         return `
-          <a href="${window.buildPostUrl(featured)}" class="spotlight-carousel-slide">
-            ${imgWrapHtml}
+          <a href="${window.buildPostUrl(featured)}" class="spotlight-carousel-slide${noCoverClasses}">
+            <div class="spotlight-img-wrap post-card-img-wrap post-card-showcase-wrap" style="background-color: ${spotlightColor}; aspect-ratio: 16 / 9;">
+              <div class="post-card-showcase-cluster">
+                ${swooshSvgHtml}
+                <div class="post-card-showcase-text">
+                  <h2 class="spotlight-title post-card-title post-card-showcase-title">${escapeHtml(featured.title || 'Untitled Post')}</h2>
+                  ${spotDescHtml}
+                </div>
+              </div>
+              ${spotCoverLayerHtml}
+            </div>
             ${badgeHtml}
-            <h2 class="spotlight-title">${escapeHtml(featured.title || 'Untitled Post')}</h2>
+            <h2 class="spotlight-title spotlight-standard-title">${escapeHtml(featured.title || 'Untitled Post')}</h2>
             <div class="spotlight-meta">
               <span class="spotlight-author" style="cursor: pointer; display: inline-flex; align-items: center;" onclick="event.stopPropagation(); event.preventDefault(); if (window.navigateTo) window.navigateTo('#/author/' + encodeURIComponent('${escapeHtml(authName)}')); else window.location.hash='#/author/' + encodeURIComponent('${escapeHtml(authName)}');">${avatarImgHtml}By <span style="text-decoration: underline; text-underline-offset: 2px;">${escapeHtml(authName)}</span></span>
               <span class="spotlight-sep">&bull;</span>
               <time class="spotlight-date">${escapeHtml(formattedDate)}</time>
+              ${readTime ? `<span class="spotlight-sep">&bull;</span><span>${readTime}</span>` : ''}
             </div>
             ${descText ? `<p class="spotlight-desc">${escapeHtml(descText)}</p>` : ''}
           </a>
