@@ -897,16 +897,17 @@
       badgeClass = 'badge-static';
     }
 
-    const typeBadge = `<span class="badge ${badgeClass}" title="${pageTypeTag} page">${pageTypeTag}</span>`;
-    const redirectGoToBtn = page.isRedirect
-      ? `<button type="button" class="btn-redirect-goto" data-action="goto-redirect" title="Open ${escapeHtml(page.redirectUrl || page.url || '')} in a new tab">Go to <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>`
-      : '';
+    const redirectIconSvg = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
+    const typeBadge = page.isRedirect
+      ? `<span class="badge ${badgeClass}" data-action="goto-redirect" title="Open ${escapeHtml(page.redirectUrl || page.url || '')} in a new tab">${pageTypeTag} ${redirectIconSvg}</span>`
+      : `<span class="badge ${badgeClass}" title="${pageTypeTag} page">${pageTypeTag}</span>`;
+    const redirectGoToBtn = '';
 
     const displayUrl = (isPagesEditMode && page.id && editModePendingUrls[page.id] !== undefined)
       ? editModePendingUrls[page.id]
       : (page.redirectUrl || page.url || '');
     const redirectUrlDisplay = (isPagesEditMode && page.isRedirect)
-      ? `<input type="text" class="card-url-input" value="${escapeHtml(displayUrl)}" placeholder="https://example.com" data-page-id="${page.id || ''}" onclick="event.stopPropagation();" oninput="if (window._onPagesUrlInput) window._onPagesUrlInput(this);">`
+      ? `<input type="text" class="card-url-input" style="font-weight: 400 !important; font-size: 0.82rem; color: var(--text-secondary, #a1a1aa); margin-top: 4px;" value="${escapeHtml(displayUrl)}" placeholder="https://example.com" data-page-id="${page.id || ''}" onclick="event.stopPropagation();" oninput="if (window._onPagesUrlInput) window._onPagesUrlInput(this);">`
       : (page.isRedirect ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>` : '');
 
     const titleHtml = isTitleEditable

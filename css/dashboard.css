@@ -7449,6 +7449,12 @@
   -webkit-user-select: text !important;
   -webkit-user-drag: none;
 }
+#pane-pages.is-edit-mode .page-card .card-url-input {
+  font-weight: 400 !important;
+  font-size: 0.82rem !important;
+  color: var(--text-secondary, #a1a1aa) !important;
+  margin-top: 4px !important;
+}
 #pane-pages.is-edit-mode .page-card.category-page-card button,
 #pane-pages.is-edit-mode .page-card.category-page-card a,
 #pane-pages.is-edit-mode .page-card.category-page-card [data-cat-layout],
@@ -7477,8 +7483,7 @@
   flex-shrink: 0 !important;
 }
 
-.card-title-input,
-.card-url-input {
+.card-title-input {
   font-size: 0.95rem;
   font-weight: 700;
   font-family: inherit;
@@ -7500,10 +7505,25 @@
 }
 
 .card-url-input {
-  font-size: 0.82rem;
+  font-size: 0.82rem !important;
   font-weight: 400 !important;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  padding: 4px 10px;
   color: var(--text-secondary, #a1a1aa);
   margin-top: 4px;
+  outline: none;
+  min-width: 140px;
+  max-width: 280px;
+  width: auto;
+  box-sizing: border-box;
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-user-drag: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .card-redirect-url-sub {
