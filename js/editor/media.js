@@ -1096,6 +1096,156 @@
         }
       }
     });
+
+    hydrateCanvasImages(root, window.currentDraft);
+  }
+
+  /**
+   * Hydrates all content <img> elements inside the editor canvas (or given container)
+   * using draft.images, window.imageRegistry, projectConfig.mediaLibrary, CedarVirtualStorage, or SheeshVault.
+   */
+  function hydrateCanvasImages(root, draft) {
+    if (!root) root = document.getElementById('rich-canvas-prose');
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    const curDraft = draft || window.currentDraft;
+
+    const contentImgs = Array.from(root.querySelectorAll('img')).filter(img => {
+      return !img.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card');
+    });
+    if (contentImgs.length === 0) return;
+
+    const extractCleanFn = (val) => {
+      if (!val || typeof val !== 'string') return '';
+      const trimmed = val.trim();
+      if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:') || /^https?:\/\//i.test(trimmed)) return '';
+      const base = trimmed.split('/').pop().split('\\').pop().split('?')[0].split('#')[0].trim();
+      if (!base || base.toLowerCase() === 'img' || base.toLowerCase() === 'image') return '';
+      return base;
+    };
+
+    // Collect markdown image references in order as fallback
+    const mdImageUrls = [];
+    if (curDraft && typeof curDraft.markdown === 'string' && curDraft.markdown) {
+      const md = curDraft.markdown;
+      const tokenRe = /:::gallery([\s\S]*?):::|!\[[^\]]*\]\(([^\s\)\"]+)(?:\s+"[^"]*")?\)/gi;
+      let m;
+      while ((m = tokenRe.exec(md)) !== null) {
+        if (m[1] !== undefined) {
+          const cleanInner = m[1].replace(/:::caption[\s\S]*?:::/gi, '');
+          cleanInner.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
+            const imMatch = line.match(/!\[.*?\]\((.*?)\)/);
+            mdImageUrls.push(imMatch ? imMatch[1].trim() : line);
+          });
+        } else if (m[2]) {
+          mdImageUrls.push(m[2].trim());
+        }
+      }
+    }
+
+    contentImgs.forEach((imgEl, idx) => {
+      const rawSrc = imgEl.getAttribute('src') || '';
+      const origSrc = imgEl.getAttribute('data-original-src') || imgEl.dataset?.originalSrc || '';
+      const imgName = imgEl.getAttribute('data-img-name') || imgEl.dataset?.imgName || '';
+      const alt = imgEl.getAttribute('alt') || '';
+
+      let cleanName = extractCleanFn(imgName) || extractCleanFn(origSrc) || extractCleanFn(rawSrc);
+      if (!cleanName && alt && /\.(webp|png|jpe?g|gif|svg|avif)$/i.test(alt.trim())) {
+        cleanName = extractCleanFn(alt.trim());
+      }
+      if (!cleanName && mdImageUrls[idx]) {
+        cleanName = extractCleanFn(mdImageUrls[idx]);
+      }
+      if (!cleanName && curDraft && Array.isArray(curDraft.images) && curDraft.images[idx] && curDraft.images[idx].filename) {
+        cleanName = extractCleanFn(curDraft.images[idx].filename);
+      }
+
+      if (cleanName) {
+        imgEl.setAttribute('data-img-name', cleanName);
+        if (imgEl.dataset) imgEl.dataset.imgName = cleanName;
+        if (!origSrc || origSrc.startsWith('blob:') || origSrc.startsWith('data:') || origSrc === 'img' || origSrc.endsWith('/img')) {
+          const canonicalRel = `/blog/images/${cleanName}`;
+          imgEl.setAttribute('data-original-src', canonicalRel);
+          if (imgEl.dataset) imgEl.dataset.originalSrc = canonicalRel;
+        }
+      }
+
+      // 1. Synchronous resolution from draft.images, imageRegistry, mediaLibrary
+      const currentAttrSrc = imgEl.getAttribute('src') || '';
+      if (!currentAttrSrc.startsWith('data:image/')) {
+        const lookupTarget = cleanName || origSrc || rawSrc;
+        if (lookupTarget && typeof window.resolvePostImage === 'function') {
+          const resolved = window.resolvePostImage(lookupTarget, curDraft);
+          if (resolved && (resolved.startsWith('data:image/') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved))) {
+            if (currentAttrSrc !== resolved) {
+              imgEl.src = resolved;
+            }
+          }
+        }
+      }
+
+      // 2. Async vault/storage blob hydration helper (for OPFS/IndexedDB, SheeshVault, Server Bridge, or stale blob: URLs)
+      const hydrateFromVault = () => {
+        if (!cleanName || typeof window.resolveMediaBlob !== 'function') return;
+        if (imgEl._isHydratingFromVault) return;
+        imgEl._isHydratingFromVault = true;
+        window.resolveMediaBlob(cleanName, { src: origSrc || rawSrc, postSlug: curDraft?.slug }).then(blob => {
+          imgEl._isHydratingFromVault = false;
+          if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
+          const objUrl = URL.createObjectURL(blob);
+          imgEl.src = objUrl;
+
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const dUrl = typeof reader.result === 'string' ? reader.result : '';
+            const finalUrl = dUrl || objUrl;
+            if (dUrl && imgEl.isConnected) {
+              imgEl.src = dUrl;
+            }
+            const relPath = `/blog/images/${cleanName}`;
+            const regEntry = {
+              filename: cleanName,
+              relativePath: relPath,
+              blob: blob,
+              objectUrl: objUrl,
+              dataUrl: finalUrl,
+              src: finalUrl
+            };
+            if (window.imageRegistry) {
+              window.imageRegistry.set(cleanName, regEntry);
+              window.imageRegistry.set(relPath, regEntry);
+              window.imageRegistry.set(`blog/images/${cleanName}`, regEntry);
+            }
+            if (curDraft) {
+              if (!Array.isArray(curDraft.images)) curDraft.images = [];
+              const existing = curDraft.images.find(im => im && String(im.filename || '').toLowerCase() === cleanName.toLowerCase());
+              if (existing) {
+                existing.blob = blob;
+                existing.objectUrl = objUrl;
+                existing.dataUrl = finalUrl;
+                existing.src = finalUrl;
+              } else {
+                curDraft.images.push({ ...regEntry, alt: alt || 'Image' });
+              }
+            }
+          };
+          reader.readAsDataURL(blob);
+        }).catch(() => {
+          imgEl._isHydratingFromVault = false;
+        });
+      };
+
+      if (!imgEl._hasCedarHydrateError) {
+        imgEl._hasCedarHydrateError = true;
+        imgEl.addEventListener('error', () => {
+          hydrateFromVault();
+        });
+      }
+
+      const afterSyncSrc = imgEl.getAttribute('src') || '';
+      if (!afterSyncSrc || (!afterSyncSrc.startsWith('data:') && !afterSyncSrc.startsWith('blob:') && !/^https?:\/\//i.test(afterSyncSrc))) {
+        hydrateFromVault();
+      }
+    });
   }
 
   // =========================================================================
@@ -1172,16 +1322,34 @@
         </div>
       `;
 
-      if (!src && typeof window.resolveMediaBlob === 'function') {
-        window.resolveMediaBlob(img.filename).then(blob => {
+      const imgEl = item.querySelector('.editor-masonry-img');
+      const hydratePopupThumb = () => {
+        if (typeof window.resolveMediaBlob !== 'function') return;
+        window.resolveMediaBlob(img.filename, img).then(blob => {
           if (blob) {
             img.blob = blob;
             img.objectUrl = URL.createObjectURL(blob);
-            img.dataUrl = img.objectUrl;
-            const imgEl = item.querySelector('.editor-masonry-img');
-            if (imgEl) imgEl.src = img.objectUrl;
+            if (!img.dataUrl || !img.dataUrl.startsWith('data:')) {
+              img.dataUrl = img.objectUrl;
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                if (typeof reader.result === 'string' && reader.result.startsWith('data:')) {
+                  img.dataUrl = reader.result;
+                }
+              };
+              reader.readAsDataURL(blob);
+            }
+            if (imgEl) imgEl.src = img.dataUrl || img.objectUrl;
           }
-        });
+        }).catch(() => {});
+      };
+
+      if (!src || (!src.startsWith('data:') && !src.startsWith('blob:'))) {
+        hydratePopupThumb();
+      } else if (imgEl) {
+        imgEl.addEventListener('error', () => {
+          hydratePopupThumb();
+        }, { once: true });
       }
 
       // Single click: highlight image across either grid
@@ -1246,10 +1414,18 @@
     const canvasProse = document.getElementById('rich-canvas-prose');
     if (!canvasProse) return;
 
-    const url = img.objectUrl || img.dataUrl || (img.filename ? `blog/images/${img.filename}` : '');
-    const alt = img.filename || 'Image';
+    const cleanFn = (img.filename && img.filename !== 'img')
+      ? String(img.filename).split('/').pop().split('\\').pop()
+      : 'image.jpg';
+    const relPath = (img.relativePath && !img.relativePath.startsWith('blob:') && !img.relativePath.startsWith('data:'))
+      ? img.relativePath
+      : `/blog/images/${cleanFn}`;
+    const url = (img.dataUrl && img.dataUrl.startsWith('data:'))
+      ? img.dataUrl
+      : (img.objectUrl || img.dataUrl || relPath);
+    const alt = cleanFn || 'Image';
     const cap = '';
-    const figureHtml = createFigureHtml(url, url, "img", alt, cap, "full");
+    const figureHtml = createFigureHtml(url, relPath, cleanFn, alt, cap, "full");
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = figureHtml;
     const figureEl = tempDiv.firstElementChild;
@@ -1259,16 +1435,16 @@
       if (!curDraft.images) curDraft.images = [];
       if (!curDraft.tempImages) curDraft.tempImages = [];
       const imgObj = {
-        filename: img.filename,
-        relativePath: `blog/images/${img.filename}`,
+        filename: cleanFn,
+        relativePath: relPath,
         dataUrl: url,
         objectUrl: img.objectUrl,
         blob: img.blob
       };
-      if (!curDraft.images.some(i => i.filename === img.filename)) {
+      if (!curDraft.images.some(i => i.filename === cleanFn)) {
         curDraft.images.push(imgObj);
       }
-      if (!curDraft.tempImages.some(i => i.filename === img.filename)) {
+      if (!curDraft.tempImages.some(i => i.filename === cleanFn)) {
         curDraft.tempImages.push(imgObj);
       }
     }
@@ -1279,10 +1455,11 @@
       window._activePlaceholderSlot = null;
       populateGalleryPlaceholder(slot, {
         dataUrl: url,
-        relativePath: url,
-        filename: img.filename || 'img',
+        relativePath: relPath,
+        filename: cleanFn,
         alt: alt
       });
+      hydrateCanvasImages(canvasProse, curDraft);
       if (typeof window.closeModal === 'function') window.closeModal('modal-insert-image');
       return;
     }
@@ -1295,19 +1472,20 @@
       if (target.classList.contains('captioned-image-container')) {
         convertSingleImageToGallery(target, {
           dataUrl: url,
-          relativePath: url,
-          filename: img.filename || 'img',
+          relativePath: relPath,
+          filename: cleanFn,
           alt: alt
         });
       } else if (target.classList.contains('custom-gallery-grid')) {
         addImageToGallery(target, {
           dataUrl: url,
-          relativePath: url,
-          filename: img.filename || 'img',
+          relativePath: relPath,
+          filename: cleanFn,
           alt: alt
         });
       }
 
+      hydrateCanvasImages(canvasProse, curDraft);
       if (typeof window.closeModal === 'function') window.closeModal('modal-insert-image');
       return;
     }
@@ -1361,6 +1539,7 @@
 
     if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
     const trailingP = typeof window.ensureTrailingTextBlock === 'function' ? window.ensureTrailingTextBlock() : null;
+    hydrateCanvasImages(canvasProse, curDraft);
 
     if (typeof window.closeModal === 'function') window.closeModal('modal-insert-image');
     if (window.recordAction) window.recordAction('image-insert', true);
@@ -2389,6 +2568,7 @@
   window.getAdjacentImageBlock = getAdjacentImageBlock;
   window.mergeImageBlocks = mergeImageBlocks;
   window.ensureImageCaptionElements = ensureImageCaptionElements;
+  window.hydrateCanvasImages = hydrateCanvasImages;
   window.renderEditorMediaPopup = renderEditorMediaPopup;
   window.insertMediaIntoPostEditor = insertMediaIntoPostEditor;
   window.insertHtmlAtCursor = insertHtmlAtCursor;
@@ -2412,6 +2592,7 @@
     getAdjacentImageBlock,
     mergeImageBlocks,
     ensureImageCaptionElements,
+    hydrateCanvasImages,
     renderEditorMediaPopup,
     insertMediaIntoPostEditor,
     insertHtmlAtCursor,

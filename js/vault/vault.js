@@ -986,13 +986,6 @@ else {
       if (!window.currentDraft && loadedDrafts.length > 0) {
         window.currentDraft = loadedDrafts[0];
       }
-      const draftsKey = window.STORAGE_KEY_DRAFTS || 'sheesh_static_writer_drafts_v2';
-      try {
-        localStorage.setItem(draftsKey, JSON.stringify(loadedDrafts));
-      } catch (qErr) {}
-      if (typeof window.saveDraftsToStorage === 'function') {
-        window.saveDraftsToStorage();
-      }
     }
 
     // Hydrate binary images from the connected folder into memory (imageRegistry, authors, mediaLibrary, drafts) and Virtual Storage
@@ -1002,7 +995,22 @@ else {
       console.warn('[Vault] Image hydration notice:', imgHydrateErr);
     }
 
-    // Refresh views
+    if (Array.isArray(loadedDrafts) && loadedDrafts.length > 0) {
+      const draftsKey = window.STORAGE_KEY_DRAFTS || 'sheesh_static_writer_drafts_v2';
+      try {
+        localStorage.setItem(draftsKey, JSON.stringify(loadedDrafts));
+      } catch (qErr) {}
+      if (typeof window.saveDraftsToStorage === 'function') {
+        window.saveDraftsToStorage();
+      }
+    }
+
+    // Refresh views and active editor canvas
+    if (typeof window.hydrateCanvasImages === 'function') {
+      const canvasProse = document.getElementById('rich-canvas-prose');
+      if (canvasProse) window.hydrateCanvasImages(canvasProse, window.currentDraft);
+    }
+    if (typeof window.updateCoverPreview === 'function') window.updateCoverPreview();
     if (typeof window.updateCedarTitle === 'function') window.updateCedarTitle(); else if (typeof window.updateOutpostTitle === 'function') window.updateOutpostTitle();
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
     if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
@@ -1201,6 +1209,66 @@ else {
     }));
 
     applyHydratedImageMap(hydratedMap);
+  }
+
+  async function hydrateImagesFromVirtualStorage() {
+    const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+    if (!vStorage || typeof vStorage.listFiles !== 'function' || typeof vStorage.readFile !== 'function') return false;
+
+    const isImgFile = (name) => /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(name || ''));
+    let allFiles = [];
+    try {
+      allFiles = await vStorage.listFiles('', true);
+    } catch (e) {
+      return false;
+    }
+    if (!Array.isArray(allFiles) || allFiles.length === 0) return false;
+
+    const imgFiles = [];
+    const seenFilenames = new Set();
+    for (const f of allFiles) {
+      if (!f || f.kind === 'directory') continue;
+      const name = f.name || String(f.path || '').split('/').pop();
+      if (name && isImgFile(name)) {
+        const key = name.toLowerCase();
+        if (!seenFilenames.has(key)) {
+          seenFilenames.add(key);
+          imgFiles.push({ name, relPath: f.path || `blog/images/${name}` });
+        }
+      }
+    }
+    if (imgFiles.length === 0) return false;
+
+    const hydratedMap = new Map();
+    await Promise.all(imgFiles.map(async ({ name, relPath }) => {
+      try {
+        // Skip if already in imageRegistry with a valid dataUrl
+        if (window.imageRegistry && window.imageRegistry.has(name)) {
+          const existing = window.imageRegistry.get(name);
+          if (existing && existing.dataUrl && existing.dataUrl.startsWith('data:')) return;
+        }
+        const blob = await vStorage.readFile(relPath, 'blob');
+        if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
+        const objectUrl = URL.createObjectURL(blob);
+        const dataUrl = await blobToDataUrl(blob);
+        const info = { filename: name, relPath, blob, objectUrl, dataUrl };
+        hydratedMap.set(name, info);
+        hydratedMap.set(name.toLowerCase(), info);
+      } catch (e) {}
+    }));
+
+    if (hydratedMap.size === 0) return false;
+    const changed = applyHydratedImageMap(hydratedMap);
+    if (changed) {
+      if (typeof window.hydrateCanvasImages === 'function') {
+        const canvasProse = document.getElementById('rich-canvas-prose');
+        if (canvasProse) window.hydrateCanvasImages(canvasProse, window.currentDraft);
+      }
+      if (typeof window.updateCoverPreview === 'function') window.updateCoverPreview();
+      if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
+      if (typeof window.renderDerivedMediaLibrary === 'function') window.renderDerivedMediaLibrary();
+    }
+    return changed;
   }
 
   async function resolveVisiblePath() {
@@ -2141,6 +2209,9 @@ else {
     if (!_initVaultPromise) {
       _initVaultPromise = (async () => {
         await Vault.reconnectIfPossible();
+        try {
+          await hydrateImagesFromVirtualStorage();
+        } catch (e) {}
       })();
     }
     await _initVaultPromise;

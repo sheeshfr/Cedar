@@ -64,10 +64,24 @@
               };
 
               // Register globally in memory
-              imageRegistry.set(filename, imgObj);
-              imageRegistry.set(relativePath, imgObj);
+              if (typeof imageRegistry !== 'undefined' && imageRegistry) {
+                imageRegistry.set(filename, imgObj);
+                imageRegistry.set(relativePath, imgObj);
+                imageRegistry.set(`blog/images/${filename}`, imgObj);
+              }
 
-              resolve(imgObj);
+              // Persist blob in High-Capacity Virtual Storage (OPFS / IndexedDB)
+              const vStorage = (typeof window !== 'undefined') && (window.CedarVirtualStorage || window.OutpostVirtualStorage);
+              if (vStorage && typeof vStorage.writeBlob === 'function' && blob) {
+                Promise.all([
+                  vStorage.writeBlob(`blog/images/${filename}`, blob).catch(() => {}),
+                  vStorage.writeBlob(`media/${filename}`, blob).catch(() => {})
+                ]).finally(() => {
+                  resolve(imgObj);
+                });
+              } else {
+                resolve(imgObj);
+              }
             }
           } catch (err) {
             reject(err);

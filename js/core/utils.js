@@ -864,17 +864,19 @@
     // Helper: register an image found in canvas or HTML
     function registerDiscoveredImage(src, origSrc, imgName, alt) {
       if (!src && !origSrc && !imgName && !alt) return;
-      let filename = imgName;
+      let filename = (imgName && imgName !== 'img') ? imgName : '';
       if (!filename && origSrc && !origSrc.startsWith('data:') && !origSrc.startsWith('blob:')) {
-        filename = origSrc.split('/').pop().split('\\').pop().split('?')[0];
+        const cand = origSrc.split('/').pop().split('\\').pop().split('?')[0];
+        if (cand && cand !== 'img') filename = cand;
       }
       if (!filename && src && !src.startsWith('data:') && !src.startsWith('blob:')) {
-        filename = src.split('/').pop().split('\\').pop().split('?')[0];
+        const cand = src.split('/').pop().split('\\').pop().split('?')[0];
+        if (cand && cand !== 'img') filename = cand;
       }
       if (!filename && alt && /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(alt.trim())) {
         filename = alt.trim().split('/').pop().split('\\').pop();
       }
-      if (!filename || filename.startsWith('data:') || filename.startsWith('blob:')) return;
+      if (!filename || filename === 'img' || filename.startsWith('data:') || filename.startsWith('blob:')) return;
 
       const isDataOrBlob = src && (src.startsWith('data:') || src.startsWith('blob:'));
       const dataUrl = isDataOrBlob ? src : '';
@@ -1030,7 +1032,16 @@
     if (!imgUrlOrObj) return '';
     let target = '';
     if (typeof imgUrlOrObj === 'object' && imgUrlOrObj !== null) {
-      target = imgUrlOrObj.dataUrl || imgUrlOrObj.data || imgUrlOrObj.url || imgUrlOrObj.src || imgUrlOrObj.filename || '';
+      if (imgUrlOrObj.dataUrl && typeof imgUrlOrObj.dataUrl === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(imgUrlOrObj.dataUrl)) {
+        return imgUrlOrObj.dataUrl;
+      }
+      if (imgUrlOrObj.objectUrl && typeof imgUrlOrObj.objectUrl === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(imgUrlOrObj.objectUrl)) {
+        return imgUrlOrObj.objectUrl;
+      }
+      if (imgUrlOrObj.blob && typeof Blob !== 'undefined' && imgUrlOrObj.blob instanceof Blob) {
+        try { return URL.createObjectURL(imgUrlOrObj.blob); } catch (e) {}
+      }
+      target = imgUrlOrObj.filename || imgUrlOrObj.relativePath || imgUrlOrObj.url || imgUrlOrObj.src || imgUrlOrObj.dataUrl || imgUrlOrObj.data || '';
     } else {
       target = String(imgUrlOrObj).trim();
     }
@@ -1041,11 +1052,11 @@
       return target;
     }
 
-    const cleanName = target.split('/').pop().split('\\').pop().toLowerCase();
+    const cleanName = target.split('/').pop().split('\\').pop().split('?')[0].toLowerCase();
     const cleanNoPrefix = target.replace(/^\/?(blog\/)?images\//i, '').toLowerCase();
 
     // Helper to test if an image item matches
-    function matchImage(im) {
+    function matchImage(im, allowRelative = false) {
       if (!im) return '';
       if (typeof im === 'string') {
         if (/^(data:image\/|blob:|https?:\/\/)/i.test(im)) {
@@ -1056,12 +1067,31 @@
       }
       const fn = (im.filename || im.name || '').trim().toLowerCase();
       const rel = (im.relativePath || '').trim().toLowerCase();
-      const data = im.dataUrl || im.data || (im.blob ? URL.createObjectURL(im.blob) : '') || im.url || im.src || im.relativePath || '';
+      const isItemMatch = Boolean(
+        (cleanName && cleanName.length >= 3 && fn && (fn === cleanName || fn === cleanNoPrefix || fn === target.toLowerCase())) ||
+        (cleanName && cleanName.length >= 3 && rel && (rel === target.toLowerCase() || rel.endsWith('/' + cleanName) || rel.endsWith('\\' + cleanName) || rel === cleanName)) ||
+        (cleanNoPrefix && cleanNoPrefix.length >= 3 && rel && (rel.endsWith('/' + cleanNoPrefix) || rel.endsWith('\\' + cleanNoPrefix) || rel === cleanNoPrefix))
+      );
+      if (!isItemMatch && im.dataUrl !== target && im.src !== target && im.url !== target) {
+        return '';
+      }
 
-      if (cleanName && cleanName.length >= 3 && fn && (fn === cleanName || fn === cleanNoPrefix || fn === target.toLowerCase())) return data;
-      if (cleanName && cleanName.length >= 3 && rel && (rel === target.toLowerCase() || rel.endsWith('/' + cleanName) || rel.endsWith('\\' + cleanName) || rel === cleanName)) return data;
-      if (cleanNoPrefix && cleanNoPrefix.length >= 3 && rel && (rel.endsWith('/' + cleanNoPrefix) || rel.endsWith('\\' + cleanNoPrefix) || rel === cleanNoPrefix)) return data;
-      if (data && (data === target)) return data;
+      if (im.dataUrl && typeof im.dataUrl === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(im.dataUrl)) return im.dataUrl;
+      if (im.objectUrl && typeof im.objectUrl === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(im.objectUrl)) return im.objectUrl;
+      if (im.data && typeof im.data === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(im.data)) return im.data;
+      if (im.blob && typeof Blob !== 'undefined' && im.blob instanceof Blob) {
+        try {
+          const objUrl = URL.createObjectURL(im.blob);
+          im.objectUrl = objUrl;
+          return objUrl;
+        } catch (e) {}
+      }
+      if (im.src && typeof im.src === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(im.src)) return im.src;
+      if (im.url && typeof im.url === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(im.url)) return im.url;
+
+      if (allowRelative) {
+        return im.relativePath || im.src || im.url || '';
+      }
       return '';
     }
 
@@ -1069,8 +1099,8 @@
     if (draft) {
       if (Array.isArray(draft.images)) {
         for (const im of draft.images) {
-          const res = matchImage(im);
-          if (res && (/^(data:image\/|blob:|https?:\/\/|\/?(blog\/)?images\/|\/?media\/)/i.test(res))) return res;
+          const res = matchImage(im, false);
+          if (res) return res;
         }
       }
       const draftProse = (draft.proseHtml || '') + (draft.html || '');
@@ -1080,7 +1110,7 @@
         while ((m = imgRe.exec(draftProse)) !== null) {
           const fullTag = m[0];
           const srcData = m[1];
-          if (fullTag.includes(cleanName) || fullTag.includes(cleanNoPrefix) || fullTag.includes(target)) {
+          if (fullTag.toLowerCase().includes(cleanName) || fullTag.toLowerCase().includes(cleanNoPrefix) || fullTag.includes(target)) {
             if (typeof window !== 'undefined' && window.imageRegistry) {
               window.imageRegistry.set(cleanName, { dataUrl: srcData, filename: cleanName });
               window.imageRegistry.set(`/blog/images/${cleanName}`, { dataUrl: srcData, filename: cleanName });
@@ -1093,40 +1123,58 @@
 
     // 2. Check in window.imageRegistry
     if (typeof window !== 'undefined' && window.imageRegistry) {
+      const origCleanName = target.split('/').pop().split('\\').pop().split('?')[0];
       const regKeys = [
         target,
+        origCleanName,
         cleanName,
         cleanNoPrefix,
+        `/blog/images/${origCleanName}`,
+        `blog/images/${origCleanName}`,
         `/blog/images/${cleanName}`,
         `blog/images/${cleanName}`,
+        `/images/${origCleanName}`,
+        `images/${origCleanName}`,
         `/images/${cleanName}`,
-        `images/${cleanName}`
+        `images/${cleanName}`,
+        `media/${origCleanName}`,
+        `media/${cleanName}`
       ];
       for (const k of regKeys) {
-        if (typeof window.imageRegistry.has === 'function' && window.imageRegistry.has(k)) {
-          const reg = window.imageRegistry.get(k);
-          const res = matchImage(reg);
+        if (!k) continue;
+        const reg = (typeof window.imageRegistry.get === 'function') ? window.imageRegistry.get(k) : null;
+        if (reg) {
+          const res = matchImage(reg, false);
           if (res) return res;
-        } else if (typeof window.imageRegistry.get === 'function') {
-          const reg = window.imageRegistry.get(k);
-          if (reg) {
-            const res = matchImage(reg);
-            if (res) return res;
-          }
+        }
+      }
+      if (typeof window.imageRegistry.values === 'function') {
+        for (const reg of window.imageRegistry.values()) {
+          const res = matchImage(reg, false);
+          if (res) return res;
         }
       }
     }
 
-    // 3. Check across all drafts in memory (images & proseHtml) ONLY IF no specific draft was provided
-    if (!draft) {
-      const allDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
-        ? window.CedarStore.getAllDrafts()
-        : ((typeof drafts !== 'undefined' && Array.isArray(drafts)) ? drafts : (window.drafts || []));
-      for (const d of allDrafts) {
+    // 3. Check projectConfig.mediaLibrary
+    const pConf = (typeof projectConfig !== 'undefined' && projectConfig) || (typeof window !== 'undefined' && window.projectConfig);
+    if (pConf && Array.isArray(pConf.mediaLibrary)) {
+      for (const im of pConf.mediaLibrary) {
+        const res = matchImage(im, false);
+        if (res) return res;
+      }
+    }
+
+    // 4. Check across all drafts in memory (images & proseHtml)
+    const allDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+      ? window.CedarStore.getAllDrafts()
+      : ((typeof drafts !== 'undefined' && Array.isArray(drafts)) ? drafts : (window.drafts || []));
+    for (const d of allDrafts) {
+      if (!d || d === draft) continue;
       if (Array.isArray(d.images)) {
         for (const im of d.images) {
-          const res = matchImage(im);
-          if (res && (/^(data:image\/|blob:|https?:\/\/|\/?(blog\/)?images\/|\/?media\/)/i.test(res))) return res;
+          const res = matchImage(im, false);
+          if (res) return res;
         }
       }
       const otherProse = (d.proseHtml || '') + (d.html || '');
@@ -1136,24 +1184,26 @@
         while ((m = imgRe.exec(otherProse)) !== null) {
           const fullTag = m[0];
           const srcData = m[1];
-          if (fullTag.includes(cleanName) || fullTag.includes(cleanNoPrefix) || fullTag.includes(target)) {
+          if (fullTag.toLowerCase().includes(cleanName) || fullTag.toLowerCase().includes(cleanNoPrefix) || fullTag.includes(target)) {
             return srcData;
           }
         }
       }
     }
-    }
 
-    // 4. Check projectConfig.mediaLibrary
-    const pConf = (typeof projectConfig !== 'undefined' && projectConfig) || (typeof window !== 'undefined' && window.projectConfig);
-    if (pConf && Array.isArray(pConf.mediaLibrary)) {
-      for (const im of pConf.mediaLibrary) {
-        const res = matchImage(im);
-        if (res && (/^(data:image\/|blob:|https?:\/\/|\/?(blog\/)?images\/|\/?media\/)/i.test(res))) return res;
+    // 5. Fallback: relative paths in draft.images or mediaLibrary or static asset path
+    if (draft && Array.isArray(draft.images)) {
+      for (const im of draft.images) {
+        const res = matchImage(im, true);
+        if (res && (/^(\/?(blog\/)?images\/|\/?media\/)/i.test(res))) return res;
       }
     }
-
-    // 5. Static local asset check
+    if (pConf && Array.isArray(pConf.mediaLibrary)) {
+      for (const im of pConf.mediaLibrary) {
+        const res = matchImage(im, true);
+        if (res && (/^(\/?(blog\/)?images\/|\/?media\/)/i.test(res))) return res;
+      }
+    }
     if (target.startsWith('images/') || target.startsWith('/images/') || target.startsWith('blog/images/') || target.startsWith('/blog/images/') || target.startsWith('media/') || target.startsWith('/media/')) {
       return target;
     }

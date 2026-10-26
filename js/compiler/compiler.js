@@ -45,6 +45,9 @@
         let displaySrc = src;
         if (typeof imageRegistry !== 'undefined' && imageRegistry && imageRegistry.has(src)) {
           displaySrc = imageRegistry.get(src).dataUrl;
+        } else if (typeof window !== 'undefined' && typeof window.resolvePostImage === 'function') {
+          const resolved = window.resolvePostImage(src, window.currentDraft);
+          if (resolved) displaySrc = resolved;
         }
 
         images.push({
@@ -156,6 +159,10 @@
       } else {
         const parts = src.split('/');
         imgName = parts[parts.length - 1];
+        if (typeof window !== 'undefined' && typeof window.resolvePostImage === 'function') {
+          const resolved = window.resolvePostImage(src, window.currentDraft);
+          if (resolved) displaySrc = resolved;
+        }
       }
 
       const hasCaption = caption.length > 0 && caption !== 'Add caption here...' && caption !== 'Add image caption here...';
@@ -411,9 +418,9 @@
             const activeBlogSlug = (typeof resolveProjectBlogPath === 'function') ? resolveProjectBlogPath() : ((window.projectConfig && window.projectConfig.blogPath) || 'blog');
             const blogImgPrefix = activeBlogSlug ? `/${activeBlogSlug}/images/` : '/images/';
             let src = img.dataset.originalSrc || img.getAttribute('src');
-            if (img.dataset.imgName) {
+            if (img.dataset.imgName && img.dataset.imgName !== 'img') {
               src = `${blogImgPrefix}${img.dataset.imgName}`;
-            } else if (src.startsWith('data:')) {
+            } else if (src && src.startsWith('data:')) {
               // find in registry
               const reg = (typeof imageRegistry !== 'undefined' && imageRegistry) || (typeof window !== 'undefined' && window.imageRegistry);
               if (reg && typeof reg.entries === 'function') {
@@ -439,7 +446,7 @@
           let urls = [];
           imgs.forEach(i => {
             let src = i.dataset.originalSrc || i.getAttribute('src');
-            if (i.dataset.imgName) src = `${blogImgPrefix}${i.dataset.imgName}`;
+            if (i.dataset.imgName && i.dataset.imgName !== 'img') src = `${blogImgPrefix}${i.dataset.imgName}`;
             urls.push(src);
           });
           output += `\n\n:::gallery\n${urls.join('\n')}\n:::\n\n`;
@@ -777,18 +784,33 @@
         }
       });
 
-      // 4. Resolve image URLs against imageRegistry if available
-      if (typeof imageRegistry !== 'undefined') {
-        body.querySelectorAll('img').forEach(img => {
-          const src = img.getAttribute('src') || '';
-          const orig = img.dataset.originalSrc || '';
+      // 4. Resolve image URLs against imageRegistry or resolvePostImage if available
+      body.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src') || '';
+        const orig = img.dataset.originalSrc || '';
+        const imgName = (img.dataset.imgName && img.dataset.imgName !== 'img') ? img.dataset.imgName : '';
+        if (typeof imageRegistry !== 'undefined' && imageRegistry) {
           if (src && imageRegistry.has(src)) {
             img.src = imageRegistry.get(src).dataUrl;
+            return;
           } else if (orig && imageRegistry.has(orig)) {
             img.src = imageRegistry.get(orig).dataUrl;
+            return;
+          } else if (imgName && imageRegistry.has(imgName)) {
+            img.src = imageRegistry.get(imgName).dataUrl;
+            return;
           }
-        });
-      }
+        }
+        if (typeof window !== 'undefined' && typeof window.resolvePostImage === 'function') {
+          const ref = (orig && !orig.startsWith('blob:')) ? orig : (imgName || src);
+          if (ref) {
+            const resolved = window.resolvePostImage(ref, draft);
+            if (resolved && (resolved.startsWith('data:') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved))) {
+              img.src = resolved;
+            }
+          }
+        }
+      });
 
       // 5. Ensure gallery items and grids are intact with correct data-count
       body.querySelectorAll('.custom-gallery-grid').forEach(grid => {
@@ -1146,6 +1168,9 @@
     if (resolvedCover) {
       if (typeof imageRegistry !== 'undefined' && imageRegistry.has(resolvedCover)) {
         resolvedCover = imageRegistry.get(resolvedCover).dataUrl;
+      } else if (typeof window !== 'undefined' && typeof window.resolvePostImage === 'function') {
+        const resolved = window.resolvePostImage(resolvedCover, draft);
+        if (resolved) resolvedCover = resolved;
       } else if (Array.isArray(draft.images)) {
         const found = draft.images.find(im => (im.src === resolvedCover || im.originalSrc === resolvedCover));
         if (found && found.src) resolvedCover = found.src;

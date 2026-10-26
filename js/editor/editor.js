@@ -377,6 +377,7 @@
       if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
       if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
       if (typeof window.ensureImageCaptionElements === 'function') window.ensureImageCaptionElements(canvasProse);
+      if (typeof window.hydrateCanvasImages === 'function') window.hydrateCanvasImages(canvasProse, curDraft);
       if (typeof window.hydratePageBlocks === 'function') window.hydratePageBlocks(canvasProse, curDraft, { isEditor: true, initialPage: 1 });
     }
 
@@ -629,11 +630,24 @@
     const url = metaCover.value.trim();
     if (url) {
       let displayUrl = url;
-      if (window.imageRegistry && window.imageRegistry.has(url)) {
+      if (typeof window.resolvePostImage === 'function') {
+        const resolved = window.resolvePostImage(url, window.currentDraft);
+        if (resolved) displayUrl = resolved;
+      } else if (window.imageRegistry && window.imageRegistry.has(url)) {
         displayUrl = window.imageRegistry.get(url).dataUrl;
       }
       img.src = displayUrl;
       wrap.style.display = 'block';
+
+      const isAlreadyResolved = displayUrl && (displayUrl.startsWith('data:') || displayUrl.startsWith('blob:') || /^https?:\/\//i.test(displayUrl));
+      const cleanName = String(url).split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+      if (!isAlreadyResolved && cleanName && cleanName !== 'img' && typeof window.resolveMediaBlob === 'function') {
+        window.resolveMediaBlob(cleanName, null).then(res => {
+          if (res && (res.objectUrl || res.dataUrl)) {
+            img.src = res.dataUrl || res.objectUrl;
+          }
+        }).catch(() => {});
+      }
     } else {
       wrap.style.display = 'none';
       img.src = '';
@@ -818,6 +832,7 @@
         if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
         if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
         if (typeof window.ensureImageCaptionElements === 'function') window.ensureImageCaptionElements(canvasProse);
+        if (typeof window.hydrateCanvasImages === 'function') window.hydrateCanvasImages(canvasProse, window.currentDraft);
         if (typeof window.hydratePageBlocks === 'function') window.hydratePageBlocks(canvasProse, window.currentDraft, { isEditor: true, initialPage: 1 });
         if (window.currentDraft) window.currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse.innerHTML);
       }

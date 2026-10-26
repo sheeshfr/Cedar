@@ -420,13 +420,16 @@
 
   async function resolveMediaBlob(filename, imgObj) {
     if (!filename) return null;
-    const cleanName = String(filename).split('/').pop().split('\\').pop();
+    const cleanName = String(filename).split('/').pop().split('\\').pop().split('?')[0];
+    if (!cleanName) return null;
+    const cleanLower = cleanName.toLowerCase();
 
     // 1. Check in-memory window.imageRegistry first
     if (typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
       const regCandidates = [
         filename,
         cleanName,
+        cleanLower,
         `blog/images/${cleanName}`,
         `/blog/images/${cleanName}`,
         `images/${cleanName}`,
@@ -444,6 +447,38 @@
             if (b) return b;
           }
         }
+      }
+    }
+
+    // 1b. Check in-memory drafts and projectConfig.mediaLibrary for blob or dataUrl
+    const checkItemForBlob = (im) => {
+      if (!im || typeof im !== 'object') return null;
+      const fn = String(im.filename || im.relativePath || im.src || '').split('/').pop().split('\\').pop().split('?')[0].toLowerCase();
+      if (fn !== cleanLower) return null;
+      if (im.blob instanceof Blob) return im.blob;
+      if (im.dataUrl && typeof im.dataUrl === 'string' && im.dataUrl.startsWith('data:') && typeof dataUrlToBlob === 'function') {
+        return dataUrlToBlob(im.dataUrl);
+      }
+      if (im.src && typeof im.src === 'string' && im.src.startsWith('data:') && typeof dataUrlToBlob === 'function') {
+        return dataUrlToBlob(im.src);
+      }
+      return null;
+    };
+    const allDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+      ? window.CedarStore.getAllDrafts()
+      : (Array.isArray(window.drafts) ? window.drafts : []);
+    for (const d of allDrafts) {
+      if (d && Array.isArray(d.images)) {
+        for (const im of d.images) {
+          const b = checkItemForBlob(im);
+          if (b && b.size > 0) return b;
+        }
+      }
+    }
+    if (window.projectConfig && Array.isArray(window.projectConfig.mediaLibrary)) {
+      for (const im of window.projectConfig.mediaLibrary) {
+        const b = checkItemForBlob(im);
+        if (b && b.size > 0) return b;
       }
     }
 
@@ -470,29 +505,38 @@
       }
     }
 
+    // Collect candidate vault paths (including post-specific folders)
+    const vaultPaths = [
+      `blog/images/${cleanName}`,
+      `images/${cleanName}`,
+      `media/authors/${cleanName}`,
+      `media/${cleanName}`,
+      `media/branding/${cleanName}`,
+      cleanName
+    ];
+    if (imgObj && imgObj.src && typeof imgObj.src === 'string' && !imgObj.src.startsWith('data:') && !imgObj.src.startsWith('blob:')) {
+      vaultPaths.unshift(imgObj.src.replace(/^\/+/, ''));
+    }
+    const slugsToCheck = new Set();
+    if (imgObj && imgObj.postSlug) slugsToCheck.add(imgObj.postSlug);
+    if (window.currentDraft && window.currentDraft.slug) slugsToCheck.add(window.currentDraft.slug);
+    for (const d of allDrafts) {
+      if (d && d.slug && Array.isArray(d.images) && d.images.some(im => im && String(im.filename || '').toLowerCase() === cleanLower)) {
+        slugsToCheck.add(d.slug);
+      }
+    }
+    slugsToCheck.forEach(ps => {
+      vaultPaths.push(
+        `blog/published/${ps}/${cleanName}`,
+        `blog/drafts/${ps}/${cleanName}`,
+        `blog/hidden/${ps}/${cleanName}`,
+        `pages/published/${ps}/${cleanName}`,
+        `pages/hidden/${ps}/${cleanName}`
+      );
+    });
+
     // 3. Check connected local folder (SheeshVault) across all standard media directories
     if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
-      const vaultPaths = [
-        `blog/images/${cleanName}`,
-        `images/${cleanName}`,
-        `media/authors/${cleanName}`,
-        `media/${cleanName}`,
-        `media/branding/${cleanName}`,
-        cleanName
-      ];
-      if (imgObj && imgObj.src && typeof imgObj.src === 'string' && !imgObj.src.startsWith('data:') && !imgObj.src.startsWith('blob:')) {
-        vaultPaths.unshift(imgObj.src.replace(/^\/+/, ''));
-      }
-      if (imgObj && imgObj.postSlug) {
-        const ps = imgObj.postSlug;
-        vaultPaths.push(
-          `blog/published/${ps}/${cleanName}`,
-          `blog/drafts/${ps}/${cleanName}`,
-          `blog/hidden/${ps}/${cleanName}`,
-          `pages/published/${ps}/${cleanName}`,
-          `pages/hidden/${ps}/${cleanName}`
-        );
-      }
       for (const vp of vaultPaths) {
         if (!vp) continue;
         try {
@@ -501,6 +545,23 @@
         } catch (e) {}
       }
     }
+
+    // 4. Check Server Bridge (/api/vault-read) if local vault path is configured
+    const savedVaultPath = ((typeof localStorage !== 'undefined' && (localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path'))) || (window.projectConfig && window.projectConfig.vaultPath) || '').trim();
+    const isDisconnect = typeof localStorage !== 'undefined' && localStorage.getItem('cedar_vault_disconnected') === '1';
+    if (savedVaultPath && !isDisconnect) {
+      for (const vp of vaultPaths) {
+        if (!vp) continue;
+        try {
+          const res = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent(vp)}`);
+          if (res.ok) {
+            const b = await res.blob();
+            if (b && b.size > 0) return b;
+          }
+        } catch (e) {}
+      }
+    }
+
     return null;
   }
 
@@ -577,12 +638,25 @@
 
       if (imgObj.blob) {
         imgObj.objectUrl = URL.createObjectURL(imgObj.blob);
-        imgObj.dataUrl = imgObj.objectUrl;
+        if (!imgObj.dataUrl || !imgObj.dataUrl.startsWith('data:')) {
+          try {
+            const dUrl = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+              reader.onerror = () => resolve('');
+              reader.readAsDataURL(imgObj.blob);
+            });
+            imgObj.dataUrl = dUrl || imgObj.objectUrl;
+          } catch (e) {
+            imgObj.dataUrl = imgObj.objectUrl;
+          }
+        }
       }
 
       if (window.imageRegistry) {
         imageRegistry.set(imgObj.filename, imgObj);
         imageRegistry.set(imgObj.relativePath, imgObj);
+        imageRegistry.set(`blog/images/${imgObj.filename}`, imgObj);
       }
 
       imgObj.postTitle = 'Media Library';
@@ -1916,6 +1990,7 @@
   }
 
   window.getAllUniqueImages = getAllUniqueImages;
+  window.resolveMediaBlob = resolveMediaBlob;
   window.saveLinkMediaAsset = saveLinkMediaAsset;
   window.handleMediaUpload = handleMediaUpload;
   window.renderDerivedMediaLibrary = renderDerivedMediaLibrary;
@@ -1932,6 +2007,7 @@
 
   Object.assign(window.Cedar.dashboard, {
     getAllUniqueImages,
+    resolveMediaBlob,
     handleMediaUpload,
     renderDerivedMediaLibrary,
     initMediaEvents,
