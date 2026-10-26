@@ -3099,39 +3099,24 @@ function createDefaultAboutPage() {
 
       isSecret: true,
 
-      markdown: `[https://github.com/sheeshfr/Cedar](https://github.com/sheeshfr/Cedar)
+      markdown: `> After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.
 
+**Cedar** is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:
 
+- **Gives you a focused writing studio** for drafting and formatting posts.
+- **Manages your posts, pages, and media** in one place.
+- **Organizes your static site files** automatically so they are always ready to publish.
+- **Makes deploying effortless**—whether exporting a \`.zip\` or pushing straight to GitHub.
 
-## After a decade plus of experimenting with all the blog tools, I never found one that I liked. Cedar is my attempt at pulling all the best parts of legacy writers into a single, focused experience.
+### 100% Local-First
 
+Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.
 
+Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.
 
-Cedar is an open-source, web-based static blog generator. Cedar is unique in that it...
+[Try Cedar at cedar.pub](https://cedar.pub) • [View Source on GitHub](https://github.com/sheeshfr/Cedar)`.trim(),
 
-
-
-- provides a writing platform,
-
-- manages your posts, pages and media,
-
-- organizes your files/folder so they're ready for upload,
-
-- makes uploading to a hosting provide as simple as can be.
-
-
-
-The best part -- Cedar stores all your information locally! Even thought you're writing on my website, everything you do is stored 100% in your own browser (so don't clear your caches before backing up your work!)
-
-
-
-Everything remains 100% in your browser until you choose to move it elsewhere. You could also store everything in a folder on your computer, a portable SSD, or send it straight to GitHub! Regardless of your workflow, Cedar manages all your data for you so you'll never need to work in files/folders to reap the benefits of static site hosting.
-
-
-
-[https://cedar.pub](https://cedar.pub)`.trim(),
-
-      proseHtml: `<p><a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">https://github.com/sheeshfr/Cedar</a></p><h2><span style="font-weight: normal;"><span style="font-size: 1.075rem;"><i>After a decade plus of experimenting with all the blog tools, I never found one that I liked. Cedar is an attempt at pulling all the best parts of legacy writers into a single, focused experience.</i></span></span></h2><p>Cedar is an open-source, web-based static blog generator. Cedar is unique in that it...<br></p><ul><li>provides a writing platform,</li><li>manages your posts, pages and media,</li><li>organizes your files/folder so they're ready for upload,</li><li>makes uploading to a hosting provide as simple as can be.</li></ul><p>The best part -- Cedar stores all your information locally! Everything you do is stored 100% in your own browser or local folder.</p><p data-intentional="true">Everything remains 100% in your browser until you choose to move it elsewhere. You could also store everything in a folder on your computer, a portable SSD, or send it straight to GitHub! Regardless of your workflow, Cedar manages all your data for you so you'll never need to work in files/folders to reap the benefits of static site hosting.</p><p><a href="https://cedar.pub" target="_blank" rel="noopener noreferrer">https://cedar.pub</a></p>`,
+      proseHtml: `<blockquote>After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.</blockquote><p><strong>Cedar</strong> is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:</p><ul><li><strong>Gives you a focused writing studio</strong> for drafting and formatting posts.</li><li><strong>Manages your posts, pages, and media</strong> in one place.</li><li><strong>Organizes your static site files</strong> automatically so they are always ready to publish.</li><li><strong>Makes deploying effortless</strong>—whether exporting a <code>.zip</code> or pushing straight to GitHub.</li></ul><h3>100% Local-First</h3><p>Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.</p><p>Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.</p><p><a href="https://cedar.pub" target="_blank" rel="noopener noreferrer">Try Cedar at cedar.pub</a> &nbsp;&bull;&nbsp; <a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">View Source on GitHub</a></p>`,
 
       images: [],
 

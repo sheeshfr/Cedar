@@ -396,8 +396,10 @@
             if (existingCedarPage) {
               existingCedarPage.subtitle = '';
               existingCedarPage.showSubtitle = false;
-              if (existingCedarPage.markdown) {
-                existingCedarPage.markdown = existingCedarPage.markdown.replace(/^#\s+About\s+Cedar\s*\n+/i, '');
+              const canonical = typeof window.createDefaultAboutCedarPage === 'function' ? window.createDefaultAboutCedarPage() : null;
+              if (canonical) {
+                existingCedarPage.markdown = canonical.markdown;
+                existingCedarPage.proseHtml = canonical.proseHtml;
               }
             }
             if (!drafts.some(d => d.type === 'page' && (d.slug === 'about-cedar' || d.id === 'page_about_cedar'))) {
@@ -1086,6 +1088,35 @@
   window.OutpostPreview.setDrafts = setDrafts;
   window.CedarPreview.setProjectConfig = setProjectConfig;
   window.OutpostPreview.setProjectConfig = setProjectConfig;
+
+  if (typeof window.createDefaultAboutCedarPage !== 'function') {
+    window.createDefaultAboutCedarPage = function() {
+      const now = Date.now();
+      return {
+        id: 'page_about_cedar',
+        type: 'page',
+        status: 'published',
+        title: 'About Cedar',
+        slug: 'about-cedar',
+        subtitle: '',
+        showSubtitle: false,
+        authorName: 'Cedar',
+        authors: ['Cedar'],
+        authorInitial: 'C',
+        hidden: true,
+        retired: true,
+        isSecret: true,
+        markdown: `> After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.\n\n**Cedar** is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:\n\n- **Gives you a focused writing studio** for drafting and formatting posts.\n- **Manages your posts, pages, and media** in one place.\n- **Organizes your static site files** automatically so they are always ready to publish.\n- **Makes deploying effortless**—whether exporting a \`.zip\` or pushing straight to GitHub.\n\n### 100% Local-First\n\nEven though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.\n\nWhatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.\n\n[Try Cedar at cedar.pub](https://cedar.pub) • [View Source on GitHub](https://github.com/sheeshfr/Cedar)`,
+        proseHtml: `<blockquote>After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.</blockquote><p><strong>Cedar</strong> is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:</p><ul><li><strong>Gives you a focused writing studio</strong> for drafting and formatting posts.</li><li><strong>Manages your posts, pages, and media</strong> in one place.</li><li><strong>Organizes your static site files</strong> automatically so they are always ready to publish.</li><li><strong>Makes deploying effortless</strong>—whether exporting a <code>.zip</code> or pushing straight to GitHub.</li></ul><h3>100% Local-First</h3><p>Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.</p><p>Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.</p><p><a href="https://cedar.pub" target="_blank" rel="noopener noreferrer">Try Cedar at cedar.pub</a> &nbsp;&bull;&nbsp; <a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">View Source on GitHub</a></p>`,
+        images: [],
+        createdAt: now - 86400000 * 3,
+        updatedAt: now - 86400000 * 3,
+        publishedAt: now - 86400000 * 3,
+        date: new Date(now - 86400000 * 3).toISOString().split('T')[0],
+        publishedDate: new Date(now - 86400000 * 3).toISOString().split('T')[0]
+      };
+    };
+  }
 
   window.getWorkspaceFingerprint = getWorkspaceFingerprint;
   window.syncWithServer = syncWithServer;
