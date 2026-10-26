@@ -552,7 +552,7 @@
         if (isRss && typeof window.generateRssPageData === 'function') {
           const rssData = window.generateRssPageData(getConfig());
           const rawMd = String(item.markdown || '').trim();
-          if ((!rawMd && !item.proseHtml) || rawMd.includes('### Available Feeds')) {
+          if ((!rawMd && !item.proseHtml) || rawMd.includes('### Available Feeds') || rawMd.includes('## RSS Syndication') || rawMd.includes(':::rss-box')) {
             item.subtitle = rssData.subtitle;
             item.markdown = rssData.markdown;
             item.proseHtml = rssData.proseHtml;
@@ -739,9 +739,9 @@
         // Strip editor interactive attributes & classes
         if (isRss) {
           const liveFeedUrl = resolvePermanentRssFeedUrl();
-          proseEl.querySelectorAll('code').forEach(codeEl => {
+          proseEl.querySelectorAll('code.rss-live-feed-url, code').forEach(codeEl => {
             const txt = (codeEl.textContent || '').trim();
-            if (txt === '/feed.xml' || txt === 'feed.xml' || /^https?:\/\/localhost(?::\d+)?\/.*feed\.xml$/i.test(txt)) {
+            if (codeEl.classList.contains('rss-live-feed-url') || txt === '/feed.xml' || txt === 'feed.xml' || /^https?:\/\/localhost(?::\d+)?\/.*feed\.xml$/i.test(txt)) {
               codeEl.textContent = liveFeedUrl;
             }
           });
@@ -1156,7 +1156,7 @@
       const sp = btn.querySelector('span');
       if (sp) {
         if (!btn.dataset.origLabel) btn.dataset.origLabel = sp.textContent;
-        sp.textContent = '✓ RSS Link Copied!';
+        sp.textContent = btn.classList.contains('rss-copy-btn') ? '✓ Copied!' : '✓ RSS Link Copied!';
         setTimeout(() => {
           sp.textContent = btn.dataset.origLabel || 'Subscribe';
         }, 2000);

@@ -104,6 +104,13 @@
       return `<div class="article-rss-block" data-block-type="rss" contenteditable="false" draggable="true"><button type="button" class="btn-rss-subscribe" title="Subscribe"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1.5" fill="currentColor"></circle></svg><span>Subscribe</span></button></div>`;
     });
 
+    // 2.56. RSS Feed Showcase Bar: :::rss-box::: or :::rss-box URL:::
+    html = html.replace(/:::rss-box(?:\s+([^\n:]+))?:::/gi, function (_, urlArg) {
+      const siteBase = (typeof resolveAutoDetectedSiteBaseUrl === 'function') ? resolveAutoDetectedSiteBaseUrl() : '';
+      const feedUrl = (urlArg && urlArg.trim()) ? urlArg.trim() : (siteBase ? `${siteBase}/feed.xml` : '/feed.xml');
+      return `<div class="rss-feed-showcase-card" data-block-type="rss-box" contenteditable="false"><div class="rss-feed-url-display"><span class="rss-feed-icon-badge" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1.5" fill="currentColor"></circle></svg></span><code class="rss-live-feed-url">${escapeHtml(feedUrl)}</code></div><button type="button" class="popout-3d btn-rss-subscribe rss-copy-btn" title="Copy RSS feed link to clipboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy Link</span></button></div>`;
+    });
+
     // 2.6. Page-Exclusive Recent Posts Block: :::recent-posts layout="grid":::
     html = html.replace(/:::recent-posts(?:\s+([^\n:]*))?:::/gi, function (_, attrsStr) {
       const attrs = attrsStr || '';
@@ -235,6 +242,7 @@
           trimmedBlockLine.startsWith('<div class="custom-gallery-grid"') ||
           trimmedBlockLine.startsWith('<div class="article-share-block"') ||
           trimmedBlockLine.startsWith('<div class="article-rss-block"') ||
+          trimmedBlockLine.startsWith('<div class="rss-feed-showcase-card"') ||
           trimmedBlockLine.startsWith('<div class="page-recent-posts-block"') ||
           trimmedBlockLine.startsWith('<div class="page-individual-post-block"') ||
           trimmedBlockLine.startsWith('<p class="gallery-caption"') ||
@@ -465,6 +473,18 @@
           (node.querySelector && node.querySelector('.article-share-block, [data-block-type="share"], .btn-share-article'))
         ) {
           output += `\n\n:::share:::\n\n`;
+          return;
+        }
+
+        // RSS feed showcase box
+        if (
+          (node.classList && node.classList.contains('rss-feed-showcase-card')) ||
+          node.dataset?.blockType === 'rss-box' ||
+          (node.querySelector && node.querySelector('.rss-feed-showcase-card, [data-block-type="rss-box"]'))
+        ) {
+          const codeEl = node.querySelector ? node.querySelector('code.rss-live-feed-url') : null;
+          const urlTxt = codeEl ? (codeEl.textContent || '').trim() : '';
+          output += urlTxt ? `\n\n:::rss-box ${urlTxt}:::\n\n` : `\n\n:::rss-box:::\n\n`;
           return;
         }
 
@@ -2726,6 +2746,75 @@
       box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #18181b));
     }
 
+    /* RSS Feed Showcase Bar (.rss-feed-showcase-card) */
+    .rss-feed-showcase-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      width: 100%;
+      margin: 1.25rem 0 2.25rem;
+      padding: 0.75rem 0.85rem 0.75rem 1rem;
+      background: var(--bg-secondary, var(--bg-card, #18181b));
+      border: 1px solid var(--border-card, var(--border-subtle, rgba(255, 255, 255, 0.14)));
+      border-radius: 12px;
+      box-sizing: border-box;
+    }
+    .app-theme-light .rss-feed-showcase-card {
+      background: var(--bg-secondary, #f4f4f5);
+      border-color: var(--border-card, rgba(0, 0, 0, 0.12));
+    }
+    .rss-feed-url-display {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+      flex: 1;
+    }
+    .rss-feed-icon-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: rgba(249, 115, 22, 0.14);
+      color: #f97316;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .rss-feed-showcase-card code.rss-live-feed-url {
+      font-family: var(--font-mono, monospace);
+      font-size: 0.92rem !important;
+      font-weight: 500;
+      color: var(--text-primary) !important;
+      background: transparent !important;
+      padding: 0 !important;
+      border: none !important;
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: all;
+      cursor: text;
+    }
+    .rss-feed-showcase-card .rss-copy-btn {
+      flex-shrink: 0;
+      padding: 0.55rem 1.15rem !important;
+      font-size: 0.88rem !important;
+      border-radius: 9px !important;
+    }
+    @media (max-width: 600px) {
+      .rss-feed-showcase-card {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0.85rem;
+        gap: 0.75rem;
+      }
+      .rss-feed-showcase-card .rss-copy-btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
     /* Embedded Videos */
     .video-wrapper {
       position: relative;
@@ -4390,7 +4479,8 @@ ${itemsXml}
       if (pageClone.id === 'page_rss' || slug === 'rss') {
         if (typeof window.generateRssPageData === 'function') {
           const rssData = window.generateRssPageData(publicProject);
-          if (!pageClone.markdown && !pageClone.proseHtml) {
+          const curRssMd = String(pageClone.markdown || '').trim();
+          if ((!curRssMd && !pageClone.proseHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
             pageClone.subtitle = rssData.subtitle;
             pageClone.markdown = rssData.markdown;
             pageClone.proseHtml = rssData.proseHtml;
@@ -5122,38 +5212,20 @@ ${page.markdown || ''}`;
 
   function generateRssPageData(config) {
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : {}) || {};
-    const isRssEnabled = Boolean(cfg.rssEnabled);
     const siteBase = resolveAutoDetectedSiteBaseUrl(cfg);
     const siteName = cfg.name || 'Cedar';
 
     const postsUrl = siteBase ? `${siteBase}/feed.xml` : '/feed.xml';
 
     let title = 'RSS';
-    let subtitle = 'Subscribe to published articles via RSS feed syndication.';
-    let markdown = `## RSS Syndication
+    let subtitle = 'Follow new posts in your favorite feed reader—no algorithms, no inbox clutter.';
+    let markdown = `:::rss-box ${postsUrl}:::
 
-Subscribe directly to ${siteName} content using your preferred feed reader (such as NetNewsWire, Feedly, Reeder, or Inoreader).
+### How It Works
 
----
-
-### Available Feeds
-
-#### Articles & Longform Posts
-Full-text and excerpt syndication for all published articles and posts.
-- **Feed URL**: \`${postsUrl}\`
-- **Type**: RSS 2.0 / Atom
-- **Contents**: Published articles
-
----
-
-### How to Subscribe
-1. Copy the feed URL above (\`${postsUrl}\`).
-2. In your RSS reader of choice, add a new subscription and paste the URL.
-3. Your feed reader will automatically fetch updates whenever new articles are published.`.trim();
-
-    if (!isRssEnabled) {
-      markdown = `> **Note**: RSS syndication is currently turned off in Settings. Enable RSS in Settings to broadcast these feeds to readers.\n\n` + markdown;
-    }
+1. **Copy the feed link** above.
+2. **Paste it into any RSS reader**—like [NetNewsWire](https://netnewswire.com), [Feedly](https://feedly.com), [Reeder](https://reederapp.com), or [Inoreader](https://www.inoreader.com).
+3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.`.trim();
 
     const defaultAuth = (typeof resolveProjectDefaultAuthor === 'function')
       ? resolveProjectDefaultAuthor()
@@ -5192,8 +5264,9 @@ Full-text and excerpt syndication for all published articles and posts.
       if (cfg) cfg.rssEnabled = isRssOn;
       try { localStorage.setItem('cedar_rss_enabled', isRssOn ? 'true' : 'false'); } catch (e) {}
 
-      // Never overwrite user edits if the RSS page has existing content
-      if (!rssDraft.markdown && !rssDraft.proseHtml) {
+      // Refresh default RSS page template while preserving custom user edits
+      const curRssMd = String(rssDraft.markdown || '').trim();
+      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
         rssDraft.subtitle = rssData.subtitle;
         rssDraft.markdown = rssData.markdown;
         rssDraft.proseHtml = rssData.proseHtml;
