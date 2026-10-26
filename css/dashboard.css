@@ -4108,6 +4108,17 @@
   gap: 4px;
   font-weight: 500;
   line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.badge-redirect:hover {
+  background: rgba(45, 212, 191, 0.24) !important;
+  border-color: rgba(45, 212, 191, 0.45) !important;
+}
+
+.btn-redirect-goto {
+  display: none !important;
 }
 
 .badge-static {
