@@ -362,6 +362,13 @@
         root.style.setProperty('--popout-3d-border-hover', popoutTokens.borderHover);
         root.style.setProperty('--popout-3d-color', popoutTokens.color);
 
+        const activeCfg = (typeof projectConfig !== 'undefined' && projectConfig) || window.projectConfig || {};
+        const isRoundedMedia = Boolean(
+          (activeCfg.mediaPreferences && activeCfg.mediaPreferences.roundedImages) ||
+          (activeCfg.design && activeCfg.design.roundedImages)
+        );
+        root.style.setProperty('--post-image-radius', isRoundedMedia ? '8px' : '0px');
+
         if (isLight) {
           root.classList.add('app-theme-light');
           if (document.body) {

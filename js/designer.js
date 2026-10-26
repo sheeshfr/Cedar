@@ -652,30 +652,33 @@
   }
 
   function setCornerPreference(isRounded) {
+    const roundedBool = Boolean(isRounded);
     const cardCornerStraight = document.getElementById('pref-corner-straight');
     const cardCornerRounded = document.getElementById('pref-corner-rounded');
 
-    if (cardCornerStraight) cardCornerStraight.classList.toggle('active', !isRounded);
-    if (cardCornerRounded) cardCornerRounded.classList.toggle('active', isRounded);
+    if (cardCornerStraight) cardCornerStraight.classList.toggle('active', !roundedBool);
+    if (cardCornerRounded) cardCornerRounded.classList.toggle('active', roundedBool);
 
     if (!window.projectConfig) window.projectConfig = {};
     if (!window.projectConfig.mediaPreferences) window.projectConfig.mediaPreferences = {};
-    window.projectConfig.mediaPreferences.roundedImages = isRounded;
+    window.projectConfig.mediaPreferences.roundedImages = roundedBool;
+    if (!window.projectConfig.design) window.projectConfig.design = {};
+    window.projectConfig.design.roundedImages = roundedBool;
 
     if (typeof window.applyMediaPreferences === 'function') {
-      window.applyMediaPreferences(isRounded);
+      window.applyMediaPreferences(roundedBool);
     }
 
     if (typeof window.saveProjectToStorage === 'function') {
-      window.saveProjectToStorage();
-    }
-    if (typeof showToast === 'function') {
-      showToast('Media preference saved');
+      window.saveProjectToStorage({ isDesignerSave: true });
     }
 
     if (typeof window.syncLiveWorkspaceData === 'function') {
       window.syncLiveWorkspaceData();
     }
+
+    updateAllPreviewFrames();
+    renderLivePreview();
   }
 
   function initDesigner() {
@@ -1032,32 +1035,22 @@
     }
 
     // Media corner preferences
-    const cardCornerStraight = document.getElementById('pref-corner-straight');
-    const cardCornerRounded = document.getElementById('pref-corner-rounded');
-
-    if (cardCornerStraight && cardCornerRounded) {
-      cardCornerStraight.addEventListener('click', () => {
-        if (cardCornerStraight.classList.contains('active')) return;
-        setCornerPreference(false);
+    const cornerGrid = document.getElementById('media-corner-showcase-grid');
+    if (cornerGrid && !cornerGrid._hasCornerClickListener) {
+      cornerGrid._hasCornerClickListener = true;
+      cornerGrid.addEventListener('click', (e) => {
+        const card = e.target.closest('.media-corner-choice-card[data-corner-pref]');
+        if (!card) return;
+        const pref = card.getAttribute('data-corner-pref');
+        setCornerPreference(pref === 'rounded');
       });
-      cardCornerStraight.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          if (cardCornerStraight.classList.contains('active')) return;
-          setCornerPreference(false);
-        }
-      });
-
-      cardCornerRounded.addEventListener('click', () => {
-        if (cardCornerRounded.classList.contains('active')) return;
-        setCornerPreference(true);
-      });
-      cardCornerRounded.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          if (cardCornerRounded.classList.contains('active')) return;
-          setCornerPreference(true);
-        }
+      cornerGrid.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const card = e.target.closest('.media-corner-choice-card[data-corner-pref]');
+        if (!card) return;
+        e.preventDefault();
+        const pref = card.getAttribute('data-corner-pref');
+        setCornerPreference(pref === 'rounded');
       });
     }
 

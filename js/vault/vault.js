@@ -1484,6 +1484,8 @@ else {
           localStorage.setItem('cedar_vault_connected', '1');
         } else {
           localStorage.removeItem('cedar_vault_mode'); try { localStorage.removeItem('outpost_vault_mode'); } catch(e){}
+          if (handle.name) localStorage.setItem('cedar_vault_name', handle.name);
+          localStorage.setItem('cedar_vault_connected', '1');
           await saveHandleToDb(handle);
         }
         await ensureVaultStructure();
@@ -1555,6 +1557,8 @@ else {
 
           rootHandle = handle;
           localStorage.removeItem('cedar_vault_disconnected'); try { localStorage.removeItem('outpost_vault_disconnected'); } catch(e){}
+          if (handle && handle.name) localStorage.setItem('cedar_vault_name', handle.name);
+          localStorage.setItem('cedar_vault_connected', '1');
           await saveHandleToDb(handle);
           await ensureVaultStructure();
           this.emit('connected', { name: handle.name, info: vaultInfo });

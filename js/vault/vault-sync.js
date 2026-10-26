@@ -1096,7 +1096,7 @@
 
     }
 
-    const isConnected = !isExplicitlyDisconnected && Boolean(isVaultActive || (isConnFlag && storedPath) || storedPath);
+    const isConnected = !isExplicitlyDisconnected && Boolean(isVaultActive || (isConnFlag && (storedPath || storedName)) || storedPath);
 
     const folderName = (window.SheeshVault && window.SheeshVault.isConnected() ? window.SheeshVault.getFolderName() : null) || storedName || (storedPath ? storedPath.split(/[\\/]/).filter(Boolean).pop() : null) || 'Local Folder';
 
@@ -2375,7 +2375,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
       btnExportSidebarAction._hasExportListener = true;
 
-      btnExportSidebarAction.addEventListener('click', exportBlogAsZip);
+      // Handled by github-sync.js (delegates to #btn-github-push)
 
     }
 

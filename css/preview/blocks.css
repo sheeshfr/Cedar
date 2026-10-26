@@ -144,7 +144,7 @@
       margin: 0 auto;
       background: transparent;
       border: 1px solid transparent;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       overflow: hidden;
       cursor: pointer;
       text-decoration: none;
@@ -182,7 +182,7 @@
       min-height: unset;
       height: auto;
       overflow: hidden;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       background: #090d16;
       display: flex;
       align-items: center;
@@ -210,7 +210,7 @@
       height: 100%;
       object-fit: cover;
       object-position: center;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       transition: none;
     }
 
@@ -314,7 +314,7 @@
       color: inherit;
       background: transparent;
       border: 1px solid transparent;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       padding: 0.5rem 0.5rem 0.35rem 0.5rem;
       display: flex;
       flex-direction: column;
@@ -399,7 +399,7 @@
       gap: 1.75rem;
       background: transparent;
       border: 1px solid transparent;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       padding: 0.75rem;
       margin: -0.75rem;
       text-decoration: none;
@@ -430,7 +430,7 @@
       max-width: 320px;
       aspect-ratio: 16 / 9;
       height: auto;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       overflow: hidden;
       margin: 0;
       flex-shrink: 0;
@@ -752,7 +752,7 @@
     .post-card {
       background: transparent;
       border: 1px solid transparent;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       padding: 0.75rem;
       margin: -0.75rem;
       display: flex;
@@ -844,7 +844,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
       transition: none;
     }
@@ -871,6 +871,7 @@
       object-fit: contain;
       object-position: center;
       display: block;
+      border-radius: var(--post-image-radius, 0px);
       filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45));
       transition: none;
     }
@@ -887,7 +888,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: var(--post-image-radius, 8px);
+      border-radius: var(--post-image-radius, 0px);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
       border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
       background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.07) 0%, rgba(0, 0, 0, 0.3) 100%), #18181b;
@@ -1887,7 +1888,7 @@
         aspect-ratio: 16 / 9 !important;
         height: auto !important;
         flex-shrink: 0 !important;
-        border-radius: var(--post-image-radius, 8px) !important;
+        border-radius: var(--post-image-radius, 0px) !important;
         overflow: hidden !important;
         margin: 0 !important;
       }

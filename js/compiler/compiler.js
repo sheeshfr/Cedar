@@ -1635,7 +1635,7 @@
         aspect-ratio: 16 / 9 !important;
         height: auto !important;
         flex-shrink: 0 !important;
-        border-radius: var(--post-image-radius, 8px) !important;
+        border-radius: var(--post-image-radius, 0px) !important;
         overflow: hidden !important;
         margin: 0 !important;
       }

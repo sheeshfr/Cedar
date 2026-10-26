@@ -9,14 +9,14 @@
       margin: 2.2rem 0 0.5rem;
       width: 100%;
       max-width: 100% !important;
-      border-radius: 12px;
+      border-radius: var(--post-image-radius, 0px);
       box-sizing: border-box;
     }
 
     .custom-gallery-item {
       position: relative;
       overflow: hidden;
-      border-radius: 12px;
+      border-radius: var(--post-image-radius, 0px);
       border: 1px solid var(--border-card);
       background: var(--bg-card, #121214);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);

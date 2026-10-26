@@ -576,13 +576,17 @@
 
     const isExplicitlyDisconnected = localStorage.getItem('cedar_vault_disconnected') === '1';
     const savedVaultPath = !isExplicitlyDisconnected ? ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || projectConfig.vaultPath || '').trim() : '';
+    const savedVaultName = !isExplicitlyDisconnected ? (localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name') || '').trim() : '';
+    const isConnFlag = !isExplicitlyDisconnected && (localStorage.getItem('cedar_vault_connected') === '1' || localStorage.getItem('outpost_vault_connected') === '1');
     const isSheeshConnected = Boolean(window.SheeshVault && window.SheeshVault.isConnected());
-    const isConnected = !isExplicitlyDisconnected && (isSheeshConnected || Boolean(savedVaultPath));
+    const isConnected = !isExplicitlyDisconnected && (isSheeshConnected || Boolean(savedVaultPath) || (isConnFlag && Boolean(savedVaultName)));
     let folderName = null;
     if (isSheeshConnected) {
       folderName = window.SheeshVault.getFolderName();
     } else if (savedVaultPath) {
       folderName = savedVaultPath.split(/[\\/]/).filter(Boolean).pop() || savedVaultPath;
+    } else if (savedVaultName) {
+      folderName = savedVaultName;
     }
 
     const modalVaultPathInput = document.getElementById('setting-vault-folder-path');
@@ -1310,7 +1314,7 @@
           projectConfig.categories.unshift(newDefaultCat);
         }
 
-        // Vault Path
+        // Vault Path (only update if explicitly present; never disconnect an active native FSA folder handle)
         const vaultInput = document.getElementById('setting-vault-folder-path');
         if (vaultInput) {
           const vaultPathVal = vaultInput.value.trim().replace(/^["']|["']$/g, '');
@@ -1319,11 +1323,9 @@
             localStorage.setItem('cedar_vault_path', vaultPathVal);
             localStorage.setItem('cedar_vault_connected', '1');
             localStorage.removeItem('cedar_vault_disconnected');
-          } else {
+          } else if (!(window.SheeshVault && window.SheeshVault.isConnected()) && !localStorage.getItem('cedar_vault_name')) {
             delete projectConfig.vaultPath;
             localStorage.removeItem('cedar_vault_path'); try { localStorage.removeItem('outpost_vault_path'); } catch(e){}
-            localStorage.removeItem('cedar_vault_connected');
-            localStorage.setItem('cedar_vault_disconnected', '1');
           }
         }
 

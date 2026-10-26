@@ -112,7 +112,8 @@
             ? p.design.homeBlocks.map(b => `${b.id}:${b.type}:${b.x}:${b.y}:${b.w}:${b.h}:${b.stretchWidth}:${b.align}:${JSON.stringify(b.config || {})}`).join(';')
             : '';
           const brandPart = (p.design && p.design.branding) ? JSON.stringify(p.design.branding) : '';
-          const radiusPart = (p.design && p.design.blockRadius !== undefined) ? p.design.blockRadius : '';
+          const isRoundedMedia = Boolean((p.mediaPreferences && p.mediaPreferences.roundedImages) || (p.design && p.design.roundedImages));
+          const radiusPart = `${(p.design && p.design.blockRadius !== undefined) ? p.design.blockRadius : ''}:${isRoundedMedia}`;
           const customPart = JSON.stringify((p.design && p.design.customColors) || '');
           const themePart = (p.design && (p.design.blogTheme || p.design.activeTheme)) || '';
           const layoutPart = (p.design && p.design._layoutThemeName) || '';
