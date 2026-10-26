@@ -61,4 +61,4 @@ Open the **Publish** pane in the Cedar dashboard to deploy your site:
 
 ## License
 
-MIT License. Free and open source.
+GPL v3 License. Free and open source.
