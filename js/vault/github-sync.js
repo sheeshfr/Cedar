@@ -87,6 +87,8 @@
     return Boolean(repo && token && repo.includes('/'));
   }
 
+  let githubAutoSaveTimer = null;
+
   function saveCredentials(repo, token, branch = 'main') {
     const parsed = parseGitHubRepoInput(repo);
     const cleanRepo = parsed.repo;
@@ -94,6 +96,16 @@
     localStorage.setItem(STORAGE_KEYS.REPO, cleanRepo);
     localStorage.setItem(STORAGE_KEYS.TOKEN, (token || '').trim());
     localStorage.setItem(STORAGE_KEYS.BRANCH, effBranch);
+    if (window.projectConfig) {
+      window.projectConfig.githubRepo = cleanRepo;
+      window.projectConfig.githubBranch = effBranch;
+      if (typeof window.saveProjectToStorage === 'function') {
+        clearTimeout(githubAutoSaveTimer);
+        githubAutoSaveTimer = setTimeout(() => {
+          window.saveProjectToStorage();
+        }, 250);
+      }
+    }
     updateSyncBadges();
   }
 
@@ -175,11 +187,17 @@
           msg = j.message || msg;
         } catch (e) {}
         if (res.status === 401) return { ok: false, error: 'Authentication failed: Invalid Personal Access Token.' };
-        if (res.status === 404) return { ok: false, error: 'Repository not found or token lacks permissions for this repo.' };
+        if (res.status === 404) return { ok: false, error: 'Repository not found or token lacks access. For private repos, ensure your Fine-Grained token has your repo selected + "Contents: Read and write" saved together (or use a Classic token with "repo" checked).' };
         return { ok: false, error: `GitHub error (${res.status}): ${msg}` };
       }
 
       const data = await res.json();
+      if (data.permissions && data.permissions.push === false) {
+        return {
+          ok: false,
+          error: 'Connected to repo, but token is Read-Only! Enable "Contents: Read and write" (Fine-Grained token) or check "repo" (Classic token) so Cedar can publish.'
+        };
+      }
       return {
         ok: true,
         repoName: data.full_name,
@@ -341,18 +359,68 @@
   /**
    * PUSH & PUBLISH: Atomic Commit using Git Trees API
    */
+  let isPublishingToGitHub = false;
   async function pushToGitHub(options = {}) {
+    if (isPublishingToGitHub) {
+      console.warn('[GitHubSync] Publish already in progress, ignoring duplicate trigger.');
+      return false;
+    }
     if (!isConfigured()) {
       throw new Error('GitHub sync is not configured. Please enter your repository and token in Settings.');
     }
-    const { repo, branch } = getCredentials();
+    isPublishingToGitHub = true;
+    const creds = getCredentials();
+    const repo = creds.repo;
+    let branch = creds.branch || 'main';
     const isForce = Boolean(options.force);
 
     if (typeof window.showToast === 'function') window.showToast('Checking repository state...');
 
     try {
-      // 1. Get branch head
-      const branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
+      // 1. Get branch head (auto-detect default branch or auto-initialize if empty 0-commit repo)
+      let branchRef = null;
+      try {
+        branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
+      } catch (refErr) {
+        if (refErr.status === 404 || refErr.status === 409) {
+          let repoMeta = null;
+          try {
+            repoMeta = await apiRequest(`/repos/${repo}`);
+          } catch (metaErr) {
+            if (metaErr.status === 404) {
+              throw new Error('Repository not found or token lacks access. For private repos, select your repo AND set "Contents: Read and write" before saving your Fine-Grained token (or check "repo" on a Classic token).');
+            }
+            throw metaErr;
+          }
+          if (repoMeta && repoMeta.permissions && repoMeta.permissions.push === false) {
+            throw new Error('Your token is Read-Only. Edit your GitHub token to enable "Contents: Read and write" (Fine-Grained) or check "repo" (Classic).');
+          }
+          if (repoMeta && repoMeta.default_branch && repoMeta.default_branch !== branch) {
+            branch = repoMeta.default_branch;
+            localStorage.setItem(STORAGE_KEYS.BRANCH, branch);
+            try {
+              branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
+            } catch (e2) {}
+          }
+          // If branchRef is still null, the repository has 0 commits (empty repo without a README). Auto-bootstrap it!
+          if (!branchRef) {
+            if (typeof window.showToast === 'function') window.showToast('Initializing empty GitHub repository...');
+            const siteTitle = window.projectConfig?.name || 'Cedar Blog';
+            const readmeB64 = btoa(unescape(encodeURIComponent(`# ${siteTitle}\n\nPublished with [Cedar](https://cedar.pub).\n`)));
+            await apiRequest(`/repos/${repo}/contents/README.md`, {
+              method: 'PUT',
+              body: {
+                message: 'Initial commit (Cedar Studio)',
+                content: readmeB64,
+                branch: branch
+              }
+            });
+            branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
+          }
+        } else {
+          throw refErr;
+        }
+      }
       const headSha = branchRef.object.sha;
       const lastSyncedSha = localStorage.getItem(STORAGE_KEYS.LAST_SHA);
 
@@ -503,6 +571,8 @@
         window.showToast(`Publish failed: ${err.message}`, 'error');
       }
       throw err;
+    } finally {
+      isPublishingToGitHub = false;
     }
   }
 
@@ -721,6 +791,32 @@
       dashPill.style.display = configured ? 'inline-flex' : 'none';
       dashPill.textContent = isOutdated ? 'GitHub: Update Available' : 'GitHub: Synced';
     }
+
+    syncTestButtonState();
+  }
+
+  /**
+   * Keep "Test Connection" enabled whenever valid repository and token are entered
+   */
+  function syncTestButtonState() {
+    const btnTest = document.getElementById('btn-github-test');
+    if (!btnTest) return;
+    const saved = getCredentials();
+    const inRepo = document.getElementById('setting-github-repo');
+    const inToken = document.getElementById('setting-github-token');
+    const typedRepo = parseGitHubRepoInput(inRepo?.value || saved.repo || '').repo;
+    const typedToken = (inToken ? inToken.value : (saved.token || '')).trim();
+    const canTest = Boolean(
+      typedRepo &&
+      typedToken &&
+      typedRepo.includes('/')
+    );
+    btnTest.disabled = !canTest;
+    btnTest.style.opacity = canTest ? '' : '0.45';
+    btnTest.style.cursor = canTest ? '' : 'not-allowed';
+    btnTest.title = canTest
+      ? 'Verify repository access'
+      : 'Enter repository URL and Personal Access Token to test connection';
   }
 
   /**
@@ -1027,17 +1123,40 @@
       }
     });
 
-    // Clear validation error styling as user types
+    // Auto-save credentials as user types & update Test Connection state
     document.addEventListener('input', (e) => {
       if (e.target && (e.target.id === 'setting-github-repo' || e.target.id === 'setting-github-token')) {
+        const inRepoEl = document.getElementById('setting-github-repo');
+        const inTokenEl = document.getElementById('setting-github-token');
+        const rawRepo = inRepoEl ? inRepoEl.value.trim() : (localStorage.getItem(STORAGE_KEYS.REPO) || '');
+        const rawToken = inTokenEl ? inTokenEl.value.trim() : (localStorage.getItem(STORAGE_KEYS.TOKEN) || '');
+        const parsed = parseGitHubRepoInput(rawRepo);
+        const cleanRepo = parsed.repo || rawRepo;
+        const effBranch = parsed.branch || localStorage.getItem(STORAGE_KEYS.BRANCH) || 'main';
+
+        localStorage.setItem(STORAGE_KEYS.REPO, cleanRepo);
+        localStorage.setItem(STORAGE_KEYS.TOKEN, rawToken);
+        localStorage.setItem(STORAGE_KEYS.BRANCH, effBranch);
+
+        if (window.projectConfig) {
+          window.projectConfig.githubRepo = cleanRepo;
+          window.projectConfig.githubBranch = effBranch;
+          if (typeof window.saveProjectToStorage === 'function') {
+            clearTimeout(githubAutoSaveTimer);
+            githubAutoSaveTimer = setTimeout(() => {
+              window.saveProjectToStorage();
+            }, 250);
+          }
+        }
+
+        updateSyncBadges();
+        syncTestButtonState();
         if (e.target.value.trim()) {
           e.target.classList.remove('ftue-input-error');
           const errEl = document.getElementById(e.target.id === 'setting-github-repo' ? 'github-repo-error' : 'github-token-error');
           if (errEl) errEl.style.display = 'none';
 
-          const inRepo = document.getElementById('setting-github-repo')?.value.trim();
-          const inToken = document.getElementById('setting-github-token')?.value.trim();
-          if (inRepo && inToken) {
+          if (rawRepo && rawToken) {
             setPublishReadout(null);
           }
         }

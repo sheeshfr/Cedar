@@ -6,7 +6,7 @@
               <ul class="settings-toc-list" id="help-toc-list">
                 <li class="settings-toc-item">
                   <a href="#help-sec-overview" class="settings-toc-link active" data-target="help-sec-overview">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg>
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                     <span class="settings-toc-text">Welcome &amp; Overview</span>
                   </a>
                 </li>
@@ -64,7 +64,7 @@
               <div class="settings-section-group" id="help-sec-overview">
                 <div class="settings-section-header">
                   <div class="settings-section-title-wrap">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                     <h4>Welcome to Cedar — User Guide &amp; Documentation</h4>
                   </div>
                 </div>
@@ -104,7 +104,8 @@
                   </p>
                   <ul style="margin: 0 0 1.25rem 0; padding-left: 1.2rem; font-size: 0.84rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.4rem;">
                     <li><strong>Local Blog Folder vs. Web Export:</strong> Your local blog folder (and <strong>Export Local Backup <code>.ZIP</code></strong>) stores <em>everything</em>—including unpublished drafts, hidden posts, and your studio configuration (<code>editor/drafts.json</code> and <code>config.json</code>).</li>
-                    <li><strong>Public Web Output:</strong> When you click <strong>Publish to Web</strong> (GitHub) or <strong>Export Web Site (<code>.ZIP</code>)</strong>, Cedar strips out all private drafts, hidden items, and studio files, compiling only your published site.</li>
+                    <li><strong>Public Web Output:</strong> When you click <strong>Publish</strong> (GitHub) or <strong>Export Web Package (<code>.ZIP</code>)</strong>, Cedar strips out all private drafts, hidden items, and studio files, compiling only your published site.</li>
+                    <li><strong>Why Browsers Block Selecting <code>Desktop</code> or <code>Documents</code> Directly:</strong> Chromium browsers (Chrome, Edge, Brave, Vivaldi) prevent websites from selecting top-level system folders like <code>Desktop</code>, <code>Documents</code>, or <code>Downloads</code> directly (showing a <em>"contains system files"</em> alert). Simply click <strong>New Folder</strong> inside the folder picker dialog (e.g., inside <code>Documents</code>), name a folder (such as <code>Blogs</code> or your blog name), and select that subfolder!</li>
                   </ul>
 
                   <h5 style="margin: 0 0 0.45rem 0; font-size: 0.92rem; color: var(--text-primary);">Your Local Blog Folder Layout</h5>
@@ -217,14 +218,34 @@
                   <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-secondary);">
                     Cedar's compiler guarantees <strong>1:1 visual and functional parity</strong> between what you see in the <strong>Preview</strong> tab and what visitors see on your live domain—with zero <code>preview.html</code> or <code>localhost</code> prefixes.
                   </p>
-                  <h5 style="margin: 0 0 0.45rem 0; font-size: 0.92rem; color: var(--text-primary);">Option A: One-Click GitHub Sync (Recommended)</h5>
-                  <ol style="margin: 0 0 1.25rem 0; padding-left: 1.25rem; font-size: 0.84rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.4rem;">
-                    <li>Create a repository on GitHub (empty or initialized).</li>
-                    <li>In Cedar, open <strong>Publish &rarr; Publish to Web</strong> and paste either your full repository URL (e.g., <code>https://github.com/username/my-blog</code>) or <code>username/my-blog</code>.</li>
-                    <li>Generate a GitHub Personal Access Token (Classic token with <code>repo</code> scope, or Fine-Grained token with <strong>Contents: Read and write</strong> permission for that repository) and paste it into the token field.</li>
-                    <li>Click <strong>Test Connection</strong>, then click <strong>Publish to Web</strong>. Cedar compiles your entire production site into a single atomic Git commit and pushes it directly to your branch.</li>
-                    <li>Enable <strong>GitHub Pages</strong> (in your repo's Settings &rarr; Pages) or connect the repository to <strong>Cloudflare Pages</strong> / <strong>Netlify</strong> / <strong>Vercel</strong> for automatic global HTTPS hosting.</li>
+                  <h5 style="margin: 0 0 0.45rem 0; font-size: 0.92rem; color: var(--text-primary);">Option A: One-Click GitHub &amp; Cloudflare Pipeline (Recommended)</h5>
+                  <ol style="margin: 0 0 1.15rem 0; padding-left: 1.25rem; font-size: 0.84rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.5rem;">
+                    <li><strong>Create a GitHub Repository (Private Recommended):</strong> Create a new repository on GitHub and check <strong>"Add a README file"</strong> so the <code>main</code> branch is initialized immediately. (If you forget to add a README, Cedar will also bootstrap the initial commit for you automatically on your first publish.) Keeping your repository <strong>Private</strong> is recommended—Cloudflare can still deploy from a private repo while your source stays private.</li>
+                    <li><strong>Generate a GitHub Personal Access Token (PAT):</strong> Go to <strong>GitHub Settings &rarr; Developer settings &rarr; Personal access tokens</strong>:
+                      <ul style="margin: 0.35rem 0 0.2rem 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.3rem;">
+                        <li><strong>Fine-Grained Token (Scoped to 1 Repo):</strong> Under <strong>Repository access</strong>, select <strong>Only select repositories</strong> and pick your blog repo. <strong>Important GitHub UI Quirk:</strong> Before clicking Save/Generate, you <em>must</em> also scroll down to <strong>Permissions &rarr; Repository permissions &rarr; Contents</strong> and change it from <em>No access</em> to <strong>Read and write</strong> in the same step—otherwise GitHub silently discards your repo selection and resets the token back to <em>Public Repositories (read-only)</em>!</li>
+                        <li><strong>Classic Token (Account-Wide):</strong> Choose <strong>Tokens (classic)</strong> and check the top <strong><code>repo</code></strong> checkbox (<em>Full control of private repositories</em>). Note that Classic tokens apply to all repos on your GitHub account rather than a single repo.</li>
+                      </ul>
+                    </li>
+                    <li><strong>Save Credentials First, Then Test &amp; Publish:</strong> In Cedar, open <strong>Publish &rarr; Publish to Web</strong>, click <strong>Add Repository</strong>, paste your repository URL (e.g., <code>https://github.com/username/my-blog</code>) and token, and click <strong>Save Credentials</strong> first. Once saved, you can click <strong>Test Connection</strong> to verify read/write access, then click the big <strong>Publish</strong> button to push your site to GitHub.</li>
+                    <li><strong>Connect to Cloudflare Workers &amp; Pages:</strong> Once you have published to GitHub at least once (so <code>index.html</code> and <code>wrangler.jsonc</code> exist in your repo), go to your Cloudflare Dashboard &rarr; <strong>Compute (Workers) &rarr; Workers &amp; Pages &rarr; Create application &rarr; Import a repository</strong>, select your GitHub repo, leave all build settings at their defaults, and click <strong>Deploy</strong>.</li>
+                    <li><strong>Connect Your Custom Domain in Cloudflare:</strong>
+                      <ul style="margin: 0.35rem 0 0.2rem 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.3rem;">
+                        <li><strong>Add Domain &amp; Update Nameservers:</strong> In Cloudflare's left sidebar, click <strong>Websites &rarr; Add a domain</strong>, enter your domain name, choose the Free plan, and copy the two Cloudflare nameservers (e.g., <code>*.ns.cloudflare.com</code>) into your domain registrar's Custom DNS / Nameservers setting.</li>
+                        <li><strong>Delete Default Registrar Parking Records (Prevents Error 522):</strong> Inside Cloudflare under <strong>Websites &rarr; [Your Domain] &rarr; DNS &rarr; Records</strong>, check if Cloudflare auto-imported a default <strong><code>A</code></strong> record (for your root domain) or <strong><code>CNAME</code></strong> record (for <code>www</code>, such as <code>parkingpage.namecheap.com</code>) from your registrar. Delete those top two web parking records (leave any <code>MX</code>/<code>TXT</code> email rows intact).</li>
+                        <li><strong>Attach Domain to Your Worker:</strong> Go to <strong>Compute (Workers) &rarr; Workers &amp; Pages</strong> &rarr; click your blog application &rarr; <strong>Settings &rarr; Domains &amp; Routes &rarr; + Add &rarr; Custom domain</strong>, and add both your root domain (e.g., <code>yourdomain.com</code>) and <code>www.yourdomain.com</code>. Cloudflare automatically wires the Worker DNS route and SSL certificate in seconds.</li>
+                      </ul>
+                    </li>
                   </ol>
+
+                  <div style="margin: 0 0 1.25rem 0; padding: 0.85rem 1rem; border-radius: 10px; background: var(--bg-surface, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.1)); font-size: 0.82rem; color: var(--text-secondary);">
+                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.35rem;">Cloudflare &amp; GitHub Troubleshooting Tips</div>
+                    <ul style="margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                      <li><strong>Re-linking GitHub to Cloudflare (If Uninstalled):</strong> If you ever uninstall the Cloudflare app from GitHub, Cloudflare's dashboard can get stuck on the old connection and refuse to pop up the install prompt. Open <a href="https://github.com/apps/cloudflare-workers-and-pages" target="_blank" rel="noopener" style="color: var(--accent-primary, #a78bfa); text-decoration: underline;">github.com/apps/cloudflare-workers-and-pages</a> directly while signed into GitHub, click <strong>Install</strong>, and select your repo to immediately restore the pipeline.</li>
+                      <li><strong>Cloudflare Worker Name Matching (<code>wrangler.jsonc</code>):</strong> Cloudflare's default <code>npx wrangler deploy</code> requires the <code>"name"</code> field inside <code>wrangler.jsonc</code> to match your Cloudflare Worker application name (which defaults to your GitHub repo name in lowercase). Cedar automatically sets <code>"name"</code> in <code>wrangler.jsonc</code> to your linked GitHub repository name so they match out of the box.</li>
+                      <li><strong>Site Times Out with Cloudflare Error 522:</strong> This means your domain's DNS table still has an old registrar parking <code>A</code> record pointing to a dead IP instead of your Worker. Delete the old <code>A</code> and <code>www</code> <code>CNAME</code> records in <strong>DNS &rarr; Records</strong>, then attach your domain under <strong>Workers &amp; Pages &rarr; Settings &rarr; Domains &amp; Routes &rarr; Custom domain</strong>.</li>
+                    </ul>
+                  </div>
 
                   <h5 style="margin: 0 0 0.45rem 0; font-size: 0.92rem; color: var(--text-primary);">Option B: Manual Web Export (<code>.ZIP</code>)</h5>
                   <p style="margin: 0; font-size: 0.84rem; color: var(--text-secondary);">

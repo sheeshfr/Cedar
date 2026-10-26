@@ -1740,6 +1740,21 @@
   // BROWSER CAPABILITY & DIRECTORY FILE WRITER HELPERS
   // =========================================================================
   let selectedParentDirectoryHandle = null;
+  let selectedParentIsEmpty = false;
+
+  async function checkIsDirectoryEmpty(dirHandle) {
+    if (!dirHandle || typeof dirHandle.values !== 'function') return false;
+    try {
+      for await (const entry of dirHandle.values()) {
+        if (entry && entry.name && entry.name !== '.DS_Store' && entry.name !== 'Thumbs.db' && entry.name !== 'desktop.ini') {
+          return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
   function isFsaSupported() {
     return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
@@ -1770,17 +1785,32 @@
     const folderName = `${safe} - a Cedar blog`;
 
     if (selectedParentDirectoryHandle) {
-      if (locationInput) {
-        locationInput.value = `${selectedParentDirectoryHandle.name}/${folderName}`;
-        locationInput.title = `Blog workspace destination: ${selectedParentDirectoryHandle.name}/${folderName}`;
-        locationInput.classList.remove('ftue-input-error');
-      }
-      if (badgeEl) {
-        badgeEl.classList.add('is-selected');
-        badgeEl.innerHTML = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          <span>Cedar will create: <strong id="ftue-preview-folder-name" style="color: inherit;">${folderName}</strong> inside <strong>${selectedParentDirectoryHandle.name}</strong></span>
-        `;
+      if (selectedParentIsEmpty) {
+        if (locationInput) {
+          locationInput.value = `${selectedParentDirectoryHandle.name}`;
+          locationInput.title = `Blog workspace destination: ${selectedParentDirectoryHandle.name}`;
+          locationInput.classList.remove('ftue-input-error');
+        }
+        if (badgeEl) {
+          badgeEl.classList.add('is-selected');
+          badgeEl.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Cedar will save your blog directly inside empty folder: <strong id="ftue-preview-folder-name" style="color: inherit;">${selectedParentDirectoryHandle.name}</strong></span>
+          `;
+        }
+      } else {
+        if (locationInput) {
+          locationInput.value = `${selectedParentDirectoryHandle.name}/${folderName}`;
+          locationInput.title = `Blog workspace destination: ${selectedParentDirectoryHandle.name}/${folderName}`;
+          locationInput.classList.remove('ftue-input-error');
+        }
+        if (badgeEl) {
+          badgeEl.classList.add('is-selected');
+          badgeEl.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Cedar will create: <strong id="ftue-preview-folder-name" style="color: inherit;">${folderName}</strong> inside <strong>${selectedParentDirectoryHandle.name}</strong></span>
+          `;
+        }
       }
     } else {
       if (locationInput) {
@@ -1809,6 +1839,7 @@
       const handle = await pickDirectorySafe();
       if (handle) {
         selectedParentDirectoryHandle = handle;
+        selectedParentIsEmpty = await checkIsDirectoryEmpty(handle);
         if (folderErr) folderErr.style.display = 'none';
         if (locationInput) locationInput.classList.remove('ftue-input-error');
         updateFolderPreview();
@@ -2917,6 +2948,7 @@
         parentHandle = await pickDirectorySafe();
         if (parentHandle) {
           selectedParentDirectoryHandle = parentHandle;
+          selectedParentIsEmpty = await checkIsDirectoryEmpty(parentHandle);
           updateFolderPreview();
         }
       } catch (err) {
@@ -2970,13 +3002,16 @@
       }
     }
 
-    // Subfolder naming: safe title + ' - a Cedar blog'
+    // Subfolder naming: safe title + ' - a Cedar blog' (or use parentHandle directly if it is already an empty folder created by the user)
     const safeTitle = siteTitle.replace(/[/\\?%*:|"<>]/g, '').trim() || 'My Blog';
-    const folderName = `${safeTitle} - a Cedar blog`;
+    const isEmptySelectedDir = await checkIsDirectoryEmpty(parentHandle);
+    const folderName = isEmptySelectedDir ? parentHandle.name : `${safeTitle} - a Cedar blog`;
 
     let blogDirHandle;
     try {
-      blogDirHandle = await parentHandle.getDirectoryHandle(folderName, { create: true });
+      blogDirHandle = isEmptySelectedDir
+        ? parentHandle
+        : await parentHandle.getDirectoryHandle(folderName, { create: true });
     } catch (createErr) {
       if (btnJumpIn) {
         btnJumpIn.disabled = false;
@@ -2991,8 +3026,9 @@
     }
 
     if (locationInput) {
-      locationInput.value = `${parentHandle.name}/${folderName}`;
-      locationInput.title = `Blog workspace destination: ${parentHandle.name}/${folderName}`;
+      const destLabel = isEmptySelectedDir ? parentHandle.name : `${parentHandle.name}/${folderName}`;
+      locationInput.value = destLabel;
+      locationInput.title = `Blog workspace destination: ${destLabel}`;
       locationInput.classList.remove('ftue-input-error');
     }
 
@@ -3048,6 +3084,12 @@
         deviceMode: 'desktop',
         activeTheme: palette.id,
         blogTheme: palette.id,
+        headerAlign: 'center',
+        brandingMode: 'both',
+        featured: true,
+        featuredMode: 'latest',
+        postLayout: 'grid',
+        categoryBar: true,
         stickyHeader: false,
         branding: {
           generalLogo: uploadedLogoDataUrl || '',
@@ -3063,14 +3105,15 @@
         },
         mastheadPresets: {},
         masthead: {
-          height: 64,
+          align: 'center',
+          height: 96,
           snapGrid: 16,
           snapEnabled: true,
           uiVisible: true,
           gridVisible: true,
           image2SpacingDefault: true,
           elements: {
-            logo: { enabled: !!uploadedLogoDataUrl, x: 96, y: 144, size: 48, scale: 1.0 },
+            logo: { enabled: true, x: 96, y: 144, size: 48, scale: 1.0 },
             title: { enabled: true, x: 144, y: 160, scale: 1.0 }
           }
         },
@@ -3078,28 +3121,32 @@
           {
             id: 'b_masthead',
             type: 'masthead',
-            x: 320,
+            x: 0,
+            relX: 0,
             y: 0,
-            w: 1280,
-            h: 64,
-            stretchWidth: false,
-            config: {}
+            w: 1920,
+            h: 96,
+            align: 'center',
+            stretchWidth: true,
+            config: { align: 'center' }
           },
           {
             id: 'b_spotlight',
             type: 'spotlight',
-            x: 320,
-            y: 64,
-            w: 1280,
-            h: 256,
+            x: 0,
+            relX: 0,
+            y: 96,
+            w: 1920,
+            h: 400,
             stretchWidth: false,
-            config: {}
+            config: { layout: 'standard', featuredMode: 'latest', featuredCategory: '' }
           },
           {
             id: 'b_categories',
             type: 'categories_shelf',
             x: 320,
-            y: 320,
+            relX: 0,
+            y: 496,
             w: 1280,
             h: 80,
             stretchWidth: false,
@@ -3109,17 +3156,19 @@
             id: 'b_feed',
             type: 'post_feed',
             x: 320,
-            y: 400,
+            relX: 0,
+            y: 576,
             w: 1280,
             h: 384,
             stretchWidth: false,
-            config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' }
+            config: { title: 'Latest Publications', limit: 6, cols: 2, layoutStyle: 'vertical' }
           },
           {
             id: 'b_footer',
             type: 'footer',
             x: 320,
-            y: 784,
+            relX: 0,
+            y: 960,
             w: 1280,
             h: 64,
             stretchWidth: false,

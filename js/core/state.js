@@ -310,6 +310,18 @@
 
         activeTheme: 'gaslamp_gazette',
 
+        headerAlign: 'center',
+
+        brandingMode: 'both',
+
+        featured: true,
+
+        featuredMode: 'latest',
+
+        postLayout: 'grid',
+
+        categoryBar: true,
+
         stickyHeader: false,
 
         branding: {
@@ -334,7 +346,9 @@
 
         masthead: {
 
-          height: 64,
+          align: 'center',
+
+          height: 96,
 
           snapGrid: 16,
 
@@ -358,13 +372,15 @@
 
         homeBlocks: [
 
-          { id: 'b_masthead', type: 'masthead', x: 320, y: 0, w: 1280, h: 64, stretchWidth: false, config: {} },
+          { id: 'b_masthead', type: 'masthead', x: 0, relX: 0, y: 0, w: 1920, h: 96, align: 'center', stretchWidth: true, config: { align: 'center' } },
 
-          { id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, config: {} },
+          { id: 'b_spotlight', type: 'spotlight', x: 0, relX: 0, y: 96, w: 1920, h: 400, config: { layout: 'standard', featuredMode: 'latest', featuredCategory: '' } },
 
-          { id: 'b_feed', type: 'post_feed', x: 320, y: 320, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 2, cols: 2, layoutStyle: 'vertical' } },
+          { id: 'b_categories', type: 'categories_shelf', x: 320, relX: 0, y: 496, w: 1280, h: 80, config: { title: 'Category' } },
 
-          { id: 'b_footer', type: 'footer', x: 320, y: 704, w: 1280, h: 64, stretchWidth: false, config: {} }
+          { id: 'b_feed', type: 'post_feed', x: 320, relX: 0, y: 576, w: 1280, h: 384, stretchWidth: false, config: { title: 'Latest Publications', limit: 4, cols: 2, layoutStyle: 'vertical' } },
+
+          { id: 'b_footer', type: 'footer', x: 320, relX: 0, y: 960, w: 1280, h: 64, stretchWidth: false, config: {} }
 
         ]
 
@@ -2330,7 +2346,9 @@
 
       projectConfig.design.masthead = Object.assign({
 
-        height: 64,
+        align: 'center',
+
+        height: 96,
 
         snapGrid: 16,
 
@@ -2418,15 +2436,15 @@
 
         cleanedBlocks = [
 
-          { id: 'b_masthead', type: 'masthead', x: 320, y: 0, w: 1280, h: 64, stretchWidth: false, config: {} },
+          { id: 'b_masthead', type: 'masthead', x: 0, relX: 0, y: 0, w: 1920, h: 96, align: 'center', stretchWidth: true, config: { align: 'center' } },
 
-          { id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, config: {} },
+          { id: 'b_spotlight', type: 'spotlight', x: 0, relX: 0, y: 96, w: 1920, h: 400, config: { layout: 'standard', featuredMode: 'latest', featuredCategory: '' } },
 
-          { id: 'b_categories', type: 'categories_shelf', x: 320, y: 320, w: 1280, h: 80, stretchWidth: false, config: { title: 'Category' } },
+          { id: 'b_categories', type: 'categories_shelf', x: 320, relX: 0, y: 496, w: 1280, h: 80, config: { title: 'Category' } },
 
-          { id: 'b_feed', type: 'post_feed', x: 320, y: 400, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' } },
+          { id: 'b_feed', type: 'post_feed', x: 320, relX: 0, y: 576, w: 1280, h: 384, stretchWidth: false, config: { title: 'Latest Publications', limit: 6, cols: 2, layoutStyle: 'vertical' } },
 
-          { id: 'b_footer', type: 'footer', x: 320, y: 784, w: 1280, h: 64, stretchWidth: false, config: {} }
+          { id: 'b_footer', type: 'footer', x: 320, relX: 0, y: 960, w: 1280, h: 64, stretchWidth: false, config: {} }
 
         ];
 
@@ -2500,18 +2518,6 @@
 
     let effectiveConfig = projectConfig;
 
-    if (!(options && options.isDesignerSave) && window.Cedar && window.Cedar.designer && typeof window.Cedar.designer.getSavedDesignSnapshot === 'function') {
-
-      const snap = window.Cedar.designer.getSavedDesignSnapshot();
-
-      if (snap) {
-
-        effectiveConfig = { ...projectConfig, design: snap };
-
-      }
-
-    }
-
 
 
     try {
@@ -2572,6 +2578,8 @@
 
         (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('config.json', serializedConfig);
 
+        (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('cedar_config.json', serializedConfig);
+
         (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('editor/config.json', serializedConfig);
 
         try { (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/config.json', serializedConfig); } catch (e) {}
@@ -2596,6 +2604,8 @@
 
         window.SheeshVault.writeFile('config.json', serializedConfig);
 
+        window.SheeshVault.writeFile('cedar_config.json', serializedConfig);
+
         window.SheeshVault.writeFile('editor/config.json', serializedConfig);
 
         try { window.SheeshVault.writeFile('writer/config.json', serializedConfig); } catch (e) {}
@@ -2617,6 +2627,26 @@
             folderPath: savedVaultPath,
 
             filePath: 'config.json',
+
+            content: serializedConfig,
+
+            encoding: 'utf-8'
+
+          })
+
+        }).catch(() => {});
+
+        fetch('/api/vault-write', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json' },
+
+          body: JSON.stringify({
+
+            folderPath: savedVaultPath,
+
+            filePath: 'cedar_config.json',
 
             content: serializedConfig,
 
@@ -2736,7 +2766,25 @@
 
 
 
-      localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(safeConfig));
+      try {
+
+        localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(safeConfig));
+
+      } catch (quotaErr) {
+
+        const slimConfig = JSON.parse(JSON.stringify(safeConfig));
+
+        if (slimConfig.design && slimConfig.design.branding) {
+
+          delete slimConfig.design.branding.files;
+
+          delete slimConfig.design.branding.originalLogo;
+
+        }
+
+        localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(slimConfig));
+
+      }
 
       if (projectConfig.domain !== undefined) {
 
@@ -5548,7 +5596,7 @@ Full-text and excerpt syndication for all published articles.
 
               }
 
-              if (typeof copy.coverImage === 'string' && copy.coverImage.startsWith('data:image/') && copy.coverImage.length > 65536) {
+              if (typeof copy.coverImage === 'string' && copy.coverImage.startsWith('data:image/') && copy.coverImage.length > 4096) {
 
                 const matchingImg = Array.isArray(d.images) && d.images.find(im => im && im.dataUrl === copy.coverImage && im.filename);
 
@@ -5556,7 +5604,23 @@ Full-text and excerpt syndication for all published articles.
 
                   copy.coverImage = matchingImg.relativePath || matchingImg.filename;
 
+                } else {
+
+                  copy.coverImage = '';
+
                 }
+
+              }
+
+              if (typeof copy.featuredImage === 'string' && copy.featuredImage.startsWith('data:image/') && copy.featuredImage.length > 4096) {
+
+                copy.featuredImage = copy.coverImage || '';
+
+              }
+
+              if (typeof copy.proseHtml === 'string' && copy.proseHtml.includes('data:image/') && copy.proseHtml.length > 16384) {
+
+                copy.proseHtml = copy.proseHtml.replace(/\bsrc=["'](data:image\/[^"']{4096,})["']/gi, 'src=""');
 
               }
 

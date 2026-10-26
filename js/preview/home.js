@@ -457,7 +457,7 @@
         const mh = (getConfig().design && getConfig().design.masthead) || {};
         const blocks = (getConfig().design && getConfig().design.homeBlocks) || [];
         const mhBlock = blocks.find(b => b.id === 'b_masthead');
-        const mhAlign = (mhBlock && (mhBlock.align || (mhBlock.config && mhBlock.config.align))) || mh.align || 'left';
+        const mhAlign = (getConfig().design && getConfig().design.headerAlign) || (mhBlock && (mhBlock.align || (mhBlock.config && mhBlock.config.align))) || mh.align || 'center';
         const mhH = (mhBlock && mhBlock.h) || mh.height || (mhAlign === 'center' ? 96 : 64);
         const els = mh.elements || {};
         const logoCfg = els.logo || { enabled: true };

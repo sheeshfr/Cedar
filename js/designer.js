@@ -130,12 +130,12 @@
     const blocks = Array.isArray(design.homeBlocks) ? design.homeBlocks : [];
     const mhBlock = blocks.find(b => b.id === 'b_masthead');
 
-    // 1. Header Alignment: 'left' vs 'center'
-    const rawAlign = design.headerAlign || (mhBlock && (mhBlock.align || (mhBlock.config && mhBlock.config.align))) || masthead.align || 'left';
-    const headerAlign = rawAlign === 'center' ? 'center' : 'left';
+    // 1. Header Alignment: 'left' vs 'center' (default 'center')
+    const rawAlign = design.headerAlign || (mhBlock && (mhBlock.align || (mhBlock.config && mhBlock.config.align))) || masthead.align || 'center';
+    const headerAlign = rawAlign === 'left' ? 'left' : 'center';
 
     // 2. Branding Display: 'logo', 'both', 'title'
-    let branding = design.branding;
+    let branding = design.brandingMode || design.branding;
     if (!branding || typeof branding !== 'string' || !['logo', 'both', 'title'].includes(branding)) {
       const els = masthead.elements || {};
       const hasLogo = els.logo?.enabled !== false;
@@ -148,7 +148,7 @@
     // 3. Featured Spotlight: true vs false + Featured Logic ('manual' | 'latest' | 'category')
     const hasFeatured = design.featured !== undefined
       ? Boolean(design.featured)
-      : blocks.some(b => b.type === 'spotlight' && b.enabled !== false);
+      : (blocks.length > 0 ? blocks.some(b => b.type === 'spotlight' && b.enabled !== false) : true);
     const spotlightBlock = blocks.find(b => b.type === 'spotlight');
     const sCfg = spotlightBlock?.config || {};
     const rawFeaturedMode = design.featuredMode || sCfg.featuredMode || 'latest';
@@ -163,15 +163,15 @@
       featuredCategory = validCats[0];
     }
 
-    // 4. Post Feed Layout: 'grid' vs 'row'
+    // 4. Post Feed Layout: 'grid' vs 'row' (default 'grid')
     const feedBlock = blocks.find(b => b.type === 'post_feed');
     const fCfg = feedBlock?.config || {};
     const postLayout = design.postLayout || ((fCfg.layoutStyle === 'horizontal' || fCfg.cols === 1) ? 'row' : 'grid');
 
-    // 5. Category Bar: true vs false
+    // 5. Category Bar: true vs false (default true)
     const hasCategoryBar = design.categoryBar !== undefined
       ? Boolean(design.categoryBar)
-      : blocks.some(b => b.type === 'categories_shelf' && b.enabled !== false);
+      : (blocks.length > 0 ? blocks.some(b => b.type === 'categories_shelf' && b.enabled !== false) : true);
 
     // 6. Logo & Title Scale (0.5x to 3.0x, default 1.0, snapped to 0.5 increments)
     const els = masthead.elements || {};
@@ -502,7 +502,7 @@
     window.projectConfig.design.featured = Boolean(newState.featured);
     window.projectConfig.design.featuredMode = newState.featuredMode || 'latest';
     window.projectConfig.design.featuredCategory = newState.featuredCategory || '';
-    window.projectConfig.design.postLayout = newState.postLayout || 'row';
+    window.projectConfig.design.postLayout = newState.postLayout || 'grid';
     window.projectConfig.design.categoryBar = Boolean(newState.categoryBar);
     window.projectConfig.design.showcaseSwoosh = newState.showcaseSwoosh || 'jazz_cup';
     window.projectConfig.design.showcaseSwooshSeed = Number(newState.showcaseSwooshSeed) || 133742;
@@ -1471,6 +1471,13 @@
           (window.Cedar.writeBrandingAssetsToVault || window.Outpost.writeBrandingAssetsToVault)(brandingAssets);
         }
 
+        if (typeof window.saveProjectToStorage === 'function') {
+          window.saveProjectToStorage({ isDesignerSave: true });
+        }
+        if (typeof window.syncLiveWorkspaceData === 'function') {
+          window.syncLiveWorkspaceData();
+        }
+
         updateDesignerLogoBackground();
         renderLivePreview();
       };
@@ -1493,6 +1500,13 @@
 
         const projLabel = document.getElementById('label-current-project');
         if (projLabel) projLabel.textContent = val || 'Cedar';
+
+        if (typeof window.saveProjectToStorage === 'function') {
+          window.saveProjectToStorage({ isDesignerSave: true });
+        }
+        if (typeof window.syncLiveWorkspaceData === 'function') {
+          window.syncLiveWorkspaceData();
+        }
 
         renderLivePreview();
       });
@@ -1617,6 +1631,13 @@
           localStorage.removeItem('cedar_branding_files_v1');
           localStorage.removeItem('outpost_branding_files_v1');
         } catch (e) {}
+
+        if (typeof window.saveProjectToStorage === 'function') {
+          window.saveProjectToStorage({ isDesignerSave: true });
+        }
+        if (typeof window.syncLiveWorkspaceData === 'function') {
+          window.syncLiveWorkspaceData();
+        }
 
         updateDesignerLogoBackground();
         renderLivePreview();
@@ -2459,12 +2480,12 @@
     if (!viewport) {
       container.innerHTML = `
         <div class="designer-device-viewport ${designerPreviewDevice === 'mobile' ? 'device-mobile' : 'device-tablet'}" id="designer-preview-viewport">
-          <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.4.5#/" title="Cedar Live Site Preview"></iframe>
+          <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.5.0#/" title="Cedar Live Site Preview"></iframe>
         </div>`;
       viewport = document.getElementById('designer-preview-viewport');
       frame = document.getElementById('designer-preview-site-frame');
     } else if (!frame) {
-      viewport.innerHTML = `<iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.4.5#/" title="Cedar Live Site Preview"></iframe>`;
+      viewport.innerHTML = `<iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.5.0#/" title="Cedar Live Site Preview"></iframe>`;
       frame = document.getElementById('designer-preview-site-frame');
     }
 

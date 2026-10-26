@@ -79,11 +79,11 @@
             tagline: ''
           },
           homeBlocks: [
-            { id: 'b_masthead', type: 'masthead', x: 320, y: 0, w: 1280, h: 64, stretchWidth: false, config: {} },
-            { id: 'b_spotlight', type: 'spotlight', x: 320, y: 64, w: 1280, h: 256, stretchWidth: false, config: {} },
-            { id: 'b_categories', type: 'categories_shelf', x: 320, y: 320, w: 1280, h: 80, stretchWidth: false, config: { title: 'Category' } },
-            { id: 'b_feed', type: 'post_feed', x: 320, y: 400, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' } },
-            { id: 'b_footer', type: 'footer', x: 320, y: 784, w: 1280, h: 64, stretchWidth: false, config: {} }
+            { id: 'b_masthead', type: 'masthead', x: 0, y: 0, w: 1920, h: 96, align: 'center', stretchWidth: true, config: { align: 'center' } },
+            { id: 'b_spotlight', type: 'spotlight', x: 320, y: 96, w: 1280, h: 256, stretchWidth: false, config: {} },
+            { id: 'b_categories', type: 'categories_shelf', x: 320, y: 352, w: 1280, h: 80, stretchWidth: false, config: { title: 'Category' } },
+            { id: 'b_feed', type: 'post_feed', x: 320, y: 432, w: 1280, h: 384, stretchWidth: false, config: { title: 'Recent Posts', limit: 6, cols: 2, layoutStyle: 'vertical' } },
+            { id: 'b_footer', type: 'footer', x: 320, y: 816, w: 1280, h: 64, stretchWidth: false, config: {} }
           ]
         }
       };
@@ -174,13 +174,19 @@
             if (vs && typeof vs.readFile === 'function') {
               if (!fallbackProj) {
                 try {
-                  const vp = await vs.readFile('cedar_config.json') || await vs.readFile('project.json');
+                  const vpRaw = await vs.readFile('config.json', 'json').catch(() => null)
+                    || await vs.readFile('cedar_config.json', 'json').catch(() => null)
+                    || await vs.readFile('editor/config.json', 'json').catch(() => null)
+                    || await vs.readFile('project.json', 'json').catch(() => null);
+                  const vp = typeof vpRaw === 'string' ? JSON.parse(vpRaw) : vpRaw;
                   if (vp && typeof vp === 'object') fallbackProj = vp;
                 } catch (_) {}
               }
               if (!fallbackDrafts) {
                 try {
-                  const vd = await vs.readFile('editor/drafts.json') || await vs.readFile('writer/drafts.json');
+                  const vdRaw = await vs.readFile('editor/drafts.json', 'json').catch(() => null)
+                    || await vs.readFile('writer/drafts.json', 'json').catch(() => null);
+                  const vd = typeof vdRaw === 'string' ? JSON.parse(vdRaw) : vdRaw;
                   if (Array.isArray(vd) && vd.length > 0) fallbackDrafts = vd;
                 } catch (_) {}
               }

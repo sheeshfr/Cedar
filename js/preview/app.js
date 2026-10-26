@@ -723,8 +723,9 @@
     loadWorkspaceData();
     applyThemeToPreview();
     const drafts = (typeof getDrafts === 'function') ? getDrafts() : [];
+    const hasPosts = Array.isArray(drafts) && drafts.some(d => d && (!d.type || d.type === 'post') && !d.isCategoryAggregate && !String(d.id || '').startsWith('page_'));
     const isStandalone = !(window.parent && window.parent !== window && window.parent.projectConfig);
-    if (isStandalone && (!drafts || drafts.length === 0)) {
+    if (isStandalone && !hasPosts) {
       await syncWithServer();
     }
     renderApp();

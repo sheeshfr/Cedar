@@ -372,26 +372,33 @@
     return results;
   }
 
+  let initPromise = null;
+
   // =========================================================================
   // PUBLIC CEDAR VIRTUAL STORAGE INTERFACE
   // =========================================================================
   const CedarVirtualStorage = {
     async init() {
-      await requestPersistentStorage();
-      const hasOpfs = await initOPFS();
-      if (hasOpfs) {
-        activeMode = 'opfs';
-      } else {
-        try {
-          await openIndexedDatabase();
-          activeMode = 'indexeddb';
-          console.log('[VirtualVault] Initialized Tier 2 storage: IndexedDB fallback.');
-        } catch (e) {
-          activeMode = 'memory';
-          console.warn('[VirtualVault] IndexedDB failed, using memory fallback:', e);
+      if (activeMode !== 'uninitialized') return activeMode;
+      if (initPromise) return await initPromise;
+      initPromise = (async () => {
+        await requestPersistentStorage();
+        const hasOpfs = await initOPFS();
+        if (hasOpfs) {
+          activeMode = 'opfs';
+        } else {
+          try {
+            await openIndexedDatabase();
+            activeMode = 'indexeddb';
+            console.log('[VirtualVault] Initialized Tier 2 storage: IndexedDB fallback.');
+          } catch (e) {
+            activeMode = 'memory';
+            console.warn('[VirtualVault] IndexedDB failed, using memory fallback:', e);
+          }
         }
-      }
-      return activeMode;
+        return activeMode;
+      })();
+      return await initPromise;
     },
 
     getMode() {
@@ -440,6 +447,7 @@
     },
 
     async writeFile(path, data) {
+      if (activeMode === 'uninitialized') await this.init();
       if (activeMode === 'opfs') return await opfsWriteFile(path, data);
       if (activeMode === 'indexeddb') return await idbWriteFile(path, data);
       return await memWriteFile(path, data);
@@ -450,6 +458,7 @@
     },
 
     async readFile(path, as = 'text') {
+      if (activeMode === 'uninitialized') await this.init();
       if (activeMode === 'opfs') return await opfsReadFile(path, as);
       if (activeMode === 'indexeddb') return await idbReadFile(path, as);
       return await memReadFile(path, as);
@@ -460,12 +469,14 @@
     },
 
     async deleteFile(path) {
+      if (activeMode === 'uninitialized') await this.init();
       if (activeMode === 'opfs') return await opfsDeleteFile(path);
       if (activeMode === 'indexeddb') return await idbDeleteFile(path);
       return await memDeleteFile(path);
     },
 
     async listFiles(dirPath = '', recursive = false) {
+      if (activeMode === 'uninitialized') await this.init();
       if (activeMode === 'opfs') return await opfsListFiles(dirPath, recursive);
       if (activeMode === 'indexeddb') return await idbListFiles(dirPath, recursive);
       return await memListFiles(dirPath, recursive);

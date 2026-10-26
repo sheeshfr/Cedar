@@ -1,45 +1,5 @@
       <section class="dash-pane" id="pane-export" style="display: none;">
         <div class="settings-layout-wrap export-layout-wrap">
-          <!-- Table of Contents Sidebar -->
-          <aside class="settings-toc-bar export-toc-bar" id="export-toc-bar" aria-label="Publish and Storage Navigation">
-            <nav class="settings-toc-nav">
-              <ul class="settings-toc-list" id="export-toc-list">
-                <li class="settings-toc-item">
-                  <a href="#export-sec-local" class="settings-toc-link active" data-target="export-sec-local">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    <span class="settings-toc-text">Storage &amp; Backups</span>
-                  </a>
-                </li>
-                <li class="settings-toc-item">
-                  <a href="#export-sec-github-sync" class="settings-toc-link" data-target="export-sec-github-sync">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 9V4s3.03.55 4 2c1.08 1.62 0 5 0 5"></path></svg>
-                    <span class="settings-toc-text">Publish to Web</span>
-                  </a>
-                </li>
-                <li class="settings-toc-item">
-                  <a href="#export-sec-web" class="settings-toc-link" data-target="export-sec-web">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                    <span class="settings-toc-text">Manual Web Export</span>
-                  </a>
-                </li>
-                <li class="settings-toc-item">
-                  <a href="#export-sec-danger" class="settings-toc-link settings-toc-link-danger" data-target="export-sec-danger">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    <span class="settings-toc-text">Danger Zone</span>
-                  </a>
-                </li>
-              </ul>
-            </nav>
-
-            <!-- Sidebar Primary Action Button -->
-            <div class="settings-toc-action-wrap">
-              <button type="button" class="btn btn-primary btn-save-settings-toc popout-3d" id="btn-export-sidebar-action" title="Publish to Web">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 9V4s3.03.55 4 2c1.08 1.62 0 5 0 5"></path></svg>
-                <span>Publish to Web</span>
-              </button>
-            </div>
-          </aside>
-
           <!-- Content Column -->
           <div class="settings-pane-container export-pane-container">
             <div class="export-sync-wrapper" style="width: 100%;">
@@ -207,17 +167,16 @@
                         <div class="ftue-validation-error" id="github-token-error" style="display: none; text-align: left;">
                           Please enter your GitHub Personal Access Token to proceed.
                         </div>
+                        <div style="font-size: 0.73rem; color: var(--text-muted, #a1a1aa); margin-top: 0.35rem; text-align: left; line-height: 1.4;">
+                          Fine-grained token: select your repo &amp; set <strong>Contents: Read and write</strong> before saving. Classic token: check <strong><code>repo</code></strong>.
+                        </div>
                       </div>
 
                       <!-- Form Actions -->
                       <div class="publish-actions-centered">
-                        <button type="button" class="btn btn-sm btn-secondary" id="btn-github-test" title="Verify repository access">
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-github-test" title="Enter repository URL and Personal Access Token to test connection" disabled style="opacity: 0.45; cursor: not-allowed;">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                           <span>Test Connection</span>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-primary" id="btn-github-save" title="Save credentials">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline></svg>
-                          <span>Save Credentials</span>
                         </button>
                       </div>
                     </div>
@@ -274,8 +233,6 @@
 
             </div>
 
-</div>
-          <!-- Balancing spacer to ensure centerpiece is mathematically dead center -->
-          <div class="settings-spacer-right export-spacer-right" aria-hidden="true"></div>
+          </div>
         </div>
       </section>

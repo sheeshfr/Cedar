@@ -18,6 +18,83 @@
   window.Outpost.dashboard = window.Cedar.dashboard;
 
   let currentSettingsAuthorAvatar = '';
+  let siteInfoAutoSaveTimer = null;
+
+  function flushAutoSaveSiteInfo() {
+    if (!window.projectConfig) window.projectConfig = {};
+    const nameInputEl = document.getElementById('setting-site-title');
+    if (nameInputEl) {
+      const nameVal = nameInputEl.value.trim();
+      if (nameVal) {
+        projectConfig.name = nameVal;
+        if (!projectConfig.design) projectConfig.design = {};
+        if (!projectConfig.design.branding) projectConfig.design.branding = {};
+        projectConfig.design.branding.siteTitle = nameVal;
+      }
+    }
+
+    const domainInputEl = document.getElementById('setting-modal-domain');
+    if (domainInputEl) {
+      const domainVal = domainInputEl.value.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      projectConfig.domain = domainVal;
+      try { localStorage.setItem(STORAGE_KEY_DOMAIN, domainVal); } catch (e) {}
+    }
+
+    const tzInputEl = document.getElementById('setting-modal-timezone');
+    if (tzInputEl && tzInputEl.value) {
+      projectConfig.timezone = tzInputEl.value.trim();
+    }
+
+    const authorNameInputEl = document.getElementById('setting-author-name');
+    const authorBioInputEl = document.getElementById('setting-author-bio');
+    const prevAuthorName = (projectConfig.defaultAuthor || (projectConfig.authors && projectConfig.authors[0] && projectConfig.authors[0].name) || '').trim();
+    const authorNameVal = (authorNameInputEl ? authorNameInputEl.value.trim() : '') || prevAuthorName || 'Cedar Staff';
+    const authorBioVal = authorBioInputEl ? authorBioInputEl.value.trim() : ((projectConfig.authors && projectConfig.authors[0] && projectConfig.authors[0].bio) || '');
+    const authorAvatarVal = currentSettingsAuthorAvatar || '';
+
+    projectConfig.defaultAuthor = authorNameVal;
+    projectConfig.authors = [{
+      name: authorNameVal,
+      bio: authorBioVal,
+      avatar: authorAvatarVal
+    }];
+    try {
+      localStorage.setItem('cedar_active_author', authorNameVal);
+      try { localStorage.setItem('outpost_active_author', authorNameVal); } catch (e) {}
+    } catch (e) {}
+
+    if (prevAuthorName && authorNameVal && prevAuthorName !== authorNameVal) {
+      if (Array.isArray(window.drafts)) {
+        window.drafts.forEach(d => {
+          if (d && d.type !== 'page') {
+            d.authorName = authorNameVal;
+            d.author = authorNameVal;
+          }
+        });
+        if (typeof window.saveDraftsToStorage === 'function') {
+          window.saveDraftsToStorage();
+        }
+      }
+    }
+
+    if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+    if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
+    if (typeof updateCedarTitle === 'function') updateCedarTitle();
+    else if (typeof updateOutpostTitle === 'function') updateOutpostTitle();
+    if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
+  }
+
+  function scheduleAutoSaveSiteInfo(immediate = false) {
+    if (siteInfoAutoSaveTimer) {
+      clearTimeout(siteInfoAutoSaveTimer);
+      siteInfoAutoSaveTimer = null;
+    }
+    if (immediate) {
+      flushAutoSaveSiteInfo();
+    } else {
+      siteInfoAutoSaveTimer = setTimeout(flushAutoSaveSiteInfo, 250);
+    }
+  }
 
   function optimizeAuthorAvatarImage(fileOrUrl, callback) {
     if (!fileOrUrl) return callback('');
@@ -209,6 +286,7 @@
         optimizeAuthorAvatarImage(file, (optimized) => {
           currentSettingsAuthorAvatar = optimized;
           updateSettingsAuthorAvatarUI();
+          scheduleAutoSaveSiteInfo(true);
         });
         inputPhotoFile.value = '';
       });
@@ -228,6 +306,7 @@
             optimizeAuthorAvatarImage(src, (optimized) => {
               currentSettingsAuthorAvatar = optimized;
               updateSettingsAuthorAvatarUI();
+              scheduleAutoSaveSiteInfo(true);
               if (typeof showToast === 'function') showToast('Selected author photo from Media Library');
             });
           }
@@ -242,6 +321,7 @@
               optimizeAuthorAvatarImage(src, (optimized) => {
                 currentSettingsAuthorAvatar = optimized;
                 updateSettingsAuthorAvatarUI();
+                scheduleAutoSaveSiteInfo(true);
                 if (typeof showToast === 'function') showToast('Selected author photo from Media Library');
               });
             }
@@ -254,6 +334,7 @@
       btnRemovePhoto.addEventListener('click', () => {
         currentSettingsAuthorAvatar = '';
         updateSettingsAuthorAvatarUI();
+        scheduleAutoSaveSiteInfo(true);
       });
     }
 
@@ -267,7 +348,15 @@
         if (!currentSettingsAuthorAvatar) {
           updateSettingsAuthorAvatarUI();
         }
+        scheduleAutoSaveSiteInfo(false);
       });
+      nameInput.addEventListener('change', () => scheduleAutoSaveSiteInfo(true));
+    }
+
+    const bioInput = document.getElementById('setting-author-bio');
+    if (bioInput) {
+      bioInput.addEventListener('input', () => scheduleAutoSaveSiteInfo(false));
+      bioInput.addEventListener('change', () => scheduleAutoSaveSiteInfo(true));
     }
   }
 
@@ -1586,7 +1675,7 @@
       });
     });
 
-    // Input listeners to update placeholders and URL visualizer in real time
+    // Input listeners to update placeholders, URL visualizer, and persist to storage in real time
     const inputSiteName = document.getElementById('setting-modal-project-name');
     const inputDomain = document.getElementById('setting-modal-domain');
     const inputSiteTitle = document.getElementById('setting-site-title');
@@ -1594,8 +1683,7 @@
       inputSiteTitle.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const btnSave = document.getElementById('btn-modal-save-settings');
-          if (btnSave) btnSave.click();
+          scheduleAutoSaveSiteInfo(true);
         }
       });
       inputSiteTitle.addEventListener('input', () => {
@@ -1611,9 +1699,17 @@
         projectConfig.design.branding.siteTitle = val;
         if (typeof updateCedarTitle === 'function') updateCedarTitle();
         else if (typeof updateOutpostTitle === 'function') updateOutpostTitle();
+        scheduleAutoSaveSiteInfo(false);
       });
+      inputSiteTitle.addEventListener('change', () => scheduleAutoSaveSiteInfo(true));
     }
     const inputBlogPath = document.getElementById('setting-modal-blog-path');
+    const inputTimezone = document.getElementById('setting-modal-timezone');
+    if (inputTimezone) {
+      inputTimezone.addEventListener('change', () => {
+        scheduleAutoSaveSiteInfo(true);
+      });
+    }
 
     if (inputDomain) {
       inputDomain.addEventListener('blur', () => {
@@ -1622,12 +1718,12 @@
           inputDomain.value = cleaned;
           updateUrlCardRealtime();
         }
+        scheduleAutoSaveSiteInfo(true);
       });
       inputDomain.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const btnSave = document.getElementById('btn-modal-save-settings');
-          if (btnSave) btnSave.click();
+          scheduleAutoSaveSiteInfo(true);
         }
       });
       inputDomain.addEventListener('input', () => {
@@ -1636,6 +1732,7 @@
           inputSiteName.placeholder = dVal || '';
         }
         updateUrlCardRealtime();
+        scheduleAutoSaveSiteInfo(false);
       });
     }
 
@@ -1907,14 +2004,25 @@
             'media/branding/logo-original.png': originalDataUrl
           };
 
-          // Stage brand logo in memory until Save All Settings is clicked
-          stagedBrandLogo = {
-            action: 'update',
-            generalLogo: mastheadDataUrl,
-            tabLogo: iconDataUrl,
-            originalLogo: originalDataUrl,
-            brandingAssets: brandingAssets
-          };
+          stagedBrandLogo = null;
+          if (!projectConfig.design) projectConfig.design = {};
+          if (!projectConfig.design.branding) projectConfig.design.branding = {};
+          projectConfig.logo = mastheadDataUrl;
+          projectConfig.design.branding.generalLogo = mastheadDataUrl;
+          projectConfig.design.branding.tabLogo = iconDataUrl;
+          projectConfig.design.branding.originalLogo = originalDataUrl;
+          projectConfig.design.branding.folder = 'media/branding';
+          projectConfig.design.branding.files = brandingAssets;
+          window.brandingFiles = brandingAssets;
+          try {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets));
+          } catch (e) {}
+          if (window.SheeshVault && window.SheeshVault.isConnected() && typeof (window.Cedar?.writeBrandingAssetsToVault || window.Outpost?.writeBrandingAssetsToVault) === 'function') {
+            (window.Cedar.writeBrandingAssetsToVault || window.Outpost.writeBrandingAssetsToVault)(brandingAssets);
+          }
+          if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+          if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
+          if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
         };
         img.src = rawDataUrl;
       };
@@ -1936,10 +2044,22 @@
         if (settingsLogoPreviewState) settingsLogoPreviewState.style.display = 'none';
         if (settingsLogoEmptyState) settingsLogoEmptyState.style.display = 'flex';
 
-        // Stage brand logo removal in memory until Save All Settings is clicked
-        stagedBrandLogo = {
-          action: 'remove'
-        };
+        stagedBrandLogo = null;
+        projectConfig.logo = '';
+        if (!projectConfig.design) projectConfig.design = {};
+        if (!projectConfig.design.branding) projectConfig.design.branding = {};
+        projectConfig.design.branding.generalLogo = '';
+        projectConfig.design.branding.tabLogo = '';
+        projectConfig.design.branding.originalLogo = '';
+        projectConfig.design.branding.files = {};
+        window.brandingFiles = null;
+        try {
+          localStorage.removeItem('cedar_branding_files_v1');
+          try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
+        } catch (e) {}
+        if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+        if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
+        if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
       });
     }
 
@@ -1987,41 +2107,11 @@
       });
     }
 
-    const btnGhTest = document.getElementById('btn-github-test');
-    if (btnGhTest) {
-      btnGhTest.addEventListener('click', async () => {
-        const repo = document.getElementById('setting-github-repo')?.value.trim();
-        const token = document.getElementById('setting-github-token')?.value.trim();
-        if (typeof showToast === 'function') showToast('Testing connection to GitHub...');
-        if (!window.Cedar?.githubSync) return;
-        const res = await window.Cedar.githubSync.testConnection(repo, token);
-        if (res.ok) {
-          const privText = res.isPrivate ? 'Private' : 'Public';
-          if (typeof showToast === 'function') {
-            showToast(`Connected successfully! Repo: ${res.repoName} (${privText})`);
-          }
-        } else {
-          if (typeof showToast === 'function') {
-            showToast(res.error || 'Connection failed', 'error');
-          }
-        }
-      });
-    }
-
-    const btnGhSave = document.getElementById('btn-github-save');
-    if (btnGhSave) {
-      btnGhSave.addEventListener('click', () => {
-        const repo = document.getElementById('setting-github-repo')?.value.trim();
-        const token = document.getElementById('setting-github-token')?.value.trim();
-        const branch = document.getElementById('setting-github-branch')?.value.trim() || 'main';
-        if (!window.Cedar?.githubSync) return;
-        window.Cedar.githubSync.saveCredentials(repo, token, branch);
-        if (typeof showToast === 'function') showToast('Saved GitHub credentials!');
-      });
-    }
-
+    // Note: btn-github-test, btn-github-save, btn-github-push, and btn-github-disconnect
+    // are managed directly by js/vault/github-sync.js (initSyncUI) to prevent duplicate listeners.
     const btnGhPull = document.getElementById('btn-github-pull');
-    if (btnGhPull) {
+    if (btnGhPull && !btnGhPull._hasGhPullListener) {
+      btnGhPull._hasGhPullListener = true;
       btnGhPull.addEventListener('click', async () => {
         if (!window.Cedar?.githubSync) return;
         if (!window.Cedar.githubSync.isConfigured()) {
@@ -2035,37 +2125,6 @@
         } catch (e) {
           // Handled inside pullFromGitHub with toast
         }
-      });
-    }
-
-    const btnGhPush = document.getElementById('btn-github-push');
-    if (btnGhPush) {
-      btnGhPush.addEventListener('click', async () => {
-        if (!window.Cedar?.githubSync) return;
-        if (!window.Cedar.githubSync.isConfigured()) {
-          if (typeof showToast === 'function') showToast('Please enter and save your GitHub credentials first.');
-          return;
-        }
-        try {
-          await window.Cedar.githubSync.pushToGitHub();
-        } catch (e) {
-          // Handled inside pushToGitHub with toast
-        }
-      });
-    }
-
-    const btnGhDisconnect = document.getElementById('btn-github-disconnect');
-    if (btnGhDisconnect) {
-      btnGhDisconnect.addEventListener('click', () => {
-        if (!confirm('Disconnect GitHub cloud sync?\n\nYour repository and local files will remain intact. Cedar will just forget the saved token.')) return;
-        if (window.Cedar?.githubSync) {
-          window.Cedar.githubSync.clearCredentials();
-        }
-        const inputRepo = document.getElementById('setting-github-repo');
-        const inputToken = document.getElementById('setting-github-token');
-        if (inputRepo) inputRepo.value = '';
-        if (inputToken) inputToken.value = '';
-        if (typeof showToast === 'function') showToast('Disconnected from GitHub.');
       });
     }
 
