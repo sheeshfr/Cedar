@@ -1350,17 +1350,9 @@
       }
 
       if (isCat || isAll) {
-        const chosenLayout = page.layout === 'list' || (page.markdown && page.markdown.includes('layout="list"')) || (page.proseHtml && page.proseHtml.includes('data-layout="list"')) ? 'list' : 'grid';
         const filterCat = isAll ? '' : (catName || page.title || '').trim();
 
-        // 1. Set the posts view mode to category's selected layout (grid or list)
-        if (typeof setAllPostsViewMode === 'function') {
-          setAllPostsViewMode(chosenLayout);
-        } else if (window.Cedar && window.Cedar.dashboard && typeof window.Cedar.dashboard.setAllPostsViewMode === 'function') {
-          window.Cedar.dashboard.setAllPostsViewMode(chosenLayout);
-        }
-
-        // 2. Clear posts search input
+        // 1. Clear posts search input
         const postsSearchInput = document.getElementById('posts-search-input');
         if (postsSearchInput) {
           postsSearchInput.value = '';

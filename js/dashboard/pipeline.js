@@ -110,7 +110,7 @@
     }
 
     if (headerViewToggle) {
-      headerViewToggle.style.display = isPostsEditMode ? 'inline-flex' : 'none';
+      headerViewToggle.remove();
     }
   }
 
@@ -799,32 +799,33 @@
     applyPostsViewModes();
   }
 
-  const DEFAULT_VIEW_MODE = 'list';
+  const DEFAULT_VIEW_MODE = 'grid';
 
   function getPostsViewMode() {
     try {
-      const mode = localStorage.getItem('cedar_posts_view_mode');
-      if (mode === 'list' || mode === 'grid') return mode;
-      if (window.projectConfig && (window.projectConfig.postsViewMode === 'list' || window.projectConfig.postsViewMode === 'grid')) {
-        return window.projectConfig.postsViewMode;
+      if (localStorage.getItem('cedar_posts_view_mode') !== 'grid') {
+        localStorage.setItem('cedar_posts_view_mode', 'grid');
+      }
+      if (window.projectConfig && window.projectConfig.postsViewMode !== 'grid') {
+        window.projectConfig.postsViewMode = 'grid';
       }
     } catch (e) {}
-    return DEFAULT_VIEW_MODE;
+    return 'grid';
   }
 
   function getSectionViewMode(sectionName) {
-    return getPostsViewMode();
+    return 'grid';
   }
 
   function setSectionViewMode(sectionName, mode) {
-    setAllPostsViewMode(mode);
+    setAllPostsViewMode('grid');
   }
 
-  function setAllPostsViewMode(mode) {
+  function setAllPostsViewMode() {
     try {
-      localStorage.setItem('cedar_posts_view_mode', mode);
+      localStorage.setItem('cedar_posts_view_mode', 'grid');
       if (window.projectConfig) {
-        window.projectConfig.postsViewMode = mode;
+        window.projectConfig.postsViewMode = 'grid';
         if (typeof window.saveProjectToStorage === 'function') {
           window.saveProjectToStorage();
         }
@@ -834,17 +835,12 @@
   }
 
   function applyPostsViewModes() {
-    const globalMode = getPostsViewMode();
+    const headerViewToggle = document.getElementById('posts-view-toggle');
+    if (headerViewToggle) {
+      headerViewToggle.remove();
+    }
 
-    // Update main header toggle
-    document.querySelectorAll('#posts-view-toggle .posts-view-btn').forEach(btn => {
-      const v = btn.dataset.postsView;
-      const isActive = (v === globalMode);
-      btn.classList.toggle('active', isActive);
-      btn.classList.toggle('is-active', isActive);
-    });
-
-    // Update all post grids on the page (overview sections and subpage)
+    // Posts are always rendered in Grid View
     const targetGrids = [
       'posts-cards-drafts',
       'posts-cards-published',
@@ -854,12 +850,12 @@
     targetGrids.forEach(id => {
       const gridEl = document.getElementById(id);
       if (gridEl) {
-        gridEl.classList.toggle('is-list-view', globalMode === 'list');
+        gridEl.classList.remove('is-list-view');
       }
     });
 
     document.querySelectorAll('#pane-posts .posts-horizontal-grid, #pane-posts .posts-subpage-grid').forEach(el => {
-      el.classList.toggle('is-list-view', globalMode === 'list');
+      el.classList.remove('is-list-view');
     });
   }
 
