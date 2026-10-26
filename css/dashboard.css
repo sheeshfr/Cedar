@@ -2522,7 +2522,7 @@
 .dash-pane-header.standardized-pane-header,
 .standardized-pane-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   width: 100%;
   padding: 0.5rem 1.5rem 0.75rem 1.5rem;
@@ -2535,6 +2535,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  justify-self: start;
   gap: 0.75rem;
   min-width: 0;
   white-space: nowrap;
@@ -2544,7 +2545,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  justify-self: center;
+  width: auto;
   min-width: 0;
 }
 
@@ -2552,6 +2554,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  justify-self: end;
   gap: 0.75rem;
   min-width: 0;
   white-space: nowrap;
@@ -2561,7 +2564,7 @@
 #pane-pages .dash-pane-header.standardized-pane-header,
 #pane-posts .dash-pane-header.standardized-pane-header {
   display: grid !important;
-  grid-template-columns: auto 1fr auto !important;
+  grid-template-columns: 1fr auto 1fr !important;
   align-items: center !important;
   width: 100% !important;
   position: relative !important;
@@ -3181,12 +3184,21 @@
 }
 
 /* Media Stream Filter Bar */
+#pane-media.dash-pane {
+  gap: 0;
+}
+
+#pane-media .dash-pane-header.standardized-pane-header {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
 .media-stream-filter-bar {
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
-  margin-bottom: 1.25rem;
+  margin: 0.65rem 0;
   padding: 0 2px;
 }
 

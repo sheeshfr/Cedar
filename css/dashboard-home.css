@@ -5,14 +5,29 @@
 /* =========================================================================
    HOME ACTIVITY STREAM & EVENT LOG TIMELINE
    ========================================================================= */
+#pane-home.dash-pane {
+  gap: 0;
+}
+
+#pane-home .dash-pane-header.standardized-pane-header {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+#pane-home .pane-header-left,
+#pane-home .pane-header-center,
+#pane-home .pane-header-right {
+  min-height: 36px;
+}
+
 .home-stream-container {
   width: 100%;
   max-width: 792px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: 1rem 0 4rem;
+  gap: 0;
+  padding: 0 0 4rem;
   box-sizing: border-box;
 }
 
@@ -36,7 +51,8 @@
   justify-content: center;
   align-items: center;
   width: 100%;
-  margin-bottom: 0.5rem;
+  margin: 0.65rem 0;
+  padding: 0;
 }
 
 .home-filter-pills {
@@ -282,6 +298,11 @@ body.dark-mode .type-page,
   cursor: pointer !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   box-sizing: border-box !important;
+}
+
+.home-activity-timeline > .activity-card:first-child,
+.home-activity-timeline > .activity-card.activity-milestone-card:first-child {
+  margin-top: 0 !important;
 }
 
 .activity-card.activity-milestone-card:hover {
@@ -1015,7 +1036,8 @@ body.dark-mode .type-page,
    ========================================================================== */
 .home-future-section {
   width: 100%;
-  margin-bottom: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 0.65rem;
   background: var(--bg-card, rgba(28, 28, 32, 0.75));
   border: 1px solid rgba(96, 165, 250, 0.25);
   border-radius: 12px;
@@ -1238,8 +1260,8 @@ body.dark-mode .type-page,
     justify-content: center;
     display: flex;
     width: 100%;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+    margin-top: 0.65rem;
+    margin-bottom: 0;
   }
   #pane-home #btn-home-add-milestone {
     margin: 0 auto;
