@@ -89,7 +89,7 @@
       allCategoryIndex: window.projectConfig ? window.projectConfig.allCategoryIndex : 0,
       allDisabled: window.projectConfig ? window.projectConfig.allDisabled : false,
       rssEnabled: window.projectConfig ? window.projectConfig.rssEnabled : true,
-      pagesViewMode: getPagesViewMode(),
+      pagesViewMode: 'list',
       pagesCustomOrder: window.projectConfig && Array.isArray(window.projectConfig.pagesCustomOrder)
         ? [...window.projectConfig.pagesCustomOrder]
         : [],
@@ -119,12 +119,12 @@
         window.projectConfig.allCategoryIndex = editModeSnapshot.allCategoryIndex;
         window.projectConfig.allDisabled = editModeSnapshot.allDisabled;
         window.projectConfig.rssEnabled = editModeSnapshot.rssEnabled;
-        window.projectConfig.pagesViewMode = editModeSnapshot.pagesViewMode;
+        window.projectConfig.pagesViewMode = 'list';
         window.projectConfig.pagesCustomOrder = editModeSnapshot.pagesCustomOrder;
         window.projectConfig.pagesCustomOrderUserSet = editModeSnapshot.pagesCustomOrderUserSet;
       }
       try {
-        localStorage.setItem('cedar_pages_view_mode', editModeSnapshot.pagesViewMode || DEFAULT_PAGES_VIEW_MODE);
+        localStorage.setItem('cedar_pages_view_mode', 'list');
       } catch (e) {}
       editModeSnapshot = null;
     }
@@ -353,7 +353,7 @@
     }
 
     if (headerViewToggle) {
-      headerViewToggle.style.display = isPagesEditMode ? 'inline-flex' : 'none';
+      headerViewToggle.remove();
     }
   }
 
@@ -629,20 +629,21 @@
 
   function getPagesViewMode() {
     try {
-      const mode = localStorage.getItem('cedar_pages_view_mode');
-      if (mode === 'list' || mode === 'grid') return mode;
-      if (window.projectConfig && (window.projectConfig.pagesViewMode === 'list' || window.projectConfig.pagesViewMode === 'grid')) {
-        return window.projectConfig.pagesViewMode;
+      if (localStorage.getItem('cedar_pages_view_mode') !== 'list') {
+        localStorage.setItem('cedar_pages_view_mode', 'list');
+      }
+      if (window.projectConfig && window.projectConfig.pagesViewMode !== 'list') {
+        window.projectConfig.pagesViewMode = 'list';
       }
     } catch (e) {}
-    return DEFAULT_PAGES_VIEW_MODE;
+    return 'list';
   }
 
-  function setPagesViewMode(mode) {
+  function setPagesViewMode() {
     try {
-      localStorage.setItem('cedar_pages_view_mode', mode);
+      localStorage.setItem('cedar_pages_view_mode', 'list');
       if (window.projectConfig) {
-        window.projectConfig.pagesViewMode = mode;
+        window.projectConfig.pagesViewMode = 'list';
         if (typeof window.saveProjectToStorage === 'function') {
           window.saveProjectToStorage();
         }
@@ -653,17 +654,12 @@
   }
 
   function applyPagesViewModes() {
-    const globalMode = getPagesViewMode();
+    const headerViewToggle = document.getElementById('pages-view-toggle');
+    if (headerViewToggle) {
+      headerViewToggle.remove();
+    }
 
-    // Update main header toggle
-    document.querySelectorAll('#pages-view-toggle .posts-view-btn').forEach(btn => {
-      const v = btn.dataset.pagesView;
-      const isActive = (v === globalMode);
-      btn.classList.toggle('active', isActive);
-      btn.classList.toggle('is-active', isActive);
-    });
-
-    // Update all page grids on the pane
+    // Pages are always rendered in List View
     const targetGrids = [
       'pages-cards-all',
       'pages-cards-my-pages',
@@ -674,12 +670,12 @@
     targetGrids.forEach(id => {
       const gridEl = document.getElementById(id);
       if (gridEl) {
-        gridEl.classList.toggle('is-list-view', globalMode === 'list');
+        gridEl.classList.add('is-list-view');
       }
     });
 
     document.querySelectorAll('#pane-pages .posts-horizontal-grid, #pane-pages .posts-subpage-grid').forEach(el => {
-      el.classList.toggle('is-list-view', globalMode === 'list');
+      el.classList.add('is-list-view');
     });
   }
 
@@ -2395,16 +2391,6 @@
         }
       });
     }
-
-    // Pages View Mode Toggle Listener (Grid / List)
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('#pages-view-toggle .posts-view-btn, [data-pages-view]');
-      if (!btn) return;
-      if (!isPagesEditMode) return;
-      const targetMode = btn.dataset.pagesView;
-      if (!targetMode) return;
-      setPagesViewMode(targetMode);
-    });
 
     applyPagesViewModes();
     initPagesEditModeListeners();
