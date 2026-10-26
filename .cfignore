@@ -19,4 +19,7 @@ _designer_archive/
 _legacy_archive/
 _notes_archive/
 __pycache__/
+serve.py
+cedar.bat
+cedar.sh
 

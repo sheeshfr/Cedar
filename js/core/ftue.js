@@ -3917,7 +3917,10 @@
       if (storedDraftsRaw) {
         try {
           const parsed = JSON.parse(storedDraftsRaw);
-          if (Array.isArray(parsed)) draftsCount = parsed.length;
+          if (Array.isArray(parsed)) {
+            const builtInPageIds = new Set(['page_rss', 'page_about', 'page_about_cedar', 'page_links', 'page_all']);
+            draftsCount = parsed.filter(d => d && !builtInPageIds.has(String(d.id || ''))).length;
+          }
         } catch (e) {}
       }
 
