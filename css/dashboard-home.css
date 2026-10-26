@@ -265,14 +265,14 @@ body.dark-mode .type-page,
 
 /* Milestone Item: Celebratory marker bar with 10% theme color extending across feed */
 .activity-card.activity-milestone-card {
-  width: 100%;
+  width: calc(100% + 2.7rem) !important;
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 1.15rem !important;
-  padding: 0.85rem 1.35rem !important;
-  margin: 0.65rem 0 1.15rem 0 !important;
+  gap: 1.5rem !important;
+  padding: 0.85rem calc(1.35rem - 1px) !important;
+  margin: 0.65rem -1.35rem 1.15rem -1.35rem !important;
   border-radius: 10px !important;
   background: rgba(var(--accent-rgb, 239, 68, 68), 0.10) !important;
   background: color-mix(in srgb, var(--accent-primary, #ef4444) 10%, transparent) !important;
@@ -293,6 +293,8 @@ body.dark-mode .type-page,
 }
 
 .milestone-marker-left {
+  width: 160px;
+  min-width: 160px;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -310,7 +312,7 @@ body.dark-mode .type-page,
 
 .milestone-marker-center {
   flex: 1;
-  text-align: center;
+  text-align: left;
   min-width: 0;
 }
 
@@ -328,6 +330,23 @@ body.dark-mode .type-page,
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-right: 36px;
+}
+
+@media (max-width: 680px) {
+  .activity-card.activity-milestone-card {
+    width: 100% !important;
+    margin: 0.65rem 0 1.15rem 0 !important;
+    padding: 0.85rem 1rem !important;
+    gap: 1rem !important;
+  }
+  .milestone-marker-left {
+    width: auto;
+    min-width: 0;
+  }
+  .milestone-marker-right {
+    margin-right: 0;
+  }
 }
 
 .milestone-marker-trophy {
