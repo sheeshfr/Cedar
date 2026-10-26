@@ -404,14 +404,14 @@
       if (d.type === 'page' || d.type === 'note' || d.status === 'idea') return;
       if (d.tag) {
         const str = String(d.tag).trim();
-        if (str && !forbiddenPageNames.has(str.toLowerCase()) && !str.toLowerCase().startsWith('testcategory')) {
+        if (str && !forbiddenPageNames.has(str.toLowerCase())) {
           categorySet.add(str);
         }
       }
       if (Array.isArray(d.categories)) {
         d.categories.forEach(c => {
           const str = String(c || '').trim();
-          if (str && !forbiddenPageNames.has(str.toLowerCase()) && !str.toLowerCase().startsWith('testcategory')) {
+          if (str && !forbiddenPageNames.has(str.toLowerCase())) {
             categorySet.add(str);
           }
         });
@@ -435,7 +435,7 @@
     const categorySlugs = new Set([...categorySet].map(c => (typeof window.generateSlug === 'function' ? window.generateSlug(c) : c.toLowerCase().replace(/[^a-z0-9]+/g, '-'))));
     const preCount = window.drafts.length;
     window.drafts = window.drafts.filter(d => {
-      if (d && d.type === 'post' && d.slug && categorySlugs.has(d.slug.toLowerCase())) {
+      if (d && d.type === 'post' && (d.isCategoryAggregate || String(d.id || '').startsWith('page_')) && d.slug && categorySlugs.has(d.slug.toLowerCase())) {
         if (window.CedarStore && d.id && typeof window.CedarStore.removePost === 'function') {
           window.CedarStore.removePost(d.id);
         }
@@ -445,7 +445,7 @@
         const s = (d.slug || '').trim().toLowerCase();
         const t = (d.title || '').trim().toLowerCase();
         const catStr = (d.categoryAggregate || d.title || '').trim().toLowerCase();
-        if (forbiddenPageNames.has(s) || forbiddenPageNames.has(t) || s.startsWith('testcategory') || t.startsWith('testcategory') || catStr.startsWith('testcategory')) {
+        if (forbiddenPageNames.has(s) || forbiddenPageNames.has(t)) {
           if (window.CedarStore && d.id && typeof window.CedarStore.removePage === 'function') {
             window.CedarStore.removePage(d.id);
           }
@@ -1573,11 +1573,7 @@
     allPages = allPages.filter(d => {
       if (!d) return false;
       if (d.id && deletedSet.has(String(d.id))) return false;
-      if (window.CedarStore && typeof window.CedarStore.isPurgedTestPage === 'function' && window.CedarStore.isPurgedTestPage(d)) return false;
-      const tLow = (d.title || '').trim().toLowerCase();
-      if (d.id === 'page_1792817789185_l3h0i0' || d.id === 'page_1792843130092_qn15eo' || d.id === 'page_test_static_1' || d.id === 'page_test_static_2' || d.id === 'page_1792812981050_lb72ka' || tLow === 'my brand new project' || tLow === 'maybe i have') return false;
       if (d.id === 'page_about_cedar' || d.slug === 'about-cedar') return false;
-      if (d.id === 'page_faq' || d.id === 'page_custom_faq' || d.slug === 'faq' || tLow === 'faq') return false;
       if (typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(d)) return false;
       return true;
     });

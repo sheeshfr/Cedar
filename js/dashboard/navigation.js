@@ -447,7 +447,6 @@
               data.project.authors.forEach(srvAuth => {
                 if (!srvAuth || !srvAuth.name) return;
                 const sName = srvAuth.name.trim().toLowerCase();
-                if (sName === 'astrid vance' || sName === 'astrid') return;
                 const localAuth = activeProj.authors.find(a => (a?.name || a || '').trim().toLowerCase() === sName);
                 if (localAuth && typeof localAuth === 'object') {
                   if (!localAuth.avatar && srvAuth.avatar) {

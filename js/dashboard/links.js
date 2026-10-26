@@ -289,13 +289,9 @@
       return draft;
     }
 
-    const hasDummies = draft.linksData.items.some(i => i && (
-      i.id === 'link_fb' || i.id === 'link_ig' || i.id === 'link_tw' ||
-      (i.url && (i.url.includes('facebook.com') || i.url.includes('instagram.com') || i.url.includes('twitter.com') || i.url.includes('x.com'))) ||
-      (i.subtitle && i.subtitle === 'Read articles and essays')
-    ));
+    draft.linksData.items = draft.linksData.items.filter(i => i && i.id !== 'link_fb' && i.id !== 'link_ig' && i.id !== 'link_tw');
 
-    if (hasDummies || draft.linksData.items.length === 0) {
+    if (draft.linksData.items.length === 0) {
       draft.linksData.items = [resolveDefaultBlogCard()];
     } else {
       draft.linksData.items.forEach(it => {

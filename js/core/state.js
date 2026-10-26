@@ -4145,22 +4145,11 @@ Full-text and excerpt syndication for all published articles.
 
       const siteLogo = (cfg.design?.branding?.generalLogo) || 'images/Lamp.png';
 
-      const hasDummies = linksDraft.linksData.items.some(i => i && (
+      linksDraft.linksData.items = linksDraft.linksData.items.filter(i => i && i.id !== 'link_fb' && i.id !== 'link_ig' && i.id !== 'link_tw');
 
-        i.id === 'link_fb' || i.id === 'link_ig' || i.id === 'link_tw' ||
-
-        (i.url && (i.url.includes('facebook.com') || i.url.includes('instagram.com') || i.url.includes('twitter.com') || i.url.includes('x.com'))) ||
-
-        (i.subtitle && i.subtitle === 'Read articles and essays')
-
-      ));
-
-      if (hasDummies || linksDraft.linksData.items.length === 0) {
-
+      if (linksDraft.linksData.items.length === 0) {
         linksDraft.linksData.items = [
-
           {
-
             id: 'link_blog',
 
             title: `${siteTitle} Blog`,
@@ -4494,11 +4483,8 @@ Full-text and excerpt syndication for all published articles.
         if (!linksDraft.linksData && typeof createDefaultLinksPage === 'function') {
           linksDraft.linksData = createDefaultLinksPage().linksData;
         } else if (linksDraft.linksData && Array.isArray(linksDraft.linksData.items)) {
-          const hasDummies = linksDraft.linksData.items.some(i => i && (
-            i.id === 'link_fb' || i.id === 'link_ig' || i.id === 'link_tw' ||
-            (i.url && (i.url.includes('facebook.com') || i.url.includes('instagram.com') || i.url.includes('twitter.com') || i.url.includes('x.com')))
-          ));
-          if (hasDummies && typeof createDefaultLinksPage === 'function') {
+          linksDraft.linksData.items = linksDraft.linksData.items.filter(i => i && i.id !== 'link_fb' && i.id !== 'link_ig' && i.id !== 'link_tw');
+          if (linksDraft.linksData.items.length === 0 && typeof createDefaultLinksPage === 'function') {
             linksDraft.linksData.items = createDefaultLinksPage().linksData.items;
           }
         }
@@ -4541,13 +4527,7 @@ Full-text and excerpt syndication for all published articles.
     _isHydrating: false,
 
     getDeletedIdsSet() {
-      const set = new Set([
-        'page_1792812981050_lb72ka',
-        'page_test_static_1',
-        'page_test_static_2',
-        'page_1792817789185_l3h0i0',
-        'page_1792843130092_qn15eo'
-      ]);
+      const set = new Set();
       try {
         const raw = localStorage.getItem('cedar_deleted_draft_ids');
         if (raw) {
@@ -4574,18 +4554,8 @@ Full-text and excerpt syndication for all published articles.
       }
     },
 
-    isPurgedTestPage(d) {
-      if (!d) return false;
-      const dIdLower = String(d.id || '').trim().toLowerCase();
-      const dSlugLower = String(d.slug || '').trim().toLowerCase();
-      const dTitleLower = String(d.title || '').trim().toLowerCase();
-      return (
-        dIdLower === 'page_test_static_1' || dIdLower === 'page_test_static_2' ||
-        dIdLower === 'page_1792817789185_l3h0i0' || dIdLower === 'page_1792843130092_qn15eo' ||
-        dIdLower === 'page_1792812981050_lb72ka' ||
-        dSlugLower === 'alpha-static' || dSlugLower === 'beta-static-newer' || dSlugLower === 'maybe-i-have' || dSlugLower === 'my-brand-new-project' ||
-        dTitleLower === 'alpha static' || dTitleLower === 'beta static newer' || dTitleLower === 'my brand new project' || dTitleLower === 'maybe i have'
-      );
+    isPurgedTestPage() {
+      return false;
     },
 
     healDraftItem(d) {

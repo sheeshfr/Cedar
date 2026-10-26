@@ -360,12 +360,6 @@
     // Purge legacy dummy links
     rawItems = rawItems.filter(i => {
       if (i.id === 'link_fb' || i.id === 'link_ig' || i.id === 'link_tw') return false;
-      const url = (i.url || '').toLowerCase();
-      const title = (i.title || '').toLowerCase();
-      const sub = (i.subtitle || '').toLowerCase();
-      if (url === 'https://facebook.com' || url === 'facebook.com' || (title === 'facebook' && sub === 'facebook.com')) return false;
-      if (url === 'https://instagram.com' || url === 'instagram.com' || (title === 'instagram' && sub === 'instagram.com')) return false;
-      if (url === 'https://twitter.com' || url === 'twitter.com' || (title === 'twitter' && sub === 'twitter.com')) return false;
       return true;
     });
 
