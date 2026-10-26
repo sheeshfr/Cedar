@@ -907,7 +907,7 @@
       : (page.redirectUrl || page.url || '');
     const redirectUrlDisplay = (isPagesEditMode && page.isRedirect)
       ? `<input type="text" class="card-url-input" value="${escapeHtml(displayUrl)}" placeholder="https://example.com" data-page-id="${page.id || ''}" onclick="event.stopPropagation();" oninput="if (window._onPagesUrlInput) window._onPagesUrlInput(this);">`
-      : (page.isRedirect ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>` : '');
+      : (page.isRedirect ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>` : '');
 
     const titleHtml = isTitleEditable
       ? `<div style="display: flex; flex-direction: column; width: 100%;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><input type="text" class="card-title-input" value="${escapeHtml(displayTitle)}" placeholder="Title" data-page-id="${page.id || ''}" data-is-cat="${isCat ? 'true' : 'false'}" data-cat-name="${isCat ? escapeHtml(catName) : ''}" data-original-title="${escapeHtml(page.title || '')}" onclick="event.stopPropagation();" oninput="if (window._onPagesTitleInput) window._onPagesTitleInput(this);">${typeBadge}${redirectGoToBtn}</div>${redirectUrlDisplay}</div>`
