@@ -6,20 +6,14 @@
               <ul class="settings-toc-list" id="settings-toc-list">
                 <li class="settings-toc-item">
                   <a href="#settings-sec-site" class="settings-toc-link active" data-target="settings-sec-site">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                    <span class="settings-toc-text">Title &amp; Domain</span>
+                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <span class="settings-toc-text">Title &amp; Branding</span>
                   </a>
                 </li>
                 <li class="settings-toc-item">
                   <a href="#settings-sec-author" class="settings-toc-link" data-target="settings-sec-author">
                     <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                     <span class="settings-toc-text">Author Profile</span>
-                  </a>
-                </li>
-                <li class="settings-toc-item">
-                  <a href="#settings-sec-logo" class="settings-toc-link" data-target="settings-sec-logo">
-                    <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                    <span class="settings-toc-text">Brand Logo</span>
                   </a>
                 </li>
                 <li class="settings-toc-item">
@@ -34,12 +28,12 @@
 
           <!-- Settings Sections Content Column -->
           <div class="settings-pane-container">
-            <!-- Section 1: Title & Domain (Blog Title & Custom Domain) -->
+            <!-- Section 1: Title & Branding (Blog Title & Brand Logo) -->
             <div class="settings-section-group" id="settings-sec-site">
               <div class="settings-section-header">
                 <div class="settings-section-title-wrap">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                  <h4>Title &amp; Domain</h4>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  <h4>Title &amp; Branding</h4>
                 </div>
               </div>
               <div class="project-settings-card">
@@ -56,11 +50,50 @@
                   </div>
                 </div>
 
-                <!-- 2. Custom Domain -->
+                <!-- 2. Brand Logo -->
                 <div class="form-row" style="margin-top: 1.25rem;">
                   <div class="form-group flex-1">
-                    <label for="setting-modal-domain" class="form-label">Custom Domain</label>
-                    <input type="text" id="setting-modal-domain" class="form-input" placeholder="" spellcheck="false" autocomplete="off">
+                    <label class="form-label">Brand Logo</label>
+                    <div class="ftue-logo-dropzone" id="settings-logo-dropzone" style="border-style: solid;">
+                      <input type="file" id="settings-logo-file-input" accept="image/*" style="display: none;">
+                      
+                      <!-- Drag Feedback Overlay (Active during dragover & drop errors) -->
+                      <div class="ftue-logo-drag-overlay" id="settings-logo-drag-overlay" style="display: none;" aria-live="polite">
+                        <div class="ftue-drag-feedback-content">
+                          <div class="ftue-drag-feedback-icon" id="settings-drag-feedback-icon"></div>
+                          <div class="ftue-drag-feedback-title" id="settings-drag-feedback-title">Okay to release</div>
+                          <div class="ftue-drag-feedback-sub" id="settings-drag-feedback-sub">Drop to set brand logo</div>
+                        </div>
+                      </div>
+
+                      <!-- Empty State in Dropzone -->
+                      <div class="ftue-logo-empty-state" id="settings-logo-empty-state">
+                        <div class="ftue-upload-icon">
+                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        </div>
+                        <div class="ftue-upload-text">
+                          <span>Drop logo image here, or <strong>browse file</strong></span>
+                        </div>
+                        <div class="ftue-upload-sub">Supports images up to 1200x1200</div>
+                      </div>
+
+                      <!-- Preview State in Dropzone -->
+                      <div class="ftue-logo-preview-state" id="settings-logo-preview-state" style="display: none;">
+                        <div class="ftue-logo-stage" id="settings-logo-stage">
+                          <img id="settings-logo-preview-img" class="ftue-logo-preview-img" src="" alt="Brand Logo Preview">
+                        </div>
+                        <div class="ftue-logo-preview-meta" style="justify-content: center; border-top: none; padding-top: 0.25rem;">
+                          <div class="ftue-logo-file-info" style="display: none;">
+                            <span class="ftue-logo-file-name" id="settings-logo-file-name">logo.png</span>
+                            <span class="ftue-logo-dims-badge" id="settings-logo-dims-badge">--</span>
+                          </div>
+                          <div class="ftue-logo-preview-actions" style="justify-content: center;">
+                            <button type="button" class="btn btn-sm btn-secondary" id="settings-btn-change-logo">Change Image</button>
+                            <button type="button" class="btn btn-sm btn-danger-ghost" id="settings-btn-remove-logo">Remove Image</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -119,63 +152,6 @@
                   <div class="form-group flex-1">
                     <label for="setting-author-bio" class="form-label">Bio</label>
                     <textarea id="setting-author-bio" class="form-input" rows="3"></textarea>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Section 3: Brand Logo -->
-            <div class="settings-section-group" id="settings-sec-logo">
-              <div class="settings-section-header">
-                <div class="settings-section-title-wrap">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  <h4>Brand Logo</h4>
-                </div>
-              </div>
-              <div class="project-settings-card">
-                <!-- Brand Logo Dropzone -->
-                <div class="form-row">
-                  <div class="form-group flex-1">
-                    <div class="ftue-logo-dropzone" id="settings-logo-dropzone" style="border-style: solid;">
-                      <input type="file" id="settings-logo-file-input" accept="image/*" style="display: none;">
-                      
-                      <!-- Drag Feedback Overlay (Active during dragover & drop errors) -->
-                      <div class="ftue-logo-drag-overlay" id="settings-logo-drag-overlay" style="display: none;" aria-live="polite">
-                        <div class="ftue-drag-feedback-content">
-                          <div class="ftue-drag-feedback-icon" id="settings-drag-feedback-icon"></div>
-                          <div class="ftue-drag-feedback-title" id="settings-drag-feedback-title">Okay to release</div>
-                          <div class="ftue-drag-feedback-sub" id="settings-drag-feedback-sub">Drop to set brand logo</div>
-                        </div>
-                      </div>
-
-                      <!-- Empty State in Dropzone -->
-                      <div class="ftue-logo-empty-state" id="settings-logo-empty-state">
-                        <div class="ftue-upload-icon">
-                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                        </div>
-                        <div class="ftue-upload-text">
-                          <span>Drop logo image here, or <strong>browse file</strong></span>
-                        </div>
-                        <div class="ftue-upload-sub">Supports images up to 1200x1200</div>
-                      </div>
-
-                      <!-- Preview State in Dropzone -->
-                      <div class="ftue-logo-preview-state" id="settings-logo-preview-state" style="display: none;">
-                        <div class="ftue-logo-stage" id="settings-logo-stage">
-                          <img id="settings-logo-preview-img" class="ftue-logo-preview-img" src="" alt="Brand Logo Preview">
-                        </div>
-                        <div class="ftue-logo-preview-meta" style="justify-content: center; border-top: none; padding-top: 0.25rem;">
-                          <div class="ftue-logo-file-info" style="display: none;">
-                            <span class="ftue-logo-file-name" id="settings-logo-file-name">logo.png</span>
-                            <span class="ftue-logo-dims-badge" id="settings-logo-dims-badge">--</span>
-                          </div>
-                          <div class="ftue-logo-preview-actions" style="justify-content: center;">
-                            <button type="button" class="btn btn-sm btn-secondary" id="settings-btn-change-logo">Change Image</button>
-                            <button type="button" class="btn btn-sm btn-danger-ghost" id="settings-btn-remove-logo">Remove Image</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>

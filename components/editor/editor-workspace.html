@@ -90,9 +90,46 @@
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="strikethrough" title="Strikethrough">
           <span style="text-decoration: line-through; font-family: serif; font-size: 0.95rem;">S</span>
         </button>
-        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="code" title="Inline Code">
+        <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="code" title="Inline Code (Ctrl+E)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
         </button>
+        <div class="toolbar-dropdown-wrap" id="tb-dropdown-font-color-wrap">
+          <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn toolbar-dropdown-btn tb-font-color-btn" id="tb-btn-font-color" title="Font Color">
+            <span class="tb-font-color-icon-wrap">
+              <span class="tb-font-color-letter">A</span>
+              <span class="tb-font-color-indicator" id="tb-font-color-indicator" style="background: var(--text-primary);"></span>
+            </span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="toolbar-dropdown-menu tb-font-color-menu" id="tb-font-color-menu">
+            <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-default-btn active" data-action="font-color" data-color="default" title="Theme Default (Auto-adapts to theme)">
+              <span class="tb-font-color-default-swatch"></span>
+              <span>Theme Default</span>
+            </button>
+            <div class="tb-font-color-grid">
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#ffffff" title="White" style="--swatch-color: #ffffff;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#d4d4d8" title="Silver" style="--swatch-color: #d4d4d8;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#71717a" title="Slate Gray" style="--swatch-color: #71717a;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#18181b" title="Charcoal Black" style="--swatch-color: #18181b;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#ef4444" title="Coral Red" style="--swatch-color: #ef4444;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#dc2626" title="Crimson" style="--swatch-color: #dc2626;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#f97316" title="Orange" style="--swatch-color: #f97316;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#d97706" title="Amber" style="--swatch-color: #d97706;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#eab308" title="Gold" style="--swatch-color: #eab308;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#84cc16" title="Lime" style="--swatch-color: #84cc16;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#22c55e" title="Green" style="--swatch-color: #22c55e;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#10b981" title="Emerald" style="--swatch-color: #10b981;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#14b8a6" title="Teal" style="--swatch-color: #14b8a6;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#06b6d4" title="Cyan" style="--swatch-color: #06b6d4;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#0ea5e9" title="Sky Blue" style="--swatch-color: #0ea5e9;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#3b82f6" title="Blue" style="--swatch-color: #3b82f6;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#6366f1" title="Indigo" style="--swatch-color: #6366f1;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#8b5cf6" title="Purple" style="--swatch-color: #8b5cf6;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#d946ef" title="Fuchsia" style="--swatch-color: #d946ef;"></button>
+              <button type="button" tabindex="-1" unselectable="on" class="tb-font-color-swatch" data-action="font-color" data-color="#f43f5e" title="Rose" style="--swatch-color: #f43f5e;"></button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="toolbar-divider"></div>
