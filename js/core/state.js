@@ -2296,7 +2296,7 @@
 
       projectConfig.design.branding = Object.assign({
 
-        generalLogo: 'images/Lamp.png',
+        generalLogo: '',
 
         tabLogo: 'icon.png',
 
@@ -2312,9 +2312,9 @@
 
       }, projectConfig.design.branding || {});
 
-      if (projectConfig.design.branding.generalLogo === 'logo.png') {
+      if (projectConfig.design.branding.generalLogo === 'logo.png' || projectConfig.design.branding.generalLogo === '/logo.png') {
 
-        projectConfig.design.branding.generalLogo = 'images/Lamp.png';
+        projectConfig.design.branding.generalLogo = '';
 
       }
 

@@ -73,7 +73,7 @@
           activeTheme: 'gaslamp_gazette',
           stickyHeader: false,
           branding: {
-            generalLogo: 'logo.png',
+            generalLogo: '',
             tabLogo: 'icon.png',
             siteTitle: 'Cedar',
             tagline: ''

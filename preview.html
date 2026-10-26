@@ -11,11 +11,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
   <link rel="alternate" type="application/rss+xml" title="Recent Posts RSS Feed" href="/blog/feed.xml" id="rss-link-posts">
   <!-- Modular Preview Stylesheets -->
-  <link rel="stylesheet" href="/css/fonts.css?v=4.6.8">
-  <link rel="stylesheet" href="/css/preview/theme.css?v=4.6.8">
-  <link rel="stylesheet" href="/css/preview/blocks.css?v=4.6.8">
-  <link rel="stylesheet" href="/css/preview/reader.css?v=4.6.8">
-  <link rel="stylesheet" href="/css/preview/gallery.css?v=4.6.8">
+  <link rel="stylesheet" href="/css/fonts.css?v=4.6.16">
+  <link rel="stylesheet" href="/css/preview/theme.css?v=4.6.16">
+  <link rel="stylesheet" href="/css/preview/blocks.css?v=4.6.16">
+  <link rel="stylesheet" href="/css/preview/reader.css?v=4.6.16">
+  <link rel="stylesheet" href="/css/preview/gallery.css?v=4.6.16">
 </head>
 <body>
 
@@ -23,7 +23,7 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a href="/preview.html" class="brand-link" id="header-brand-link">
-        <img src="/logo.png" alt="Logo" class="brand-logo-img" id="header-logo">
+        <img src="" alt="Logo" class="brand-logo-img" id="header-logo" style="display: none;">
         <div class="brand-text">
           <span class="brand-name" id="header-title">Cedar</span>
           <span class="brand-tagline" id="header-tagline" style="display: none !important;"></span>
@@ -245,7 +245,7 @@
   <footer class="site-footer">
     <div class="container footer-wrap">
       <div class="footer-left">
-        <a href="/preview.html/about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none;">Powered by <strong style="color: var(--text-primary);">Cedar</strong></a>
+        <a href="/preview.html/about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><span>Powered by <strong style="color: var(--text-primary);">Cedar</strong></span><img src="/logo.png" alt="" style="width: 1.15em; height: 1.15em; object-fit: contain; display: block; flex-shrink: 0;"></a>
       </div>
       <div class="footer-copyright-wrap" style="color: var(--text-dim);">
         <span class="footer-copyright-date">&copy; <span id="footer-year"></span></span>
@@ -257,17 +257,17 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="/js/vault/virtual-vault.js?v=4.6.8"></script>
-  <script src="/js/core/sanitizer.js?v=4.6.8"></script>
-  <script src="/js/compiler/compiler.js?v=4.6.8"></script>
+  <script src="/js/vault/virtual-vault.js?v=4.6.16"></script>
+  <script src="/js/core/sanitizer.js?v=4.6.16"></script>
+  <script src="/js/compiler/compiler.js?v=4.6.16"></script>
   <!-- Modular Preview Application Scripts -->
-  <script src="/js/preview/theme.js?v=4.6.8"></script>
-  <script src="/js/preview/state.js?v=4.6.8"></script>
-  <script src="/js/preview/home.js?v=4.6.8"></script>
-  <script src="/js/editor/blocks.js?v=4.6.8"></script>
-  <script src="/js/preview/reader.js?v=4.6.8"></script>
-  <script src="/js/preview/app.js?v=4.6.8"></script>
-  <script src="/js/preview/search.js?v=4.6.8"></script>
+  <script src="/js/preview/theme.js?v=4.6.16"></script>
+  <script src="/js/preview/state.js?v=4.6.16"></script>
+  <script src="/js/preview/home.js?v=4.6.16"></script>
+  <script src="/js/editor/blocks.js?v=4.6.16"></script>
+  <script src="/js/preview/reader.js?v=4.6.16"></script>
+  <script src="/js/preview/app.js?v=4.6.16"></script>
+  <script src="/js/preview/search.js?v=4.6.16"></script>
     <!-- Search Modal -->
     <div id="search-modal" class="search-modal-wrap" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: flex-start; padding-top: 8vh; backdrop-filter: blur(4px);">
       <div class="search-modal-content" style="background: var(--bg-primary); width: 100%; max-width: 600px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-subtle);">

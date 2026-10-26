@@ -1262,7 +1262,7 @@
       brand.siteTitle ||
       'Cedar';
     const blogTagline = (window.projectConfig && window.projectConfig.subtitle) || brand.tagline || '';
-    let blogLogo = brand.generalLogo !== undefined ? brand.generalLogo : 'logo.png';
+    let blogLogo = (brand.generalLogo && brand.generalLogo !== 'logo.png' && brand.generalLogo !== '/logo.png') ? brand.generalLogo : '';
     if (preferStaticPaths) {
       if (blogLogo && blogLogo.startsWith('data:')) {
         blogLogo = '/media/branding/logo.png';
@@ -3519,7 +3519,7 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
   ${isLinks ? '' : `<footer class="site-footer">
     <div class="container footer-wrap">
       <div class="footer-left">
-        <a href="/about-cedar/" style="color: var(--text-muted); text-decoration: none;">Powered by <strong style="color: var(--text-primary);">Cedar</strong></a>
+        <a href="/about-cedar/" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><span>Powered by <strong style="color: var(--text-primary);">Cedar</strong></span><img src="/logo.png" alt="" style="width: 1.15em; height: 1.15em; object-fit: contain; display: block; flex-shrink: 0;"></a>
       </div>
       <div class="footer-copyright-wrap">
         <span class="footer-copyright-date">&copy; <span id="current-year">${blogCreatedYear}</span></span>
@@ -3822,7 +3822,7 @@ ${itemsXml}
   <header class="site-header">
     <div class="container nav-wrap">
       <a href="/" class="brand-link" id="header-brand-link">
-        <img src="/logo.png" alt="Logo" class="brand-logo-img" id="header-logo">
+        <img src="" alt="Logo" class="brand-logo-img" id="header-logo" style="display: none;">
         <div class="brand-text">
           <span class="brand-name" id="header-title">${escapeHtml(siteTitle)}</span>
           <span class="brand-tagline" id="header-tagline" style="display: none !important;">${escapeHtml(tagline)}</span>
@@ -4040,7 +4040,7 @@ ${itemsXml}
   <footer class="site-footer">
     <div class="container footer-wrap">
       <div class="footer-left">
-        <a href="/about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none;">Powered by <strong style="color: var(--text-primary);">Cedar</strong></a>
+        <a href="/about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><span>Powered by <strong style="color: var(--text-primary);">Cedar</strong></span><img src="/logo.png" alt="" style="width: 1.15em; height: 1.15em; object-fit: contain; display: block; flex-shrink: 0;"></a>
       </div>
       <div class="footer-copyright-wrap" style="color: var(--text-dim);">
         <span class="footer-copyright-date">&copy; <span id="footer-year">${createdYear}</span></span>
@@ -4180,7 +4180,6 @@ ${itemsXml}
       const logoBlob = dataUrlToBlob(brand.generalLogo);
       if (logoBlob) {
         addFile('media/branding/logo.png', logoBlob);
-        addFile('logo.png', logoBlob);
         brand.generalLogo = '/media/branding/logo.png';
       }
     }

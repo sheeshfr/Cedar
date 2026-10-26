@@ -400,7 +400,8 @@
         const brand = (getConfig().design && getConfig().design.branding) || {};
         const siteName = getConfig().name || getConfig().domain || brand.siteTitle || 'Cedar';
         const tagline = (brand.tagline !== undefined && brand.tagline !== null) ? brand.tagline : (getConfig().subtitle || '');
-        const logo = brand.generalLogo || 'logo.png';
+        const rawLogo = (brand.generalLogo || '').trim();
+        const logo = (rawLogo && rawLogo !== 'logo.png' && rawLogo !== '/logo.png') ? rawLogo : '';
         const favicon = brand.tabLogo || 'icon.png';
 
         document.getElementById('page-title').textContent = `Home — ${siteName}`;
@@ -423,7 +424,14 @@
         if (footerYearEl) footerYearEl.textContent = yearText;
 
         const logoEl = document.getElementById('header-logo');
-        if (logoEl) logoEl.src = window.resolveAssetUrl(logo);
+        if (logoEl) {
+          if (logo) {
+            logoEl.src = window.resolveAssetUrl(logo);
+          } else {
+            logoEl.removeAttribute('src');
+            logoEl.style.display = 'none';
+          }
+        }
 
         const favEl = document.getElementById('site-favicon');
         if (favEl) favEl.href = window.resolveAssetUrl(favicon);
@@ -530,8 +538,10 @@
         const titleScale = typeof titleCfg.scale === 'number' ? titleCfg.scale : (typeof dCfg.titleScale === 'number' ? dCfg.titleScale : ((dCfg.branding && typeof dCfg.branding.titleScale === 'number') ? dCfg.branding.titleScale : 1.0));
         const maxScale = Math.max(logoScale, titleScale, 1.0);
         const padV = Math.max(10, Math.round(10 * Math.max(0.5, factor) + (maxScale - 1) * 7));
+        const hasValidLogo = Boolean(logo && logoCfg.enabled !== false);
         const logoSize = Math.round(44 * logoScale * logoGrowth);
-        const minH = Math.max(mhH, logoSize + padV * 2, Math.round(1.25 * titleScale * titleGrowth * 24 + padV * 2));
+        const effectiveLogoSize = hasValidLogo ? logoSize : 0;
+        const minH = Math.max(mhH, effectiveLogoSize + padV * 2, Math.round(1.25 * titleScale * titleGrowth * 24 + padV * 2));
 
         if (headerEl) {
           headerEl.style.height = 'auto';
@@ -549,7 +559,7 @@
             headerLogoEl.style.position = 'static';
             headerLogoEl.style.left = '';
             headerLogoEl.style.top = '';
-            headerLogoEl.style.display = logoCfg.enabled !== false ? 'block' : 'none';
+            headerLogoEl.style.display = hasValidLogo ? 'block' : 'none';
             headerLogoEl.style.width = `${logoSize}px`;
             headerLogoEl.style.height = `${logoSize}px`;
             headerLogoEl.style.objectFit = 'contain';
@@ -1552,7 +1562,7 @@
             const mCfg = mediaBlock.config || {};
             const mImg = document.getElementById('media-showcase-img');
             const mCaption = document.getElementById('media-showcase-caption');
-            const brandLogo = (getConfig().design && getConfig().design.branding && getConfig().design.branding.generalLogo) || 'logo.png';
+            const brandLogo = (getConfig().design && getConfig().design.branding && getConfig().design.branding.generalLogo) || '';
             if (mImg) {
               mImg.src = window.resolveAssetUrl(mCfg.imageUrl || brandLogo);
               mImg.style.display = 'block';
