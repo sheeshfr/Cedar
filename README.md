@@ -1,35 +1,64 @@
-# Cedar
-
-Cedar is a private, client-side static blogging platform and site builder that operates entirely in the browser. It features a Bring-Your-Own-Cloud (BYO-GitHub) synchronization model, pure client-side image sanitization, and seamless integration with Cloudflare Pages.
-
----
-
-## Key Features
-
-### 1. Mandatory Client-Side Image Sanitization
-To protect user privacy and prevent accidental leakage of sensitive location or personal information:
-- **Always Active**: All uploaded media (JPEG, PNG, WebP, GIF) is automatically sanitized on ingest by an offscreen browser canvas rasterizer.
-- **Zero EXIF / GPS Leakage**: All exchangeable image file format tags (EXIF), GPS coordinates, camera make/model, device serial numbers, timestamps, and embedded private comments are permanently stripped before files are stored in the local vault, committed to GitHub, or published.
-- **Modern WebP Compression**: Images are normalized and compressed into WebP for optimal delivery without sacrificing visual clarity.
-
-### 2. BYO-GitHub Cloud Sync
-- **Zero Central Server / Zero Third-Party Tokens**: Cedar runs completely in your browser. All GitHub authentication uses your own Personal Access Token (PAT) stored exclusively in your browser's `localStorage`. Cedar operates without backends or intermediary proxies.
-- **Private Repository Support**: Users are encouraged to host their blog in a **private** GitHub repository. This guarantees that unpublished drafts and hidden archives remain confidential while Cloudflare Pages builds and serves only your public articles.
-- **Atomic Single-Commit Sync**: Site updates are committed using GitHub's Git Trees REST API (`/git/trees` and `/git/commits`). Even sites with hundreds of files and assets publish in a single atomic commit, triggering only one build on Cloudflare Pages.
-- **Collision Protection**: An iteration token (`sync.json`) tracks repository state across workstations. If newer changes exist on GitHub when you attempt to publish, Cedar prevents accidental overwrites with options to cancel, export a backup archive, or force overwrite.
-
-### 3. Three-Folder Quarantine Structure & `.cfignore`
-Cedar segregates content into three distinct directories:
-- `blog/<slug>/`: **Published Posts Only**. Contains pre-rendered `index.html`, source `index.md`, and metadata.
-- `drafts/<slug>/`: **Drafts & Scheduled Articles**. Contains source `index.md` and `draft.json` for editor persistence. **No HTML is generated**, and Cloudflare Pages ignores this directory via `.cfignore`.
-- `hidden/<slug>/`: **Archived & Unlisted Posts**. Source files preserved without public HTML. Ignored by Cloudflare Pages via `.cfignore`.
-
-When deploying to Cloudflare Pages, the included `.cfignore` ensures drafts, hidden files, and internal sync manifests are excluded from public deployment.
+<div align="center">
+  <img src="logo.png" alt="Cedar Logo" width="128" />
+  <h1>Cedar</h1>
+  <p>A private, local-first static blogging platform and visual site builder that operates entirely in your browser. Write, design, and manage your site locally, then publish directly to GitHub or export a ready-to-host <code>.zip</code> archive.</p>
+  <p>Vibe coded by <b>Gemini</b> • Designed by <b>SheeshFr</b></p>
+</div>
 
 ---
 
-## Export & Deployment
+## Features
 
-Visit the **Export** pane in the Cedar editor to:
-- **Download Master Archive**: Export your complete site as a `.zip` file.
-- **Manage BYO-GitHub Cloud Sync**: Enter your GitHub username, repository, branch, and Personal Access Token. Push updates or pull remote changes across devices anytime.
+- **Visual Studio & Block Editor:** Write articles and custom pages with rich formatting, image galleries, callouts, audio/video embeds, tables, and live side-by-side preview.
+- **Real-Time Theme & Layout Designer:** Customize palettes, typography, post card layouts, header/footer navigation, and profile widgets with zero code.
+- **Mandatory Image Sanitization:** All uploaded images (JPEG, PNG, WebP, GIF) are automatically re-rasterized client-side to strip EXIF metadata, GPS coordinates, camera serial numbers, and embedded comments before being compressed into WebP.
+- **100% Local-First Storage:** Keep your entire site vault (`config.json`, posts, pages, and media) in a folder on your local drive. Zero external databases, accounts, or telemetry.
+- **GitHub Publishing & `.zip` Export:** Push your compiled static site directly to your GitHub repository in a single atomic commit (ready for Cloudflare Pages or GitHub Pages), or export a standalone production `.zip` archive in one click.
+- **Draft Quarantine & Clean Static Output:** Published articles compile into standalone, SEO-ready HTML (`blog/<slug>/index.html`) alongside an automatic RSS feed (`rss.xml`) and search index, while drafts (`drafts/`) and archived posts (`hidden/`) stay excluded from public builds via `.cfignore`.
+
+---
+
+## Usage
+
+### 1. Local Studio Server (Recommended)
+Run the included local Python server for automatic real-time disk syncing with your local blog folder:
+
+```bash
+# Windows
+.\cedar.bat
+
+# Linux / macOS
+./cedar.sh
+```
+
+Or run directly:
+```bash
+python serve.py
+```
+Cedar will automatically open `http://localhost:8080` in your browser.
+
+### 2. Static Browser Mode
+Cedar also runs purely in any modern browser without a backend server using the native File System Access API and local browser storage.
+
+---
+
+## Publishing & Deployment
+
+Open the **Publish** pane in the Cedar dashboard to deploy your site:
+
+- **Publish to GitHub:** Enter your GitHub Repository URL (`https://github.com/username/repo`) and a Personal Access Token (PAT), then click **Publish to GitHub**. Cedar compiles your live site and pushes a single atomic commit directly to your repository—ready to link with Cloudflare Pages or GitHub Pages on your custom domain.
+- **Export Web Package (`.zip`):** Click **Download Master Archive (.ZIP)** to bundle your complete, pre-rendered static website into a portable `.zip` file ready to drop onto any static web host.
+
+---
+
+## Privacy & Security
+
+- **No Central Servers:** Your drafts, media library, and site configuration remain strictly on your machine.
+- **Zero Metadata Leakage:** Client-side canvas sanitization guarantees that personal EXIF and location metadata are stripped on upload.
+- **Private Credentials:** Your GitHub Personal Access Token is stored exclusively in your local browser (`localStorage`) and communicates directly with `api.github.com`.
+
+---
+
+## License
+
+MIT License. Free and open source.
