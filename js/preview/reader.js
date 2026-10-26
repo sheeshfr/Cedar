@@ -740,6 +740,16 @@
         });
 
         // Strip editor interactive attributes & classes
+        proseEl.querySelectorAll('a.btn-rss-subscribe').forEach(a => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'popout-3d btn-rss-subscribe';
+          btn.innerHTML = a.innerHTML;
+          a.replaceWith(btn);
+        });
+        proseEl.querySelectorAll('.btn-share-article, .btn-copy-share-url, .btn-rss-subscribe').forEach(btn => {
+          btn.classList.add('popout-3d');
+        });
         proseEl.querySelectorAll('a').forEach(a => {
           const h = a.getAttribute('href');
           if (h && (h.startsWith('http://') || h.startsWith('https://'))) {
@@ -1042,6 +1052,138 @@
     return authorObj;
   }
 
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).catch(() => {
+        const t = document.createElement('textarea');
+        t.value = text;
+        t.style.position = 'fixed';
+        t.style.opacity = '0';
+        document.body.appendChild(t);
+        t.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        t.remove();
+      });
+    } else {
+      const t = document.createElement('textarea');
+      t.value = text;
+      t.style.position = 'fixed';
+      t.style.opacity = '0';
+      document.body.appendChild(t);
+      t.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      t.remove();
+    }
+  }
+
+  function showPreviewToast(message) {
+    let container = document.getElementById('preview-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'preview-toast-container';
+      container.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:100050;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;';
+      document.body.appendChild(container);
+    }
+    container.innerHTML = '';
+    const toast = document.createElement('div');
+    toast.className = 'preview-toast-popup';
+    toast.style.cssText = 'background:var(--bg-card,#18181b);color:var(--text-primary,#fafafa);border:1px solid var(--accent-primary,#71717a);padding:10px 18px;border-radius:999px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,0.35);display:inline-flex;align-items:center;gap:8px;opacity:0;transform:translateY(8px);transition:opacity 0.2s ease,transform 0.2s ease;';
+    toast.textContent = message.startsWith('✓') ? message : `✓ ${message}`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    });
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(8px)';
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, 220);
+    }, 2600);
+  }
+
+  function resolvePermanentRssFeedUrl() {
+    const cfg = (typeof getConfig === 'function' ? getConfig() : (window.projectConfig || {})) || {};
+    const rawDomain = (cfg.domain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[')) ? rawDomain : '';
+    if (cfg.rssFeedUrl && (!validDomain || cfg.rssFeedUrl.includes(validDomain))) {
+      return cfg.rssFeedUrl;
+    }
+    if (validDomain) {
+      const permanentUrl = `https://${validDomain}/feed.xml`;
+      cfg.rssFeedUrl = permanentUrl;
+      if (window.projectConfig) window.projectConfig.rssFeedUrl = permanentUrl;
+      try {
+        if (window.parent && window.parent !== window && window.parent.projectConfig) {
+          window.parent.projectConfig.rssFeedUrl = permanentUrl;
+        }
+      } catch (_) {}
+      return permanentUrl;
+    }
+    return `${window.location.origin}/feed.xml`;
+  }
+
+  function handleShareButtonClick(btn, e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const shareUrl = window.location.href;
+    copyTextToClipboard(shareUrl);
+    if (btn) {
+      const sp = btn.querySelector('span');
+      if (sp) {
+        if (!btn.dataset.origLabel) btn.dataset.origLabel = sp.textContent;
+        sp.textContent = '✓ Link Copied!';
+        setTimeout(() => {
+          sp.textContent = btn.dataset.origLabel || 'Share this article';
+        }, 2000);
+      }
+    }
+    showPreviewToast('Copied URL to clipboard');
+  }
+
+  function handleRssButtonClick(btn, e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const feedUrl = resolvePermanentRssFeedUrl();
+    copyTextToClipboard(feedUrl);
+    if (btn) {
+      const sp = btn.querySelector('span');
+      if (sp) {
+        if (!btn.dataset.origLabel) btn.dataset.origLabel = sp.textContent;
+        sp.textContent = '✓ RSS Link Copied!';
+        setTimeout(() => {
+          sp.textContent = btn.dataset.origLabel || 'Subscribe';
+        }, 2000);
+      }
+    }
+    showPreviewToast('Copied RSS feed URL to clipboard');
+  }
+
+  if (!document._hasCedarPreviewProseButtonsBound) {
+    document._hasCedarPreviewProseButtonsBound = true;
+    document.addEventListener('click', (e) => {
+      const shareBtn = e.target.closest('.btn-share-article, .btn-copy-share-url');
+      if (shareBtn) {
+        handleShareButtonClick(shareBtn, e);
+        return;
+      }
+      const rssBtn = e.target.closest('.btn-rss-subscribe');
+      if (rssBtn) {
+        handleRssButtonClick(rssBtn, e);
+      }
+    });
+  }
+
+  window.showPreviewToast = showPreviewToast;
+  window.resolvePermanentRssFeedUrl = resolvePermanentRssFeedUrl;
+  window.CedarPreview.showPreviewToast = showPreviewToast;
+  window.CedarPreview.handleShareButtonClick = handleShareButtonClick;
+  window.CedarPreview.handleRssButtonClick = handleRssButtonClick;
   window.CedarPreview.renderAllPosts = renderAllPosts;
   window.OutpostPreview.renderAllPosts = renderAllPosts;
   window.CedarPreview.renderAllPostsGrid = renderAllPostsGrid;

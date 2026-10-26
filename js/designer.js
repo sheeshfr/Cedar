@@ -204,7 +204,7 @@
     };
   }
 
-  const SWOOSH_CONCRETE_STYLES = ['jazz_cup', 'highlighter', 'comic_pop', 'aura_wash', 'arcade_neon'];
+  const SWOOSH_CONCRETE_STYLES = ['jazz_cup', 'highlighter', 'comic_pop', 'aura_wash', 'arcade_neon', 'paper_cut'];
 
   function hashSwooshSeed(seedNum, keyStr, idx) {
     let h = ((Number(seedNum) || 133742) ^ 0x9e3779b9) >>> 0;
@@ -327,12 +327,14 @@
   if (typeof window.buildShowcaseSwooshSvg !== 'function') {
     window.buildShowcaseSwooshSvg = function buildShowcaseSwooshSvg(swooshType, seed, postObj) {
       let type = swooshType || 'jazz_cup';
+      if (type === 'none') return '';
       let effSeed = seed;
       if (type === 'random') {
         const resolved = resolvePostSwooshAssignment(postObj || seed);
         type = resolved.style || 'jazz_cup';
         effSeed = resolved.varSeed || seed;
       }
+      if (type === 'none') return '';
       let hash = 0;
       const s = String(effSeed || 'cedar');
       for (let i = 0; i < s.length; i++) {
@@ -340,6 +342,15 @@
         hash |= 0;
       }
       const v = Math.abs(hash) % 4;
+      if (type === 'paper_cut') {
+        const vars = [
+          `<g class="splash-brush-base"><polygon points="6,52 72,38 58,92 80,142 12,154 28,102" /><polygon points="348,34 414,48 394,98 410,148 340,136 362,86" /><polygon points="48,24 368,18 354,158 36,164" /><polygon points="20,24 26,14 32,24 26,34" /><polygon points="396,22 402,12 408,22 402,32" /></g><g class="splash-brush-accent"><polygon points="60,36 356,30 342,146 48,152" fill="none" stroke-width="5" stroke-dasharray="14 8" /><path d="M48,94 L142,58 L278,124 L362,82" fill="none" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter" /></g>`,
+          `<g class="splash-brush-base"><polygon points="14,38 228,16 212,158 6,144" /><polygon points="196,28 410,20 396,162 182,150" /><polygon points="398,142 406,130 414,142 406,154" /><polygon points="12,156 20,144 28,156 20,168" /></g><g class="splash-brush-accent"><polyline points="26,52 216,32 202,144 384,148 396,36" fill="none" stroke-width="7" stroke-dasharray="16 8" /><path d="M22,98 L208,68 L214,116 L398,84" fill="none" stroke-width="13" stroke-linecap="square" stroke-linejoin="miter" /></g>`,
+          `<g class="splash-brush-base"><polygon points="10,26 408,18 390,62 412,92 394,158 14,164 32,96 8,60" /><polygon points="24,14 30,4 36,14 30,24" /><polygon points="388,164 394,154 400,164 394,174" /></g><g class="splash-brush-accent"><path d="M28,42 L392,34 M36,144 L380,138" fill="none" stroke-width="6" stroke-dasharray="12 8" /><polyline points="24,88 118,54 210,122 304,52 396,92" fill="none" stroke-width="13" stroke-linecap="square" stroke-linejoin="miter" /></g>`,
+          `<g class="splash-brush-base"><polygon points="8,64 376,16 392,118 24,164" /><polygon points="36,22 412,48 396,154 20,126" /><polygon points="16,32 22,20 28,32 22,44" /><polygon points="402,26 408,14 414,26 408,38" /></g><g class="splash-brush-accent"><polygon points="48,36 398,60 384,140 34,114" fill="none" stroke-width="6" stroke-dasharray="14 8" /><path d="M20,112 L398,68" fill="none" stroke-width="14" stroke-linecap="square" /></g>`
+        ];
+        return `<svg class="post-card-showcase-splash" data-swoosh="paper_cut" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">${vars[v]}</svg>`;
+      }
       if (type === 'highlighter') {
         const vars = [
           `<g class="splash-brush-base"><polygon points="18,46 392,24 408,76 4,98" /><polygon points="10,92 414,68 398,136 28,154" /></g><g class="splash-brush-accent"><path d="M22,88 L396,62" fill="none" stroke-width="18" stroke-linecap="square" /><path d="M44,126 L372,104" fill="none" stroke-width="8" stroke-linecap="square" opacity="0.65" /></g>`,
@@ -762,12 +773,14 @@
 
     const swooshBtns = document.querySelectorAll('.designer-swoosh-btn[data-toggle="showcase-swoosh"]');
     const swooshLabels = {
+      none: 'None',
+      random: '¿Random?',
       jazz_cup: '90s Cup',
       highlighter: 'Highlighter',
       comic_pop: 'Comic Pop',
       aura_wash: 'Aura Wash',
       arcade_neon: 'Arcade Neon',
-      random: '¿Random?'
+      paper_cut: 'Paper Cut'
     };
     swooshBtns.forEach(btn => {
       btn.addEventListener('click', () => {

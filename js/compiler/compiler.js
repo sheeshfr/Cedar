@@ -758,14 +758,14 @@
 
       let clean = body.innerHTML;
 
-      // 7. Wire up share button in published output so it copies URL on click
+      // 7. Wire up share button in published output so it copies URL on click and shows bottom popup
       clean = clean.replace(/<button\b[^>]*class="[^"]*(?:btn-copy-share-url|btn-share-article)[^"]*"[^>]*>([\s\S]*?)<\/button>/gi, function(_, inner) {
-        return `<button type="button" class="popout-3d btn-share-article btn-copy-share-url" onclick="(function(btn){const u=window.location.href; if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);}else{const t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();} const sp=btn.querySelector('span'); const old=sp?sp.textContent:''; if(sp)sp.textContent='✓ Link Copied!'; setTimeout(()=>{if(sp)sp.textContent=old;},2000);})(this);">${inner}</button>`;
+        return `<button type="button" class="popout-3d btn-share-article btn-copy-share-url" onclick="if(window.CedarPreview&&window.CedarPreview.handleShareButtonClick){return;} (function(btn){const u=window.location.href; if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);}else{const t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();} const sp=btn.querySelector('span'); if(sp){if(!btn.dataset.origLabel)btn.dataset.origLabel=sp.textContent; sp.textContent='✓ Link Copied!'; setTimeout(()=>{sp.textContent=btn.dataset.origLabel||'Share this article';},2000);} if(typeof window.showPreviewToast==='function'){window.showPreviewToast('Copied URL to clipboard');}else{let c=document.getElementById('preview-toast-container');if(!c){c=document.createElement('div');c.id='preview-toast-container';c.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:100050;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;';document.body.appendChild(c);}c.innerHTML='';const el=document.createElement('div');el.style.cssText='background:var(--bg-card,#18181b);color:var(--text-primary,#fafafa);border:1px solid var(--accent-primary,#71717a);padding:10px 18px;border-radius:999px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,0.35);transition:all 0.25s ease;';el.textContent='✓ Copied URL to clipboard';c.appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(8px)';setTimeout(()=>el.remove(),250);},2600);}})(this);">${inner}</button>`;
       });
 
-      // 7.5. Wire up RSS button in published output so it links to feed.xml and copies feed URL
-      clean = clean.replace(/<button\b[^>]*class="[^"]*btn-rss-subscribe[^"]*"[^>]*>([\s\S]*?)<\/button>/gi, function(_, inner) {
-        return `<a href="/feed.xml" target="_blank" rel="alternate" type="application/rss+xml" class="popout-3d btn-rss-subscribe" data-feed-url="/feed.xml" onclick="(function(btn,e){const u=window.location.origin+'/feed.xml'; if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);}else{const t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();} const sp=btn.querySelector('span'); const old=sp?sp.textContent:''; if(sp)sp.textContent='✓ RSS Link Copied!'; setTimeout(()=>{if(sp)sp.textContent=old;},2000);})(this,event);">${inner}</a>`;
+      // 7.5. Wire up RSS Subscribe button in published output so it copies the permanent feed.xml URL and shows bottom popup
+      clean = clean.replace(/<(?:button|a)\b[^>]*class="[^"]*btn-rss-subscribe[^"]*"[^>]*>([\s\S]*?)<\/(?:button|a)>/gi, function(_, inner) {
+        return `<button type="button" class="popout-3d btn-rss-subscribe" data-feed-url="/feed.xml" onclick="if(window.CedarPreview&&window.CedarPreview.handleRssButtonClick){return;} (function(btn,e){if(e){e.preventDefault();e.stopPropagation();} const u=window.location.origin+'/feed.xml'; if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);}else{const t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();} const sp=btn.querySelector('span'); if(sp){if(!btn.dataset.origLabel)btn.dataset.origLabel=sp.textContent; sp.textContent='✓ RSS Link Copied!'; setTimeout(()=>{sp.textContent=btn.dataset.origLabel||'Subscribe';},2000);} if(typeof window.showPreviewToast==='function'){window.showPreviewToast('Copied RSS feed URL to clipboard');}else{let c=document.getElementById('preview-toast-container');if(!c){c=document.createElement('div');c.id='preview-toast-container';c.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:100050;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;';document.body.appendChild(c);}c.innerHTML='';const el=document.createElement('div');el.style.cssText='background:var(--bg-card,#18181b);color:var(--text-primary,#fafafa);border:1px solid var(--accent-primary,#71717a);padding:10px 18px;border-radius:999px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,0.35);transition:all 0.25s ease;';el.textContent='✓ Copied RSS feed URL to clipboard';c.appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(8px)';setTimeout(()=>el.remove(),250);},2600);}})(this,event);">${inner}</button>`;
       });
 
       return clean;
@@ -3372,9 +3372,11 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
 
     const cfgDesign = (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.design) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.design) || {};
     const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
-    const swooshSvgHtml = (typeof window !== 'undefined' && typeof window.buildShowcaseSwooshSvg === 'function')
-      ? window.buildShowcaseSwooshSvg(swooshType, draft.id || slug || title, draft)
-      : `<svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
+    const swooshSvgHtml = swooshType === 'none'
+      ? ''
+      : ((typeof window !== 'undefined' && typeof window.buildShowcaseSwooshSvg === 'function')
+          ? window.buildShowcaseSwooshSvg(swooshType, draft.id || slug || title, draft)
+          : `<svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
           <g class="splash-brush-base">
             <path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" />
             <path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" />
@@ -3495,17 +3497,33 @@ ${draft.markdown || ''}`;
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {}));
     const siteTitle = cfg.name || (cfg.design && cfg.design.branding && cfg.design.branding.siteTitle) || 'Cedar';
     const siteDesc = cfg.description || cfg.subtitle || (cfg.design && cfg.design.branding && cfg.design.branding.tagline) || siteTitle;
-    const domain = (cfg.domain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const rawDomain = (cfg.domain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const domain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[')) ? rawDomain : '';
     const siteUrl = domain ? `https://${domain}` : 'http://localhost:8080';
-    const feedUrl = `${siteUrl}/blog/feed.xml`;
+    if (domain && !cfg.rssFeedUrl) {
+      cfg.rssFeedUrl = `https://${domain}/feed.xml`;
+      if (typeof window !== 'undefined' && window.projectConfig) {
+        window.projectConfig.rssFeedUrl = cfg.rssFeedUrl;
+      }
+    }
+    const feedUrl = (cfg.rssFeedUrl && (!domain || cfg.rssFeedUrl.includes(domain)))
+      ? cfg.rssFeedUrl
+      : `${siteUrl}/feed.xml`;
     const lastBuildDate = new Date().toUTCString();
 
     const allItems = [];
     (publishedPosts || []).forEach(p => {
       const slug = p.slug || generateSlug(p.title || 'untitled');
       const postUrl = `${siteUrl}/blog/published/${slug}/`;
-      const pubDate = new Date(p.publishedAt || p.createdAt || p.date || Date.now()).toUTCString();
-      const timestamp = new Date(p.publishedAt || p.createdAt || p.date || Date.now()).getTime();
+      if (!p.rssGuid || (domain && p.rssGuid.startsWith('http://localhost'))) {
+        p.rssGuid = postUrl;
+      }
+      if (!p.rssPubDate) {
+        p.rssPubDate = new Date(p.publishedAt || p.publishedDate || p.createdAt || p.date || Date.now()).toUTCString();
+      }
+      const pubDate = p.rssPubDate;
+      const guid = p.rssGuid;
+      const timestamp = new Date(p.publishedAt || p.publishedDate || p.createdAt || p.date || Date.now()).getTime();
       const author = cfg.defaultAuthor || p.authorName || 'Staff';
       const desc = p.subtitle || p.customDesc || (p.markdown ? p.markdown.substring(0, 280) : '');
       const cat = p.tag || (p.categories && p.categories[0]) || 'Uncategorized';
@@ -3515,7 +3533,7 @@ ${draft.markdown || ''}`;
         xml: `    <item>
       <title><![CDATA[${p.title || 'Untitled'}]]></title>
       <link>${postUrl}</link>
-      <guid isPermaLink="true">${postUrl}</guid>
+      <guid isPermaLink="true">${guid}</guid>
       <pubDate>${pubDate}</pubDate>
       <author><![CDATA[${author}]]></author>
       <category><![CDATA[${cat}]]></category>
@@ -4285,12 +4303,12 @@ ${itemsXml}
         'Thumbs.db'
       ].join('\n') + '\n');
 
-      // 9. RSS 2.0 Feed
-      if (isRssEnabled) {
-      const rssFeed = generateRssFeedXml(publishedPosts, publicProject);
-      addFile('feed.xml', rssFeed);
-      addFile('blog/feed.xml', rssFeed);
-    }
+      // 9. RSS 2.0 Feed (Always generated at both /feed.xml and /blog/feed.xml so once generated, the site's RSS feed never disappears or changes URL)
+      {
+        const rssFeed = generateRssFeedXml(publishedPosts, publicProject);
+        addFile('feed.xml', rssFeed);
+        addFile('blog/feed.xml', rssFeed);
+      }
 
     return files;
   }
@@ -4704,8 +4722,8 @@ ${page.markdown || ''}`;
         });
       }
 
-      // 5. RSS 2.0 Syndication Feed (feed.xml and blog/feed.xml)
-      if (isRssEnabled) {
+      // 5. RSS 2.0 Syndication Feed (feed.xml and blog/feed.xml — always generated so the site's RSS feed is permanent)
+      {
         const publishedPosts = drafts.filter(d => (d.type === 'post' || !d.type) && (!d.status || d.status === 'published') && !d.hidden && !d.retired && !((typeof window.isLinksDraft === 'function' ? window.isLinksDraft(d) : (d && (d.id === 'page_links' || d.slug === 'links' || (d.title || '').trim().toLowerCase() === 'links' || d.linksData)))));
         const rssXml = generateRssFeedXml(publishedPosts, projectConfig);
         files.push({
@@ -4770,10 +4788,13 @@ ${page.markdown || ''}`;
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : {}) || {};
     const isRssEnabled = Boolean(cfg.rssEnabled);
     const rawDomain = (cfg.domain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const siteBase = rawDomain ? `https://${rawDomain}` : '';
+    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[')) ? rawDomain : '';
+    const siteBase = validDomain ? `https://${validDomain}` : '';
     const siteName = cfg.name || 'Cedar';
 
-    const postsUrl = siteBase ? `${siteBase}/blog/feed.xml` : '/blog/feed.xml';
+    const postsUrl = (cfg.rssFeedUrl && (!validDomain || cfg.rssFeedUrl.includes(validDomain)))
+      ? cfg.rssFeedUrl
+      : (siteBase ? `${siteBase}/feed.xml` : '/feed.xml');
 
     let title = 'RSS';
     let subtitle = 'Subscribe to published articles via RSS feed syndication.';

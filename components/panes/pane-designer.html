@@ -1173,7 +1173,33 @@
                   <div class="designer-item-label" style="margin-bottom: 10px;">Background Swooshes</div>
 
                   <div class="designer-swoosh-grid" id="designer-swoosh-grid" data-toggle-group="showcase-swoosh">
-                  <!-- 1. 90s Cup -->
+                  <!-- 1. None (Top Left) -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="none" title="None — Clean solid background with no swoosh">
+                    <div class="designer-swoosh-btn-cluster">
+                      <span class="designer-swoosh-label">None</span>
+                    </div>
+                  </button>
+
+                  <!-- 2. ¿Random? (Top Right) -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="random" title="¿Random? — Assigns each post a random swoosh with a 2-post cooldown">
+                    <div class="designer-swoosh-btn-cluster">
+                      <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
+                        <g class="splash-brush-base">
+                          <polygon points="14,42 198,20 182,88 6,108" />
+                          <path d="M168,38 C236,12 334,16 398,46 C422,74 402,138 344,154 C272,172 194,158 148,136 C112,118 122,56 168,38 Z" />
+                          <polygon points="28,112 246,88 264,150 18,166" />
+                          <circle cx="34" cy="24" r="6" /><circle cx="394" cy="28" r="6.5" /><circle cx="404" cy="148" r="5.5" /><circle cx="18" cy="144" r="5" />
+                        </g>
+                        <g class="splash-brush-accent">
+                          <path d="M18,118 C64,46 118,144 172,64 L224,116 L278,44 C326,118 366,52 406,92" fill="none" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />
+                          <path d="M42,74 L148,54 M254,132 L382,114" fill="none" stroke-width="6" stroke-linecap="round" opacity="0.65" />
+                        </g>
+                      </svg>
+                      <span class="designer-swoosh-label">¿Random?</span>
+                    </div>
+                  </button>
+
+                  <!-- 3. 90s Cup -->
                   <button type="button" class="designer-swoosh-btn active" data-toggle="showcase-swoosh" data-value="jazz_cup" title="90s Cup — Sweeping brush strokes &amp; zig-zag ribbon">
                     <div class="designer-swoosh-btn-cluster">
                       <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
@@ -1192,7 +1218,7 @@
                     </div>
                   </button>
 
-                  <!-- 2. Highlighter -->
+                  <!-- 4. Highlighter -->
                   <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="highlighter" title="Highlighter — Chisel-tip marker swipes">
                     <div class="designer-swoosh-btn-cluster">
                       <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
@@ -1209,7 +1235,7 @@
                     </div>
                   </button>
 
-                  <!-- 3. Comic Pop -->
+                  <!-- 5. Comic Pop -->
                   <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="comic_pop" title="Comic Pop — Retro pop-art badge &amp; zig-zag burst">
                     <div class="designer-swoosh-btn-cluster">
                       <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
@@ -1226,7 +1252,7 @@
                     </div>
                   </button>
 
-                  <!-- 4. Aura Wash -->
+                  <!-- 6. Aura Wash -->
                   <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="aura_wash" title="Aura Wash — Organic watercolor cloud &amp; silk wave">
                     <div class="designer-swoosh-btn-cluster">
                       <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
@@ -1243,7 +1269,7 @@
                     </div>
                   </button>
 
-                  <!-- 5. Arcade Neon -->
+                  <!-- 7. Arcade Neon -->
                   <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="arcade_neon" title="Arcade Neon — Synthwave speed louvers &amp; laser pulse">
                     <div class="designer-swoosh-btn-cluster">
                       <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
@@ -1261,22 +1287,22 @@
                     </div>
                   </button>
 
-                  <!-- 6. ¿Random? -->
-                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="random" title="¿Random? — Assigns each post a random swoosh with a 2-post cooldown">
+                  <!-- 8. Paper Cut -->
+                  <button type="button" class="designer-swoosh-btn" data-toggle="showcase-swoosh" data-value="paper_cut" title="Paper Cut — Layered zine cutout banner &amp; stitched fold lines">
                     <div class="designer-swoosh-btn-cluster">
                       <svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
                         <g class="splash-brush-base">
-                          <polygon points="14,42 198,20 182,88 6,108" />
-                          <path d="M168,38 C236,12 334,16 398,46 C422,74 402,138 344,154 C272,172 194,158 148,136 C112,118 122,56 168,38 Z" />
-                          <polygon points="28,112 246,88 264,150 18,166" />
-                          <circle cx="34" cy="24" r="6" /><circle cx="394" cy="28" r="6.5" /><circle cx="404" cy="148" r="5.5" /><circle cx="18" cy="144" r="5" />
+                          <polygon points="6,52 72,38 58,92 80,142 12,154 28,102" />
+                          <polygon points="348,34 414,48 394,98 410,148 340,136 362,86" />
+                          <polygon points="48,24 368,18 354,158 36,164" />
+                          <polygon points="20,24 26,14 32,24 26,34" /><polygon points="396,22 402,12 408,22 402,32" />
                         </g>
                         <g class="splash-brush-accent">
-                          <path d="M18,118 C64,46 118,144 172,64 L224,116 L278,44 C326,118 366,52 406,92" fill="none" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />
-                          <path d="M42,74 L148,54 M254,132 L382,114" fill="none" stroke-width="6" stroke-linecap="round" opacity="0.65" />
+                          <polygon points="60,36 356,30 342,146 48,152" fill="none" stroke-width="5" stroke-dasharray="14 8" />
+                          <path d="M48,94 L142,58 L278,124 L362,82" fill="none" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter" />
                         </g>
                       </svg>
-                      <span class="designer-swoosh-label">¿Random?</span>
+                      <span class="designer-swoosh-label">Paper Cut</span>
                     </div>
                   </button>
                   </div>

@@ -454,9 +454,11 @@
 
     const cfgDesign = (window.projectConfig && window.projectConfig.design) || {};
     const swooshType = cfgDesign.showcaseSwoosh || cfgDesign.backgroundSwoosh || 'jazz_cup';
-    const swooshSvgHtml = (typeof window.buildShowcaseSwooshSvg === 'function')
-      ? window.buildShowcaseSwooshSvg(swooshType, post.id || post.slug || post.title, post)
-      : `<svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
+    const swooshSvgHtml = swooshType === 'none'
+      ? ''
+      : ((typeof window.buildShowcaseSwooshSvg === 'function')
+          ? window.buildShowcaseSwooshSvg(swooshType, post.id || post.slug || post.title, post)
+          : `<svg class="post-card-showcase-splash" viewBox="-36 -24 492 228" preserveAspectRatio="none" aria-hidden="true">
           <g class="splash-brush-base">
             <path d="M8,136 C48,88 106,42 162,18 C178,11 190,19 178,32 C142,68 92,116 44,158 C24,174 2,154 8,136 Z" />
             <path d="M52,164 C118,108 198,52 284,16 C304,8 318,20 300,36 C234,88 158,138 88,178 C64,190 36,178 52,164 Z" />
