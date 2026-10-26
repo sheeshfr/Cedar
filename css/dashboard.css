@@ -2657,14 +2657,16 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-#pane-posts:not(.is-edit-mode) .card-hover-delete-btn,
-#pane-posts:not(.is-edit-mode) .card-list-actions,
-#pane-posts:not(.is-edit-mode) #posts-view-toggle {
-  display: none !important;
+#pane-posts .card-hover-delete-btn {
+  opacity: 0.65;
 }
 
-#pane-posts.is-edit-mode .card-hover-delete-btn {
-  opacity: 0.75;
+#pane-posts .pipeline-card:hover .card-hover-delete-btn {
+  opacity: 0.85;
+}
+
+#pane-posts .card-list-actions {
+  display: none !important;
 }
 
 /* Pages Tab Auto Category Pages Switch */
