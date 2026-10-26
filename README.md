@@ -20,8 +20,11 @@
 
 ## Usage
 
-### 1. Local Studio Server (Recommended)
-Run the included local Python server for automatic real-time disk syncing with your local blog folder:
+### 1. Web App (Recommended)
+Visit [**https://cedar.pub**](https://cedar.pub) in any modern browser to start writing, designing, and managing your site immediately—no installation required. All data stays 100% in your local browser storage or linked local folder.
+
+### 2. Run Locally
+Clone the repository and run the included local Python server for automatic real-time disk syncing with your local blog folder:
 
 ```bash
 # Windows
@@ -36,9 +39,6 @@ Or run directly:
 python serve.py
 ```
 Cedar will automatically open `http://localhost:8080` in your browser.
-
-### 2. Static Browser Mode
-Cedar also runs purely in any modern browser without a backend server using the native File System Access API and local browser storage.
 
 ---
 
