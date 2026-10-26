@@ -18,9 +18,11 @@
       modal.style.display = 'none';
     }
 
+    const mobileBtn = document.getElementById('header-mobile-search-btn');
     if (btn) btn.addEventListener('click', openModal);
+    if (mobileBtn) mobileBtn.addEventListener('click', openModal);
     document.addEventListener('click', (e) => {
-      const searchBtn = e.target.closest('#nav-search-btn');
+      const searchBtn = e.target.closest('#nav-search-btn, #header-mobile-search-btn, .header-mobile-search-btn');
       if (searchBtn) {
         e.preventDefault();
         openModal();

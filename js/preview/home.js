@@ -473,6 +473,22 @@
         const navSearchBtnEl = document.getElementById('nav-search-btn');
         const brandLinkEl = document.getElementById('header-brand-link');
         const brandTextEl = brandLinkEl ? brandLinkEl.querySelector('.brand-text') : null;
+
+        if (headerEl) {
+          headerEl.classList.toggle('header-align-left', mhAlign === 'left');
+          headerEl.classList.toggle('header-align-center', mhAlign === 'center');
+          headerEl.classList.toggle('header-align-right', mhAlign === 'right');
+        }
+        if (navWrapEl && brandLinkEl && !document.getElementById('header-mobile-search-btn')) {
+          const mobSearchBtn = document.createElement('button');
+          mobSearchBtn.type = 'button';
+          mobSearchBtn.id = 'header-mobile-search-btn';
+          mobSearchBtn.className = 'header-mobile-search-btn';
+          mobSearchBtn.title = 'Search';
+          mobSearchBtn.setAttribute('aria-label', 'Search');
+          mobSearchBtn.innerHTML = `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>`;
+          brandLinkEl.insertAdjacentElement('afterend', mobSearchBtn);
+        }
         if (brandLinkEl && !brandLinkEl._homeBound) {
           brandLinkEl._homeBound = true;
           brandLinkEl.addEventListener('click', (e) => {

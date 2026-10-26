@@ -1661,7 +1661,7 @@
         max-width: 100% !important;
         box-sizing: border-box !important;
       }
-      .site-header .nav-wrap {
+      .site-header:not(.header-align-left) .nav-wrap {
         height: auto !important;
         min-height: auto !important;
         position: static !important;
@@ -1670,11 +1670,59 @@
         align-items: center !important;
         gap: 0.5rem !important;
       }
-      .custom-masthead-link {
+      .site-header:not(.header-align-left) .custom-masthead-link {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         text-align: center !important;
+        max-width: 100% !important;
+      }
+      .site-header:not(.header-align-left) .header-title-text {
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+        text-align: center !important;
+        max-width: 100% !important;
+      }
+      .site-header.header-align-left .nav-wrap {
+        height: auto !important;
+        min-height: auto !important;
+        position: relative !important;
+        padding: 0.75rem 10px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.55rem !important;
+      }
+      .site-header.header-align-left .custom-masthead-link {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+      }
+      .site-header.header-align-left .header-logo-img {
+        margin: 0 !important;
+        flex-shrink: 0 !important;
+      }
+      .site-header.header-align-left .header-title-text {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        text-align: left !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        line-height: 1.2 !important;
+      }
+      .site-header.header-align-left .header-nav-wrap {
+        width: 100% !important;
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+        margin: 0 auto !important;
       }
       .header-logo-img, .header-title-text, .header-tagline-text, .header-nav-wrap {
         position: static !important;
@@ -3358,7 +3406,7 @@
 <body${isLinks ? ' class="is-links-page links-standalone-page"' : ''}>
 
   <!-- Site Header -->
-  ${isLinks ? '' : `<header class="site-header">
+  ${isLinks ? '' : `<header class="site-header header-align-${mhAlign}">
     <div class="container nav-wrap">
       <a href="${blogHomeHref}" class="brand-link custom-masthead-link">
         ${blogLogo ? `<img class="header-logo-img" src="${escapeHtml(blogLogo)}" alt="" onerror="this.style.display='none';">` : ''}
@@ -3731,6 +3779,9 @@ ${itemsXml}
           <span class="brand-tagline" id="header-tagline" style="display: none !important;">${escapeHtml(tagline)}</span>
         </div>
       </a>
+      <button type="button" id="header-mobile-search-btn" class="header-mobile-search-btn" title="Search" aria-label="Search">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
+      </button>
       <nav style="display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;">
         <ul class="nav-links" id="header-nav-links">
           <li class="nav-search-item" style="display: inline-flex; align-items: center; margin: 0; padding: 0;">
