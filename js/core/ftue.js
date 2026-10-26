@@ -757,12 +757,12 @@
     },
     // 5. Matcha (Dark Organic Green — Card #3f6239)
     matcha_moss: {
-      textPrimary: '#ffffff',
-      textSecondary: '#ecfccb',
-      textMuted: '#d9f99d',
-      textEmpty: '#d9f99d',
+      textPrimary: '#fafafa',
+      textSecondary: '#d4d4d8',
+      textMuted: '#a1a1aa',
+      textEmpty: '#a1a1aa',
       panelRowBg: 'rgba(0, 0, 0, 0.22)',
-      inputPlaceholder: '#a3e635'
+      inputPlaceholder: '#71717a'
     },
     // 6. Oasis (Light Organic Emerald — Card #e2ece5)
     oasis_moss: {
@@ -784,12 +784,12 @@
     },
     // 8. Plum / Mulberry (Dark Deep Berry — Card #702459)
     mulberry_plum: {
-      textPrimary: '#ffffff',
-      textSecondary: '#ffe4e6',
-      textMuted: '#fbcfe8',
-      textEmpty: '#fbcfe8',
+      textPrimary: '#fafafa',
+      textSecondary: '#d4d4d8',
+      textMuted: '#a1a1aa',
+      textEmpty: '#a1a1aa',
       panelRowBg: 'rgba(0, 0, 0, 0.22)',
-      inputPlaceholder: '#f472b6'
+      inputPlaceholder: '#71717a'
     },
     // 9. Peony (Light Blush — Card #fae3e8)
     peony_blush: {
@@ -820,12 +820,12 @@
     },
     // 12. Cyber (Dark Synthwave Violet — Card #22123b)
     cyber: {
-      textPrimary: '#ffffff',
-      textSecondary: '#e2e8f0',
-      textMuted: '#a5b4fc',
-      textEmpty: '#a5b4fc',
+      textPrimary: '#fafafa',
+      textSecondary: '#d4d4d8',
+      textMuted: '#a1a1aa',
+      textEmpty: '#a1a1aa',
       panelRowBg: 'rgba(255, 255, 255, 0.05)',
-      inputPlaceholder: '#818cf8'
+      inputPlaceholder: '#71717a'
     },
     // 13. Indigo (Dark Midnight Violet-Indigo — Card #172033)
     indigo: {
@@ -838,12 +838,12 @@
     },
     // 14. Cinder (Dark Roasted Espresso — Card #241c18)
     cinder: {
-      textPrimary: '#fef3c7',
-      textSecondary: '#fed7aa',
-      textMuted: '#fdba74',
-      textEmpty: '#fdba74',
+      textPrimary: '#fafafa',
+      textSecondary: '#d4d4d8',
+      textMuted: '#a1a1aa',
+      textEmpty: '#a1a1aa',
       panelRowBg: 'rgba(255, 255, 255, 0.05)',
-      inputPlaceholder: '#ea580c'
+      inputPlaceholder: '#71717a'
     }
   };
 
@@ -956,14 +956,14 @@
     // Dark background: calculate if it is colored (saturated) or neutral
     const isSaturated = Math.max(rgb[0], rgb[1], rgb[2]) - Math.min(rgb[0], rgb[1], rgb[2]) > 25;
     if (isSaturated) {
-      // Saturated colored dark background: pair with luminous tint
+      // Saturated colored dark background: pair with clean neutral text
       return {
-        textPrimary: '#ffffff',
-        textSecondary: '#f1f5f9',
-        textMuted: '#e2e8f0',
-        textEmpty: '#e2e8f0',
+        textPrimary: '#fafafa',
+        textSecondary: '#d4d4d8',
+        textMuted: '#a1a1aa',
+        textEmpty: '#a1a1aa',
         panelRowBg: 'rgba(0, 0, 0, 0.22)',
-        inputPlaceholder: '#cbd5e1'
+        inputPlaceholder: '#71717a'
       };
     }
 
