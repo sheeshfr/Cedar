@@ -1723,6 +1723,12 @@
   order: 3;
 }
 
+.posts-horizontal-grid:not(.is-list-view) .pipeline-card:not(.page-card) .card-date,
+.posts-subpage-grid:not(.is-list-view) .pipeline-card:not(.page-card) .card-date {
+  order: 4;
+  margin-top: 0.35rem;
+}
+
 .posts-horizontal-grid:not(.is-list-view) .pipeline-card:not(.page-card) .card-list-actions,
 .posts-subpage-grid:not(.is-list-view) .pipeline-card:not(.page-card) .card-list-actions {
   display: none !important;

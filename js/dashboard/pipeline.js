@@ -198,8 +198,11 @@
       card.className = `pipeline-card card-${columnType}`;
       const isPublished = (columnType === 'published');
 
-      const dateDisplay = (typeof formatCardDate === 'function')
-        ? formatCardDate(post.updatedAt || post.createdAt)
+      const rawPubDate = post.publishedDate || post.date || post.publishedAt || post.createdAt || post.updatedAt;
+      const dateDisplay = (isPublished && rawPubDate)
+        ? (typeof window.formatDateDisplay === 'function'
+            ? window.formatDateDisplay(rawPubDate)
+            : new Date(rawPubDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: '2-digit' }))
         : '';
 
       let coverHtml = '';
@@ -244,11 +247,11 @@
           <div class="card-main-header" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
             <div style="flex: 1; min-width: 0;">
               <h4 class="card-title">${escapeHtml(post.title || 'Untitled Post')}</h4>
-              ${dateDisplay ? `<div class="card-date">${dateDisplay}</div>` : ''}
             </div>
             ${starBtnHtml}
           </div>
           ${post.subtitle ? `<p class="card-excerpt">${escapeHtml(post.subtitle)}</p>` : ''}
+          ${dateDisplay ? `<div class="card-date">${escapeHtml(dateDisplay)}</div>` : ''}
         </div>
       `;
     }
