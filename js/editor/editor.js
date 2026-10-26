@@ -1373,8 +1373,9 @@
       }
       if (typePill) {
         typePill.textContent = 'Post';
-        typePill.style.background = 'rgba(96, 165, 250, 0.12)';
-        typePill.style.color = 'var(--accent-primary, #60a5fa)';
+        typePill.style.background = 'rgba(var(--accent-rgb, 113, 113, 122), 0.16)';
+        typePill.style.color = 'var(--accent-primary, #fafafa)';
+        typePill.style.border = '1px solid rgba(var(--accent-rgb, 113, 113, 122), 0.3)';
       }
       if (btnBack) {
         btnBack.setAttribute('href', '#posts');
@@ -1421,15 +1422,10 @@
       titleDisplay.title = title;
     }
     if (typePill) {
-      if (isPage) {
-        typePill.textContent = 'Page';
-        typePill.style.background = 'rgba(168, 85, 247, 0.12)';
-        typePill.style.color = 'var(--accent-purple, #a855f7)';
-      } else {
-        typePill.textContent = 'Post';
-        typePill.style.background = 'rgba(96, 165, 250, 0.12)';
-        typePill.style.color = 'var(--accent-primary, #60a5fa)';
-      }
+      typePill.textContent = isPage ? 'Page' : 'Post';
+      typePill.style.background = 'rgba(var(--accent-rgb, 113, 113, 122), 0.16)';
+      typePill.style.color = 'var(--accent-primary, #fafafa)';
+      typePill.style.border = '1px solid rgba(var(--accent-rgb, 113, 113, 122), 0.3)';
     }
     if (btnBack) {
       const prev = window.cedarPreviousDashboardPage;
