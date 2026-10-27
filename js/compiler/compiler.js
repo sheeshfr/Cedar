@@ -3884,6 +3884,7 @@ ${itemsXml}
     const canonicalPath = (options.canonicalPath || '/').replace(/^\/+/, '');
     const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
+    const buildStamp = options.buildStamp || '4.6.29';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -3899,11 +3900,11 @@ ${itemsXml}
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
   ${isRssEnabled ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(siteTitle)} RSS Feed" href="${siteBase ? `${siteBase}/blog/feed.xml` : '/blog/feed.xml'}" id="rss-link-posts">` : '<link rel="alternate" type="application/rss+xml" title="Recent Posts RSS Feed" href="/blog/feed.xml" id="rss-link-posts" style="display:none;">'}
   <!-- Modular Site Stylesheets (1:1 with Cedar Preview) -->
-  <link rel="stylesheet" href="/css/fonts.css">
-  <link rel="stylesheet" href="/css/preview/theme.css">
-  <link rel="stylesheet" href="/css/preview/blocks.css">
-  <link rel="stylesheet" href="/css/preview/reader.css">
-  <link rel="stylesheet" href="/css/preview/gallery.css">
+  <link rel="stylesheet" href="/css/fonts.css?v=${buildStamp}">
+  <link rel="stylesheet" href="/css/preview/theme.css?v=${buildStamp}">
+  <link rel="stylesheet" href="/css/preview/blocks.css?v=${buildStamp}">
+  <link rel="stylesheet" href="/css/preview/reader.css?v=${buildStamp}">
+  <link rel="stylesheet" href="/css/preview/gallery.css?v=${buildStamp}">
 </head>
 <body>
 
@@ -4141,16 +4142,16 @@ ${itemsXml}
   </footer>
 
   <!-- Production Site Data & Modular Preview Scripts -->
-  <script src="/site-data.js"></script>
-  <script src="/js/core/sanitizer.js"></script>
-  <script src="/js/compiler/compiler.js"></script>
-  <script src="/js/preview/theme.js"></script>
-  <script src="/js/preview/state.js"></script>
-  <script src="/js/preview/home.js"></script>
-  <script src="/js/editor/blocks.js"></script>
-  <script src="/js/preview/reader.js"></script>
-  <script src="/js/preview/app.js"></script>
-  <script src="/js/preview/search.js"></script>
+  <script src="/site-data.js?v=${buildStamp}"></script>
+  <script src="/js/core/sanitizer.js?v=${buildStamp}"></script>
+  <script src="/js/compiler/compiler.js?v=${buildStamp}"></script>
+  <script src="/js/preview/theme.js?v=${buildStamp}"></script>
+  <script src="/js/preview/state.js?v=${buildStamp}"></script>
+  <script src="/js/preview/home.js?v=${buildStamp}"></script>
+  <script src="/js/editor/blocks.js?v=${buildStamp}"></script>
+  <script src="/js/preview/reader.js?v=${buildStamp}"></script>
+  <script src="/js/preview/app.js?v=${buildStamp}"></script>
+  <script src="/js/preview/search.js?v=${buildStamp}"></script>
 
   <!-- Search Modal -->
   <div id="search-modal" class="search-modal-wrap" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: flex-start; padding-top: 8vh; backdrop-filter: blur(4px);">
@@ -5210,6 +5211,9 @@ ${page.markdown || ''}`;
       }
       if (validDomain) {
         return `https://${validDomain}`;
+      }
+      if (host === 'cedar.pub' || host === 'www.cedar.pub') {
+        return '';
       }
       return `${window.location.origin}${subpath}`;
     }

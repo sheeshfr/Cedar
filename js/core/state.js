@@ -3335,6 +3335,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (validDomain) {
         return `https://${validDomain}`;
       }
+      if (host === 'cedar.pub' || host === 'www.cedar.pub') {
+        return '';
+      }
       return `${window.location.origin}${subpath}`;
     }
 
