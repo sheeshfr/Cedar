@@ -3362,13 +3362,13 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     let subtitle = 'Follow new posts in your favorite feed reader—no algorithms, no inbox clutter.';
 
-    let markdown = `:::rss-box ${postsUrl}:::
+    let markdown = `### How It Works
 
-### How It Works
-
-1. **Copy the feed link** above.
+1. **Copy the feed link** below.
 2. **Paste it into any RSS reader**—like [NetNewsWire](https://netnewswire.com), [Feedly](https://feedly.com), [Reeder](https://reederapp.com), or [Inoreader](https://www.inoreader.com).
-3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.`.trim();
+3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.
+
+:::rss-box ${postsUrl}:::`.trim();
 
     const defaultAuth = (typeof resolveProjectDefaultAuthor === 'function')
 

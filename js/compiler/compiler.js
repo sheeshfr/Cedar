@@ -3884,7 +3884,7 @@ ${itemsXml}
     const canonicalPath = (options.canonicalPath || '/').replace(/^\/+/, '');
     const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '4.6.29';
+    const buildStamp = options.buildStamp || '4.6.30';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -5234,13 +5234,13 @@ ${page.markdown || ''}`;
 
     let title = 'RSS';
     let subtitle = 'Follow new posts in your favorite feed reader—no algorithms, no inbox clutter.';
-    let markdown = `:::rss-box ${postsUrl}:::
+    let markdown = `### How It Works
 
-### How It Works
-
-1. **Copy the feed link** above.
+1. **Copy the feed link** below.
 2. **Paste it into any RSS reader**—like [NetNewsWire](https://netnewswire.com), [Feedly](https://feedly.com), [Reeder](https://reederapp.com), or [Inoreader](https://www.inoreader.com).
-3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.`.trim();
+3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.
+
+:::rss-box ${postsUrl}:::`.trim();
 
     const defaultAuth = (typeof resolveProjectDefaultAuthor === 'function')
       ? resolveProjectDefaultAuthor()
