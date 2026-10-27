@@ -970,7 +970,7 @@
 
     container.querySelectorAll('.btn-rss-subscribe').forEach(btn => {
       btn.classList.add('popout-3d');
-      const parent = btn.closest('.article-rss-block, [data-block-type="rss"]');
+      const parent = btn.closest('.article-rss-block, .rss-feed-showcase-card, [data-block-type="rss"], [data-block-type="rss-box"]');
       if (!parent && btn.parentNode) {
         const wrap = document.createElement('div');
         wrap.className = 'article-rss-block';
@@ -1010,7 +1010,7 @@
       }
     });
 
-    // 4. Auto-convert paragraphs containing only :::share::: or :::rss:::
+    // 4. Auto-convert paragraphs containing only :::share:::, :::rss:::, or :::rss-box ...:::
     container.querySelectorAll('p').forEach(p => {
       const text = (p.textContent || '').trim();
       if (text === ':::share:::') {
@@ -1022,6 +1022,16 @@
       } else if (text === ':::rss:::' || text === ':::subscribe:::') {
         const temp = document.createElement('div');
         temp.innerHTML = createRssBlockHtml();
+        if (temp.firstElementChild && p.parentNode) {
+          p.parentNode.replaceChild(temp.firstElementChild, p);
+        }
+      } else if (/^:::rss-box(?:\s+([\s\S]+?))?\s*:::$/i.test(text)) {
+        const m = text.match(/^:::rss-box(?:\s+([\s\S]+?))?\s*:::$/i);
+        const siteBase = (typeof window.resolveAutoDetectedSiteBaseUrl === 'function') ? window.resolveAutoDetectedSiteBaseUrl() : '';
+        const feedUrl = (m && m[1] && m[1].trim()) ? m[1].trim() : (siteBase ? `${siteBase}/feed.xml` : '/feed.xml');
+        const safeUrl = String(feedUrl).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const temp = document.createElement('div');
+        temp.innerHTML = `<div class="rss-feed-showcase-card" data-block-type="rss-box" contenteditable="false"><div class="rss-feed-url-display"><span class="rss-feed-icon-badge" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1.5" fill="currentColor"></circle></svg></span><code class="rss-live-feed-url">${safeUrl}</code></div><button type="button" class="popout-3d btn-rss-subscribe rss-copy-btn" title="Copy RSS feed link to clipboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy Link</span></button></div>`;
         if (temp.firstElementChild && p.parentNode) {
           p.parentNode.replaceChild(temp.firstElementChild, p);
         }

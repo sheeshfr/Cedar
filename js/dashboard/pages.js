@@ -1802,10 +1802,24 @@
     const overviewContainer = document.getElementById('pages-overview-container');
     const subpageContainer = document.getElementById('pages-subpage-container');
 
-    const pagesTabBtn = document.getElementById('sidebar-tab-pages');
-    if (pagesTabBtn) {
-      pagesTabBtn.classList.add('active');
-      pagesTabBtn.classList.remove('parent-active');
+    // Update active state in sidebar sub-navigation and parent Pages tab ONLY when currently on Pages
+    const isPagesTabActive = (window.currentDashboardTab === 'pages') ||
+                             (window.location.hash && window.location.hash.startsWith('#pages'));
+
+    if (isPagesTabActive) {
+      const pagesSubWrap = document.getElementById('sidebar-pages-sub-wrap');
+      if (pagesSubWrap) {
+        pagesSubWrap.style.display = 'flex';
+        pagesSubWrap.querySelectorAll('[data-pages-sub]').forEach(subItem => {
+          subItem.classList.toggle('active', subItem.dataset.pagesSub === currentSub);
+        });
+      }
+
+      const pagesTabBtn = document.getElementById('sidebar-tab-pages');
+      if (pagesTabBtn) {
+        pagesTabBtn.classList.toggle('active', currentSub === 'all');
+        pagesTabBtn.classList.toggle('parent-active', currentSub !== 'all');
+      }
     }
 
     if (currentSub === 'my-pages' || currentSub === 'categories' || currentSub === 'builtin') {

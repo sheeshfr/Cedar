@@ -552,7 +552,8 @@
         if (isRss && typeof window.generateRssPageData === 'function') {
           const rssData = window.generateRssPageData(getConfig());
           const rawMd = String(item.markdown || '').trim();
-          if ((!rawMd && !item.proseHtml) || rawMd.includes('### Available Feeds') || rawMd.includes('## RSS Syndication') || rawMd.includes(':::rss-box')) {
+          const rawHtml = String(item.proseHtml || '').trim();
+          if ((!rawMd && !rawHtml) || rawMd.includes('### Available Feeds') || rawMd.includes('## RSS Syndication') || rawMd.includes(':::rss-box') || rawHtml.includes(':::rss-box')) {
             item.subtitle = rssData.subtitle;
             item.markdown = rssData.markdown;
             item.proseHtml = rssData.proseHtml;
@@ -698,6 +699,15 @@
           }
         } else {
           proseEl.textContent = item.markdown || '';
+        }
+
+        // Auto-convert any literal :::rss-box::: shortcode in proseEl into the RSS showcase bar
+        if (proseEl.innerHTML && proseEl.innerHTML.includes(':::rss-box')) {
+          proseEl.innerHTML = proseEl.innerHTML.replace(/(?:<p[^>]*>\s*)?:::rss-box(?:\s+([^\n<]+?))?\s*:::(?:\s*<\/p>)?/gi, function(_, urlArg) {
+            const fallbackUrl = resolvePermanentRssFeedUrl();
+            const feedUrl = (urlArg && urlArg.trim()) ? urlArg.trim() : fallbackUrl;
+            return `<div class="rss-feed-showcase-card" data-block-type="rss-box"><div class="rss-feed-url-display"><span class="rss-feed-icon-badge" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1.5" fill="currentColor"></circle></svg></span><code class="rss-live-feed-url">${escapeHtml(feedUrl)}</code></div><button type="button" class="popout-3d btn-rss-subscribe rss-copy-btn" title="Copy RSS feed link to clipboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy Link</span></button></div>`;
+          });
         }
 
         // Clean up any canvas editor UI artifacts from prose (preserving user-authored buttons)
@@ -1150,7 +1160,12 @@
       e.preventDefault();
       e.stopPropagation();
     }
-    const feedUrl = resolvePermanentRssFeedUrl();
+    const cardCode = btn && btn.closest('.rss-feed-showcase-card')
+      ? btn.closest('.rss-feed-showcase-card').querySelector('code.rss-live-feed-url')
+      : null;
+    const feedUrl = (cardCode && cardCode.textContent && cardCode.textContent.trim())
+      ? cardCode.textContent.trim()
+      : resolvePermanentRssFeedUrl();
     copyTextToClipboard(feedUrl);
     if (btn) {
       const sp = btn.querySelector('span');
@@ -1158,7 +1173,7 @@
         if (!btn.dataset.origLabel) btn.dataset.origLabel = sp.textContent;
         sp.textContent = btn.classList.contains('rss-copy-btn') ? '✓ Copied!' : '✓ RSS Link Copied!';
         setTimeout(() => {
-          sp.textContent = btn.dataset.origLabel || 'Subscribe';
+          sp.textContent = btn.dataset.origLabel || (btn.classList.contains('rss-copy-btn') ? 'Copy Link' : 'Subscribe');
         }, 2000);
       }
     }

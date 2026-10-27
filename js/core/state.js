@@ -3200,9 +3200,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       }
 
-      if (/^:::rss-box(?:\s+([^\n:]+))?:::$/i.test(trimmed)) {
+      if (/^:::rss-box(?:\s+([^\n]+?))?\s*:::$/i.test(trimmed)) {
         closeLists();
-        const m = trimmed.match(/^:::rss-box(?:\s+([^\n:]+))?:::$/i);
+        const m = trimmed.match(/^:::rss-box(?:\s+([^\n]+?))?\s*:::$/i);
         const boxUrl = (m && m[1]) ? m[1].trim() : ((typeof resolveAutoDetectedSiteBaseUrl === 'function' ? resolveAutoDetectedSiteBaseUrl() : '') + '/feed.xml');
         out.push(createRssShowcaseCardHtml(boxUrl));
         continue;
@@ -3256,11 +3256,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
         out.push(`<li>${fmtInlines(trimmed.replace(/^[\*\-\+]\s+/, ''))}</li>`);
 
-      } else if (/^:::rss-box(?:\s+([^\n:]+))?:::$/i.test(trimmed)) {
+      } else if (/^:::rss-box(?:\s+([^\n]+?))?\s*:::$/i.test(trimmed)) {
 
         closeLists();
 
-        const m = trimmed.match(/^:::rss-box(?:\s+([^\n:]+))?:::$/i);
+        const m = trimmed.match(/^:::rss-box(?:\s+([^\n]+?))?\s*:::$/i);
 
         const siteBase = (typeof resolveAutoDetectedSiteBaseUrl === 'function') ? resolveAutoDetectedSiteBaseUrl() : '';
 
@@ -3993,8 +3993,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       // Refresh default RSS page template while preserving custom user edits
       const curRssMd = String(rssDraft.markdown || '').trim();
-      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
-        if (rssDraft.subtitle !== rssData.subtitle || rssDraft.markdown !== rssData.markdown) {
+      const curRssHtml = String(rssDraft.proseHtml || '').trim();
+      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssHtml.includes(':::rss-box')) {
+        if (rssDraft.subtitle !== rssData.subtitle || rssDraft.markdown !== rssData.markdown || rssDraft.proseHtml !== rssData.proseHtml) {
           rssDraft.updatedAt = Date.now();
         }
         rssDraft.subtitle = rssData.subtitle;

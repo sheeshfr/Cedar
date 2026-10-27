@@ -398,7 +398,8 @@
             if (rssPage && typeof window.generateRssPageData === 'function') {
               const rssData = window.generateRssPageData(projectConfig);
               const curRssMd = String(rssPage.markdown || '').trim();
-              if ((!curRssMd && !rssPage.proseHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+              const curRssHtml = String(rssPage.proseHtml || '').trim();
+              if ((!curRssMd && !curRssHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssHtml.includes(':::rss-box')) {
                 rssPage.subtitle = rssData.subtitle;
                 rssPage.markdown = rssData.markdown;
                 rssPage.proseHtml = rssData.proseHtml;
@@ -655,7 +656,8 @@
             if (typeof window.generateRssPageData === 'function') {
               const rssData = window.generateRssPageData(getConfig());
               const curRssMd = String(rssPage.markdown || '').trim();
-              if ((!curRssMd && !rssPage.proseHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+              const curRssHtml = String(rssPage.proseHtml || '').trim();
+              if ((!curRssMd && !curRssHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssHtml.includes(':::rss-box')) {
                 rssPage.subtitle = rssData.subtitle;
                 rssPage.markdown = rssData.markdown;
                 rssPage.proseHtml = rssData.proseHtml;
