@@ -5130,6 +5130,8 @@ ${page.markdown || ''}`;
       }
       if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
         brandingSources['media/branding/icon.png'] = brand.tabLogo;
+      } else if (!brand.faviconExplicitlyRemoved && brand.generalLogo && brand.generalLogo.startsWith('data:')) {
+        brandingSources['media/branding/icon.png'] = brand.generalLogo;
       }
 
       for (const [rawPath, fileData] of Object.entries(brandingSources)) {

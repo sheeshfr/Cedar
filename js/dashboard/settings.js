@@ -427,7 +427,7 @@
       st.style.setProperty('border-color', 'transparent', 'important');
     });
 
-    // Ensure empty state text has proper contrast against the design background
+    // Ensure empty state and preview subtext have proper contrast against the design background
     const emptyState = document.getElementById('designer-logo-empty-state') || document.getElementById('settings-logo-empty-state');
     const favEmptyState = document.getElementById('settings-favicon-empty-state');
     [emptyState, favEmptyState].forEach(es => {
@@ -440,6 +440,12 @@
       });
       es.querySelectorAll('.ftue-upload-icon svg').forEach(el => {
         el.style.stroke = textMuted;
+      });
+    });
+    [dropzone, favDropzone].forEach(dz => {
+      if (!dz) return;
+      dz.querySelectorAll('.ftue-upload-sub').forEach(el => {
+        el.style.color = textMuted;
       });
     });
   }
@@ -600,9 +606,16 @@
     const storedFavFile = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
       || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
       || '';
-    const currentFavicon = (rawFavicon === 'icon.png' || rawFavicon === '/icon.png')
+    const faviconExplicitlyRemoved = Boolean(projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.faviconExplicitlyRemoved);
+    let currentFavicon = (rawFavicon === 'icon.png' || rawFavicon === '/icon.png')
       ? storedFavFile
       : (rawFavicon || storedFavFile);
+
+    // If favicon is empty and not explicitly removed, fill it in with the brand logo
+    const needsFallbackFromLogo = !currentFavicon && Boolean(currentLogo) && !faviconExplicitlyRemoved;
+    if (needsFallbackFromLogo) {
+      currentFavicon = currentLogo;
+    }
 
     if (settingsFaviconPreview && settingsFaviconEmpty) {
       if (currentFavicon) {
@@ -612,8 +625,25 @@
           settingsFaviconImg.src = currentFavicon;
           const favImgObj = new Image();
           favImgObj.onload = () => {
-            const naturalW = favImgObj.naturalWidth || 64;
-            const naturalH = favImgObj.naturalHeight || 64;
+            if (needsFallbackFromLogo) {
+              const resizer = (window.Cedar && window.Cedar.generateResizedCanvasImage) || (window.Outpost && window.Outpost.generateResizedCanvasImage);
+              const iconDataUrl = (typeof resizer === 'function') ? resizer(favImgObj, 64, 64, false) : currentLogo;
+              if (settingsFaviconImg) settingsFaviconImg.src = iconDataUrl;
+              if (!projectConfig.design) projectConfig.design = {};
+              if (!projectConfig.design.branding) projectConfig.design.branding = {};
+              projectConfig.design.branding.tabLogo = iconDataUrl;
+              const brandingAssets = Object.assign(
+                {},
+                projectConfig.design.branding.files || {},
+                window.brandingFiles || {},
+                { 'media/branding/icon.png': iconDataUrl }
+              );
+              projectConfig.design.branding.files = brandingAssets;
+              window.brandingFiles = brandingAssets;
+              try { localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets)); } catch (e) {}
+            }
+            const naturalW = Math.min(64, favImgObj.naturalWidth || 64);
+            const naturalH = Math.min(64, favImgObj.naturalHeight || 64);
             if (settingsFaviconDims) settingsFaviconDims.textContent = `${naturalW} × ${naturalH}px`;
           };
           favImgObj.src = currentFavicon;
@@ -2073,23 +2103,53 @@
 
           let mastheadDataUrl = rawDataUrl;
           let originalDataUrl = rawDataUrl;
+          let iconDataUrl = rawDataUrl;
 
           if (((window.Cedar && typeof window.Cedar.generateResizedCanvasImage === 'function') || (window.Outpost && typeof (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage) === 'function'))) {
             mastheadDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
             originalDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
+            iconDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 64, 64, false);
           }
 
           if (!projectConfig.design) projectConfig.design = {};
           if (!projectConfig.design.branding) projectConfig.design.branding = {};
 
+          const rawFav = projectConfig.design.branding.tabLogo || '';
+          const existingFavFile = (projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
+            || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
+            || '';
+          const isFaviconEmpty = !(rawFav && rawFav !== 'icon.png' && rawFav !== '/icon.png') && !existingFavFile;
+
+          const newFiles = {
+            'media/branding/logo.png': mastheadDataUrl,
+            'media/branding/logo-original.png': originalDataUrl
+          };
+
+          if (isFaviconEmpty) {
+            newFiles['media/branding/icon.png'] = iconDataUrl;
+            projectConfig.design.branding.tabLogo = iconDataUrl;
+            delete projectConfig.design.branding.faviconExplicitlyRemoved;
+
+            const favPreviewImg = document.getElementById('settings-favicon-preview-img');
+            const favFileName = document.getElementById('settings-favicon-file-name');
+            const favDimsBadge = document.getElementById('settings-favicon-dims-badge');
+            const favEmptyState = document.getElementById('settings-favicon-empty-state');
+            const favPreviewState = document.getElementById('settings-favicon-preview-state');
+            if (favPreviewImg) favPreviewImg.src = iconDataUrl;
+            if (favFileName) favFileName.textContent = file.name;
+            if (favDimsBadge) favDimsBadge.textContent = `${Math.min(64, naturalW)} × ${Math.min(64, naturalH)}px`;
+            if (favEmptyState) favEmptyState.style.display = 'none';
+            if (favPreviewState) favPreviewState.style.display = 'flex';
+
+            const tabLogoEl = document.querySelector("link[rel*='icon']");
+            if (tabLogoEl) tabLogoEl.href = iconDataUrl;
+          }
+
           const brandingAssets = Object.assign(
             {},
             projectConfig.design.branding.files || {},
             window.brandingFiles || {},
-            {
-              'media/branding/logo.png': mastheadDataUrl,
-              'media/branding/logo-original.png': originalDataUrl
-            }
+            newFiles
           );
 
           stagedBrandLogo = null;
@@ -2312,6 +2372,7 @@
           );
 
           projectConfig.design.branding.tabLogo = iconDataUrl;
+          delete projectConfig.design.branding.faviconExplicitlyRemoved;
           projectConfig.design.branding.folder = 'media/branding';
           projectConfig.design.branding.files = brandingAssets;
           window.brandingFiles = brandingAssets;
@@ -2421,6 +2482,7 @@
         if (!projectConfig.design) projectConfig.design = {};
         if (!projectConfig.design.branding) projectConfig.design.branding = {};
         projectConfig.design.branding.tabLogo = '';
+        projectConfig.design.branding.faviconExplicitlyRemoved = true;
         const remainingFiles = Object.assign({}, projectConfig.design.branding.files || {}, window.brandingFiles || {});
         delete remainingFiles['media/branding/icon.png'];
         projectConfig.design.branding.files = remainingFiles;
