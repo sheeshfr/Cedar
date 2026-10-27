@@ -1312,14 +1312,26 @@
           }
         } else if (act === 'delete-cat') {
           if (isBuiltIn || isAll) return;
+          const pubCount = Array.isArray(window.drafts)
+            ? window.drafts.filter(d => {
+                if (!d || d.type === 'page') return false;
+                const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
+                if (!isPub) return false;
+                const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
+                return pCat === catName.toLowerCase();
+              }).length
+            : 0;
+          const warnMsg = pubCount > 0
+            ? `Deleting category "${catName}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} and break existing links. Are you sure you want to delete it?`
+            : `Are you sure you want to delete category "${catName}"?`;
           const confirmed = (typeof window.showConfirmDialog === 'function')
             ? await window.showConfirmDialog({
-                title: 'Delete Category?',
-                message: `Are you sure you want to delete category "${catName}"?`,
+                title: pubCount > 0 ? 'URL Link Warning' : 'Delete Category?',
+                message: warnMsg,
                 confirmText: 'Delete',
                 isDanger: true
               })
-            : confirm(`Are you sure you want to delete category "${catName}"?`);
+            : confirm(warnMsg);
 
           if (confirmed) {
             if (editModeSnapshot) {
@@ -1350,6 +1362,10 @@
                 }
                 if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
                   d.tag = d.categories[0];
+                  postChanged = true;
+                }
+                if (d.permalinkCat && d.permalinkCat.trim().toLowerCase() === catName.toLowerCase()) {
+                  d.permalinkCat = d.tag || 'uncategorized';
                   postChanged = true;
                 }
                 if (postChanged) d.updatedAt = Date.now();

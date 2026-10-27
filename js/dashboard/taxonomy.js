@@ -61,6 +61,12 @@
           itemChanged = true;
         }
 
+        // Check and update d.permalinkCat
+        if (d.permalinkCat && typeof d.permalinkCat === 'string' && d.permalinkCat.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+          d.permalinkCat = newTrimmed;
+          itemChanged = true;
+        }
+
         // Check and update d.category (singular)
         if (d.category && typeof d.category === 'string' && d.category.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
           d.category = newTrimmed;
@@ -263,13 +269,41 @@
       input?.select();
 
       let finished = false;
-      const finish = (save, fromButton = false) => {
+      const finish = async (save, fromButton = false) => {
         if (finished) return;
         finished = true;
 
         if (save && input) {
           const newName = input.value.trim();
           if (newName && newName !== cat) {
+            const oldSlug = cat.toLowerCase().replace(/\s+/g, '-');
+            const newSlug = newName.toLowerCase().replace(/\s+/g, '-');
+            const pubCount = Array.isArray(window.drafts)
+              ? window.drafts.filter(d => {
+                  if (!d || d.type === 'page') return false;
+                  const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
+                  if (!isPub) return false;
+                  const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
+                  return pCat === cat.toLowerCase();
+                }).length
+              : 0;
+            if (pubCount > 0 && oldSlug !== newSlug && typeof window.showConfirmDialog === 'function') {
+              const confirmed = await window.showConfirmDialog({
+                title: 'URL Link Warning',
+                message: `Renaming "${cat}" to "${newName}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} (/${oldSlug}/... → /${newSlug}/...) and break existing links. Are you sure you want to rename it?`,
+                confirmText: 'Yes, Rename',
+                cancelText: 'Cancel',
+                isDanger: true
+              });
+              if (!confirmed) {
+                chip.classList.remove('is-editing');
+                chip.removeAttribute('style');
+                chip.setAttribute('draggable', 'true');
+                chip.innerHTML = originalHtml;
+                bindEvents();
+                return;
+              }
+            }
             const didRename = renameCategory(cat, newName);
             if (didRename) return;
           } else if (fromButton && typeof window.showToast === 'function') {
@@ -320,8 +354,30 @@
         triggerRename();
       });
 
-      chip.querySelector('.btn-chip-delete')?.addEventListener('click', (e) => {
+      chip.querySelector('.btn-chip-delete')?.addEventListener('click', async (e) => {
         e.stopPropagation();
+        const pubCount = Array.isArray(window.drafts)
+          ? window.drafts.filter(d => {
+              if (!d || d.type === 'page') return false;
+              const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
+              if (!isPub) return false;
+              const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
+              return pCat === cat.toLowerCase();
+            }).length
+          : 0;
+        if (typeof window.showConfirmDialog === 'function') {
+          const warnMsg = pubCount > 0
+            ? `Deleting category "${cat}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} and break existing links. Are you sure you want to delete it?`
+            : `Are you sure you want to delete category "${cat}"?`;
+          const confirmed = await window.showConfirmDialog({
+            title: pubCount > 0 ? 'URL Link Warning' : 'Delete Category?',
+            message: warnMsg,
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            isDanger: true
+          });
+          if (!confirmed) return;
+        }
         projectConfig.categories = projectConfig.categories.filter(c => c && c.toLowerCase() !== cat.toLowerCase());
 
         let draftsChanged = false;
@@ -341,6 +397,10 @@
             }
             if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
               d.tag = d.categories[0];
+              thisDraftChanged = true;
+            }
+            if (d.permalinkCat && d.permalinkCat.toLowerCase() === cat.toLowerCase()) {
+              d.permalinkCat = d.tag || 'uncategorized';
               thisDraftChanged = true;
             }
             if (thisDraftChanged) {

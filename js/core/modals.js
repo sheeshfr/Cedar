@@ -631,7 +631,12 @@
 
   function promptCategoryChangeWarning({ draft, newCategories, newTag, onProceed, onCancel }) {
     const curDraft = draft || window.currentDraft || currentDraft;
-    if (!curDraft || curDraft.status !== 'published' || curDraft.type === 'page') {
+    const isPublishedPost = Boolean(
+      curDraft &&
+      curDraft.type !== 'page' &&
+      (curDraft.status === 'published' || curDraft.everPublished || curDraft.publishedAt || curDraft.publishedSlug)
+    );
+    if (!isPublishedPost) {
       return false;
     }
 
@@ -898,6 +903,7 @@
         if (!activeDraft) return;
 
         const prevCategories = Array.isArray(activeDraft.categories) ? [...activeDraft.categories] : [];
+        const prevTag = activeDraft.tag || (prevCategories.length > 0 ? prevCategories[0] : '');
 
         let nextCategories = [...prevCategories];
         if (cb.checked) {
@@ -909,46 +915,78 @@
         }
         const nextTag = nextCategories.length > 0 ? nextCategories[0] : '';
 
-        activeDraft.categories = nextCategories;
-        activeDraft.tag = nextTag;
-        activeDraft._categoryPromptAnswered = true;
-        activeDraft.updatedAt = Date.now();
-        if (typeof currentDraft !== 'undefined' && currentDraft && currentDraft.id === activeDraft.id) {
-          currentDraft.categories = nextCategories;
-          currentDraft.tag = nextTag;
-          currentDraft._categoryPromptAnswered = true;
-          currentDraft.updatedAt = activeDraft.updatedAt;
-        }
-        if (Array.isArray(window.drafts)) {
-          const matched = window.drafts.find(d => d && d.id === activeDraft.id);
-          if (matched) {
-            matched.categories = nextCategories;
-            matched.tag = nextTag;
-            matched.updatedAt = activeDraft.updatedAt;
+        const applyCheckboxChange = () => {
+          activeDraft.categories = nextCategories;
+          activeDraft.tag = nextTag;
+          activeDraft.permalinkCat = nextTag || 'uncategorized';
+          activeDraft._categoryPromptAnswered = true;
+          activeDraft.updatedAt = Date.now();
+          if (typeof currentDraft !== 'undefined' && currentDraft && currentDraft.id === activeDraft.id) {
+            currentDraft.categories = nextCategories;
+            currentDraft.tag = nextTag;
+            currentDraft.permalinkCat = activeDraft.permalinkCat;
+            currentDraft._categoryPromptAnswered = true;
+            currentDraft.updatedAt = activeDraft.updatedAt;
           }
-        }
+          if (Array.isArray(window.drafts)) {
+            const matched = window.drafts.find(d => d && d.id === activeDraft.id);
+            if (matched) {
+              matched.categories = nextCategories;
+              matched.tag = nextTag;
+              matched.permalinkCat = activeDraft.permalinkCat;
+              matched.updatedAt = activeDraft.updatedAt;
+            }
+          }
 
-        if (cb.checked) {
-          label.classList.add('selected');
-        } else {
-          label.classList.remove('selected');
-        }
+          if (cb.checked) {
+            label.classList.add('selected');
+          } else {
+            label.classList.remove('selected');
+          }
 
-        if (typeof window.updateCategorySelectUI === 'function') {
-          window.updateCategorySelectUI();
-        }
+          if (typeof window.updateCategorySelectUI === 'function') {
+            window.updateCategorySelectUI();
+          }
+          if (typeof window.updateWorkspaceUrlPrefix === 'function') {
+            window.updateWorkspaceUrlPrefix();
+          }
 
-        updateCategorySelectedTriggerText();
-        updateVisualCardPreviews();
-        updateBackgroundCodeStrings();
-        if (typeof saveDraftsToStorage === 'function') {
-          saveDraftsToStorage();
-        }
-        if (typeof scheduleAutosave === 'function') {
-          scheduleAutosave();
-        }
-        if (typeof window.syncCategoryAggregatePages === 'function') {
-          window.syncCategoryAggregatePages();
+          updateCategorySelectedTriggerText();
+          updateVisualCardPreviews();
+          updateBackgroundCodeStrings();
+          if (typeof saveDraftsToStorage === 'function') {
+            saveDraftsToStorage();
+          }
+          if (typeof scheduleAutosave === 'function') {
+            scheduleAutosave();
+          }
+          if (typeof window.syncCategoryAggregatePages === 'function') {
+            window.syncCategoryAggregatePages();
+          }
+        };
+
+        const warned = promptCategoryChangeWarning({
+          draft: activeDraft,
+          newCategories: nextCategories,
+          newTag: nextTag,
+          onProceed: () => {
+            applyCheckboxChange();
+          },
+          onCancel: () => {
+            cb.checked = !cb.checked;
+            if (cb.checked) {
+              label.classList.add('selected');
+            } else {
+              label.classList.remove('selected');
+            }
+            activeDraft.categories = prevCategories;
+            activeDraft.tag = prevTag;
+            updateCategorySelectedTriggerText();
+          }
+        });
+
+        if (!warned) {
+          applyCheckboxChange();
         }
       });
 
@@ -2310,35 +2348,63 @@
         if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
       }
 
-      if (currentDraft) {
-        if (!Array.isArray(currentDraft.categories)) currentDraft.categories = [];
-        if (!currentDraft.categories.some(c => c.toLowerCase() === val.toLowerCase())) {
-          currentDraft.categories.push(val);
+      const applyCatToDraft = () => {
+        if (currentDraft) {
+          if (!Array.isArray(currentDraft.categories)) currentDraft.categories = [];
+          if (!currentDraft.categories.some(c => c.toLowerCase() === val.toLowerCase())) {
+            currentDraft.categories.push(val);
+          }
+          currentDraft.tag = currentDraft.categories[0] || val;
+          currentDraft.permalinkCat = currentDraft.tag || 'uncategorized';
+          currentDraft._categoryPromptAnswered = true;
+          currentDraft.updatedAt = Date.now();
+          if (window.currentDraft && window.currentDraft.id === currentDraft.id) {
+            window.currentDraft.categories = currentDraft.categories;
+            window.currentDraft.tag = currentDraft.tag;
+            window.currentDraft.permalinkCat = currentDraft.permalinkCat;
+            window.currentDraft.updatedAt = currentDraft.updatedAt;
+          }
         }
-        currentDraft.tag = currentDraft.categories[0] || val;
-        currentDraft.permalinkCat = val;
-        currentDraft._categoryPromptAnswered = true;
-        currentDraft.updatedAt = Date.now();
-        if (window.currentDraft && window.currentDraft.id === currentDraft.id) {
-          window.currentDraft.categories = currentDraft.categories;
-          window.currentDraft.tag = currentDraft.tag;
-          window.currentDraft.updatedAt = currentDraft.updatedAt;
+        renderSetupCategoryChips();
+        if (typeof window.updateCategorySelectUI === 'function') {
+          window.updateCategorySelectUI();
         }
-      }
+        if (typeof window.updateWorkspaceUrlPrefix === 'function') {
+          window.updateWorkspaceUrlPrefix();
+        }
+        if (typeof window.syncCategoryPages === 'function') window.syncCategoryPages();
+        if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
+        if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
+        updateVisualCardPreviews();
+        updateBackgroundCodeStrings();
+        if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
+        if (typeof scheduleAutosave === 'function') scheduleAutosave();
+      };
 
       closeCatModal();
-      renderSetupCategoryChips();
-      if (typeof window.updateCategorySelectUI === 'function') {
-        window.updateCategorySelectUI();
-      }
-      if (typeof window.syncCategoryPages === 'function') window.syncCategoryPages();
-      if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
-      if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
-      updateVisualCardPreviews();
-      updateBackgroundCodeStrings();
-      if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
-      if (typeof scheduleAutosave === 'function') scheduleAutosave();
       if (typeof showToast === 'function') showToast(`Added category "${val}"`);
+
+      if (currentDraft) {
+        const prevCats = Array.isArray(currentDraft.categories) ? [...currentDraft.categories] : [];
+        const nextCats = prevCats.some(c => c.toLowerCase() === val.toLowerCase()) ? prevCats : [...prevCats, val];
+        const nextTag = nextCats[0] || val;
+        const warned = promptCategoryChangeWarning({
+          draft: currentDraft,
+          newCategories: nextCats,
+          newTag: nextTag,
+          onProceed: () => applyCatToDraft(),
+          onCancel: () => {
+            renderSetupCategoryChips();
+            if (typeof window.updateCategorySelectUI === 'function') window.updateCategorySelectUI();
+            if (typeof window.syncCategoryPages === 'function') window.syncCategoryPages();
+            if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
+            if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
+          }
+        });
+        if (!warned) {
+          applyCatToDraft();
+        }
+      }
     };
 
     if (btnAddCat) {

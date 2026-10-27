@@ -223,6 +223,19 @@
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       };
 
+      if (typeof window.promptCategoryChangeWarning === 'function') {
+        const warned = window.promptCategoryChangeWarning({
+          draft: curDraft,
+          newCategories: nextCategories,
+          newTag: nextTag,
+          onProceed: () => applySelect(false),
+          onCancel: () => {
+            select.value = prevTag || '';
+          }
+        });
+        if (warned) return;
+      }
+
       applySelect(false);
     };
   }
