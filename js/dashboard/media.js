@@ -365,6 +365,47 @@
             }
           }
         }
+
+        if (branding.tabLogo && branding.tabLogo !== 'icon.png' && branding.tabLogo !== '/icon.png') {
+          const favUrl = branding.tabLogo;
+          let baseFavFilename = favUrl;
+          if (baseFavFilename.startsWith('data:')) {
+            baseFavFilename = 'site_favicon.png';
+          } else if (baseFavFilename.includes('/')) {
+            baseFavFilename = baseFavFilename.split('/').pop();
+          } else if (baseFavFilename.includes('\\')) {
+            baseFavFilename = baseFavFilename.split('\\').pop();
+          }
+
+          if (!isDeleted(favUrl) && !isDeleted(baseFavFilename)) {
+            const defaultFavTags = ['site', 'favicon', 'branding'];
+            const matchedFavKey = map.has(favUrl) ? favUrl : (map.has(baseFavFilename) ? baseFavFilename : null);
+            if (matchedFavKey) {
+              const existingFav = map.get(matchedFavKey);
+              existingFav.isSiteMedia = true;
+              existingFav.mediaCategory = 'site';
+              existingFav.siteMediaType = 'favicon';
+              existingFav.title = existingFav.title || 'Favicon';
+              existingFav.postTitle = 'Branding: Favicon';
+              if (!existingFav.src) existingFav.src = favUrl;
+              if (!existingFav.tags || existingFav.tags.length === 0) {
+                existingFav.tags = getImageTags(matchedFavKey, defaultFavTags);
+              }
+            } else {
+              const favKey = baseFavFilename || favUrl;
+              map.set(favKey, {
+                filename: favKey,
+                src: favUrl,
+                title: 'Favicon',
+                postTitle: 'Branding: Favicon',
+                isSiteMedia: true,
+                mediaCategory: 'site',
+                siteMediaType: 'favicon',
+                tags: getImageTags(favKey, defaultFavTags)
+              });
+            }
+          }
+        }
       }
 
       // 3c. Masthead Logo if custom

@@ -372,8 +372,10 @@
 
   function updateSettingsLogoBackground() {
     const dropzone = document.getElementById('designer-logo-dropzone') || document.getElementById('settings-logo-dropzone');
-    if (!dropzone) return;
+    const favDropzone = document.getElementById('settings-favicon-dropzone');
+    if (!dropzone && !favDropzone) return;
     const stage = document.getElementById('designer-logo-stage') || document.getElementById('settings-logo-stage');
+    const favStage = document.getElementById('settings-favicon-stage');
 
     let designBg = '#09090b';
     let isLight = false;
@@ -410,29 +412,36 @@
     }
 
     const borderColor = isLight ? 'rgba(0, 0, 0, 0.16)' : 'rgba(255, 255, 255, 0.12)';
-    dropzone.style.setProperty('background-color', designBg, 'important');
-    dropzone.style.setProperty('border-color', borderColor, 'important');
+    const textPrimary = isLight ? '#18181b' : '#fafafa';
+    const textMuted = isLight ? '#52525b' : '#a1a1aa';
 
-    if (stage) {
-      stage.style.setProperty('background-color', 'transparent', 'important');
-      stage.style.setProperty('border-color', 'transparent', 'important');
-    }
+    [dropzone, favDropzone].forEach(dz => {
+      if (!dz) return;
+      dz.style.setProperty('background-color', designBg, 'important');
+      dz.style.setProperty('border-color', borderColor, 'important');
+    });
+
+    [stage, favStage].forEach(st => {
+      if (!st) return;
+      st.style.setProperty('background-color', 'transparent', 'important');
+      st.style.setProperty('border-color', 'transparent', 'important');
+    });
 
     // Ensure empty state text has proper contrast against the design background
     const emptyState = document.getElementById('designer-logo-empty-state') || document.getElementById('settings-logo-empty-state');
-    if (emptyState) {
-      const textPrimary = isLight ? '#18181b' : '#fafafa';
-      const textMuted = isLight ? '#52525b' : '#a1a1aa';
-      emptyState.querySelectorAll('.ftue-upload-text, .ftue-upload-text span, .ftue-upload-text strong').forEach(el => {
+    const favEmptyState = document.getElementById('settings-favicon-empty-state');
+    [emptyState, favEmptyState].forEach(es => {
+      if (!es) return;
+      es.querySelectorAll('.ftue-upload-text, .ftue-upload-text span, .ftue-upload-text strong').forEach(el => {
         el.style.color = textPrimary;
       });
-      emptyState.querySelectorAll('.ftue-upload-sub').forEach(el => {
+      es.querySelectorAll('.ftue-upload-sub').forEach(el => {
         el.style.color = textMuted;
       });
-      emptyState.querySelectorAll('.ftue-upload-icon svg').forEach(el => {
+      es.querySelectorAll('.ftue-upload-icon svg').forEach(el => {
         el.style.stroke = textMuted;
       });
-    }
+    });
   }
 
   window.updateDesignerLogoBackground = updateSettingsLogoBackground;
@@ -580,7 +589,49 @@
       }
     }
 
-    // Ensure settings brand logo dropzone strictly reflects the background selected in Design
+    // Favicon in Settings
+    const settingsFaviconEmpty = document.getElementById('settings-favicon-empty-state');
+    const settingsFaviconPreview = document.getElementById('settings-favicon-preview-state');
+    const settingsFaviconImg = document.getElementById('settings-favicon-preview-img');
+    const settingsFaviconFileName = document.getElementById('settings-favicon-file-name');
+    const settingsFaviconDims = document.getElementById('settings-favicon-dims-badge');
+
+    const rawFavicon = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.tabLogo) || '';
+    const storedFavFile = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
+      || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
+      || '';
+    const currentFavicon = (rawFavicon === 'icon.png' || rawFavicon === '/icon.png')
+      ? storedFavFile
+      : (rawFavicon || storedFavFile);
+
+    if (settingsFaviconPreview && settingsFaviconEmpty) {
+      if (currentFavicon) {
+        settingsFaviconEmpty.style.display = 'none';
+        settingsFaviconPreview.style.display = 'flex';
+        if (settingsFaviconImg) {
+          settingsFaviconImg.src = currentFavicon;
+          const favImgObj = new Image();
+          favImgObj.onload = () => {
+            const naturalW = favImgObj.naturalWidth || 64;
+            const naturalH = favImgObj.naturalHeight || 64;
+            if (settingsFaviconDims) settingsFaviconDims.textContent = `${naturalW} × ${naturalH}px`;
+          };
+          favImgObj.src = currentFavicon;
+        }
+        if (settingsFaviconFileName) {
+          settingsFaviconFileName.textContent = 'icon.png';
+        }
+      } else {
+        settingsFaviconPreview.style.display = 'none';
+        settingsFaviconEmpty.style.display = 'flex';
+        if (settingsFaviconImg) {
+          settingsFaviconImg.src = '';
+        }
+        if (settingsFaviconDims) settingsFaviconDims.textContent = '--';
+      }
+    }
+
+    // Ensure settings brand logo & favicon dropzones strictly reflect the background selected in Design
     updateSettingsLogoBackground();
 
 
@@ -2021,27 +2072,29 @@
           if (settingsLogoPreviewState) settingsLogoPreviewState.style.display = 'flex';
 
           let mastheadDataUrl = rawDataUrl;
-          let iconDataUrl = rawDataUrl;
           let originalDataUrl = rawDataUrl;
 
           if (((window.Cedar && typeof window.Cedar.generateResizedCanvasImage === 'function') || (window.Outpost && typeof (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage) === 'function'))) {
             mastheadDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
-            iconDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 64, 64, true);
             originalDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
           }
 
-          const brandingAssets = {
-            'media/branding/logo.png': mastheadDataUrl,
-            'media/branding/icon.png': iconDataUrl,
-            'media/branding/logo-original.png': originalDataUrl
-          };
-
-          stagedBrandLogo = null;
           if (!projectConfig.design) projectConfig.design = {};
           if (!projectConfig.design.branding) projectConfig.design.branding = {};
+
+          const brandingAssets = Object.assign(
+            {},
+            projectConfig.design.branding.files || {},
+            window.brandingFiles || {},
+            {
+              'media/branding/logo.png': mastheadDataUrl,
+              'media/branding/logo-original.png': originalDataUrl
+            }
+          );
+
+          stagedBrandLogo = null;
           projectConfig.logo = mastheadDataUrl;
           projectConfig.design.branding.generalLogo = mastheadDataUrl;
-          projectConfig.design.branding.tabLogo = iconDataUrl;
           projectConfig.design.branding.originalLogo = originalDataUrl;
           projectConfig.design.branding.folder = 'media/branding';
           projectConfig.design.branding.files = brandingAssets;
@@ -2081,14 +2134,311 @@
         if (!projectConfig.design) projectConfig.design = {};
         if (!projectConfig.design.branding) projectConfig.design.branding = {};
         projectConfig.design.branding.generalLogo = '';
-        projectConfig.design.branding.tabLogo = '';
         projectConfig.design.branding.originalLogo = '';
-        projectConfig.design.branding.files = {};
-        window.brandingFiles = null;
+        const remainingFiles = Object.assign({}, projectConfig.design.branding.files || {}, window.brandingFiles || {});
+        delete remainingFiles['media/branding/logo.png'];
+        delete remainingFiles['media/branding/logo-original.png'];
+        projectConfig.design.branding.files = remainingFiles;
+        window.brandingFiles = Object.keys(remainingFiles).length > 0 ? remainingFiles : null;
         try {
-          localStorage.removeItem('cedar_branding_files_v1');
-          try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
+          if (window.brandingFiles) {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(remainingFiles));
+          } else {
+            localStorage.removeItem('cedar_branding_files_v1');
+            try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
+          }
         } catch (e) {}
+        if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+        if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
+        if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
+      });
+    }
+
+    // Favicon Dropzone in Settings
+    const settingsFaviconDropzone = document.getElementById('settings-favicon-dropzone');
+    const settingsFaviconFileInput = document.getElementById('settings-favicon-file-input');
+    const settingsFaviconEmptyState = document.getElementById('settings-favicon-empty-state');
+    const settingsFaviconPreviewState = document.getElementById('settings-favicon-preview-state');
+    const settingsFaviconPreviewImg = document.getElementById('settings-favicon-preview-img');
+    const settingsFaviconFileName = document.getElementById('settings-favicon-file-name');
+    const settingsFaviconDimsBadge = document.getElementById('settings-favicon-dims-badge');
+    const btnSettingsChangeFavicon = document.getElementById('settings-btn-change-favicon');
+    const btnSettingsRemoveFavicon = document.getElementById('settings-btn-remove-favicon');
+
+    let settingsFaviconDragCounter = 0;
+    let settingsFaviconErrorTimeout = null;
+
+    function showSettingsFaviconDragFeedback(isValid) {
+      if (settingsFaviconErrorTimeout) {
+        clearTimeout(settingsFaviconErrorTimeout);
+        settingsFaviconErrorTimeout = null;
+      }
+
+      const overlay = document.getElementById('settings-favicon-drag-overlay');
+      const iconEl = document.getElementById('settings-favicon-drag-feedback-icon');
+      const titleEl = document.getElementById('settings-favicon-drag-feedback-title');
+      const subEl = document.getElementById('settings-favicon-drag-feedback-sub');
+      if (!overlay || !iconEl || !titleEl || !subEl || !settingsFaviconDropzone) return;
+
+      overlay.style.display = 'flex';
+      overlay.className = 'ftue-logo-drag-overlay ' + (isValid ? 'drag-valid' : 'drag-invalid');
+      settingsFaviconDropzone.classList.toggle('drag-valid', isValid);
+      settingsFaviconDropzone.classList.toggle('drag-invalid', !isValid);
+
+      const activeThemeId = (projectConfig.design && projectConfig.design.activeTheme) || 'basalt';
+      const palettes = ((window.CedarFTUE || window.OutpostFTUE) && (window.CedarFTUE || window.OutpostFTUE).THEME_PALETTES) || {};
+      const palette = palettes[activeThemeId] || palettes.basalt || { c30: '#18181b', isLight: false };
+
+      if (isValid) {
+        settingsFaviconDropzone.style.setProperty('border-color', palette.isLight ? '#059669' : '#10b981', 'important');
+        settingsFaviconDropzone.style.setProperty('background-color', palette.isLight ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.12)', 'important');
+        iconEl.innerHTML = `
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        `;
+        titleEl.textContent = 'Okay to release';
+        subEl.textContent = (settingsFaviconPreviewState && settingsFaviconPreviewState.style.display !== 'none')
+          ? 'Drop to replace current favicon'
+          : 'Drop to set favicon';
+      } else {
+        settingsFaviconDropzone.style.setProperty('border-color', palette.isLight ? '#dc2626' : '#ef4444', 'important');
+        settingsFaviconDropzone.style.setProperty('background-color', palette.isLight ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)', 'important');
+        iconEl.innerHTML = `
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+          </svg>
+        `;
+        titleEl.textContent = "Won't work";
+        subEl.textContent = 'Only image files (PNG, JPG, SVG, WebP, ICO) are supported';
+      }
+    }
+
+    function hideSettingsFaviconDragFeedback() {
+      const overlay = document.getElementById('settings-favicon-drag-overlay');
+      if (overlay) overlay.style.display = 'none';
+      if (settingsFaviconDropzone) {
+        settingsFaviconDropzone.classList.remove('drag-valid', 'drag-invalid', 'dragover', 'ftue-shake');
+        updateSettingsLogoBackground();
+      }
+    }
+
+    function showSettingsFaviconDropzoneError(message) {
+      if (settingsFaviconErrorTimeout) clearTimeout(settingsFaviconErrorTimeout);
+
+      const overlay = document.getElementById('settings-favicon-drag-overlay');
+      const iconEl = document.getElementById('settings-favicon-drag-feedback-icon');
+      const titleEl = document.getElementById('settings-favicon-drag-feedback-title');
+      const subEl = document.getElementById('settings-favicon-drag-feedback-sub');
+      if (!overlay || !iconEl || !titleEl || !subEl || !settingsFaviconDropzone) return;
+
+      overlay.style.display = 'flex';
+      overlay.className = 'ftue-logo-drag-overlay drag-invalid';
+      settingsFaviconDropzone.classList.remove('drag-valid');
+      settingsFaviconDropzone.classList.add('drag-invalid');
+
+      const activeThemeId = (projectConfig.design && projectConfig.design.activeTheme) || 'basalt';
+      const palettes = ((window.CedarFTUE || window.OutpostFTUE) && (window.CedarFTUE || window.OutpostFTUE).THEME_PALETTES) || {};
+      const palette = palettes[activeThemeId] || palettes.basalt || { c30: '#18181b', isLight: false };
+
+      settingsFaviconDropzone.style.setProperty('border-color', palette.isLight ? '#dc2626' : '#ef4444', 'important');
+      settingsFaviconDropzone.style.setProperty('background-color', palette.isLight ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)', 'important');
+
+      settingsFaviconDropzone.classList.remove('ftue-shake');
+      void settingsFaviconDropzone.offsetWidth;
+      settingsFaviconDropzone.classList.add('ftue-shake');
+
+      iconEl.innerHTML = `
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+        </svg>
+      `;
+      titleEl.textContent = "Won't work";
+      subEl.textContent = message || 'Only image files (PNG, JPG, SVG, WebP, ICO) are supported';
+
+      if (typeof window.showToast === 'function') {
+        window.showToast("Won't work: Please select a valid image file (PNG, JPG, SVG, WebP, ICO)");
+      }
+
+      settingsFaviconErrorTimeout = setTimeout(() => {
+        hideSettingsFaviconDragFeedback();
+        settingsFaviconErrorTimeout = null;
+      }, 2500);
+    }
+
+    function handleSettingsFaviconFile(file) {
+      if (!file || (!file.type.startsWith('image/') && !/\.ico$/i.test(file.name || ''))) {
+        showSettingsFaviconDropzoneError("Won't work — Only image files (PNG, JPG, SVG, WebP, ICO) are supported");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const rawDataUrl = ev.target.result;
+        const img = new Image();
+        img.onload = () => {
+          let iconDataUrl = rawDataUrl;
+          const resizer = (window.Cedar && window.Cedar.generateResizedCanvasImage) || (window.Outpost && window.Outpost.generateResizedCanvasImage);
+          if (typeof resizer === 'function') {
+            iconDataUrl = resizer(img, 64, 64, false);
+          }
+
+          const finalW = Math.min(64, img.naturalWidth || 64);
+          const finalH = Math.min(64, img.naturalHeight || 64);
+
+          if (settingsFaviconPreviewImg) {
+            settingsFaviconPreviewImg.src = iconDataUrl;
+          }
+          if (settingsFaviconFileName) {
+            settingsFaviconFileName.textContent = file.name;
+          }
+          if (settingsFaviconDimsBadge) {
+            settingsFaviconDimsBadge.textContent = `${finalW} × ${finalH}px`;
+          }
+          if (settingsFaviconEmptyState) settingsFaviconEmptyState.style.display = 'none';
+          if (settingsFaviconPreviewState) settingsFaviconPreviewState.style.display = 'flex';
+
+          if (!projectConfig.design) projectConfig.design = {};
+          if (!projectConfig.design.branding) projectConfig.design.branding = {};
+
+          const brandingAssets = Object.assign(
+            {},
+            projectConfig.design.branding.files || {},
+            window.brandingFiles || {},
+            {
+              'media/branding/icon.png': iconDataUrl
+            }
+          );
+
+          projectConfig.design.branding.tabLogo = iconDataUrl;
+          projectConfig.design.branding.folder = 'media/branding';
+          projectConfig.design.branding.files = brandingAssets;
+          window.brandingFiles = brandingAssets;
+          try {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets));
+          } catch (e) {}
+
+          const tabLogoEl = document.querySelector("link[rel*='icon']");
+          if (tabLogoEl) {
+            tabLogoEl.href = iconDataUrl;
+          }
+
+          if (window.SheeshVault && window.SheeshVault.isConnected() && typeof (window.Cedar?.writeBrandingAssetsToVault || window.Outpost?.writeBrandingAssetsToVault) === 'function') {
+            (window.Cedar.writeBrandingAssetsToVault || window.Outpost.writeBrandingAssetsToVault)({ 'media/branding/icon.png': iconDataUrl });
+          }
+          if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+          if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
+          if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
+        };
+        img.src = rawDataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    if (settingsFaviconDropzone && settingsFaviconFileInput) {
+      settingsFaviconDropzone.addEventListener('click', (e) => {
+        if (e.target.closest('button') || e.target.closest('.ftue-logo-preview-meta')) return;
+        if (settingsFaviconPreviewState && settingsFaviconPreviewState.style.display !== 'none' && !e.target.closest('.ftue-logo-stage')) {
+          return;
+        }
+        if (settingsFaviconErrorTimeout) {
+          clearTimeout(settingsFaviconErrorTimeout);
+          settingsFaviconErrorTimeout = null;
+          hideSettingsFaviconDragFeedback();
+        }
+        settingsFaviconFileInput.click();
+      });
+
+      settingsFaviconDropzone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        settingsFaviconDragCounter++;
+        const isValid = isSettingsImageDrag(e);
+        showSettingsFaviconDragFeedback(isValid);
+      });
+
+      settingsFaviconDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const isValid = isSettingsImageDrag(e);
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = isValid ? 'copy' : 'none';
+        }
+        showSettingsFaviconDragFeedback(isValid);
+      });
+
+      settingsFaviconDropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        settingsFaviconDragCounter--;
+        if (settingsFaviconDragCounter <= 0) {
+          settingsFaviconDragCounter = 0;
+          hideSettingsFaviconDragFeedback();
+        }
+      });
+
+      settingsFaviconDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        settingsFaviconDragCounter = 0;
+        hideSettingsFaviconDragFeedback();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleSettingsFaviconFile(e.dataTransfer.files[0]);
+        } else {
+          showSettingsFaviconDropzoneError("Won't work — Please drop an image file (PNG, JPG, SVG, WebP, ICO)");
+        }
+      });
+
+      settingsFaviconFileInput.addEventListener('change', () => {
+        if (settingsFaviconFileInput.files && settingsFaviconFileInput.files[0]) {
+          handleSettingsFaviconFile(settingsFaviconFileInput.files[0]);
+        }
+      });
+    }
+
+    if (btnSettingsChangeFavicon && settingsFaviconFileInput) {
+      btnSettingsChangeFavicon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (settingsFaviconErrorTimeout) {
+          clearTimeout(settingsFaviconErrorTimeout);
+          settingsFaviconErrorTimeout = null;
+          hideSettingsFaviconDragFeedback();
+        }
+        settingsFaviconFileInput.click();
+      });
+    }
+
+    if (btnSettingsRemoveFavicon) {
+      btnSettingsRemoveFavicon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideSettingsFaviconDragFeedback();
+
+        if (settingsFaviconFileInput) settingsFaviconFileInput.value = '';
+        if (settingsFaviconPreviewImg) {
+          settingsFaviconPreviewImg.src = '';
+        }
+        if (settingsFaviconDimsBadge) settingsFaviconDimsBadge.textContent = '--';
+        if (settingsFaviconPreviewState) settingsFaviconPreviewState.style.display = 'none';
+        if (settingsFaviconEmptyState) settingsFaviconEmptyState.style.display = 'flex';
+
+        if (!projectConfig.design) projectConfig.design = {};
+        if (!projectConfig.design.branding) projectConfig.design.branding = {};
+        projectConfig.design.branding.tabLogo = '';
+        const remainingFiles = Object.assign({}, projectConfig.design.branding.files || {}, window.brandingFiles || {});
+        delete remainingFiles['media/branding/icon.png'];
+        projectConfig.design.branding.files = remainingFiles;
+        window.brandingFiles = Object.keys(remainingFiles).length > 0 ? remainingFiles : null;
+        try {
+          if (window.brandingFiles) {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(remainingFiles));
+          } else {
+            localStorage.removeItem('cedar_branding_files_v1');
+            try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
+          }
+        } catch (e) {}
+
+        const tabLogoEl = document.querySelector("link[rel*='icon']");
+        if (tabLogoEl) {
+          tabLogoEl.href = 'icon.png';
+        }
+
         if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
         if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
         if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();

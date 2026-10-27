@@ -489,8 +489,9 @@
   border-color: rgba(0, 0, 0, 0.32);
 }
 
-/* Brand Logo Dropzone & Stage strictly reflects the website theme selected in Design */
+/* Brand Logo & Favicon Dropzone & Stage strictly reflects the website theme selected in Design */
 #settings-logo-dropzone,
+#settings-favicon-dropzone,
 #designer-logo-dropzone {
   border-radius: 12px;
   overflow: hidden;
@@ -498,14 +499,28 @@
 }
 
 #settings-logo-stage,
+#settings-favicon-stage,
 #designer-logo-stage,
 .app-theme-light #settings-logo-stage,
+.app-theme-light #settings-favicon-stage,
 .app-theme-light #designer-logo-stage,
 :root.app-theme-light #settings-logo-stage,
+:root.app-theme-light #settings-favicon-stage,
 :root.app-theme-light #designer-logo-stage {
   background-color: transparent !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+#settings-favicon-preview-img {
+  display: block;
+  margin: 0 auto;
+  width: auto;
+  height: auto;
+  max-width: 64px !important;
+  max-height: 64px !important;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .project-settings-card h4 {

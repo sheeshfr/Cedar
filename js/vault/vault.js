@@ -783,8 +783,10 @@
     const brand = window.projectConfig?.design?.branding || {};
     if (brand.generalLogo && brand.generalLogo.startsWith('data:')) {
       brandingSources['media/branding/logo.png'] = brand.generalLogo;
-      brandingSources['media/branding/icon.png'] = brand.tabLogo || brand.generalLogo;
-      brandingSources['media/branding/logo-original.png'] = brand.originalLogo || brand.generalLogo;
+      brandingSources['media/branding/logo-original.png'] = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
+    }
+    if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
+      brandingSources['media/branding/icon.png'] = brand.tabLogo;
     }
 
     for (const [rawPath, fileData] of Object.entries(brandingSources)) {
@@ -1110,6 +1112,20 @@ else {
           cfg.authorAvatar = found.dataUrl;
           configChanged = true;
         }
+      }
+      if (cfg.design && cfg.design.branding && typeof cfg.design.branding === 'object') {
+        const b = cfg.design.branding;
+        ['generalLogo', 'originalLogo', 'tabLogo'].forEach(prop => {
+          const val = b[prop];
+          if (val && typeof val === 'string' && !val.startsWith('data:') && val !== 'icon.png' && val !== '/icon.png') {
+            const base = val.split('/').pop().split('\\').pop();
+            const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+            if (found && found.dataUrl) {
+              b[prop] = found.dataUrl;
+              configChanged = true;
+            }
+          }
+        });
       }
       if (Array.isArray(cfg.mediaLibrary)) {
         cfg.mediaLibrary.forEach(m => {

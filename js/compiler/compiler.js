@@ -5126,8 +5126,10 @@ ${page.markdown || ''}`;
       const brand = (projectConfig && projectConfig.design && projectConfig.design.branding) || {};
       if (brand.generalLogo && brand.generalLogo.startsWith('data:')) {
         brandingSources['media/branding/logo.png'] = brand.generalLogo;
-        brandingSources['media/branding/icon.png'] = brand.tabLogo || brand.generalLogo;
-        brandingSources['media/branding/logo-original.png'] = brand.originalLogo || brand.generalLogo;
+        brandingSources['media/branding/logo-original.png'] = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
+      }
+      if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
+        brandingSources['media/branding/icon.png'] = brand.tabLogo;
       }
 
       for (const [rawPath, fileData] of Object.entries(brandingSources)) {

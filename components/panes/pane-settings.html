@@ -7,7 +7,7 @@
                 <li class="settings-toc-item">
                   <a href="#settings-sec-site" class="settings-toc-link active" data-target="settings-sec-site">
                     <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                    <span class="settings-toc-text">Title &amp; Branding</span>
+                    <span class="settings-toc-text">Branding</span>
                   </a>
                 </li>
                 <li class="settings-toc-item">
@@ -34,12 +34,12 @@
 
           <!-- Settings Sections Content Column -->
           <div class="settings-pane-container">
-            <!-- Section 1: Title & Branding (Blog Title & Brand Logo) -->
+            <!-- Section 1: Branding (Blog Title, Brand Logo & Favicon) -->
             <div class="settings-section-group" id="settings-sec-site">
               <div class="settings-section-header">
                 <div class="settings-section-title-wrap">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  <h4>Title &amp; Branding</h4>
+                  <h4>Branding</h4>
                 </div>
               </div>
               <div class="project-settings-card">
@@ -96,6 +96,53 @@
                           <div class="ftue-logo-preview-actions" style="justify-content: center;">
                             <button type="button" class="btn btn-sm btn-secondary" id="settings-btn-change-logo">Change Image</button>
                             <button type="button" class="btn btn-sm btn-danger-ghost" id="settings-btn-remove-logo">Remove Image</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 3. Favicon -->
+                <div class="form-row" style="margin-top: 1.25rem;">
+                  <div class="form-group flex-1">
+                    <label class="form-label">Favicon</label>
+                    <div class="ftue-logo-dropzone" id="settings-favicon-dropzone" style="border-style: solid;">
+                      <input type="file" id="settings-favicon-file-input" accept="image/*,.ico" style="display: none;">
+                      
+                      <!-- Drag Feedback Overlay (Active during dragover & drop errors) -->
+                      <div class="ftue-logo-drag-overlay" id="settings-favicon-drag-overlay" style="display: none;" aria-live="polite">
+                        <div class="ftue-drag-feedback-content">
+                          <div class="ftue-drag-feedback-icon" id="settings-favicon-drag-feedback-icon"></div>
+                          <div class="ftue-drag-feedback-title" id="settings-favicon-drag-feedback-title">Okay to release</div>
+                          <div class="ftue-drag-feedback-sub" id="settings-favicon-drag-feedback-sub">Drop to set favicon</div>
+                        </div>
+                      </div>
+
+                      <!-- Empty State in Dropzone -->
+                      <div class="ftue-logo-empty-state" id="settings-favicon-empty-state">
+                        <div class="ftue-upload-icon">
+                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        </div>
+                        <div class="ftue-upload-text">
+                          <span>Drop favicon image here, or <strong>browse file</strong></span>
+                        </div>
+                        <div class="ftue-upload-sub">Supports images up to 64x64</div>
+                      </div>
+
+                      <!-- Preview State in Dropzone -->
+                      <div class="ftue-logo-preview-state" id="settings-favicon-preview-state" style="display: none;">
+                        <div class="ftue-logo-stage" id="settings-favicon-stage">
+                          <img id="settings-favicon-preview-img" class="ftue-logo-preview-img" src="" alt="Favicon Preview">
+                        </div>
+                        <div class="ftue-logo-preview-meta" style="justify-content: center; border-top: none; padding-top: 0.25rem;">
+                          <div class="ftue-logo-file-info" style="display: none;">
+                            <span class="ftue-logo-file-name" id="settings-favicon-file-name">icon.png</span>
+                            <span class="ftue-logo-dims-badge" id="settings-favicon-dims-badge">--</span>
+                          </div>
+                          <div class="ftue-logo-preview-actions" style="justify-content: center;">
+                            <button type="button" class="btn btn-sm btn-secondary" id="settings-btn-change-favicon">Change Image</button>
+                            <button type="button" class="btn btn-sm btn-danger-ghost" id="settings-btn-remove-favicon">Remove Image</button>
                           </div>
                         </div>
                       </div>
