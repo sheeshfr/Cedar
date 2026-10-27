@@ -3816,6 +3816,60 @@ ${draft.markdown || ''}`;
     const feedUrl = `${siteUrl}/feed.xml`;
     const fallbackDateIso = cfg.lastUpdated || cfg.createdAt || '2026-01-01T00:00:00.000Z';
 
+    const escapeCdata = (str) => String(str || '').replace(/\]\]>/g, ']]]]><![CDATA[>');
+
+    const toAbsoluteAssetUrl = (rawSrc, slug, postImgs) => {
+      if (!rawSrc || typeof rawSrc !== 'string') return '';
+      const trimmed = rawSrc.trim();
+      if (!trimmed || trimmed.startsWith('blob:')) return '';
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      if (trimmed.startsWith('data:')) {
+        if (Array.isArray(postImgs)) {
+          const foundData = postImgs.find(im => im && (im.dataUrl === trimmed || im.src === trimmed) && (im.relativePath || im.filename));
+          if (foundData) {
+            const rel = foundData.relativePath || `/blog/published/${slug}/${foundData.filename}`;
+            return `${siteUrl}${rel.startsWith('/') ? '' : '/'}${rel}`;
+          }
+        }
+        return `${siteUrl}/blog/published/${slug}/${slug}-cover.webp`;
+      }
+      const cleanName = trimmed.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+      if (cleanName && Array.isArray(postImgs)) {
+        const matched = postImgs.find(im => im && ((im.filename && im.filename === cleanName) || (im.relativePath && (im.relativePath === trimmed || im.relativePath.endsWith('/' + cleanName)))));
+        if (matched && matched.relativePath) {
+          return `${siteUrl}${matched.relativePath.startsWith('/') ? '' : '/'}${matched.relativePath}`;
+        }
+        if (matched && matched.filename) {
+          return `${siteUrl}/blog/published/${slug}/${matched.filename}`;
+        }
+      }
+      if (trimmed.startsWith('/')) {
+        return `${siteUrl}${trimmed}`;
+      }
+      return `${siteUrl}/blog/published/${slug}/${trimmed.replace(/^\.?\//, '')}`;
+    };
+
+    const guessImageMime = (url) => {
+      const ext = String(url || '').split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+      if (ext === 'png') return 'image/png';
+      if (ext === 'gif') return 'image/gif';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'svg') return 'image/svg+xml';
+      if (ext === 'avif') return 'image/avif';
+      return 'image/jpeg';
+    };
+
+    const isSameImageAsset = (srcA, srcB) => {
+      if (!srcA || !srcB) return false;
+      if (srcA === srcB) return true;
+      const cleanA = String(srcA).split('?')[0].split('#')[0].replace(/\\/g, '/').toLowerCase();
+      const cleanB = String(srcB).split('?')[0].split('#')[0].replace(/\\/g, '/').toLowerCase();
+      if (cleanA === cleanB) return true;
+      const fileA = cleanA.split('/').pop();
+      const fileB = cleanB.split('/').pop();
+      return Boolean(fileA && fileB && fileA === fileB && !fileA.startsWith('data:') && !fileA.startsWith('blob:'));
+    };
+
     const allItems = [];
     (publishedPosts || []).forEach(p => {
       const slug = p.slug || generateSlug(p.title || 'untitled');
@@ -3830,20 +3884,105 @@ ${draft.markdown || ''}`;
       const pubDate = p.rssPubDate;
       const guid = p.rssGuid;
       const timestamp = new Date(postDateRaw).getTime() || 0;
-      const author = cfg.defaultAuthor || p.authorName || 'Staff';
-      const desc = p.subtitle || p.customDesc || (p.markdown ? p.markdown.substring(0, 280) : '');
+      const author = cfg.defaultAuthor || p.authorName || (Array.isArray(p.authors) && p.authors[0]) || 'Staff';
+      const desc = p.subtitle || p.customDesc || (p.markdown ? p.markdown.replace(/[#*>`~\[\]]/g, '').substring(0, 280).trim() : '');
       const cat = p.tag || (p.categories && p.categories[0]) || 'Uncategorized';
+      const postImgs = Array.isArray(p.images) ? p.images : [];
+
+      // Resolve Featured / Cover Image to absolute URL
+      const rawCover = (p.coverImage || p.featuredImage || p.thumbnail || '').trim();
+      const coverUrl = rawCover ? toAbsoluteAssetUrl(rawCover, slug, postImgs) : '';
+
+      // Compile full article HTML and convert relative URLs & interactive blocks for RSS readers
+      const rawProse = (p.proseHtml && p.proseHtml.trim()) ? p.proseHtml : parseMarkdownToHtml(p.markdown || '');
+      let fullHtml = prepareProseForPublish(rawProse, p, { preferStaticPaths: true });
+      let coverAlreadyInBody = false;
+
+      if (typeof DOMParser !== 'undefined' && fullHtml) {
+        try {
+          const doc = new DOMParser().parseFromString(`<body>${fullHtml}</body>`, 'text/html');
+          const body = doc.body;
+
+          // Remove interactive web-only widgets (Share / Subscribe / RSS copy bars) from syndication feed body
+          body.querySelectorAll('.article-share-block, .article-rss-block, .rss-feed-showcase-card, [data-block-type="share"], [data-block-type="rss"], [data-block-type="rss-box"], .gallery-split-badge').forEach(el => el.remove());
+
+          // Unhide any +N gallery images so RSS readers display all images in a gallery
+          body.querySelectorAll('.gallery-item-hidden').forEach(el => {
+            el.classList.remove('gallery-item-hidden');
+            el.style.removeProperty('display');
+          });
+
+          // Rewrite all image sources to absolute URLs and clean up editor attributes
+          body.querySelectorAll('img').forEach(img => {
+            const origSrc = img.getAttribute('data-original-src') || '';
+            const imgName = img.getAttribute('data-img-name') || '';
+            const curSrc = img.getAttribute('src') || '';
+            const candidate = (imgName && imgName !== 'img') ? imgName : ((!origSrc.startsWith('data:') && !origSrc.startsWith('blob:') && origSrc) ? origSrc : curSrc);
+            const absSrc = toAbsoluteAssetUrl(candidate || curSrc, slug, postImgs);
+            if (absSrc) {
+              img.setAttribute('src', absSrc);
+            }
+            if (coverUrl && (isSameImageAsset(absSrc, coverUrl) || isSameImageAsset(curSrc, rawCover) || isSameImageAsset(origSrc, rawCover))) {
+              coverAlreadyInBody = true;
+            }
+            img.removeAttribute('data-original-src');
+            img.removeAttribute('data-img-name');
+            img.removeAttribute('draggable');
+          });
+
+          // Convert YouTube embeds into clickable fallback links + iframe for RSS reader compatibility
+          body.querySelectorAll('.video-wrapper').forEach(wrapper => {
+            const iframe = wrapper.querySelector('iframe');
+            if (iframe && iframe.src) {
+              const ytId = extractYouTubeId(iframe.src);
+              if (ytId) {
+                const watchUrl = `https://www.youtube.com/watch?v=${ytId}`;
+                const thumbUrl = `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`;
+                const pEl = doc.createElement('p');
+                pEl.innerHTML = `<a href="${watchUrl}" target="_blank" rel="noopener noreferrer"><img src="${thumbUrl}" alt="Watch on YouTube" style="max-width:100%;height:auto;border-radius:8px;" /><br/>▶ Watch video on YouTube</a>`;
+                wrapper.replaceWith(pEl);
+              }
+            }
+          });
+
+          // Rewrite relative anchor links to absolute site URLs
+          body.querySelectorAll('a[href]').forEach(a => {
+            const href = (a.getAttribute('href') || '').trim();
+            if (href && href.startsWith('/') && !href.startsWith('//')) {
+              a.setAttribute('href', `${siteUrl}${href}`);
+            }
+          });
+
+          fullHtml = body.innerHTML.trim();
+        } catch (e) {}
+      }
+
+      // Prepend subtitle lead and featured cover image if not already in the article body
+      let compositeHtml = '';
+      if (p.subtitle && p.showSubtitle !== false) {
+        compositeHtml += `<p><em>${escapeHtml(p.subtitle)}</em></p>\n`;
+      }
+      if (coverUrl && !coverAlreadyInBody) {
+        compositeHtml += `<figure><img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(p.title || 'Featured Image')}" style="max-width:100%;height:auto;" /></figure>\n`;
+      }
+      compositeHtml += fullHtml || (desc ? `<p>${escapeHtml(desc)}</p>` : '');
+
+      const mediaTags = coverUrl
+        ? `\n      <enclosure url="${escapeHtml(coverUrl)}" length="0" type="${guessImageMime(coverUrl)}"/>\n      <media:content url="${escapeHtml(coverUrl)}" medium="image" type="${guessImageMime(coverUrl)}"/>\n      <media:thumbnail url="${escapeHtml(coverUrl)}"/>`
+        : '';
 
       allItems.push({
         timestamp,
         xml: `    <item>
-      <title><![CDATA[${p.title || 'Untitled'}]]></title>
+      <title><![CDATA[${escapeCdata(p.title || 'Untitled')}]]></title>
       <link>${postUrl}</link>
       <guid isPermaLink="true">${guid}</guid>
       <pubDate>${pubDate}</pubDate>
-      <author><![CDATA[${author}]]></author>
-      <category><![CDATA[${cat}]]></category>
-      <description><![CDATA[${desc}]]></description>
+      <author><![CDATA[${escapeCdata(author)}]]></author>
+      <dc:creator><![CDATA[${escapeCdata(author)}]]></dc:creator>
+      <category><![CDATA[${escapeCdata(cat)}]]></category>${mediaTags}
+      <description><![CDATA[${escapeCdata(desc || compositeHtml)}]]></description>
+      <content:encoded><![CDATA[${escapeCdata(compositeHtml)}]]></content:encoded>
     </item>`
       });
     });
@@ -3855,11 +3994,11 @@ ${draft.markdown || ''}`;
     const itemsXml = allItems.map(item => item.xml).join('\n');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
-    <title><![CDATA[${siteTitle}]]></title>
+    <title><![CDATA[${escapeCdata(siteTitle)}]]></title>
     <link>${siteUrl}/blog/</link>
-    <description><![CDATA[${siteDesc}]]></description>
+    <description><![CDATA[${escapeCdata(siteDesc)}]]></description>
     <language>en-us</language>
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <generator>Cedar Static Engine</generator>
@@ -4687,7 +4826,8 @@ ${itemsXml}
 
       // 9. RSS 2.0 Feed (Always generated at both /feed.xml and /blog/feed.xml so once generated, the site's RSS feed never disappears or changes URL)
       {
-        const rssFeed = generateRssFeedXml(publishedPosts, publicProject);
+        const sanitizedPublishedPosts = publicDrafts.filter(d => d && (d.type === 'post' || !d.type));
+        const rssFeed = generateRssFeedXml(sanitizedPublishedPosts.length > 0 ? sanitizedPublishedPosts : publishedPosts, publicProject);
         addFile('feed.xml', rssFeed);
         addFile('blog/feed.xml', rssFeed);
       }
