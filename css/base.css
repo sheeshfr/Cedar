@@ -203,7 +203,12 @@ body.writer-body.app-theme-light {
   letter-spacing: 0.04em;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 0.25rem;
+}
+
+.form-label > button {
+  margin-left: auto;
 }
 
 .form-hint {
@@ -215,6 +220,7 @@ body.writer-body.app-theme-light {
 
 .required {
   color: #ec4899;
+  margin-left: 2px;
 }
 
 .form-input, .form-textarea {
