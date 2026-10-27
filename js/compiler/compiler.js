@@ -1115,7 +1115,7 @@
     const showTitle = !isPage || draft.showTitle !== false;
     const showSubtitle = !isAboutCedar && (!isPage || draft.showSubtitle !== false);
     const slug = draft.slug || generateSlug(title);
-    const metaDesc = draft.customDesc || (isAboutCedar ? 'About Cedar' : (subtitle || title));
+    const metaDesc = draft.customDesc || (isAboutCedar ? 'A focused, offline-first Wizzy Wig authoring and static blog publishing tool.' : (subtitle || title));
     const safeFormatDateDisplay = (d) => (typeof formatDateDisplay === 'function' ? formatDateDisplay(d) : (typeof formatDate === 'function' ? formatDate(d) : (d || '')));
     const pubDate = draft.date || draft.publishedDate;
     const pubDateDisplay = safeFormatDateDisplay(pubDate);
@@ -1553,6 +1553,10 @@
   ${baseHref ? `<base href="${escapeHtml(baseHref)}">\n  ` : ''}<meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} — ${escapeHtml(blogSiteName)}</title>
   <meta name="description" content="${escapeHtml(metaDesc)}">
+  <meta property="og:title" content="${escapeHtml(title)} — ${escapeHtml(blogSiteName)}">
+  <meta property="og:description" content="${escapeHtml(metaDesc)}">
+  <meta name="twitter:title" content="${escapeHtml(title)} — ${escapeHtml(blogSiteName)}">
+  <meta name="twitter:description" content="${escapeHtml(metaDesc)}">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
   ${isRssEnabled ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(blogSiteName)} RSS Feed" href="${siteBase ? `${siteBase}/blog/feed.xml` : '/blog/feed.xml'}">\n  ` : ''}<link rel="icon" type="image/png" href="/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4041,6 +4045,10 @@ ${itemsXml}
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title id="page-title">${escapeHtml(pageTitle)}</title>
   <meta name="description" id="meta-description" content="${escapeHtml(siteDesc)}">
+  <meta property="og:title" content="${escapeHtml(pageTitle)}">
+  <meta property="og:description" content="${escapeHtml(siteDesc)}">
+  <meta name="twitter:title" content="${escapeHtml(pageTitle)}">
+  <meta name="twitter:description" content="${escapeHtml(siteDesc)}">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
   <link rel="icon" type="image/png" id="site-favicon" href="${escapeHtml(initialFaviconHref)}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4745,7 +4753,7 @@ ${itemsXml}
       'about-cedar/index.html',
       generateBlogHomeHtml(publishedPosts, publicProject, {
         pageTitle: `About Cedar — ${siteTitle}`,
-        metaDesc: 'About the Cedar static publishing engine.',
+        metaDesc: 'A focused, offline-first Wizzy Wig authoring and static blog publishing tool.',
         canonicalPath: 'about-cedar/'
       })
     );

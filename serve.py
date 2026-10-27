@@ -673,7 +673,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         server_port = self.server.server_address[1] if hasattr(self.server, 'server_address') else PORT
 
         # Dedicated preview port (e.g. 8081) directly serves preview.html as root
-        if server_port == PREVIEW_PORT and (clean_path == '' or clean_path == '/index.html'):
+        if server_port == PREVIEW_PORT and (clean_path == '' or clean_path == '/index.html' or clean_path in ('/about-cedar', '/about-cedar/index.html')):
             return super().translate_path('/preview.html')
 
         # 0. Check if request is for a real asset/image under /preview.html/ or any nested path

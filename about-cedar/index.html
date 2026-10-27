@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Cedar — Cedar</title>
+  <meta name="description" content="A focused, offline-first Wizzy Wig authoring and static blog publishing tool.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Cedar">
+  <meta property="og:title" content="About Cedar — Cedar">
+  <meta property="og:description" content="A focused, offline-first Wizzy Wig authoring and static blog publishing tool.">
+  <meta property="og:url" content="https://cedar.pub/about-cedar/">
+  <meta property="og:image" content="https://cedar.pub/icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="About Cedar — Cedar">
+  <meta name="twitter:description" content="A focused, offline-first Wizzy Wig authoring and static blog publishing tool.">
+  <meta name="twitter:image" content="https://cedar.pub/icon.png">
+  <link rel="canonical" href="https://cedar.pub/about-cedar/">
+  <link rel="icon" type="image/x-icon" href="/icon.ico">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/fonts.css?v=6.6.27">
+  <link rel="stylesheet" href="/css/preview/theme.css?v=6.6.27">
+  <link rel="stylesheet" href="/css/preview/blocks.css?v=6.6.27">
+  <link rel="stylesheet" href="/css/preview/reader.css?v=6.6.27">
+</head>
+<body>
+
+  <!-- Site Header -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="/" class="brand-link" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
+        <img src="/logo.png" alt="Cedar" class="brand-logo-img" style="width: 28px; height: 28px; object-fit: contain; display: block;">
+        <div class="brand-text">
+          <span class="brand-name">Cedar</span>
+        </div>
+      </a>
+      <nav style="display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;">
+        <ul class="nav-links" style="display: flex; align-items: center; gap: 1.25rem; list-style: none; margin: 0; padding: 0;">
+          <li><a href="/" class="nav-link">Open Studio</a></li>
+          <li><a href="https://github.com/sheeshfr/Cedar" class="nav-link" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main id="main-content">
+    <div id="view-reader" class="reader-wrapper" style="display: block;">
+      <div class="reader-container">
+        <header class="reader-header" id="reader-header">
+          <h1 class="reader-title" id="reader-title">About Cedar</h1>
+        </header>
+
+        <article class="article-prose" id="reader-prose">
+          <blockquote>After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.</blockquote>
+          <p><strong>Cedar</strong> is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:</p>
+          <ul>
+            <li><strong>Gives you a focused writing studio</strong> for drafting and formatting posts.</li>
+            <li><strong>Manages your posts, pages, and media</strong> in one place.</li>
+            <li><strong>Organizes your static site files</strong> automatically so they are always ready to publish.</li>
+            <li><strong>Makes deploying effortless</strong>—whether pushing straight to GitHub or exporting a <code>.zip</code>.</li>
+          </ul>
+          <h3>100% Local-First</h3>
+          <p>Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.</p>
+          <p>Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.</p>
+          <p><a href="https://cedar.pub" target="_blank" rel="noopener noreferrer">Try Cedar at cedar.pub</a> &nbsp;&bull;&nbsp; <a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">View Source on GitHub</a></p>
+        </article>
+      </div>
+    </div>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container footer-wrap">
+      <div class="footer-left">
+        <a href="/about-cedar/" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><span>Powered by <strong style="color: var(--text-primary);">Cedar</strong></span><img src="/logo.png" alt="" style="width: 1.15em; height: 1.15em; object-fit: contain; display: block; flex-shrink: 0;"></a>
+      </div>
+      <div class="footer-copyright-wrap" style="color: var(--text-dim);">
+        <span class="footer-copyright-date">&copy; <span id="footer-year">2026</span></span>
+        <span class="footer-copyright-rights">All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      var y = document.getElementById('footer-year');
+      if (y) y.textContent = String(new Date().getFullYear());
+    })();
+  </script>
+</body>
+</html>
