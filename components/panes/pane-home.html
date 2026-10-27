@@ -72,27 +72,24 @@
             </div>
             <form id="form-milestone" style="margin: 0; display: contents;">
               <input type="hidden" id="input-milestone-id" value="">
-              <div class="modal-body" style="display: flex; flex-direction: column; gap: 0 !important; padding: 1.15rem 1.4rem 1rem 1.4rem !important;">
+              <div class="modal-body" style="display: flex; flex-direction: column; gap: 0 !important; padding: 1.15rem 1.4rem 1.15rem 1.4rem !important;">
                 <div class="setup-group" style="margin-bottom: 0 !important; gap: 0 !important;">
-                  <label class="setup-label" for="textarea-milestone-text" style="display: block; margin-bottom: 0.35rem;">Milestone Note <span style="color: var(--accent-primary, #ef4444);">*</span></label>
+                  <label class="setup-label" for="textarea-milestone-text" style="display: inline-flex; align-items: center; gap: 4px; width: auto; justify-content: flex-start; margin-bottom: 0.35rem;">Milestone Note <span style="color: var(--text-muted, #71717a); font-weight: 700;">*</span></label>
                   <textarea class="setup-input form-textarea" id="textarea-milestone-text" rows="2" maxlength="40" placeholder="What milestone was achieved? (max 40 characters)" required style="resize: vertical; min-height: 65px; font-family: inherit; font-size: 0.92rem; margin-bottom: 0 !important;"></textarea>
-                  <div class="milestone-counter-wrap" style="display: flex; justify-content: flex-end; margin-top: 4px; margin-bottom: 0; line-height: 1;">
-                    <span id="milestone-char-counter" style="font-size: 0.75rem; color: var(--text-muted, #71717a); font-variant-numeric: tabular-nums;">0 / 40</span>
+                  <div class="milestone-counter-wrap" style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 6px; margin-bottom: 0; line-height: 1.2;">
+                    <span class="milestone-privacy-note" id="milestone-privacy-note" style="margin: 0 0 0 8px; font-size: 0.78rem; color: var(--text-muted, #8e8e93); text-align: left;">Note: The public won't see milestones</span>
+                    <span id="milestone-char-counter" style="font-size: 0.75rem; color: var(--text-muted, #71717a); font-variant-numeric: tabular-nums; flex-shrink: 0;">0 / 40</span>
                   </div>
                 </div>
 
-                <div class="setup-group milestone-date-group" style="margin-top: 1rem !important; margin-bottom: 0 !important; gap: 0 !important; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%;">
-                  <label class="setup-label" for="input-milestone-date" style="text-align: center; margin-bottom: 4px;">Date</label>
+                <div class="setup-group milestone-date-group" style="margin-top: 1.1rem !important; margin-bottom: 0 !important; gap: 0 !important; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%;">
+                  <label class="setup-label" for="input-milestone-date" style="text-align: center; margin-bottom: 6px;">Date</label>
                   <input type="date" class="setup-input form-input" id="input-milestone-date" style="width: auto; min-width: 220px; text-align: center;">
                 </div>
-
-                <p class="milestone-privacy-note" id="milestone-privacy-note" style="margin: 0.95rem 0 0 0; font-size: 0.78rem; color: var(--text-muted, #a1a1aa); text-align: center; line-height: 1.4;">
-                  Note: The public won't see milestones — they're strictly for the author.
-                </p>
               </div>
 
-              <div class="modal-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 0.6rem; padding: 1rem 1.4rem 1.15rem 1.4rem; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));">
-                <button type="button" class="btn" id="btn-delete-milestone-modal" style="display: none; margin-right: auto; background: transparent; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35); font-size: 0.84rem; padding: 0.45rem 0.85rem; border-radius: 6px; cursor: pointer;">Delete</button>
+              <div class="modal-footer" style="display: flex; justify-content: center; align-items: center; gap: 0.75rem; padding: 1rem 1.4rem 1.15rem 1.4rem; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));">
+                <button type="button" class="btn" id="btn-delete-milestone-modal" style="display: none; background: transparent; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35); font-size: 0.84rem; padding: 0.45rem 0.85rem; border-radius: 6px; cursor: pointer;">Delete</button>
                 <button type="button" class="btn btn-secondary" id="btn-cancel-milestone">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="btn-save-milestone">Save Milestone</button>
               </div>

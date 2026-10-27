@@ -893,6 +893,23 @@
         if (cfg.design && window.projectConfig && window.projectConfig.design) {
           cfg.design = Object.assign({}, window.projectConfig.design, cfg.design);
         }
+        const mergedMilestones = [];
+        const seenMsIds = new Set();
+        let storedMsList = [];
+        try {
+          storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
+        } catch (e) {}
+        []
+          .concat(Array.isArray(cfg.milestones) ? cfg.milestones : [])
+          .concat(Array.isArray(window.projectConfig && window.projectConfig.milestones) ? window.projectConfig.milestones : [])
+          .concat(Array.isArray(storedMsList) ? storedMsList : [])
+          .forEach(m => {
+            if (m && m.id && m.text && !seenMsIds.has(m.id)) {
+              seenMsIds.add(m.id);
+              mergedMilestones.push(m);
+            }
+          });
+        cfg.milestones = mergedMilestones;
         Object.assign(window.projectConfig, cfg);
 
         const resolvedEditorTheme = (cfg.design && (cfg.design.customColors || cfg.design.blogTheme || cfg.design.activeTheme))

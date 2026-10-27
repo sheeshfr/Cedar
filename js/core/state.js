@@ -2160,6 +2160,32 @@
 
       }
 
+      if (!Array.isArray(projectConfig.milestones)) {
+
+        projectConfig.milestones = [];
+
+      }
+
+      try {
+
+        const storedMilestones = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]');
+
+        if (Array.isArray(storedMilestones) && storedMilestones.length > 0) {
+
+          storedMilestones.forEach(sm => {
+
+            if (sm && sm.id && sm.text && !projectConfig.milestones.some(m => m && m.id === sm.id)) {
+
+              projectConfig.milestones.push(sm);
+
+            }
+
+          });
+
+        }
+
+      } catch (e) {}
+
       if (Array.isArray(projectConfig.activityLog)) {
 
         projectConfig.activityLog = projectConfig.activityLog.filter(a => {
@@ -2676,6 +2702,26 @@
 
         }).catch(() => {});
 
+        fetch('/api/vault-write', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json' },
+
+          body: JSON.stringify({
+
+            folderPath: savedVaultPath,
+
+            filePath: 'writer/config.json',
+
+            content: serializedConfig,
+
+            encoding: 'utf-8'
+
+          })
+
+        }).catch(() => {});
+
       } catch (e) {}
 
     }
@@ -2685,6 +2731,12 @@
     // 3. LocalStorage Mirror
 
     try {
+
+      if (Array.isArray(effectiveConfig.milestones)) {
+
+        localStorage.setItem('cedar_milestones_v1', JSON.stringify(effectiveConfig.milestones));
+
+      }
 
       if (effectiveConfig.editorTheme) {
 

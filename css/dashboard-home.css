@@ -1280,7 +1280,7 @@ body.dark-mode .type-page,
 /* Centered Date input in Add/Edit Milestone modal & symmetric padding */
 #modal-milestone .modal-body {
   gap: 0 !important;
-  padding: 1.15rem 1.4rem 1rem 1.4rem !important;
+  padding: 1.15rem 1.4rem 1.15rem 1.4rem !important;
 }
 #modal-milestone .setup-group {
   margin-bottom: 0 !important;
@@ -1290,16 +1290,19 @@ body.dark-mode .type-page,
   margin-bottom: 0 !important;
 }
 #modal-milestone .milestone-counter-wrap {
-  margin-top: 4px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  margin-top: 6px !important;
   margin-bottom: 0 !important;
-  line-height: 1 !important;
+  line-height: 1.2 !important;
 }
 #modal-milestone .milestone-date-group {
-  margin-top: 1rem !important;
+  margin-top: 1.1rem !important;
   margin-bottom: 0 !important;
 }
 #modal-milestone label[for="input-milestone-date"] {
-  margin-bottom: 4px !important;
+  margin-bottom: 6px !important;
   text-align: center;
 }
 #input-milestone-date {
@@ -1309,11 +1312,14 @@ body.dark-mode .type-page,
   margin: 0 auto;
 }
 #modal-milestone .milestone-privacy-note {
-  margin: 0.95rem 0 0 0 !important;
+  margin: 0 0 0 8px !important;
   font-size: 0.78rem;
-  color: var(--text-muted, #a1a1aa);
-  text-align: center;
-  line-height: 1.4;
+  color: var(--text-muted, #8e8e93);
+  text-align: left;
+  line-height: 1.2;
+}
+#modal-milestone .modal-footer {
+  justify-content: center !important;
 }
 
 

@@ -277,8 +277,26 @@
               mergedDesign.toggles = Object.assign({}, (olderProj.design && olderProj.design.toggles) || {}, (newerProj.design && newerProj.design.toggles) || {});
             }
 
+            const mergedMilestones = [];
+            const seenMilestoneIds = new Set();
+            let storedMsList = [];
+            try {
+              storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
+            } catch (e) {}
+            []
+              .concat(Array.isArray(newerProj.milestones) ? newerProj.milestones : [])
+              .concat(Array.isArray(olderProj.milestones) ? olderProj.milestones : [])
+              .concat(Array.isArray(storedMsList) ? storedMsList : [])
+              .forEach(m => {
+                if (m && m.id && m.text && !seenMilestoneIds.has(m.id)) {
+                  seenMilestoneIds.add(m.id);
+                  mergedMilestones.push(m);
+                }
+              });
+
             const mergedProj = Object.assign({}, olderProj, newerProj, {
               categories: mergedCategories.length > 0 ? mergedCategories : (newerProj.categories || olderProj.categories || []),
+              milestones: mergedMilestones,
               design: mergedDesign,
               mediaPreferences: Object.assign({}, olderProj.mediaPreferences || {}, newerProj.mediaPreferences || {})
             });

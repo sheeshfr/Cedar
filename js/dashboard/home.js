@@ -522,9 +522,38 @@
       });
     }
 
-    // 7. Existing Milestones
-    if (typeof projectConfig !== 'undefined' && Array.isArray(projectConfig.milestones)) {
-      projectConfig.milestones.forEach(m => {
+    // 7. Existing Milestones (reconciled with cedar_milestones_v1 storage & activityLog)
+    const activeCfg = getProjectConfig();
+    if (activeCfg) {
+      if (!Array.isArray(activeCfg.milestones)) activeCfg.milestones = [];
+      try {
+        const storedMs = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]');
+        if (Array.isArray(storedMs)) {
+          storedMs.forEach(sm => {
+            if (sm && sm.id && sm.text && !activeCfg.milestones.some(m => m && m.id === sm.id)) {
+              activeCfg.milestones.push(sm);
+            }
+          });
+        }
+      } catch (e) {}
+      if (Array.isArray(activeCfg.activityLog)) {
+        activeCfg.activityLog.forEach(act => {
+          if (act && act.type === 'milestone') {
+            const mId = (act.data && act.data.id) || act.id;
+            const mText = (act.data && act.data.text) || '';
+            if (mId && mText && !activeCfg.milestones.some(m => m && m.id === mId)) {
+              activeCfg.milestones.push({
+                id: mId,
+                text: mText,
+                date: (act.data && act.data.date) || new Date(act.timestamp || Date.now()).toISOString().split('T')[0],
+                timestamp: act.timestamp || Date.now(),
+                authorName: (act.data && act.data.authorName) || 'Author'
+              });
+            }
+          }
+        });
+      }
+      activeCfg.milestones.forEach(m => {
         if (m && m.text) {
           syntheticItems.push({
             id: m.id,
@@ -1034,14 +1063,9 @@
     const modal = document.getElementById('modal-milestone');
     if (!modal) return;
 
-    const modalBody = modal.querySelector('.modal-body');
-    if (modalBody && !modalBody.querySelector('#milestone-privacy-note')) {
-      const noteEl = document.createElement('p');
-      noteEl.id = 'milestone-privacy-note';
-      noteEl.className = 'milestone-privacy-note';
-      noteEl.style.cssText = 'margin: 0.95rem 0 0 0; font-size: 0.78rem; color: var(--text-muted, #a1a1aa); text-align: center; line-height: 1.4;';
-      noteEl.textContent = "Note: The public won't see milestones — they're strictly for the author.";
-      modalBody.appendChild(noteEl);
+    const noteEl = modal.querySelector('#milestone-privacy-note');
+    if (noteEl) {
+      noteEl.textContent = "Note: The public won't see milestones";
     }
 
     initMilestoneEmojiKeyboard();
@@ -1154,13 +1178,14 @@
       timestamp = new Date(dateVal + 'T12:00:00').getTime();
     }
 
-    if (typeof projectConfig !== 'undefined' && projectConfig) {
-      projectConfig.milestones = projectConfig.milestones || [];
-      projectConfig.activityLog = projectConfig.activityLog || [];
+    const activeCfg = getProjectConfig();
+    if (activeCfg) {
+      activeCfg.milestones = Array.isArray(activeCfg.milestones) ? activeCfg.milestones : [];
+      activeCfg.activityLog = Array.isArray(activeCfg.activityLog) ? activeCfg.activityLog : [];
 
       if (milestoneId) {
         // Edit existing
-        const m = projectConfig.milestones.find(item => item.id === milestoneId);
+        const m = activeCfg.milestones.find(item => item.id === milestoneId);
         if (m) {
           m.text = text;
           m.date = dateVal;
@@ -1168,7 +1193,7 @@
           m.timestamp = timestamp;
         }
 
-        const logEntry = projectConfig.activityLog.find(item => item.type === 'milestone' && (item.id === milestoneId || item.data?.id === milestoneId));
+        const logEntry = activeCfg.activityLog.find(item => item.type === 'milestone' && (item.id === milestoneId || item.data?.id === milestoneId));
         if (logEntry) {
           logEntry.timestamp = timestamp;
           logEntry.data = logEntry.data || {};
@@ -1186,7 +1211,7 @@
           timestamp: timestamp,
           authorName: authorName
         };
-        projectConfig.milestones.push(newMilestone);
+        activeCfg.milestones.push(newMilestone);
 
         const newLogEntry = {
           id: newId,
@@ -1199,11 +1224,22 @@
             authorName: authorName
           }
         };
-        projectConfig.activityLog.unshift(newLogEntry);
+        activeCfg.activityLog.unshift(newLogEntry);
       }
+
+      if (typeof window !== 'undefined' && window.projectConfig && window.projectConfig !== activeCfg) {
+        window.projectConfig.milestones = activeCfg.milestones;
+        window.projectConfig.activityLog = activeCfg.activityLog;
+      }
+      try {
+        localStorage.setItem('cedar_milestones_v1', JSON.stringify(activeCfg.milestones));
+        localStorage.setItem('cedar_activity_log', JSON.stringify(activeCfg.activityLog));
+      } catch (e) {}
     }
 
-    if (typeof saveProjectToStorage === 'function') {
+    if (typeof window.saveProjectToStorage === 'function') {
+      window.saveProjectToStorage();
+    } else if (typeof saveProjectToStorage === 'function') {
       saveProjectToStorage();
     }
 
@@ -1218,16 +1254,27 @@
     if (!milestoneId) return;
     if (!window.confirm('Are you sure you want to delete this milestone?')) return;
 
-    if (typeof projectConfig !== 'undefined' && projectConfig) {
-      if (Array.isArray(projectConfig.milestones)) {
-        projectConfig.milestones = projectConfig.milestones.filter(m => m.id !== milestoneId);
+    const activeCfg = getProjectConfig();
+    if (activeCfg) {
+      if (Array.isArray(activeCfg.milestones)) {
+        activeCfg.milestones = activeCfg.milestones.filter(m => m.id !== milestoneId);
       }
-      if (Array.isArray(projectConfig.activityLog)) {
-        projectConfig.activityLog = projectConfig.activityLog.filter(item => !(item.type === 'milestone' && (item.id === milestoneId || item.data?.id === milestoneId)));
+      if (Array.isArray(activeCfg.activityLog)) {
+        activeCfg.activityLog = activeCfg.activityLog.filter(item => !(item.type === 'milestone' && (item.id === milestoneId || item.data?.id === milestoneId)));
       }
+      if (typeof window !== 'undefined' && window.projectConfig && window.projectConfig !== activeCfg) {
+        window.projectConfig.milestones = activeCfg.milestones;
+        window.projectConfig.activityLog = activeCfg.activityLog;
+      }
+      try {
+        localStorage.setItem('cedar_milestones_v1', JSON.stringify(activeCfg.milestones || []));
+        localStorage.setItem('cedar_activity_log', JSON.stringify(activeCfg.activityLog || []));
+      } catch (e) {}
     }
 
-    if (typeof saveProjectToStorage === 'function') {
+    if (typeof window.saveProjectToStorage === 'function') {
+      window.saveProjectToStorage();
+    } else if (typeof saveProjectToStorage === 'function') {
       saveProjectToStorage();
     }
 
