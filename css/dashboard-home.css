@@ -318,6 +318,7 @@ body.dark-mode .type-page,
   min-width: 160px;
   display: flex;
   align-items: center;
+  gap: 0.45rem;
   flex-shrink: 0;
 }
 
@@ -349,9 +350,9 @@ body.dark-mode .type-page,
 .milestone-marker-right {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   flex-shrink: 0;
-  margin-right: 36px;
+  margin-right: 0;
 }
 
 @media (max-width: 680px) {
@@ -371,7 +372,7 @@ body.dark-mode .type-page,
 }
 
 .milestone-marker-trophy {
-  font-size: 1.35rem;
+  font-size: 1.05rem;
   line-height: 1;
   display: inline-block;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));

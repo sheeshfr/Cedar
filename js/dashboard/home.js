@@ -1746,12 +1746,13 @@
       card.innerHTML = `
         <div class="milestone-marker-left">
           <span class="milestone-marker-tag">Milestone</span>
+          <span class="milestone-marker-trophy" aria-hidden="true">🏆</span>
         </div>
         <div class="milestone-marker-center">
           <span class="milestone-marker-desc">${renderFormattedNoteText(text)}</span>
         </div>
         <div class="milestone-marker-right">
-          <span class="milestone-marker-trophy" aria-hidden="true">🏆</span>
+          <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
         </div>
       `;
 
@@ -1821,29 +1822,10 @@
         </div>
         <div class="activity-meta-col">
           <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
-          <button type="button" class="activity-post-delete-btn" data-action="delete-post" title="Remove from feed" aria-label="Remove from feed">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
       `;
 
       card.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('[data-action="delete-post"]');
-        if (delBtn) {
-          e.stopPropagation();
-          e.preventDefault();
-          const proj = typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {});
-          if (proj && Array.isArray(proj.activityLog)) {
-            proj.activityLog = proj.activityLog.filter(a => !(a && a.id === entry.id));
-            if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-            renderHomeActivityStream();
-            if (typeof showToast === 'function') showToast('Removed from feed');
-          }
-          return;
-        }
         if (e.target.closest('[data-action="view-image"]')) {
           e.stopPropagation();
           const box = e.target.closest('[data-action="view-image"]');
@@ -2167,12 +2149,6 @@
         </div>
         <div class="activity-meta-col">
           <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
-          <button type="button" class="activity-post-delete-btn" data-action="delete-post" title="Delete Post" aria-label="Delete Post">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
       `;
 
@@ -2227,24 +2203,6 @@
       };
 
       card.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('[data-action="delete-post"]');
-        if (delBtn) {
-          e.stopPropagation();
-          e.preventDefault();
-          const targetId = (targetDraft && (targetDraft.id || targetDraft.slug)) || post.id || post.slug || refId;
-          if (typeof window.deleteItem === 'function' && targetId) {
-            window.deleteItem(targetId);
-          } else {
-            const proj = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
-            if (proj && Array.isArray(proj.activityLog)) {
-              proj.activityLog = proj.activityLog.filter(a => !(a && (a.id === entry.id || a.data?.id === targetId || a.data?.slug === post.slug)));
-              if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-              renderHomeActivityStream();
-              if (typeof showToast === 'function') showToast('Removed from feed');
-            }
-          }
-          return;
-        }
         openThisPost(e);
       });
       const thumbBox = card.querySelector('.activity-post-featured-thumb');
@@ -2316,30 +2274,10 @@
         </div>
         <div class="activity-meta-col">
           <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
-          <button type="button" class="activity-post-delete-btn" data-action="delete-post" title="Remove from feed" aria-label="Remove from feed">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
       `;
 
       card.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('[data-action="delete-post"]');
-        if (delBtn) {
-          e.stopPropagation();
-          e.preventDefault();
-          const proj = typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {});
-          if (proj && Array.isArray(proj.activityLog)) {
-            proj.activityLog = proj.activityLog.filter(a => !(a && a.id === entry.id));
-            if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-            renderHomeActivityStream();
-            if (typeof showToast === 'function') showToast('Removed from feed');
-          }
-          return;
-        }
-
         const moreBox = e.target.closest('[data-action="go-to-media"]');
         if (moreBox) {
           e.stopPropagation();
@@ -2425,34 +2363,10 @@
         </div>
         <div class="activity-meta-col">
           <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
-          <button type="button" class="activity-post-delete-btn" data-action="delete-post" title="Delete Page" aria-label="Delete Page">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
       `;
 
       card.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('[data-action="delete-post"]');
-        if (delBtn) {
-          e.stopPropagation();
-          e.preventDefault();
-          const targetId = page.id || entry.data?.id || (liveDraft && liveDraft.id);
-          if (typeof window.deleteItem === 'function' && targetId) {
-            window.deleteItem(targetId);
-          } else {
-            const proj = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
-            if (proj && Array.isArray(proj.activityLog)) {
-              proj.activityLog = proj.activityLog.filter(a => !(a && (a.id === entry.id || a.data?.id === targetId)));
-              if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-              renderHomeActivityStream();
-              if (typeof showToast === 'function') showToast('Removed from feed');
-            }
-          }
-          return;
-        }
         if (typeof openPostInEditor === 'function' && (page.id || page.slug)) {
           openPostInEditor(page.id || page.slug);
         } else if (typeof navigateTo === 'function') {
@@ -2546,30 +2460,10 @@
         </div>
         <div class="activity-meta-col">
           <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
-          <button type="button" class="activity-post-delete-btn" data-action="delete-post" title="Remove from feed" aria-label="Remove from feed">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
       `;
 
       card.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('[data-action="delete-post"]');
-        if (delBtn) {
-          e.stopPropagation();
-          e.preventDefault();
-          const proj = typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {});
-          if (proj && Array.isArray(proj.activityLog)) {
-            proj.activityLog = proj.activityLog.filter(a => !(a && a.id === entry.id));
-            if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-            renderHomeActivityStream();
-            if (typeof showToast === 'function') showToast('Removed from feed');
-          }
-          return;
-        }
-
         if (typeof navigateTo === 'function') {
           navigateTo('pages/categories');
         }
@@ -2611,30 +2505,10 @@
         </div>
         <div class="activity-meta-col">
           <time class="activity-time" datetime="${new Date(entry.timestamp).toISOString()}">${timeFormatted}</time>
-          <button type="button" class="activity-post-delete-btn" data-action="delete-post" title="Remove from feed" aria-label="Remove from feed">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
         </div>
       `;
 
       card.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('[data-action="delete-post"]');
-        if (delBtn) {
-          e.stopPropagation();
-          e.preventDefault();
-          const proj = typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {});
-          if (proj && Array.isArray(proj.activityLog)) {
-            proj.activityLog = proj.activityLog.filter(a => !(a && a.id === entry.id));
-            if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-            renderHomeActivityStream();
-            if (typeof showToast === 'function') showToast('Removed from feed');
-          }
-          return;
-        }
-
         if (typeof navigateTo === 'function') {
           navigateTo('settings');
         } else {
