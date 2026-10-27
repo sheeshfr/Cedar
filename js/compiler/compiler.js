@@ -4029,6 +4029,9 @@ ${itemsXml}
     const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
     const buildStamp = options.buildStamp || '4.6.30';
+    const initialFaviconHref = (brand.tabLogo && brand.tabLogo.startsWith('data:'))
+      ? brand.tabLogo
+      : `/icon.png?v=${buildStamp}`;
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -4038,7 +4041,7 @@ ${itemsXml}
   <title id="page-title">${escapeHtml(pageTitle)}</title>
   <meta name="description" id="meta-description" content="${escapeHtml(siteDesc)}">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
-  <link rel="icon" type="image/png" id="site-favicon" href="/icon.png">
+  <link rel="icon" type="image/png" id="site-favicon" href="${escapeHtml(initialFaviconHref)}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
@@ -4412,6 +4415,9 @@ ${itemsXml}
 
     // 2. Branding & Author Media
     const brand = (publicProject.design && publicProject.design.branding) || {};
+    const rawFavFromFiles = (brand.files && brand.files['media/branding/icon.png'])
+      || (typeof window !== 'undefined' && window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
+      || '';
     if (brand.files) delete brand.files;
     const bestLogoData = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
     if (bestLogoData && bestLogoData.startsWith('data:')) {
@@ -4421,12 +4427,18 @@ ${itemsXml}
         brand.generalLogo = '/media/branding/logo.png';
       }
     }
-    if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
-      const iconBlob = dataUrlToBlob(brand.tabLogo);
+    const resolvedFavData = (brand.tabLogo && brand.tabLogo.startsWith('data:'))
+      ? brand.tabLogo
+      : (rawFavFromFiles && rawFavFromFiles.startsWith('data:')
+          ? rawFavFromFiles
+          : (!brand.faviconExplicitlyRemoved && bestLogoData && bestLogoData.startsWith('data:') ? bestLogoData : ''));
+    if (resolvedFavData && resolvedFavData.startsWith('data:')) {
+      const iconBlob = dataUrlToBlob(resolvedFavData);
       if (iconBlob) {
         addFile('media/branding/icon.png', iconBlob);
         addFile('icon.png', iconBlob);
-        brand.tabLogo = '/media/branding/icon.png';
+        addFile('icon.ico', iconBlob);
+        brand.tabLogo = resolvedFavData;
       }
     }
     if (brand.originalLogo && brand.originalLogo.startsWith('data:')) {
@@ -5124,13 +5136,19 @@ ${page.markdown || ''}`;
       } catch (e) {}
 
       const brand = (projectConfig && projectConfig.design && projectConfig.design.branding) || {};
+      delete brandingSources['images/branding/icon.png'];
+      delete brandingSources['blog/images/branding/icon.png'];
+      delete brandingSources['images/branding/logo.png'];
+      delete brandingSources['blog/images/branding/logo.png'];
+      delete brandingSources['images/branding/logo-original.png'];
+      delete brandingSources['blog/images/branding/logo-original.png'];
       if (brand.generalLogo && brand.generalLogo.startsWith('data:')) {
         brandingSources['media/branding/logo.png'] = brand.generalLogo;
         brandingSources['media/branding/logo-original.png'] = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
       }
       if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
         brandingSources['media/branding/icon.png'] = brand.tabLogo;
-      } else if (!brand.faviconExplicitlyRemoved && brand.generalLogo && brand.generalLogo.startsWith('data:')) {
+      } else if (!brand.faviconExplicitlyRemoved && !brandingSources['media/branding/icon.png'] && brand.generalLogo && brand.generalLogo.startsWith('data:')) {
         brandingSources['media/branding/icon.png'] = brand.generalLogo;
       }
 

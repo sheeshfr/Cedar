@@ -2589,9 +2589,39 @@
       reader.readAsDataURL(file);
     }
 
-    if (btnRemoveLogo) {
-      btnRemoveLogo.addEventListener('click', (e) => {
+    const btnDownloadLogo = document.getElementById('ftue-btn-download-logo');
+    if (btnDownloadLogo) {
+      btnDownloadLogo.addEventListener('click', (e) => {
         e.stopPropagation();
+        const src = (uploadedBrandingAssets && (uploadedBrandingAssets['media/branding/logo-original.png'] || uploadedBrandingAssets['media/branding/logo.png']))
+          || uploadedLogoDataUrl
+          || (logoPreviewImg && logoPreviewImg.getAttribute('src'))
+          || '';
+        if (!src) return;
+        const name = (logoFileName && logoFileName.textContent.trim()) || 'logo.png';
+        const link = document.createElement('a');
+        link.href = src;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    }
+
+    if (btnRemoveLogo) {
+      btnRemoveLogo.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const confirmed = typeof window.showConfirmDialog === 'function'
+          ? await window.showConfirmDialog({
+              title: 'Remove Brand Logo?',
+              message: 'Are you sure you want to remove your brand logo?',
+              confirmText: 'Remove Image',
+              cancelText: 'Cancel',
+              isDanger: true
+            })
+          : confirm('Are you sure you want to remove your brand logo?');
+        if (!confirmed) return;
+
         hideDragFeedback();
         uploadedLogoDataUrl = '';
         uploadedBrandingAssets = null;

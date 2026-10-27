@@ -781,13 +781,19 @@
     } catch (e) {}
 
     const brand = window.projectConfig?.design?.branding || {};
+    delete brandingSources['images/branding/icon.png'];
+    delete brandingSources['blog/images/branding/icon.png'];
+    delete brandingSources['images/branding/logo.png'];
+    delete brandingSources['blog/images/branding/logo.png'];
+    delete brandingSources['images/branding/logo-original.png'];
+    delete brandingSources['blog/images/branding/logo-original.png'];
     if (brand.generalLogo && brand.generalLogo.startsWith('data:')) {
       brandingSources['media/branding/logo.png'] = brand.generalLogo;
       brandingSources['media/branding/logo-original.png'] = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
     }
     if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
       brandingSources['media/branding/icon.png'] = brand.tabLogo;
-    } else if (!brand.faviconExplicitlyRemoved && brand.generalLogo && brand.generalLogo.startsWith('data:')) {
+    } else if (!brand.faviconExplicitlyRemoved && !brandingSources['media/branding/icon.png'] && brand.generalLogo && brand.generalLogo.startsWith('data:')) {
       brandingSources['media/branding/icon.png'] = brand.generalLogo;
     }
 
@@ -870,9 +876,16 @@
       try { rootCfg = await readFileFromDirHandle(dirHandle, 'config.json', 'json'); } catch (e) {}
 
       let cfg = null;
+      const parseTs = (v) => {
+        if (!v) return 0;
+        const n = Number(v);
+        if (Number.isFinite(n) && n > 0) return n;
+        const p = Date.parse(v);
+        return Number.isFinite(p) ? p : 0;
+      };
       const candidates = [editorCfg, writerCfg, rootCfg].filter(Boolean);
       if (candidates.length > 0) {
-        candidates.sort((a, b) => Number(b.lastUpdated || 0) - Number(a.lastUpdated || 0));
+        candidates.sort((a, b) => parseTs(b.lastUpdated) - parseTs(a.lastUpdated));
         cfg = Object.assign({}, ...candidates.reverse());
       }
 

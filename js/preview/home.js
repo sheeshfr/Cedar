@@ -402,7 +402,24 @@
         const tagline = (brand.tagline !== undefined && brand.tagline !== null) ? brand.tagline : (getConfig().subtitle || '');
         const rawLogo = (brand.originalLogo || brand.generalLogo || '').trim();
         const logo = (rawLogo && rawLogo !== 'logo.png' && rawLogo !== '/logo.png') ? rawLogo : '';
-        const favicon = brand.tabLogo || 'icon.png';
+        let rawFav = (brand.tabLogo || '').trim();
+        if ((!rawFav || rawFav === 'icon.png' || rawFav === '/icon.png') && !brand.faviconExplicitlyRemoved) {
+          const fileFav = (brand.files && brand.files['media/branding/icon.png']) || '';
+          if (fileFav) {
+            rawFav = fileFav;
+          } else {
+            try {
+              const storedBr = JSON.parse((localStorage.getItem('cedar_branding_files_v1') || localStorage.getItem('outpost_branding_files_v1')) || '{}');
+              if (storedBr && storedBr['media/branding/icon.png']) {
+                rawFav = storedBr['media/branding/icon.png'];
+              }
+            } catch (e) {}
+          }
+          if ((!rawFav || rawFav === 'icon.png' || rawFav === '/icon.png') && logo) {
+            rawFav = logo;
+          }
+        }
+        const favicon = rawFav || 'icon.png';
 
         document.getElementById('page-title').textContent = `Home — ${siteName}`;
         document.getElementById('header-title').textContent = siteName;

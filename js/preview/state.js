@@ -135,6 +135,15 @@
 
 
 
+      function parseTimestamp(val) {
+        if (!val) return 0;
+        if (typeof val === 'number') return isNaN(val) ? 0 : val;
+        const num = Number(val);
+        if (!isNaN(num)) return num;
+        const parsed = Date.parse(val);
+        return isNaN(parsed) ? 0 : parsed;
+      }
+
       async function syncWithServer() {
         if (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) {
           window.__hasSyncedWithServer = true;
@@ -151,9 +160,15 @@
 
         try {
           let data = null;
+          let hasLiveOpenerProject = false;
+          try {
+            if (window.opener && !window.opener.closed && window.opener.projectConfig) {
+              hasLiveOpenerProject = true;
+            }
+          } catch (_) {}
           const h = (window.location && window.location.hostname) || '';
           const isLocalServer = Boolean((window.Cedar && window.Cedar.isLocalServer) || h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h.endsWith('.local'));
-          if (isLocalServer) {
+          if (isLocalServer && !hasLiveOpenerProject) {
             try {
               const res = await fetch('/api/live-sync');
               if (res.ok) {
@@ -169,6 +184,7 @@
               if (window.opener && !window.opener.closed) {
                 if (window.opener.projectConfig) {
                   fallbackProj = JSON.parse(JSON.stringify(window.opener.projectConfig));
+                  hasLiveOpenerProject = true;
                 }
                 const openerDrafts = (window.opener.CedarStore && typeof window.opener.CedarStore.getAllDrafts === 'function')
                   ? window.opener.CedarStore.getAllDrafts()
@@ -254,21 +270,27 @@
                 });
               }
               let appliedLocalDesign = false;
-              const localRaw = localStorage.getItem(STORAGE_KEY_PROJECT);
+              const localRaw = !hasLiveOpenerProject ? localStorage.getItem(STORAGE_KEY_PROJECT) : null;
               if (localRaw) {
                 try {
                   const lp = JSON.parse(localRaw);
-                  const lpTime = Number(lp && lp.lastUpdated) || 0;
-                  const srvTime = Number(parsedProject && parsedProject.lastUpdated) || 0;
-                  if (lp && lp.design && (!parsedProject || !parsedProject.design || lpTime >= srvTime)) {
-                    projectConfig.design = Object.assign({}, (parsedProject && parsedProject.design) || {}, lp.design);
+                  const lpTime = parseTimestamp(lp && lp.lastUpdated);
+                  const srvTime = parseTimestamp(parsedProject && parsedProject.lastUpdated);
+                  if (lp && lp.design && (!parsedProject || !parsedProject.design || (lpTime > 0 && lpTime > srvTime))) {
+                    const prevBrand = (parsedProject && parsedProject.design && parsedProject.design.branding) || {};
+                    const nextBrand = Object.assign({}, prevBrand, (lp.design && lp.design.branding) || {});
+                    if (prevBrand.customFavicon && prevBrand.tabLogo && !nextBrand.customFavicon) {
+                      nextBrand.tabLogo = prevBrand.tabLogo;
+                      nextBrand.customFavicon = true;
+                    }
+                    projectConfig.design = Object.assign({}, (parsedProject && parsedProject.design) || {}, lp.design, { branding: nextBrand });
                     appliedLocalDesign = true;
                   }
                 } catch (e) {}
               }
               if (!appliedLocalDesign && parsedProject && parsedProject.design) {
-                const srvTime = Number(parsedProject.lastUpdated) || 0;
-                const localTime = Number(projectConfig.lastUpdated) || 0;
+                const srvTime = parseTimestamp(parsedProject.lastUpdated);
+                const localTime = parseTimestamp(projectConfig.lastUpdated);
                 if (!projectConfig.design || Object.keys(projectConfig.design).length === 0 || srvTime >= localTime) {
                   projectConfig.design = parsedProject.design;
                 }

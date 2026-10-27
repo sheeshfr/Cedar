@@ -219,9 +219,16 @@
           } catch (e) {}
 
           let fileConfig = null;
+          const parseTs = (v) => {
+            if (!v) return 0;
+            const n = Number(v);
+            if (Number.isFinite(n) && n > 0) return n;
+            const p = Date.parse(v);
+            return Number.isFinite(p) ? p : 0;
+          };
           const candidates = [editorCfg, writerCfg, rootCfg].filter(Boolean);
           if (candidates.length > 0) {
-            candidates.sort((a, b) => Number(b.lastUpdated || 0) - Number(a.lastUpdated || 0));
+            candidates.sort((a, b) => parseTs(b.lastUpdated) - parseTs(a.lastUpdated));
             fileConfig = Object.assign({}, ...candidates.reverse());
           }
 
@@ -230,13 +237,16 @@
             if (existingProjRaw) {
               try { localProj = JSON.parse(existingProjRaw) || {}; } catch (e) { localProj = {}; }
             }
+            const localIsNewer = parseTs(localProj.lastUpdated) > parseTs(fileConfig.lastUpdated);
+            const olderProj = localIsNewer ? fileConfig : localProj;
+            const newerProj = localIsNewer ? localProj : fileConfig;
 
             // Merge categories without duplicates, PRESERVING canonical casing
             const mergedCategories = [];
             const seenCats = new Set();
             []
-              .concat(Array.isArray(fileConfig.categories) ? fileConfig.categories : [])
-              .concat(Array.isArray(localProj.categories) ? localProj.categories : [])
+              .concat(Array.isArray(newerProj.categories) ? newerProj.categories : [])
+              .concat(Array.isArray(olderProj.categories) ? olderProj.categories : [])
               .forEach(c => {
                 const trimmed = String(c || '').trim();
                 const key = trimmed.toLowerCase();
@@ -248,23 +258,29 @@
 
             const mergedDesign = Object.assign(
               {},
-              localProj.design || {},
-              fileConfig.design || {}
+              olderProj.design || {},
+              newerProj.design || {}
             );
-            if ((localProj.design && localProj.design.branding) || (fileConfig.design && fileConfig.design.branding)) {
-              mergedDesign.branding = Object.assign({}, (localProj.design && localProj.design.branding) || {}, (fileConfig.design && fileConfig.design.branding) || {});
+            if ((olderProj.design && olderProj.design.branding) || (newerProj.design && newerProj.design.branding)) {
+              const ob = (olderProj.design && olderProj.design.branding) || {};
+              const nb = (newerProj.design && newerProj.design.branding) || {};
+              mergedDesign.branding = Object.assign({}, ob, nb);
+              if (ob.customFavicon && ob.tabLogo && !nb.customFavicon) {
+                mergedDesign.branding.tabLogo = ob.tabLogo;
+                mergedDesign.branding.customFavicon = true;
+              }
             }
-            if ((localProj.design && localProj.design.masthead) || (fileConfig.design && fileConfig.design.masthead)) {
-              mergedDesign.masthead = Object.assign({}, (localProj.design && localProj.design.masthead) || {}, (fileConfig.design && fileConfig.design.masthead) || {});
+            if ((olderProj.design && olderProj.design.masthead) || (newerProj.design && newerProj.design.masthead)) {
+              mergedDesign.masthead = Object.assign({}, (olderProj.design && olderProj.design.masthead) || {}, (newerProj.design && newerProj.design.masthead) || {});
             }
-            if ((localProj.design && localProj.design.toggles) || (fileConfig.design && fileConfig.design.toggles)) {
-              mergedDesign.toggles = Object.assign({}, (localProj.design && localProj.design.toggles) || {}, (fileConfig.design && fileConfig.design.toggles) || {});
+            if ((olderProj.design && olderProj.design.toggles) || (newerProj.design && newerProj.design.toggles)) {
+              mergedDesign.toggles = Object.assign({}, (olderProj.design && olderProj.design.toggles) || {}, (newerProj.design && newerProj.design.toggles) || {});
             }
 
-            const mergedProj = Object.assign({}, localProj, fileConfig, {
-              categories: mergedCategories.length > 0 ? mergedCategories : (fileConfig.categories || localProj.categories || []),
+            const mergedProj = Object.assign({}, olderProj, newerProj, {
+              categories: mergedCategories.length > 0 ? mergedCategories : (newerProj.categories || olderProj.categories || []),
               design: mergedDesign,
-              mediaPreferences: Object.assign({}, localProj.mediaPreferences || {}, fileConfig.mediaPreferences || {})
+              mediaPreferences: Object.assign({}, olderProj.mediaPreferences || {}, newerProj.mediaPreferences || {})
             });
 
             // Resolve editorTheme from Vault config or design theme

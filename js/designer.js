@@ -1453,29 +1453,53 @@
           originalDataUrl = resizer(img, 1200, 1200, false);
         }
 
-        const brandingAssets = {
-          'images/branding/logo.png': mastheadDataUrl,
-          'images/branding/icon.png': iconDataUrl,
-          'images/branding/logo-original.png': originalDataUrl,
-          'blog/images/branding/logo.png': mastheadDataUrl,
-          'blog/images/branding/icon.png': iconDataUrl,
-          'blog/images/branding/logo-original.png': originalDataUrl
-        };
-
         if (!window.projectConfig) window.projectConfig = {};
         if (!window.projectConfig.design) window.projectConfig.design = {};
         if (!window.projectConfig.design.branding) window.projectConfig.design.branding = {};
 
+        const rawFav = window.projectConfig.design.branding.tabLogo || '';
+        const existingFavFile = (window.projectConfig.design.branding.files && window.projectConfig.design.branding.files['media/branding/icon.png'])
+          || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
+          || '';
+        const isFaviconEmpty = !window.projectConfig.design.branding.customFavicon
+          && !(rawFav && rawFav !== 'icon.png' && rawFav !== '/icon.png')
+          && !existingFavFile;
+
+        const newFiles = {
+          'media/branding/logo.png': mastheadDataUrl,
+          'media/branding/logo-original.png': originalDataUrl
+        };
+        if (isFaviconEmpty) {
+          newFiles['media/branding/icon.png'] = iconDataUrl;
+          window.projectConfig.design.branding.tabLogo = iconDataUrl;
+          delete window.projectConfig.design.branding.faviconExplicitlyRemoved;
+        }
+
+        const brandingAssets = Object.assign(
+          {},
+          window.projectConfig.design.branding.files || {},
+          window.brandingFiles || {},
+          newFiles
+        );
+        delete brandingAssets['images/branding/icon.png'];
+        delete brandingAssets['blog/images/branding/icon.png'];
+        delete brandingAssets['images/branding/logo.png'];
+        delete brandingAssets['blog/images/branding/logo.png'];
+        delete brandingAssets['images/branding/logo-original.png'];
+        delete brandingAssets['blog/images/branding/logo-original.png'];
+
         window.projectConfig.logo = mastheadDataUrl;
         window.projectConfig.design.branding.generalLogo = mastheadDataUrl;
-        window.projectConfig.design.branding.tabLogo = iconDataUrl;
         window.projectConfig.design.branding.originalLogo = originalDataUrl;
-        window.projectConfig.design.branding.folder = 'images/branding';
+        window.projectConfig.design.branding.folder = 'media/branding';
         window.projectConfig.design.branding.files = brandingAssets;
         window.brandingFiles = brandingAssets;
 
         try {
-          localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets));
+          const favToStore = brandingAssets['media/branding/icon.png'] || window.projectConfig.design.branding.tabLogo;
+          if (favToStore) {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': favToStore }));
+          }
         } catch (e) {}
 
         if (window.SheeshVault && window.SheeshVault.isConnected() && typeof (window.Cedar?.writeBrandingAssetsToVault || window.Outpost?.writeBrandingAssetsToVault) === 'function') {
@@ -1632,15 +1656,31 @@
           window.projectConfig.logo = '';
           if (window.projectConfig.design && window.projectConfig.design.branding) {
             window.projectConfig.design.branding.generalLogo = '';
-            window.projectConfig.design.branding.tabLogo = '';
             window.projectConfig.design.branding.originalLogo = '';
-            window.projectConfig.design.branding.files = {};
+            const remainingFiles = Object.assign({}, window.projectConfig.design.branding.files || {}, window.brandingFiles || {});
+            delete remainingFiles['media/branding/logo.png'];
+            delete remainingFiles['media/branding/logo-original.png'];
+            delete remainingFiles['images/branding/logo.png'];
+            delete remainingFiles['images/branding/logo-original.png'];
+            delete remainingFiles['blog/images/branding/logo.png'];
+            delete remainingFiles['blog/images/branding/logo-original.png'];
+            if (!window.projectConfig.design.branding.customFavicon) {
+              window.projectConfig.design.branding.tabLogo = '';
+              delete remainingFiles['media/branding/icon.png'];
+              delete remainingFiles['images/branding/icon.png'];
+              delete remainingFiles['blog/images/branding/icon.png'];
+            }
+            window.projectConfig.design.branding.files = remainingFiles;
+            window.brandingFiles = Object.keys(remainingFiles).length > 0 ? remainingFiles : null;
           }
         }
-        window.brandingFiles = null;
         try {
-          localStorage.removeItem('cedar_branding_files_v1');
-          localStorage.removeItem('outpost_branding_files_v1');
+          if (window.brandingFiles && window.brandingFiles['media/branding/icon.png']) {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': window.brandingFiles['media/branding/icon.png'] }));
+          } else {
+            localStorage.removeItem('cedar_branding_files_v1');
+            localStorage.removeItem('outpost_branding_files_v1');
+          }
         } catch (e) {}
 
         if (typeof window.saveProjectToStorage === 'function') {

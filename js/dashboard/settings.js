@@ -341,7 +341,17 @@
     }
 
     if (btnRemovePhoto) {
-      btnRemovePhoto.addEventListener('click', () => {
+      btnRemovePhoto.addEventListener('click', async () => {
+        const confirmed = (typeof window.showConfirmDialog === 'function')
+          ? await window.showConfirmDialog({
+              title: 'Remove Author Photo?',
+              message: 'Are you sure you want to remove your author photo?',
+              confirmText: 'Remove Photo',
+              cancelText: 'Cancel',
+              isDanger: true
+            })
+          : confirm('Are you sure you want to remove your author photo?');
+        if (!confirmed) return;
         currentSettingsAuthorAvatar = '';
         updateSettingsAuthorAvatarUI();
         scheduleAutoSaveSiteInfo(true);
@@ -603,9 +613,17 @@
     const settingsFaviconDims = document.getElementById('settings-favicon-dims-badge');
 
     const rawFavicon = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.tabLogo) || '';
-    const storedFavFile = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
+    let storedFavFile = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
       || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
       || '';
+    if (!storedFavFile) {
+      try {
+        const lsFiles = JSON.parse(localStorage.getItem('cedar_branding_files_v1') || '{}');
+        if (lsFiles && lsFiles['media/branding/icon.png']) {
+          storedFavFile = lsFiles['media/branding/icon.png'];
+        }
+      } catch (e) {}
+    }
     const faviconExplicitlyRemoved = Boolean(projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.faviconExplicitlyRemoved);
     let currentFavicon = (rawFavicon === 'icon.png' || rawFavicon === '/icon.png')
       ? storedFavFile
@@ -640,7 +658,7 @@
               );
               projectConfig.design.branding.files = brandingAssets;
               window.brandingFiles = brandingAssets;
-              try { localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets)); } catch (e) {}
+              try { localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': iconDataUrl })); } catch (e) {}
             }
             const naturalW = Math.min(64, favImgObj.naturalWidth || 64);
             const naturalH = Math.min(64, favImgObj.naturalHeight || 64);
@@ -1881,7 +1899,18 @@
     const settingsLogoFileName = document.getElementById('settings-logo-file-name');
     const settingsLogoDimsBadge = document.getElementById('settings-logo-dims-badge');
     const btnSettingsChangeLogo = document.getElementById('settings-btn-change-logo');
+    const btnSettingsDownloadLogo = document.getElementById('settings-btn-download-logo');
     const btnSettingsRemoveLogo = document.getElementById('settings-btn-remove-logo');
+
+    function downloadBrandingImage(src, fallbackFilename) {
+      if (!src) return;
+      const a = document.createElement('a');
+      a.href = src;
+      a.download = fallbackFilename || 'image.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
 
     let settingsDragCounter = 0;
     let settingsErrorResetTimeout = null;
@@ -2118,7 +2147,9 @@
           const existingFavFile = (projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
             || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
             || '';
-          const isFaviconEmpty = !(rawFav && rawFav !== 'icon.png' && rawFav !== '/icon.png') && !existingFavFile;
+          const isFaviconEmpty = !projectConfig.design.branding.customFavicon
+            && !(rawFav && rawFav !== 'icon.png' && rawFav !== '/icon.png')
+            && !existingFavFile;
 
           const newFiles = {
             'media/branding/logo.png': mastheadDataUrl,
@@ -2141,8 +2172,9 @@
             if (favEmptyState) favEmptyState.style.display = 'none';
             if (favPreviewState) favPreviewState.style.display = 'flex';
 
-            const tabLogoEl = document.querySelector("link[rel*='icon']");
-            if (tabLogoEl) tabLogoEl.href = iconDataUrl;
+            document.querySelectorAll("link[rel*='icon']").forEach(el => {
+              el.href = iconDataUrl;
+            });
           }
 
           const brandingAssets = Object.assign(
@@ -2151,6 +2183,12 @@
             window.brandingFiles || {},
             newFiles
           );
+          delete brandingAssets['images/branding/icon.png'];
+          delete brandingAssets['blog/images/branding/icon.png'];
+          delete brandingAssets['images/branding/logo.png'];
+          delete brandingAssets['blog/images/branding/logo.png'];
+          delete brandingAssets['images/branding/logo-original.png'];
+          delete brandingAssets['blog/images/branding/logo-original.png'];
 
           stagedBrandLogo = null;
           projectConfig.logo = mastheadDataUrl;
@@ -2160,7 +2198,10 @@
           projectConfig.design.branding.files = brandingAssets;
           window.brandingFiles = brandingAssets;
           try {
-            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets));
+            const favToStore = brandingAssets['media/branding/icon.png'] || projectConfig.design.branding.tabLogo;
+            if (favToStore) {
+              localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': favToStore }));
+            }
           } catch (e) {}
           if (window.SheeshVault && window.SheeshVault.isConnected() && typeof (window.Cedar?.writeBrandingAssetsToVault || window.Outpost?.writeBrandingAssetsToVault) === 'function') {
             (window.Cedar.writeBrandingAssetsToVault || window.Outpost.writeBrandingAssetsToVault)(brandingAssets);
@@ -2174,9 +2215,31 @@
       reader.readAsDataURL(file);
     };
 
-    if (btnSettingsRemoveLogo) {
-      btnSettingsRemoveLogo.addEventListener('click', (e) => {
+    if (btnSettingsDownloadLogo) {
+      btnSettingsDownloadLogo.addEventListener('click', (e) => {
         e.stopPropagation();
+        const src = (projectConfig.design && projectConfig.design.branding && (projectConfig.design.branding.originalLogo || projectConfig.design.branding.generalLogo))
+          || (settingsLogoPreviewImg && settingsLogoPreviewImg.src)
+          || '';
+        const name = (settingsLogoFileName && settingsLogoFileName.textContent.trim()) || 'logo.png';
+        downloadBrandingImage(src, name);
+      });
+    }
+
+    if (btnSettingsRemoveLogo) {
+      btnSettingsRemoveLogo.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const confirmed = (typeof window.showConfirmDialog === 'function')
+          ? await window.showConfirmDialog({
+              title: 'Remove Brand Logo?',
+              message: 'Are you sure you want to remove your brand logo?',
+              confirmText: 'Remove Image',
+              cancelText: 'Cancel',
+              isDanger: true
+            })
+          : confirm('Are you sure you want to remove your brand logo?');
+        if (!confirmed) return;
+
         hideSettingsDragFeedback();
 
         if (settingsLogoFileInput) settingsLogoFileInput.value = '';
@@ -2223,6 +2286,7 @@
     const settingsFaviconFileName = document.getElementById('settings-favicon-file-name');
     const settingsFaviconDimsBadge = document.getElementById('settings-favicon-dims-badge');
     const btnSettingsChangeFavicon = document.getElementById('settings-btn-change-favicon');
+    const btnSettingsDownloadFavicon = document.getElementById('settings-btn-download-favicon');
     const btnSettingsRemoveFavicon = document.getElementById('settings-btn-remove-favicon');
 
     let settingsFaviconDragCounter = 0;
@@ -2370,20 +2434,22 @@
               'media/branding/icon.png': iconDataUrl
             }
           );
+          delete brandingAssets['images/branding/icon.png'];
+          delete brandingAssets['blog/images/branding/icon.png'];
 
           projectConfig.design.branding.tabLogo = iconDataUrl;
+          projectConfig.design.branding.customFavicon = true;
           delete projectConfig.design.branding.faviconExplicitlyRemoved;
           projectConfig.design.branding.folder = 'media/branding';
           projectConfig.design.branding.files = brandingAssets;
           window.brandingFiles = brandingAssets;
           try {
-            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(brandingAssets));
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': iconDataUrl }));
           } catch (e) {}
 
-          const tabLogoEl = document.querySelector("link[rel*='icon']");
-          if (tabLogoEl) {
-            tabLogoEl.href = iconDataUrl;
-          }
+          document.querySelectorAll("link[rel*='icon']").forEach(el => {
+            el.href = iconDataUrl;
+          });
 
           if (window.SheeshVault && window.SheeshVault.isConnected() && typeof (window.Cedar?.writeBrandingAssetsToVault || window.Outpost?.writeBrandingAssetsToVault) === 'function') {
             (window.Cedar.writeBrandingAssetsToVault || window.Outpost.writeBrandingAssetsToVault)({ 'media/branding/icon.png': iconDataUrl });
@@ -2466,9 +2532,30 @@
       });
     }
 
-    if (btnSettingsRemoveFavicon) {
-      btnSettingsRemoveFavicon.addEventListener('click', (e) => {
+    if (btnSettingsDownloadFavicon) {
+      btnSettingsDownloadFavicon.addEventListener('click', (e) => {
         e.stopPropagation();
+        const src = (settingsFaviconPreviewImg && settingsFaviconPreviewImg.getAttribute('src')) ||
+                    (projectConfig && projectConfig.design && projectConfig.design.branding && (projectConfig.design.branding.tabLogo || projectConfig.design.branding.logo)) || '';
+        const name = (settingsFaviconFileName && settingsFaviconFileName.textContent.trim()) || 'favicon.png';
+        downloadBrandingImage(src, name);
+      });
+    }
+
+    if (btnSettingsRemoveFavicon) {
+      btnSettingsRemoveFavicon.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const confirmed = typeof window.showConfirmDialog === 'function'
+          ? await window.showConfirmDialog({
+              title: 'Remove Favicon?',
+              message: 'Are you sure you want to remove your favicon?',
+              confirmText: 'Remove Image',
+              cancelText: 'Cancel',
+              isDanger: true
+            })
+          : confirm('Are you sure you want to remove your favicon?');
+        if (!confirmed) return;
+
         hideSettingsFaviconDragFeedback();
 
         if (settingsFaviconFileInput) settingsFaviconFileInput.value = '';
@@ -2482,24 +2569,22 @@
         if (!projectConfig.design) projectConfig.design = {};
         if (!projectConfig.design.branding) projectConfig.design.branding = {};
         projectConfig.design.branding.tabLogo = '';
+        delete projectConfig.design.branding.customFavicon;
         projectConfig.design.branding.faviconExplicitlyRemoved = true;
         const remainingFiles = Object.assign({}, projectConfig.design.branding.files || {}, window.brandingFiles || {});
         delete remainingFiles['media/branding/icon.png'];
+        delete remainingFiles['images/branding/icon.png'];
+        delete remainingFiles['blog/images/branding/icon.png'];
         projectConfig.design.branding.files = remainingFiles;
         window.brandingFiles = Object.keys(remainingFiles).length > 0 ? remainingFiles : null;
         try {
-          if (window.brandingFiles) {
-            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(remainingFiles));
-          } else {
-            localStorage.removeItem('cedar_branding_files_v1');
-            try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
-          }
+          localStorage.removeItem('cedar_branding_files_v1');
+          try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
         } catch (e) {}
 
-        const tabLogoEl = document.querySelector("link[rel*='icon']");
-        if (tabLogoEl) {
-          tabLogoEl.href = 'icon.png';
-        }
+        document.querySelectorAll("link[rel*='icon']").forEach(el => {
+          el.href = 'icon.png';
+        });
 
         if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
         if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();

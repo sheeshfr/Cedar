@@ -1591,6 +1591,29 @@
 
     document.title = pageName ? `${pageName} — ${siteTitle}` : siteTitle;
 
+    try {
+      const b = projectConfig && projectConfig.design && projectConfig.design.branding;
+      if (b) {
+        let favHref = '';
+        if (b.faviconExplicitlyRemoved) {
+          favHref = 'icon.png';
+        } else if (b.tabLogo && b.tabLogo !== 'icon.png' && b.tabLogo !== '/icon.png') {
+          favHref = b.tabLogo;
+        } else if (b.files && b.files['media/branding/icon.png']) {
+          favHref = b.files['media/branding/icon.png'];
+        } else if (b.generalLogo) {
+          favHref = b.generalLogo;
+        }
+        if (favHref) {
+          document.querySelectorAll("link[rel*='icon']").forEach(el => {
+            if (el.getAttribute('href') !== favHref) {
+              el.href = favHref;
+            }
+          });
+        }
+      }
+    } catch (e) {}
+
   }
 
 
@@ -2766,6 +2789,23 @@
 
       }
 
+      if (safeConfig.design && safeConfig.design.branding && (safeConfig.design.branding.files || safeConfig.design.branding.originalLogo)) {
+        safeConfig = {
+          ...safeConfig,
+          design: {
+            ...safeConfig.design,
+            branding: {
+              ...safeConfig.design.branding
+            }
+          }
+        };
+        delete safeConfig.design.branding.files;
+        delete safeConfig.design.branding.originalLogo;
+        if (safeConfig.design.branding.generalLogo && safeConfig.logo === safeConfig.design.branding.generalLogo) {
+          delete safeConfig.logo;
+        }
+      }
+
 
 
       try {
@@ -2774,14 +2814,18 @@
 
       } catch (quotaErr) {
 
+        try {
+          localStorage.removeItem('cedar_branding_files_v1');
+          localStorage.removeItem('outpost_branding_files_v1');
+          localStorage.removeItem('cedar_browser_backup_drafts');
+          localStorage.removeItem('cedar_browser_backup_project');
+        } catch (e) {}
+
         const slimConfig = JSON.parse(JSON.stringify(safeConfig));
-
+        delete slimConfig.logo;
         if (slimConfig.design && slimConfig.design.branding) {
-
           delete slimConfig.design.branding.files;
-
           delete slimConfig.design.branding.originalLogo;
-
         }
 
         localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(slimConfig));
