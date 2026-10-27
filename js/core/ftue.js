@@ -2558,8 +2558,8 @@
           if (logoPreviewState) logoPreviewState.style.display = 'flex';
 
           // Generate smaller versions in dedicated branding structure:
-          // 1. Masthead logo: max 256px, aspect ratio preserved
-          const mastheadDataUrl = generateResizedCanvasImage(img, 256, 256, false);
+          // 1. Masthead logo: max 1200px, aspect ratio preserved
+          const mastheadDataUrl = generateResizedCanvasImage(img, 1200, 1200, false);
           // 2. Browser tab / Favicon icon: 64x64 square (centered with padding if non-square)
           const iconDataUrl = generateResizedCanvasImage(img, 64, 64, true);
           // 3. Master original (up to 1200px max allowance, always re-encoded via canvas to strip EXIF)

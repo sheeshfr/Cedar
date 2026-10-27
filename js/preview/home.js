@@ -400,7 +400,7 @@
         const brand = (getConfig().design && getConfig().design.branding) || {};
         const siteName = getConfig().name || getConfig().domain || brand.siteTitle || 'Cedar';
         const tagline = (brand.tagline !== undefined && brand.tagline !== null) ? brand.tagline : (getConfig().subtitle || '');
-        const rawLogo = (brand.generalLogo || '').trim();
+        const rawLogo = (brand.originalLogo || brand.generalLogo || '').trim();
         const logo = (rawLogo && rawLogo !== 'logo.png' && rawLogo !== '/logo.png') ? rawLogo : '';
         const favicon = brand.tabLogo || 'icon.png';
 
@@ -520,14 +520,10 @@
         if (spacingMode === 'compact') userSpacingScale *= 0.65;
         else if (spacingMode === 'relaxed') userSpacingScale *= 1.45;
 
-        let autoFactor = 1.0;
-        if (spacingMode === 'auto' || spacingMode === 'relaxed') {
-          autoFactor = Math.min(3.5, 1.0 + Math.max(0, mhH - 64) / 85);
-        }
-        const factor = Math.max(0.4, autoFactor * userSpacingScale);
+        const factor = Math.max(0.4, userSpacingScale);
 
-        const lockupGap = Math.round(8 * Math.min(3.2, factor));
-        const navGap = Math.round(10 * Math.min(3.4, factor));
+        const lockupGap = Math.round(6 * Math.min(2.4, factor));
+        const navGap = Math.round(8 * Math.min(2.4, factor));
         const logoGrowth = Math.min(1.65, 1.0 + Math.max(0, mhH - 64) / 360);
         const titleGrowth = Math.min(1.35, 1.0 + Math.max(0, mhH - 64) / 500);
         const dCfg = getConfig().design || {};
@@ -536,16 +532,20 @@
         }
         const logoScale = typeof logoCfg.scale === 'number' ? logoCfg.scale : (typeof dCfg.logoScale === 'number' ? dCfg.logoScale : ((dCfg.branding && typeof dCfg.branding.logoScale === 'number') ? dCfg.branding.logoScale : 1.0));
         const titleScale = typeof titleCfg.scale === 'number' ? titleCfg.scale : (typeof dCfg.titleScale === 'number' ? dCfg.titleScale : ((dCfg.branding && typeof dCfg.branding.titleScale === 'number') ? dCfg.branding.titleScale : 1.0));
-        const maxScale = Math.max(logoScale, titleScale, 1.0);
-        const padV = Math.max(10, Math.round(10 * Math.max(0.5, factor) + (maxScale - 1) * 7));
         const hasValidLogo = Boolean(logo && logoCfg.enabled !== false);
+        const isTitleEnabled = titleCfg.enabled !== false;
         const logoSize = Math.round(44 * logoScale * logoGrowth);
         const effectiveLogoSize = hasValidLogo ? logoSize : 0;
-        const minH = Math.max(mhH, effectiveLogoSize + padV * 2, Math.round(1.25 * titleScale * titleGrowth * 24 + padV * 2));
+        const effectiveTitleSize = isTitleEnabled ? Math.round(1.25 * titleScale * titleGrowth * 24) : 0;
+        const refContentHeight = Math.max(effectiveLogoSize, effectiveTitleSize, 28);
+        const padV = Math.max(8, Math.min(18, Math.round(refContentHeight * 0.12 * Math.max(0.5, factor))));
+        const minH = 0;
 
         if (headerEl) {
           headerEl.style.height = 'auto';
-          headerEl.style.minHeight = `${minH}px`;
+          headerEl.style.minHeight = '0px';
+          headerEl.style.setProperty('--header-pad-v', `${padV}px`);
+          headerEl.style.setProperty('--header-nav-gap', `${navGap}px`);
         }
 
         if (brandLinkEl) {
@@ -553,6 +553,7 @@
           brandLinkEl.style.position = 'relative';
           brandLinkEl.style.width = 'auto';
           brandLinkEl.style.height = 'auto';
+          brandLinkEl.style.maxWidth = '100%';
           brandLinkEl.style.display = 'inline-flex';
 
           if (headerLogoEl) {
@@ -560,19 +561,38 @@
             headerLogoEl.style.left = '';
             headerLogoEl.style.top = '';
             headerLogoEl.style.display = hasValidLogo ? 'block' : 'none';
-            headerLogoEl.style.width = `${logoSize}px`;
-            headerLogoEl.style.height = `${logoSize}px`;
             headerLogoEl.style.objectFit = 'contain';
             headerLogoEl.style.borderRadius = '6px';
             headerLogoEl.style.flexShrink = '0';
             headerLogoEl.style.margin = mhAlign === 'center' ? '0 auto' : '0';
+
+            const applyLogoDimensions = () => {
+              if (!hasValidLogo) return;
+              const nw = headerLogoEl.naturalWidth;
+              const nh = headerLogoEl.naturalHeight;
+              if (nw > 0 && nh > 0) {
+                const ar = nw / nh;
+                const targetW = Math.round(logoSize * ar);
+                headerLogoEl.style.width = `${targetW}px`;
+                headerLogoEl.style.height = 'auto';
+                headerLogoEl.style.maxHeight = `${logoSize}px`;
+                headerLogoEl.style.maxWidth = '100%';
+              } else {
+                headerLogoEl.style.width = 'auto';
+                headerLogoEl.style.height = `${logoSize}px`;
+                headerLogoEl.style.maxHeight = `${logoSize}px`;
+                headerLogoEl.style.maxWidth = '100%';
+              }
+            };
+            applyLogoDimensions();
+            headerLogoEl.onload = applyLogoDimensions;
           }
 
           if (headerTitleEl) {
             headerTitleEl.style.position = 'static';
             headerTitleEl.style.left = '';
             headerTitleEl.style.top = '';
-            headerTitleEl.style.display = titleCfg.enabled !== false ? 'block' : 'none';
+            headerTitleEl.style.display = isTitleEnabled ? 'block' : 'none';
             headerTitleEl.style.fontSize = `${(1.25 * titleScale * titleGrowth).toFixed(2)}rem`;
             headerTitleEl.style.fontWeight = '800';
             headerTitleEl.style.whiteSpace = 'nowrap';
@@ -580,8 +600,12 @@
             headerTitleEl.style.margin = mhAlign === 'center' ? '0 auto' : '0';
           }
 
+          if (brandTextEl) {
+            brandTextEl.style.display = isTitleEnabled ? 'flex' : 'none';
+          }
+
           if (navWrapEl) {
-            navWrapEl.style.minHeight = `${minH}px`;
+            navWrapEl.style.minHeight = '0px';
             navWrapEl.style.height = 'auto';
             navWrapEl.style.position = 'relative';
             navWrapEl.style.display = 'flex';
@@ -596,7 +620,7 @@
               navWrapEl.style.justifyContent = 'space-between';
               navWrapEl.style.flexDirection = 'row-reverse';
               navWrapEl.style.height = 'auto';
-              navWrapEl.style.minHeight = `${minH}px`;
+              navWrapEl.style.minHeight = '0px';
             }
             brandLinkEl.style.flexDirection = 'row-reverse';
             brandLinkEl.style.alignItems = 'center';
@@ -615,7 +639,7 @@
               navWrapEl.style.flexDirection = 'column';
               navWrapEl.style.gap = `${navGap}px`;
               navWrapEl.style.height = 'auto';
-              navWrapEl.style.minHeight = `${Math.max(minH, 96)}px`;
+              navWrapEl.style.minHeight = '0px';
               navWrapEl.style.textAlign = 'center';
             }
             brandLinkEl.style.flexDirection = 'column';
@@ -635,7 +659,7 @@
               navWrapEl.style.justifyContent = 'space-between';
               navWrapEl.style.flexDirection = 'row';
               navWrapEl.style.height = 'auto';
-              navWrapEl.style.minHeight = `${minH}px`;
+              navWrapEl.style.minHeight = '0px';
             }
             brandLinkEl.style.flexDirection = 'row';
             brandLinkEl.style.alignItems = 'center';

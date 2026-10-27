@@ -1448,7 +1448,7 @@
 
         if ((window.Cedar && typeof window.Cedar.generateResizedCanvasImage === 'function') || (window.Outpost && typeof (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage) === 'function')) {
           const resizer = window.Cedar?.generateResizedCanvasImage || window.Outpost?.generateResizedCanvasImage;
-          mastheadDataUrl = resizer(img, 256, 256, false);
+          mastheadDataUrl = resizer(img, 1200, 1200, false);
           iconDataUrl = resizer(img, 64, 64, true);
           originalDataUrl = resizer(img, 1200, 1200, false);
         }

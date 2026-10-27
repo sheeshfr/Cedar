@@ -158,14 +158,14 @@
       /* Centered Mobile Header: Logo up top, Title underneath, Categories centered below */
       .site-header:not(.header-align-left) .nav-wrap {
         height: auto !important;
-        min-height: auto !important;
+        min-height: 0 !important;
         position: static !important;
-        padding: 0.75rem 10px !important;
+        padding: var(--header-pad-v, 0.65rem) 10px !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        gap: 0.5rem !important;
+        gap: var(--header-nav-gap, 0.5rem) !important;
       }
       .site-header:not(.header-align-left) .brand-link,
       .site-header:not(.header-align-left) #header-brand-link,
@@ -187,6 +187,8 @@
       .site-header:not(.header-align-left) #header-logo,
       .site-header:not(.header-align-left) .brand-logo-img {
         margin: 0 auto !important;
+        max-width: 100% !important;
+        height: auto !important;
       }
       .site-header:not(.header-align-left) #header-title,
       .site-header:not(.header-align-left) .brand-name {
@@ -213,9 +215,9 @@
       /* Left Mobile Header: Logo + Title on far left, Search glyph on far right (with reserved space & multi-line title wrap), remaining pages centered underneath */
       .site-header.header-align-left .nav-wrap {
         height: auto !important;
-        min-height: auto !important;
+        min-height: 0 !important;
         position: relative !important;
-        padding: 0.75rem 10px !important;
+        padding: var(--header-pad-v, 0.65rem) 10px !important;
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) auto !important;
         grid-template-rows: auto auto !important;
@@ -316,10 +318,11 @@
     }
 
     .brand-logo-img {
-      width: 32px;
+      width: auto;
       height: 32px;
-      border-radius: 8px;
-      object-fit: cover;
+      max-width: 100%;
+      border-radius: 6px;
+      object-fit: contain;
     }
 
     .brand-text {

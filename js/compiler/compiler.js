@@ -1286,7 +1286,8 @@
       brand.siteTitle ||
       'Cedar';
     const blogTagline = (window.projectConfig && window.projectConfig.subtitle) || brand.tagline || '';
-    let blogLogo = (brand.generalLogo && brand.generalLogo !== 'logo.png' && brand.generalLogo !== '/logo.png') ? brand.generalLogo : '';
+    const rawBlogLogo = (brand.originalLogo || brand.generalLogo || '').trim();
+    let blogLogo = (rawBlogLogo && rawBlogLogo !== 'logo.png' && rawBlogLogo !== '/logo.png') ? rawBlogLogo : '';
     if (preferStaticPaths) {
       if (blogLogo && blogLogo.startsWith('data:')) {
         blogLogo = '/media/branding/logo.png';
@@ -1317,24 +1318,23 @@
     if (spacingMode === 'compact') userSpacingScale *= 0.65;
     else if (spacingMode === 'relaxed') userSpacingScale *= 1.45;
 
-    let autoFactor = 1.0;
-    if (spacingMode === 'auto' || spacingMode === 'relaxed') {
-      autoFactor = Math.min(3.5, 1.0 + Math.max(0, mhH - 64) / 85);
-    }
-    const factor = Math.max(0.4, autoFactor * userSpacingScale);
+    const factor = Math.max(0.4, userSpacingScale);
 
-    const lockupGap = Math.round(8 * Math.min(3.2, factor));
-    const navGap = Math.round(10 * Math.min(3.4, factor));
+    const lockupGap = Math.round(6 * Math.min(2.4, factor));
+    const navGap = Math.round(8 * Math.min(2.4, factor));
     const logoGrowth = Math.min(1.65, 1.0 + Math.max(0, mhH - 64) / 360);
     const titleGrowth = Math.min(1.35, 1.0 + Math.max(0, mhH - 64) / 500);
     const logoScale = typeof logoCfg.scale === 'number' ? logoCfg.scale : (typeof design.logoScale === 'number' ? design.logoScale : ((design.branding && typeof design.branding.logoScale === 'number') ? design.branding.logoScale : 1.0));
     const titleScale = typeof titleCfg.scale === 'number' ? titleCfg.scale : (typeof design.titleScale === 'number' ? design.titleScale : ((design.branding && typeof design.branding.titleScale === 'number') ? design.branding.titleScale : 1.0));
-    const maxScale = Math.max(logoScale, titleScale, 1.0);
-    const padV = Math.max(10, Math.round(10 * Math.max(0.5, factor) + (maxScale - 1) * 7));
-
+    const hasValidLogo = Boolean(blogLogo && logoCfg.enabled !== false);
+    const isTitleEnabled = titleCfg.enabled !== false;
     const logoSize = Math.round(44 * logoScale * logoGrowth);
+    const effectiveLogoSize = hasValidLogo ? logoSize : 0;
+    const effectiveTitleSize = isTitleEnabled ? Math.round(1.25 * titleScale * titleGrowth * 24) : 0;
+    const refContentHeight = Math.max(effectiveLogoSize, effectiveTitleSize, 28);
+    const padV = Math.max(8, Math.min(18, Math.round(refContentHeight * 0.12 * Math.max(0.5, factor))));
     const titleFs = (1.25 * titleScale * titleGrowth).toFixed(2);
-    const headerMinH = Math.max(mhH, logoSize + padV * 2, Math.round(1.25 * titleScale * titleGrowth * 24 + padV * 2));
+    const headerMinH = 0;
     const containerW = (window.projectConfig && window.projectConfig.design && window.projectConfig.design.containerWidth) || 1280;
 
     const design = (window.projectConfig && window.projectConfig.design) || {};
@@ -1656,12 +1656,14 @@
     }
 
     .site-header {
-      min-height: ${mhAlign === 'center' ? `${Math.max(headerMinH, 96)}px` : `${headerMinH}px`};
+      min-height: 0;
       height: auto;
+      --header-pad-v: ${Math.max(0, padV)}px;
+      --header-nav-gap: ${navGap}px;
     }
 
     .site-header .nav-wrap {
-      min-height: ${mhAlign === 'center' ? `${Math.max(headerMinH, 96)}px` : `${headerMinH}px`};
+      min-height: 0;
       height: auto;
       border-bottom: 1px solid var(--border-subtle);
       position: relative;
@@ -1685,12 +1687,15 @@
       flex-direction: ${mhAlign === 'right' ? 'row-reverse' : (mhAlign === 'center' ? 'column' : 'row')};
       text-align: ${mhAlign};
       margin: ${mhAlign === 'center' ? '0 auto' : '0'};
+      max-width: 100%;
       user-select: none;
     }
 
     .header-logo-img {
-      width: ${logoSize}px;
+      width: auto;
       height: ${logoSize}px;
+      max-height: ${logoSize}px;
+      max-width: 100%;
       object-fit: contain;
       border-radius: 6px;
       flex-shrink: 0;
@@ -1732,12 +1737,12 @@
       }
       .site-header:not(.header-align-left) .nav-wrap {
         height: auto !important;
-        min-height: auto !important;
+        min-height: 0 !important;
         position: static !important;
-        padding: 0.75rem 10px !important;
+        padding: var(--header-pad-v, 0.65rem) 10px !important;
         flex-direction: column !important;
         align-items: center !important;
-        gap: 0.5rem !important;
+        gap: var(--header-nav-gap, 0.5rem) !important;
       }
       .site-header:not(.header-align-left) .custom-masthead-link {
         display: flex !important;
@@ -4408,8 +4413,9 @@ ${itemsXml}
     // 2. Branding & Author Media
     const brand = (publicProject.design && publicProject.design.branding) || {};
     if (brand.files) delete brand.files;
-    if (brand.generalLogo && brand.generalLogo.startsWith('data:')) {
-      const logoBlob = dataUrlToBlob(brand.generalLogo);
+    const bestLogoData = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
+    if (bestLogoData && bestLogoData.startsWith('data:')) {
+      const logoBlob = dataUrlToBlob(bestLogoData);
       if (logoBlob) {
         addFile('media/branding/logo.png', logoBlob);
         brand.generalLogo = '/media/branding/logo.png';

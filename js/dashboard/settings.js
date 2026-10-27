@@ -2025,7 +2025,7 @@
           let originalDataUrl = rawDataUrl;
 
           if (((window.Cedar && typeof window.Cedar.generateResizedCanvasImage === 'function') || (window.Outpost && typeof (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage) === 'function'))) {
-            mastheadDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 256, 256, false);
+            mastheadDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
             iconDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 64, 64, true);
             originalDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
           }
