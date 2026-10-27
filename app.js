@@ -205,6 +205,7 @@
           let editorCfg = null;
           let writerCfg = null;
           let rootCfg = null;
+          let fileMilestones = null;
           try {
             const resEditor = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('editor/config.json')}&as=json`, { cache: 'no-cache' });
             if (resEditor.ok) editorCfg = await resEditor.json();
@@ -216,6 +217,13 @@
           try {
             const resRoot = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=config.json&as=json`, { cache: 'no-cache' });
             if (resRoot.ok) rootCfg = await resRoot.json();
+          } catch (e) {}
+          try {
+            let resMs = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('editor/milestones.json')}&as=json`, { cache: 'no-cache' });
+            if (!resMs.ok) {
+              resMs = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('writer/milestones.json')}&as=json`, { cache: 'no-cache' });
+            }
+            if (resMs.ok) fileMilestones = await resMs.json();
           } catch (e) {}
 
           let fileConfig = null;
@@ -284,6 +292,7 @@
               storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
             } catch (e) {}
             []
+              .concat(Array.isArray(fileMilestones) ? fileMilestones : [])
               .concat(Array.isArray(newerProj.milestones) ? newerProj.milestones : [])
               .concat(Array.isArray(olderProj.milestones) ? olderProj.milestones : [])
               .concat(Array.isArray(storedMsList) ? storedMsList : [])

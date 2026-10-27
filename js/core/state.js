@@ -2594,6 +2594,12 @@
 
     const serializedConfig = JSON.stringify(effectiveConfig, null, 2);
 
+    const publicRootConfigObj = Object.assign({}, effectiveConfig);
+    delete publicRootConfigObj.milestones;
+    delete publicRootConfigObj.activityLog;
+    const serializedPublicRootConfig = JSON.stringify(publicRootConfigObj, null, 2);
+    const serializedMilestones = JSON.stringify(Array.isArray(effectiveConfig.milestones) ? effectiveConfig.milestones : [], null, 2);
+
 
 
     // 1. High-Capacity Virtual Vault (OPFS / IndexedDB)
@@ -2602,13 +2608,18 @@
 
       try {
 
-        (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('config.json', serializedConfig);
+        (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('config.json', serializedPublicRootConfig);
 
         (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('cedar_config.json', serializedConfig);
 
         (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('editor/config.json', serializedConfig);
 
-        try { (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/config.json', serializedConfig); } catch (e) {}
+        (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('editor/milestones.json', serializedMilestones);
+
+        try {
+          (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/config.json', serializedConfig);
+          (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/milestones.json', serializedMilestones);
+        } catch (e) {}
 
       } catch (e) {
 
@@ -2628,13 +2639,18 @@
 
       try {
 
-        window.SheeshVault.writeFile('config.json', serializedConfig);
+        window.SheeshVault.writeFile('config.json', serializedPublicRootConfig);
 
         window.SheeshVault.writeFile('cedar_config.json', serializedConfig);
 
         window.SheeshVault.writeFile('editor/config.json', serializedConfig);
 
-        try { window.SheeshVault.writeFile('writer/config.json', serializedConfig); } catch (e) {}
+        window.SheeshVault.writeFile('editor/milestones.json', serializedMilestones);
+
+        try {
+          window.SheeshVault.writeFile('writer/config.json', serializedConfig);
+          window.SheeshVault.writeFile('writer/milestones.json', serializedMilestones);
+        } catch (e) {}
 
       } catch (e) {}
 
@@ -2654,7 +2670,7 @@
 
             filePath: 'config.json',
 
-            content: serializedConfig,
+            content: serializedPublicRootConfig,
 
             encoding: 'utf-8'
 
@@ -2712,9 +2728,49 @@
 
             folderPath: savedVaultPath,
 
+            filePath: 'editor/milestones.json',
+
+            content: serializedMilestones,
+
+            encoding: 'utf-8'
+
+          })
+
+        }).catch(() => {});
+
+        fetch('/api/vault-write', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json' },
+
+          body: JSON.stringify({
+
+            folderPath: savedVaultPath,
+
             filePath: 'writer/config.json',
 
             content: serializedConfig,
+
+            encoding: 'utf-8'
+
+          })
+
+        }).catch(() => {});
+
+        fetch('/api/vault-write', {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json' },
+
+          body: JSON.stringify({
+
+            folderPath: savedVaultPath,
+
+            filePath: 'writer/milestones.json',
+
+            content: serializedMilestones,
 
             encoding: 'utf-8'
 

@@ -8,6 +8,22 @@ __pycache__/
 *.bak
 *.tmp
 
+# Author-only drafts, milestones & private studio state
+drafts/
+blog/drafts/
+blog/hidden/
+pages/hidden/
+drafts.json
+**/draft.json
+*.draft.*
+milestones/
+milestones.json
+**/milestones.json
+editor/drafts.json
+editor/milestones.json
+writer/drafts.json
+writer/milestones.json
+
 # OS & Editor metadata
 .DS_Store
 Thumbs.db

@@ -4829,15 +4829,41 @@ ${itemsXml}
         'static-writer/',
         'editor/',
         'drafts/',
+        'milestones/',
         'hidden/',
         'backups/',
         'notes/',
         '*.draft.*',
         '**/draft.json',
         'drafts.json',
+        'milestones.json',
+        '**/milestones.json',
         'vault.json',
         'notes.json',
         'sync.json',
+        '.DS_Store',
+        'Thumbs.db'
+      ].join('\n') + '\n');
+      addFile('.gitignore', [
+        '# Cedar Studio - Exclude private drafts, milestones, and editor state',
+        'editor/',
+        'writer/',
+        'static-writer/',
+        'blog/drafts/',
+        'blog/hidden/',
+        'pages/hidden/',
+        'drafts/',
+        'milestones/',
+        'hidden/',
+        'backups/',
+        'notes/',
+        '*.draft.*',
+        '**/draft.json',
+        'drafts.json',
+        'milestones.json',
+        '**/milestones.json',
+        'vault.json',
+        'notes.json',
         '.DS_Store',
         'Thumbs.db'
       ].join('\n') + '\n');
@@ -4903,44 +4929,61 @@ ${itemsXml}
     try {
       const files = [];
 
-      // 0. Cloudflare Pages guardrails (.cfignore)
+      // 0. Cloudflare Pages & Git guardrails (.cfignore & .gitignore)
+      const ignoreEntries = [
+        '# Cedar Guardrails - Do NOT deploy internal, draft, milestone, or hidden assets',
+        'editor/',
+        'writer/',
+        'static-writer/',
+        'blog/drafts/',
+        'blog/hidden/',
+        'pages/hidden/',
+        'drafts/',
+        'milestones/',
+        'hidden/',
+        'backups/',
+        'notes/',
+        '*.draft.*',
+        '**/draft.json',
+        'drafts.json',
+        'milestones.json',
+        '**/milestones.json',
+        'vault.json',
+        'notes.json',
+        'sync.json',
+        '_authors_archive/',
+        '_designer_archive/',
+        '_legacy_archive/',
+        '_notes_archive/',
+        '__pycache__/'
+      ].join('\n') + '\n';
       files.push({
         name: '.cfignore',
-        data: [
-          '# Cedar Cloudflare Guardrails - Do NOT deploy internal, draft, or hidden assets',
-          'writer/',
-          'static-writer/',
-          'blog/drafts/',
-          'blog/hidden/',
-          'pages/hidden/',
-          'drafts/',
-          'hidden/',
-          'backups/',
-          'notes/',
-          '*.draft.*',
-          '**/draft.json',
-          'drafts.json',
-          'vault.json',
-          'notes.json',
-          'sync.json',
-          '_authors_archive/',
-          '_designer_archive/',
-          '_legacy_archive/',
-          '_notes_archive/',
-          '__pycache__/'
-        ].join('\n') + '\n'
+        data: ignoreEntries
+      });
+      files.push({
+        name: '.gitignore',
+        data: ignoreEntries
       });
 
-      // 0a. editor/drafts.json
+      // 0a. editor/drafts.json & editor/milestones.json
       files.push({
         name: 'editor/drafts.json',
         data: JSON.stringify(drafts, null, 2)
       });
+      files.push({
+        name: 'editor/milestones.json',
+        data: JSON.stringify(Array.isArray(projectConfig.milestones) ? projectConfig.milestones : [], null, 2)
+      });
 
-      // 0b. writer/drafts.json for direct re-import
+      // 0b. writer/drafts.json & writer/milestones.json for direct re-import
       files.push({
         name: 'writer/drafts.json',
         data: JSON.stringify(drafts, null, 2)
+      });
+      files.push({
+        name: 'writer/milestones.json',
+        data: JSON.stringify(Array.isArray(projectConfig.milestones) ? projectConfig.milestones : [], null, 2)
       });
 
       // 1. config.json

@@ -585,9 +585,9 @@
   async function copyBlogToFolder(dirHandle, options = {}) {
     if (!dirHandle) throw new Error('No target directory provided.');
 
-    // 0. Cloudflare Pages guardrails (.cfignore)
+    // 0. Cloudflare Pages & Git guardrails (.cfignore & .gitignore)
     const cfIgnoreContent = [
-      '# Cedar Cloudflare Guardrails - Do NOT deploy internal, draft, or hidden assets',
+      '# Cedar Guardrails - Do NOT deploy internal, draft, milestone, or hidden assets',
       'editor/',
       'writer/',
       'static-writer/',
@@ -595,12 +595,15 @@
       'blog/hidden/',
       'pages/hidden/',
       'drafts/',
+      'milestones/',
       'hidden/',
       'backups/',
       'notes/',
       '*.draft.*',
       '**/draft.json',
       'drafts.json',
+      'milestones.json',
+      '**/milestones.json',
       'vault.json',
       'notes.json',
       'sync.json',
@@ -611,8 +614,9 @@
       '__pycache__/'
     ].join('\n') + '\n';
     await writeFileToDirHandle(dirHandle, '.cfignore', cfIgnoreContent);
+    await writeFileToDirHandle(dirHandle, '.gitignore', cfIgnoreContent);
 
-    // 1. config.json and writer/config.json
+    // 1. config.json (public-safe) and editor/config.json + writer/config.json (full studio state)
     const resolvedEditorTheme = (window.projectConfig?.design && (window.projectConfig.design.customColors || window.projectConfig.design.blogTheme || window.projectConfig.design.activeTheme))
       || window.projectConfig?.editorTheme
       || localStorage.getItem('cedar_theme')
@@ -643,14 +647,22 @@
       lastUpdated: Date.now()
     });
     const configSerialized = JSON.stringify(configData, null, 2);
-    await writeFileToDirHandle(dirHandle, 'config.json', configSerialized);
+    const publicRootConfig = Object.assign({}, configData);
+    delete publicRootConfig.milestones;
+    delete publicRootConfig.activityLog;
+    await writeFileToDirHandle(dirHandle, 'config.json', JSON.stringify(publicRootConfig, null, 2));
     await writeFileToDirHandle(dirHandle, 'editor/config.json', configSerialized);
     try { await writeFileToDirHandle(dirHandle, 'writer/config.json', configSerialized); } catch (e) {}
 
-    // 2. editor/drafts.json (and clean up legacy static-writer/ and pages/drafts/)
+    // 2. editor/drafts.json & editor/milestones.json (and clean up legacy static-writer/ and pages/drafts/)
     const draftsList = Array.isArray(window.drafts) ? window.drafts : [];
+    const milestonesList = Array.isArray(window.projectConfig?.milestones) ? window.projectConfig.milestones : [];
     await writeFileToDirHandle(dirHandle, 'editor/drafts.json', JSON.stringify(draftsList, null, 2));
-    try { await writeFileToDirHandle(dirHandle, 'writer/drafts.json', JSON.stringify(draftsList, null, 2)); } catch (e) {}
+    await writeFileToDirHandle(dirHandle, 'editor/milestones.json', JSON.stringify(milestonesList, null, 2));
+    try {
+      await writeFileToDirHandle(dirHandle, 'writer/drafts.json', JSON.stringify(draftsList, null, 2));
+      await writeFileToDirHandle(dirHandle, 'writer/milestones.json', JSON.stringify(milestonesList, null, 2));
+    } catch (e) {}
     await removeDirEntry(dirHandle, 'static-writer');
     await removeDirEntry(dirHandle, 'pages/drafts');
 
@@ -871,9 +883,14 @@
       let editorCfg = null;
       let writerCfg = null;
       let rootCfg = null;
+      let fileMilestones = null;
       try { editorCfg = await readFileFromDirHandle(dirHandle, 'editor/config.json', 'json'); } catch (e) {}
       try { writerCfg = await readFileFromDirHandle(dirHandle, 'writer/config.json', 'json'); } catch (e) {}
       try { rootCfg = await readFileFromDirHandle(dirHandle, 'config.json', 'json'); } catch (e) {}
+      try { fileMilestones = await readFileFromDirHandle(dirHandle, 'editor/milestones.json', 'json'); } catch (e) {}
+      if (!Array.isArray(fileMilestones)) {
+        try { fileMilestones = await readFileFromDirHandle(dirHandle, 'writer/milestones.json', 'json'); } catch (e) {}
+      }
 
       let cfg = null;
       const parseTs = (v) => {
@@ -900,6 +917,7 @@
           storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
         } catch (e) {}
         []
+          .concat(Array.isArray(fileMilestones) ? fileMilestones : [])
           .concat(Array.isArray(cfg.milestones) ? cfg.milestones : [])
           .concat(Array.isArray(window.projectConfig && window.projectConfig.milestones) ? window.projectConfig.milestones : [])
           .concat(Array.isArray(storedMsList) ? storedMsList : [])
@@ -1522,12 +1540,12 @@ else {
         await removeDirEntry(rootHandle, 'pages/drafts');
       }
 
-      // Ensure .cfignore exists
+      // Ensure .cfignore & .gitignore exist
       try {
         const hasCf = await readFileFromDirHandle(rootHandle, '.cfignore', 'text');
-        if (!hasCf || !hasCf.includes('editor/')) {
+        if (!hasCf || !hasCf.includes('milestones')) {
           const cfIgnore = [
-            '# Cedar Cloudflare Guardrails - Do NOT deploy internal, draft, or hidden assets',
+            '# Cedar Guardrails - Do NOT deploy internal, draft, milestone, or hidden assets',
             'editor/',
             'writer/',
             'static-writer/',
@@ -1535,12 +1553,15 @@ else {
             'blog/hidden/',
             'pages/hidden/',
             'drafts/',
+            'milestones/',
             'hidden/',
             'backups/',
             'notes/',
             '*.draft.*',
             '**/draft.json',
             'drafts.json',
+            'milestones.json',
+            '**/milestones.json',
             'vault.json',
             'notes.json',
             'sync.json',
@@ -1551,6 +1572,7 @@ else {
             '__pycache__/'
           ].join('\n') + '\n';
           await writeFileToDirHandle(rootHandle, '.cfignore', cfIgnore);
+          await writeFileToDirHandle(rootHandle, '.gitignore', cfIgnore);
         }
       } catch (e) {}
 
