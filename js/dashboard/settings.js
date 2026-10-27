@@ -2171,10 +2171,6 @@
             if (favDimsBadge) favDimsBadge.textContent = `${Math.min(64, naturalW)} × ${Math.min(64, naturalH)}px`;
             if (favEmptyState) favEmptyState.style.display = 'none';
             if (favPreviewState) favPreviewState.style.display = 'flex';
-
-            document.querySelectorAll("link[rel*='icon']").forEach(el => {
-              el.href = iconDataUrl;
-            });
           }
 
           const brandingAssets = Object.assign(
@@ -2447,10 +2443,6 @@
             localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': iconDataUrl }));
           } catch (e) {}
 
-          document.querySelectorAll("link[rel*='icon']").forEach(el => {
-            el.href = iconDataUrl;
-          });
-
           if (window.SheeshVault && window.SheeshVault.isConnected() && typeof (window.Cedar?.writeBrandingAssetsToVault || window.Outpost?.writeBrandingAssetsToVault) === 'function') {
             (window.Cedar.writeBrandingAssetsToVault || window.Outpost.writeBrandingAssetsToVault)({ 'media/branding/icon.png': iconDataUrl });
           }
@@ -2581,10 +2573,6 @@
           localStorage.removeItem('cedar_branding_files_v1');
           try { localStorage.removeItem('outpost_branding_files_v1'); } catch (e) {}
         } catch (e) {}
-
-        document.querySelectorAll("link[rel*='icon']").forEach(el => {
-          el.href = 'icon.png';
-        });
 
         if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
         if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();

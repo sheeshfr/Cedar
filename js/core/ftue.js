@@ -3376,13 +3376,9 @@
   }
 
   function updatePageIdentity(siteTitle, logoUrl) {
-    document.title = siteTitle ? `Home — ${siteTitle}` : 'Home — Cedar';
+    document.title = 'Home — Cedar';
     if (typeof window.updateCedarTitle === 'function') {
       window.updateCedarTitle();
-    }
-    const tabLogoEl = document.querySelector("link[rel*='icon']");
-    if (tabLogoEl && logoUrl) {
-      tabLogoEl.href = logoUrl;
     }
     const brandNameEls = document.querySelectorAll('.brand-text-name, .nav-brand-title');
     brandNameEls.forEach(el => { el.textContent = siteTitle; });

@@ -1531,8 +1531,6 @@
 
   function updateCedarTitle() {
 
-    const siteTitle = ((projectConfig && projectConfig.name) || (projectConfig && projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.siteTitle) || 'Cedar').trim();
-
     let pageName = 'Home';
 
 
@@ -1589,30 +1587,7 @@
 
 
 
-    document.title = pageName ? `${pageName} — ${siteTitle}` : siteTitle;
-
-    try {
-      const b = projectConfig && projectConfig.design && projectConfig.design.branding;
-      if (b) {
-        let favHref = '';
-        if (b.faviconExplicitlyRemoved) {
-          favHref = 'icon.png';
-        } else if (b.tabLogo && b.tabLogo !== 'icon.png' && b.tabLogo !== '/icon.png') {
-          favHref = b.tabLogo;
-        } else if (b.files && b.files['media/branding/icon.png']) {
-          favHref = b.files['media/branding/icon.png'];
-        } else if (b.generalLogo) {
-          favHref = b.generalLogo;
-        }
-        if (favHref) {
-          document.querySelectorAll("link[rel*='icon']").forEach(el => {
-            if (el.getAttribute('href') !== favHref) {
-              el.href = favHref;
-            }
-          });
-        }
-      }
-    } catch (e) {}
+    document.title = pageName ? `${pageName} — Cedar` : 'Cedar';
 
   }
 
