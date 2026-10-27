@@ -547,9 +547,10 @@
     window.projectConfig.design.branding.logoScale = effLogoScale;
     window.projectConfig.design.branding.titleScale = effTitleScale;
 
+    window.projectConfig.design.masthead.image2SpacingDefault = true;
     window.projectConfig.design.masthead.elements = {
-      logo: { enabled: newState.branding !== 'title', scale: effLogoScale },
-      title: { enabled: newState.branding !== 'logo', scale: effTitleScale },
+      logo: { enabled: newState.branding !== 'title', x: 96, y: 144, size: 48, scale: effLogoScale },
+      title: { enabled: newState.branding !== 'logo', x: 144, y: 160, scale: effTitleScale },
       nav: { enabled: true }
     };
 
@@ -1448,9 +1449,11 @@
 
         if ((window.Cedar && typeof window.Cedar.generateResizedCanvasImage === 'function') || (window.Outpost && typeof (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage) === 'function')) {
           const resizer = window.Cedar?.generateResizedCanvasImage || window.Outpost?.generateResizedCanvasImage;
-          mastheadDataUrl = resizer(img, 1200, 1200, false);
-          iconDataUrl = resizer(img, 64, 64, true);
-          originalDataUrl = resizer(img, 1200, 1200, false);
+          if (naturalW > 1200 || naturalH > 1200) {
+            mastheadDataUrl = resizer(img, 1200, 1200, false);
+            originalDataUrl = mastheadDataUrl;
+          }
+          iconDataUrl = resizer(img, 64, 64, false);
         }
 
         if (!window.projectConfig) window.projectConfig = {};

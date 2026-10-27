@@ -800,8 +800,13 @@
     delete brandingSources['images/branding/logo-original.png'];
     delete brandingSources['blog/images/branding/logo-original.png'];
     if (brand.generalLogo && brand.generalLogo.startsWith('data:')) {
-      brandingSources['media/branding/logo.png'] = brand.generalLogo;
-      brandingSources['media/branding/logo-original.png'] = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
+      const bestLogo = (brand.originalLogo && brand.originalLogo.startsWith('data:') && brand.originalLogo.length >= brand.generalLogo.length)
+        ? brand.originalLogo
+        : brand.generalLogo;
+      brandingSources['media/branding/logo.png'] = bestLogo;
+      if (brand.originalLogo && brand.originalLogo.startsWith('data:')) {
+        brandingSources['media/branding/logo-original.png'] = brand.originalLogo;
+      }
     }
     if (brand.tabLogo && brand.tabLogo.startsWith('data:')) {
       brandingSources['media/branding/icon.png'] = brand.tabLogo;
@@ -1176,6 +1181,19 @@ else {
             }
           }
         });
+        // If logo-original.png exists in the Vault and the user has an active logo, ensure originalLogo and generalLogo use the full-resolution asset
+        const foundOrig = hydratedMap.get('logo-original.png') || hydratedMap.get('logo.png');
+        if (foundOrig && foundOrig.dataUrl && (b.generalLogo || b.originalLogo)) {
+          if (!b.originalLogo || !b.originalLogo.startsWith('data:') || foundOrig.dataUrl.length > b.originalLogo.length) {
+            b.originalLogo = foundOrig.dataUrl;
+            configChanged = true;
+          }
+          if (!b.generalLogo || !b.generalLogo.startsWith('data:') || foundOrig.dataUrl.length > b.generalLogo.length) {
+            b.generalLogo = foundOrig.dataUrl;
+            cfg.logo = foundOrig.dataUrl;
+            configChanged = true;
+          }
+        }
       }
       if (Array.isArray(cfg.mediaLibrary)) {
         cfg.mediaLibrary.forEach(m => {
@@ -1217,6 +1235,15 @@ else {
 
     if (configChanged && typeof window.saveProjectToStorage === 'function') {
       try { window.saveProjectToStorage(); } catch (e) {}
+      if (typeof window.renderProjectSettings === 'function') {
+        try { window.renderProjectSettings(); } catch (e) {}
+      }
+      if (typeof window.renderDesigner === 'function') {
+        try { window.renderDesigner(); } catch (e) {}
+      }
+      if (typeof window.updateAllPreviewFrames === 'function') {
+        try { window.updateAllPreviewFrames(); } catch (e) {}
+      }
     }
     return configChanged || draftsChanged;
   }

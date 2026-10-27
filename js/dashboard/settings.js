@@ -2135,9 +2135,12 @@
           let iconDataUrl = rawDataUrl;
 
           if (((window.Cedar && typeof window.Cedar.generateResizedCanvasImage === 'function') || (window.Outpost && typeof (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage) === 'function'))) {
-            mastheadDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
-            originalDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 1200, 1200, false);
-            iconDataUrl = (window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage)(img, 64, 64, false);
+            const resizer = window.Cedar.generateResizedCanvasImage || window.Outpost.generateResizedCanvasImage;
+            if (naturalW > 1200 || naturalH > 1200) {
+              mastheadDataUrl = resizer(img, 1200, 1200, false);
+              originalDataUrl = mastheadDataUrl;
+            }
+            iconDataUrl = resizer(img, 64, 64, false);
           }
 
           if (!projectConfig.design) projectConfig.design = {};

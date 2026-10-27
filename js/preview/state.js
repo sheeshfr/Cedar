@@ -283,6 +283,16 @@
                       nextBrand.tabLogo = prevBrand.tabLogo;
                       nextBrand.customFavicon = true;
                     }
+                    const bestOrig = (nextBrand.originalLogo && nextBrand.originalLogo.startsWith('data:') ? nextBrand.originalLogo : '')
+                      || (prevBrand.originalLogo && prevBrand.originalLogo.startsWith('data:') ? prevBrand.originalLogo : '');
+                    if (bestOrig) {
+                      nextBrand.originalLogo = bestOrig;
+                      if (!nextBrand.generalLogo || !nextBrand.generalLogo.startsWith('data:') || bestOrig.length > nextBrand.generalLogo.length) {
+                        nextBrand.generalLogo = bestOrig;
+                      }
+                    } else if (prevBrand.generalLogo && prevBrand.generalLogo.startsWith('data:') && nextBrand.generalLogo && nextBrand.generalLogo.startsWith('data:') && prevBrand.generalLogo.length > nextBrand.generalLogo.length) {
+                      nextBrand.generalLogo = prevBrand.generalLogo;
+                    }
                     projectConfig.design = Object.assign({}, (parsedProject && parsedProject.design) || {}, lp.design, { branding: nextBrand });
                     appliedLocalDesign = true;
                   }

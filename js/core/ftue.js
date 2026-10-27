@@ -2557,13 +2557,13 @@
           if (logoEmptyState) logoEmptyState.style.display = 'none';
           if (logoPreviewState) logoPreviewState.style.display = 'flex';
 
-          // Generate smaller versions in dedicated branding structure:
-          // 1. Masthead logo: max 1200px, aspect ratio preserved
-          const mastheadDataUrl = generateResizedCanvasImage(img, 1200, 1200, false);
-          // 2. Browser tab / Favicon icon: 64x64 square (centered with padding if non-square)
-          const iconDataUrl = generateResizedCanvasImage(img, 64, 64, true);
-          // 3. Master original (up to 1200px max allowance, always re-encoded via canvas to strip EXIF)
-          const originalDataUrl = generateResizedCanvasImage(img, 1200, 1200, false);
+          // 1. Masthead logo & master original: keep original dataUrl when within 1200x1200 max allowance
+          const mastheadDataUrl = (naturalW > 1200 || naturalH > 1200)
+            ? generateResizedCanvasImage(img, 1200, 1200, false)
+            : rawDataUrl;
+          // 2. Browser tab / Favicon icon: max 64x64
+          const iconDataUrl = generateResizedCanvasImage(img, 64, 64, false);
+          const originalDataUrl = mastheadDataUrl;
 
           uploadedBrandingAssets = {
             'media/branding/logo.png': mastheadDataUrl,

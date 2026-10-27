@@ -277,6 +277,16 @@
                 mergedDesign.branding.tabLogo = ob.tabLogo;
                 mergedDesign.branding.customFavicon = true;
               }
+              const bestOrigLogo = (nb.originalLogo && nb.originalLogo.startsWith('data:') ? nb.originalLogo : '')
+                || (ob.originalLogo && ob.originalLogo.startsWith('data:') ? ob.originalLogo : '');
+              if (bestOrigLogo) {
+                mergedDesign.branding.originalLogo = bestOrigLogo;
+                if (!mergedDesign.branding.generalLogo || !mergedDesign.branding.generalLogo.startsWith('data:') || bestOrigLogo.length > mergedDesign.branding.generalLogo.length) {
+                  mergedDesign.branding.generalLogo = bestOrigLogo;
+                }
+              } else if (ob.generalLogo && ob.generalLogo.startsWith('data:') && nb.generalLogo && nb.generalLogo.startsWith('data:') && ob.generalLogo.length > nb.generalLogo.length) {
+                mergedDesign.branding.generalLogo = ob.generalLogo;
+              }
             }
             if ((olderProj.design && olderProj.design.masthead) || (newerProj.design && newerProj.design.masthead)) {
               mergedDesign.masthead = Object.assign({}, (olderProj.design && olderProj.design.masthead) || {}, (newerProj.design && newerProj.design.masthead) || {});

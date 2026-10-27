@@ -549,8 +549,10 @@
         }
         const logoScale = typeof logoCfg.scale === 'number' ? logoCfg.scale : (typeof dCfg.logoScale === 'number' ? dCfg.logoScale : ((dCfg.branding && typeof dCfg.branding.logoScale === 'number') ? dCfg.branding.logoScale : 1.0));
         const titleScale = typeof titleCfg.scale === 'number' ? titleCfg.scale : (typeof dCfg.titleScale === 'number' ? dCfg.titleScale : ((dCfg.branding && typeof dCfg.branding.titleScale === 'number') ? dCfg.branding.titleScale : 1.0));
-        const hasValidLogo = Boolean(logo && logoCfg.enabled !== false);
-        const isTitleEnabled = titleCfg.enabled !== false;
+        const brandingMode = dCfg.brandingMode || (typeof dCfg.branding === 'string' ? dCfg.branding : '');
+        const isLogoEnabled = brandingMode === 'title' ? false : (brandingMode === 'logo' || brandingMode === 'both' ? true : logoCfg.enabled !== false);
+        const hasValidLogo = Boolean(logo && isLogoEnabled);
+        const isTitleEnabled = brandingMode === 'logo' ? false : (brandingMode === 'title' || brandingMode === 'both' ? true : titleCfg.enabled !== false);
         const logoSize = Math.round(44 * logoScale * logoGrowth);
         const effectiveLogoSize = hasValidLogo ? logoSize : 0;
         const effectiveTitleSize = isTitleEnabled ? Math.round(1.25 * titleScale * titleGrowth * 24) : 0;

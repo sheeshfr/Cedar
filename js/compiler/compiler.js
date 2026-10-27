@@ -1324,10 +1324,13 @@
     const navGap = Math.round(8 * Math.min(2.4, factor));
     const logoGrowth = Math.min(1.65, 1.0 + Math.max(0, mhH - 64) / 360);
     const titleGrowth = Math.min(1.35, 1.0 + Math.max(0, mhH - 64) / 500);
+    const design = (window.projectConfig && window.projectConfig.design) || {};
     const logoScale = typeof logoCfg.scale === 'number' ? logoCfg.scale : (typeof design.logoScale === 'number' ? design.logoScale : ((design.branding && typeof design.branding.logoScale === 'number') ? design.branding.logoScale : 1.0));
     const titleScale = typeof titleCfg.scale === 'number' ? titleCfg.scale : (typeof design.titleScale === 'number' ? design.titleScale : ((design.branding && typeof design.branding.titleScale === 'number') ? design.branding.titleScale : 1.0));
-    const hasValidLogo = Boolean(blogLogo && logoCfg.enabled !== false);
-    const isTitleEnabled = titleCfg.enabled !== false;
+    const brandingMode = design.brandingMode || (typeof design.branding === 'string' ? design.branding : '');
+    const isLogoEnabled = brandingMode === 'title' ? false : (brandingMode === 'logo' || brandingMode === 'both' ? true : logoCfg.enabled !== false);
+    const hasValidLogo = Boolean(blogLogo && isLogoEnabled);
+    const isTitleEnabled = brandingMode === 'logo' ? false : (brandingMode === 'title' || brandingMode === 'both' ? true : titleCfg.enabled !== false);
     const logoSize = Math.round(44 * logoScale * logoGrowth);
     const effectiveLogoSize = hasValidLogo ? logoSize : 0;
     const effectiveTitleSize = isTitleEnabled ? Math.round(1.25 * titleScale * titleGrowth * 24) : 0;
@@ -1336,8 +1339,6 @@
     const titleFs = (1.25 * titleScale * titleGrowth).toFixed(2);
     const headerMinH = 0;
     const containerW = (window.projectConfig && window.projectConfig.design && window.projectConfig.design.containerWidth) || 1280;
-
-    const design = (window.projectConfig && window.projectConfig.design) || {};
     const effThemeId = design.blogTheme || design.activeTheme || 'basalt';
     const palettes = ((window.CedarFTUE || window.OutpostFTUE) && (window.CedarFTUE || window.OutpostFTUE).THEME_PALETTES) || {};
     let palette;
@@ -1700,7 +1701,7 @@
       border-radius: 6px;
       flex-shrink: 0;
       margin: ${mhAlign === 'center' ? '0 auto' : '0'};
-      display: ${logoCfg.enabled !== false ? 'block' : 'none'};
+      display: ${hasValidLogo ? 'block' : 'none'};
     }
 
     .header-title-text {
@@ -1708,7 +1709,7 @@
       font-weight: 800;
       color: var(--text-primary);
       text-decoration: none;
-      display: ${titleCfg.enabled !== false ? 'block' : 'none'};
+      display: ${isTitleEnabled ? 'block' : 'none'};
       line-height: 1.2;
       white-space: nowrap;
       text-align: ${mhAlign};

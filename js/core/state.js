@@ -2400,29 +2400,17 @@
 
 
 
-      if (needsImage2Migration) {
+      const bMode = projectConfig.design.brandingMode || (typeof projectConfig.design.branding === 'string' ? projectConfig.design.branding : '');
+      const resolvedLogoEnabled = bMode === 'title' ? false : (bMode === 'logo' || bMode === 'both' ? true : (rawEls.logo ? rawEls.logo.enabled !== false : true));
+      const resolvedTitleEnabled = bMode === 'logo' ? false : (bMode === 'title' || bMode === 'both' ? true : (rawEls.title ? rawEls.title.enabled !== false : true));
+      const resolvedLogoScale = (rawEls.logo && typeof rawEls.logo.scale === 'number') ? rawEls.logo.scale : (typeof projectConfig.design.logoScale === 'number' ? projectConfig.design.logoScale : 1.0);
+      const resolvedTitleScale = (rawEls.title && typeof rawEls.title.scale === 'number') ? rawEls.title.scale : (typeof projectConfig.design.titleScale === 'number' ? projectConfig.design.titleScale : 1.0);
 
-        projectConfig.design.masthead.image2SpacingDefault = true;
-
-        projectConfig.design.masthead.elements = {
-
-          logo: { enabled: true, x: 96, y: 144, size: 48, scale: (rawEls.logo && rawEls.logo.scale) || 1.0 },
-
-          title: { enabled: true, x: 144, y: 160, scale: (rawEls.title && rawEls.title.scale) || 1.0 }
-
-        };
-
-      } else {
-
-        projectConfig.design.masthead.elements = Object.assign({
-
-          logo: { enabled: true, x: 96, y: 144, size: 48, scale: 1.0 },
-
-          title: { enabled: true, x: 144, y: 160, scale: 1.0 }
-
-        }, projectConfig.design.masthead.elements || {});
-
-      }
+      projectConfig.design.masthead.image2SpacingDefault = true;
+      projectConfig.design.masthead.elements = {
+        logo: { enabled: resolvedLogoEnabled, x: 96, y: 144, size: 48, scale: resolvedLogoScale },
+        title: { enabled: resolvedTitleEnabled, x: 144, y: 160, scale: resolvedTitleScale }
+      };
 
       delete projectConfig.design.masthead.elements.nav;
 
