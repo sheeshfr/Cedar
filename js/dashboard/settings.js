@@ -1993,7 +1993,7 @@
         titleEl.textContent = 'Okay to release';
         subEl.textContent = (settingsLogoPreviewState && settingsLogoPreviewState.style.display !== 'none')
           ? 'Drop to replace current logo'
-          : 'Drop to set brand logo';
+          : 'Drop to set site logo';
       } else {
         settingsLogoDropzone.style.setProperty('border-color', palette.isLight ? '#dc2626' : '#ef4444', 'important');
         settingsLogoDropzone.style.setProperty('background-color', palette.isLight ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)', 'important');
@@ -2259,13 +2259,13 @@
         e.stopPropagation();
         const confirmed = (typeof window.showConfirmDialog === 'function')
           ? await window.showConfirmDialog({
-              title: 'Remove Brand Logo?',
-              message: 'Are you sure you want to remove your brand logo?',
+              title: 'Remove Site Logo?',
+              message: 'Are you sure you want to remove your site logo?',
               confirmText: 'Remove Image',
               cancelText: 'Cancel',
               isDanger: true
             })
-          : confirm('Are you sure you want to remove your brand logo?');
+          : confirm('Are you sure you want to remove your site logo?');
         if (!confirmed) return;
 
         hideSettingsDragFeedback();
