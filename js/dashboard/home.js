@@ -467,6 +467,7 @@
       }).forEach(page => {
         const idTimeMatch = String(page.id || '').match(/^page_(\d+)_/);
         const pageTs = page.createdAt || page.updatedAt || (idTimeMatch ? Number(idTimeMatch[1]) : Date.now());
+        const isRedirect = Boolean(page.isRedirect || page.redirectUrl);
         syntheticItems.push({
           id: 'synth-page-' + page.id,
           type: 'page',
@@ -475,7 +476,9 @@
             id: page.id,
             slug: page.slug || '',
             title: page.title || 'Untitled Page',
-            action: (page.updatedAt && page.createdAt && page.updatedAt > (page.createdAt + 60000)) ? 'edited' : 'created'
+            isRedirect: isRedirect,
+            url: page.redirectUrl || page.url || '',
+            action: isRedirect ? 'created' : ((page.updatedAt && page.createdAt && page.updatedAt > (page.createdAt + 60000)) ? 'edited' : 'created')
           }
         });
       });
@@ -765,6 +768,11 @@
             }
             if (matchDraft.id && entry.data.id !== matchDraft.id) {
               entry.data.id = matchDraft.id;
+              addedCount++;
+            }
+            if ((matchDraft.isRedirect || matchDraft.redirectUrl) && !entry.data.isRedirect) {
+              entry.data.isRedirect = true;
+              entry.data.url = matchDraft.redirectUrl || matchDraft.url || entry.data.url || '';
               addedCount++;
             }
             const blogCreatedTs = Number((getProjectConfig() && getProjectConfig().createdAt) || 0);
@@ -2486,10 +2494,18 @@
         return null;
       }
 
+      const isRedirectPage = Boolean(
+        page.isRedirect ||
+        page.redirectUrl ||
+        page.url ||
+        (liveDraft && (liveDraft.isRedirect || liveDraft.redirectUrl))
+      );
       const isEdited = page.action === 'edited';
       const isRenamed = page.action === 'renamed';
       let pageText = '';
-      if (isRenamed && page.oldTitle) {
+      if (isRedirectPage) {
+        pageText = `<strong class="activity-link-target">${escapeHtml(title)}</strong> has been linked to pages`;
+      } else if (isRenamed && page.oldTitle) {
         pageText = `Renamed the <strong>${escapeHtml(page.oldTitle)}</strong> page to <strong class="activity-link-target">${escapeHtml(title)}</strong>`;
       } else if (isRenamed) {
         pageText = `Renamed the <strong class="activity-link-target">${escapeHtml(title)}</strong> page`;
@@ -2503,7 +2519,7 @@
 
       card.innerHTML = `
         <div class="activity-type-col">
-          <span class="activity-type-label type-page">Page</span>
+          <span class="activity-type-label type-page">${isRedirectPage ? 'Redirects' : 'Page'}</span>
         </div>
         <div class="activity-main-col">
           <div class="activity-log-body">
@@ -2516,6 +2532,10 @@
       `;
 
       card.addEventListener('click', (e) => {
+        if (isRedirectPage) {
+          if (typeof navigateTo === 'function') navigateTo('pages');
+          return;
+        }
         if (typeof openPostInEditor === 'function' && (page.id || page.slug)) {
           openPostInEditor(page.id || page.slug);
         } else if (typeof navigateTo === 'function') {
