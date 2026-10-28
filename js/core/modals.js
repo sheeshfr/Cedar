@@ -3551,6 +3551,30 @@
     }
 
     drafts = drafts.filter(d => d.id !== draftId);
+    if (typeof window !== 'undefined' && Array.isArray(window.drafts)) {
+      window.drafts = window.drafts.filter(d => d && d.id !== draftId);
+    }
+    if (typeof window !== 'undefined' && window.CedarStore) {
+      if (typeof window.CedarStore.markIdDeleted === 'function') {
+        window.CedarStore.markIdDeleted(draftId);
+      }
+      if (typeof window.CedarStore.remove === 'function') {
+        window.CedarStore.remove(draftId);
+      }
+    }
+    if (targetDraft && targetDraft.slug) {
+      const s = targetDraft.slug;
+      const paths = [`blog/drafts/${s}`, `blog/published/${s}`, `blog/hidden/${s}`, `pages/published/${s}`, `pages/hidden/${s}`];
+      paths.forEach(p => {
+        if (window.SheeshVault && typeof window.SheeshVault.deleteFile === 'function') {
+          try { window.SheeshVault.deleteFile(p); } catch (e) {}
+        }
+        const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        if (vStorage && typeof vStorage.deleteFile === 'function') {
+          try { vStorage.deleteFile(`${p}/draft.json`); } catch (e) {}
+        }
+      });
+    }
     if (currentDraft && currentDraft.id === draftId) {
       currentDraft = drafts[0] || null;
     }

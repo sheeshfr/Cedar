@@ -2164,7 +2164,11 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
       };
 
-      await window.SheeshVault.writeFile('config.json', JSON.stringify(configData, null, 2));
+      if (typeof window.saveProjectToStorage === 'function') {
+        window.saveProjectToStorage();
+      } else {
+        await window.SheeshVault.writeFile('config.json', JSON.stringify(configData, null, 2));
+      }
 
       // 4. Write active drafts working state to editor/drafts.json (and mirror to writer/drafts.json)
 

@@ -770,7 +770,13 @@
     }
 
     // Deduplicate and heal existing category entries in log against projectConfig.categories & drafts
-    const projCats = (getProjectConfig() && Array.isArray(getProjectConfig().categories)) ? getProjectConfig().categories : [];
+    const deletedCatsSet = new Set(
+      (Array.isArray(getProjectConfig()?.deletedCategories) ? getProjectConfig().deletedCategories : [])
+        .map(c => String(c || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const projCats = ((getProjectConfig() && Array.isArray(getProjectConfig().categories)) ? getProjectConfig().categories : [])
+      .filter(c => c && !deletedCatsSet.has(String(c).trim().toLowerCase()));
     const seenCatEntities = new Map();
     for (let i = 0; i < log.length; i++) {
       const entry = log[i];
@@ -786,8 +792,8 @@
                  (typeof window.generateSlug === 'function' && window.generateSlug(cStr) === window.generateSlug(catName));
         });
 
-        // 2. Also match against category aggregate pages in drafts
-        const matchCatDraft = !matchCat ? allDraftsList.find(d => {
+        // 2. Also match against category aggregate pages in drafts (if not explicitly deleted)
+        const matchCatDraft = (!matchCat && !deletedCatsSet.has(catLower)) ? allDraftsList.find(d => {
           if (!d || d.type !== 'page') return false;
           return (d.isCategoryAggregate && d.categoryAggregate && d.categoryAggregate.trim().toLowerCase() === catLower) ||
                  (d.id && d.id.startsWith('page_cat_') && (d.title || '').trim().toLowerCase() === catLower);
@@ -823,17 +829,18 @@
       }
     }
 
-    // Purge any category entries in log whose category no longer exists
+    // Purge any category entries in log whose category no longer exists in projectConfig.categories
     for (let i = log.length - 1; i >= 0; i--) {
       const e = log[i];
       if (e && e.type === 'category') {
         const cName = String(e.data?.categoryName || e.data?.category || '').trim().toLowerCase();
-        const stillExists = projCats.some(c => String(c).trim().toLowerCase() === cName) ||
-                            allDraftsList.some(d => d && (
-                              (d.type === 'page' && (d.title || '').trim().toLowerCase() === cName) ||
-                              (d.tag && d.tag.trim().toLowerCase() === cName) ||
-                              (Array.isArray(d.categories) && d.categories.some(cat => String(cat).trim().toLowerCase() === cName))
-                            ));
+        const stillExists = !deletedCatsSet.has(cName) && (
+          projCats.some(c => String(c).trim().toLowerCase() === cName) ||
+          allDraftsList.some(d => d && d.type !== 'page' && (
+            (d.tag && d.tag.trim().toLowerCase() === cName) ||
+            (Array.isArray(d.categories) && d.categories.some(cat => String(cat).trim().toLowerCase() === cName))
+          ))
+        );
         if (!stillExists) {
           log.splice(i, 1);
           addedCount++;
@@ -1629,35 +1636,81 @@
     if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
     if (typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
       const base = trimmed.split('/').pop().split('\\').pop();
-      const reg = window.imageRegistry.get(trimmed) || window.imageRegistry.get(base) || window.imageRegistry.get(`images/${base}`);
+      const reg = window.imageRegistry.get(trimmed)
+        || window.imageRegistry.get(base)
+        || window.imageRegistry.get(`images/${base}`)
+        || window.imageRegistry.get(`media/authors/${base}`)
+        || window.imageRegistry.get(`media/${base}`);
       if (reg && typeof reg === 'object' && (reg.dataUrl || reg.objectUrl)) {
         return reg.dataUrl || reg.objectUrl;
+      }
+      if (typeof window.imageRegistry.forEach === 'function' && base) {
+        let matchedUrl = '';
+        const baseLower = base.toLowerCase();
+        window.imageRegistry.forEach((val, key) => {
+          if (matchedUrl || !val) return;
+          const kLower = String(key || '').toLowerCase();
+          if (kLower === baseLower || kLower.endsWith('/' + baseLower)) {
+            if (val.dataUrl || val.objectUrl) matchedUrl = val.dataUrl || val.objectUrl;
+          }
+        });
+        if (matchedUrl) return matchedUrl;
       }
     }
     return trimmed;
   }
 
   function resolveAuthorAvatar(authorName, fallbackAvatar = '') {
-    // 1. Explicit fallback passed in
-    if (fallbackAvatar && typeof fallbackAvatar === 'string' && fallbackAvatar.trim()) {
-      return resolveAvatarViaRegistry(fallbackAvatar.trim());
-    }
-
     const cleanName = (authorName || '').trim().toLowerCase();
-    if (!cleanName) return '';
 
-    // 2. Check projectConfig.authors array
-    if (typeof projectConfig !== 'undefined' && projectConfig && Array.isArray(projectConfig.authors)) {
-      const match = projectConfig.authors.find(a => {
-        const aName = (typeof a === 'object' && a !== null) ? (a.name || '') : String(a || '');
-        return aName.trim().toLowerCase() === cleanName;
-      });
-      if (match && typeof match === 'object' && match.avatar && typeof match.avatar === 'string' && match.avatar.trim()) {
-        return resolveAvatarViaRegistry(match.avatar.trim());
+    // 1. Check projectConfig.authors array first (so current author profile takes priority over stale relative paths)
+    const cfg = (typeof getProjectConfig === 'function' && getProjectConfig()) || (typeof projectConfig !== 'undefined' ? projectConfig : window.projectConfig);
+    if (cfg && Array.isArray(cfg.authors)) {
+      const match = cleanName
+        ? cfg.authors.find(a => {
+            const aName = (typeof a === 'object' && a !== null) ? (a.name || '') : String(a || '');
+            return aName.trim().toLowerCase() === cleanName;
+          })
+        : cfg.authors[0];
+      const authorObj = match || (cfg.authors.length === 1 ? cfg.authors[0] : null);
+      if (authorObj && typeof authorObj === 'object' && (authorObj.avatar || authorObj.image)) {
+        const raw = String(authorObj.avatar || authorObj.image || '').trim();
+        if (raw) {
+          const resolved = resolveAvatarViaRegistry(raw);
+          if (resolved) return resolved;
+        }
       }
     }
 
-    // 3. Check drafts (and window.drafts) for any note or draft by this author with an avatar
+    // 2. Explicit fallback passed in
+    if (fallbackAvatar && typeof fallbackAvatar === 'string' && fallbackAvatar.trim()) {
+      const resolvedFallback = resolveAvatarViaRegistry(fallbackAvatar.trim());
+      if (resolvedFallback && (resolvedFallback.startsWith('data:') || resolvedFallback.startsWith('blob:') || resolvedFallback.startsWith('http'))) {
+        return resolvedFallback;
+      }
+    }
+
+    // 3. Check imageRegistry for any *_avatar.* entry in media/authors/ matching this author (or default author)
+    if (typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.forEach === 'function') {
+      const authSlug = cleanName
+        ? (typeof window.generateSlug === 'function' ? window.generateSlug(cleanName) : cleanName.replace(/[^a-z0-9]+/g, '-'))
+        : 'author';
+      let foundFromRegistry = '';
+      window.imageRegistry.forEach((val, key) => {
+        if (foundFromRegistry || !val || !(val.dataUrl || val.objectUrl)) return;
+        const k = String(key || '').toLowerCase();
+        if (k.includes(`${authSlug}_avatar.`) || k.includes('media/authors/')) {
+          foundFromRegistry = val.dataUrl || val.objectUrl;
+        }
+      });
+      if (foundFromRegistry) return foundFromRegistry;
+    }
+
+    if (!cleanName) {
+      return fallbackAvatar ? resolveAvatarViaRegistry(fallbackAvatar.trim()) : '';
+    }
+
+    // 4. Check drafts (and window.drafts) for any note or draft by this author with an avatar
     const allDrafts = (typeof drafts !== 'undefined' && Array.isArray(drafts))
       ? drafts
       : ((typeof window !== 'undefined' && Array.isArray(window.drafts)) ? window.drafts : []);
@@ -1668,29 +1721,30 @@
         return dAuthor === cleanName && d.authorAvatar && typeof d.authorAvatar === 'string' && d.authorAvatar.trim();
       });
       if (draftMatch && draftMatch.authorAvatar) {
-        return draftMatch.authorAvatar.trim();
+        return resolveAvatarViaRegistry(draftMatch.authorAvatar.trim());
       }
     }
 
-    // 4. Check active notes author persona via function
+    // 5. Check active notes author persona via function
     if (typeof window !== 'undefined' && typeof window.getActiveNotesAuthorObj === 'function') {
       try {
         const activeObj = window.getActiveNotesAuthorObj();
         if (activeObj && activeObj.name && activeObj.name.trim().toLowerCase() === cleanName && activeObj.avatar) {
-          return activeObj.avatar.trim();
+          return resolveAvatarViaRegistry(activeObj.avatar.trim());
         }
       } catch (e) {}
     }
 
-    // 5. Check projectConfig default author & avatar
-    if (typeof projectConfig !== 'undefined' && projectConfig) {
-      const defName = (projectConfig.defaultAuthor || projectConfig.author || '').trim().toLowerCase();
-      if (defName && cleanName === defName && projectConfig.authorAvatar) {
-        return projectConfig.authorAvatar.trim();
-      }
+    // 6. Check projectConfig default author & avatar
+    if (cfg && cfg.authorAvatar) {
+      return resolveAvatarViaRegistry(String(cfg.authorAvatar).trim());
     }
 
-    // 6. No hardcoded demo fallback - return empty so clean initial badge is rendered
+    if (fallbackAvatar && typeof fallbackAvatar === 'string' && fallbackAvatar.trim()) {
+      return resolveAvatarViaRegistry(fallbackAvatar.trim());
+    }
+
+    // 7. No hardcoded demo fallback - return empty so clean initial badge is rendered
     return '';
   }
   window.resolveAuthorAvatar = resolveAuthorAvatar;

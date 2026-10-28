@@ -677,6 +677,13 @@
 
     // 4. Posts (/blog/{drafts,published,hidden}/<slug>/) & Pages (/pages/{published,hidden}/<slug>/)
     const globalLayoutOverride = Boolean(window.projectConfig?.layoutOverride);
+    const activeTierSlugs = {
+      'blog/drafts': new Set(),
+      'blog/published': new Set(),
+      'blog/hidden': new Set(),
+      'pages/published': new Set(),
+      'pages/hidden': new Set()
+    };
     for (const draft of draftsList) {
       if (draft.type === 'note') continue;
       const isPostId = Boolean(draft.id && String(draft.id).startsWith('post_'));
@@ -694,7 +701,11 @@
 
       const baseRoot = isPage ? 'pages' : 'blog';
       const statusSubfolder = isHidden ? 'hidden' : (isPublished ? 'published' : 'drafts');
-      const folder = `${baseRoot}/${statusSubfolder}/${slug}`;
+      const tierKey = `${baseRoot}/${statusSubfolder}`;
+      if (activeTierSlugs[tierKey]) {
+        activeTierSlugs[tierKey].add(slug);
+      }
+      const folder = `${tierKey}/${slug}`;
 
       // Remove stale status folders for this slug so each item only lives in its current status folder
       const validStatuses = isPage ? ['published', 'hidden'] : ['drafts', 'published', 'hidden'];
@@ -757,6 +768,23 @@
           }
         }
       }
+    }
+
+    // Prune orphaned subdirectories in blog/{drafts,published,hidden} and pages/{published,hidden}
+    // that are no longer in draftsList (e.g. deleted drafts, deleted category pages, or renamed slugs)
+    for (const [tierPath, validSlugs] of Object.entries(activeTierSlugs)) {
+      try {
+        const entries = await listSubfolderEntries(dirHandle, tierPath);
+        if (Array.isArray(entries)) {
+          for (const entry of entries) {
+            if (entry.kind === 'directory' && !['drafts', 'published', 'hidden', 'images', 'media', 'rss'].includes(entry.name)) {
+              if (!validSlugs.has(entry.name)) {
+                await removeDirEntry(dirHandle, `${tierPath}/${entry.name}`);
+              }
+            }
+          }
+        }
+      } catch (e) {}
     }
 
     // 5. RSS Feeds (feed.xml and blog/feed.xml)
@@ -909,9 +937,60 @@
       if (candidates.length > 0) {
         candidates.sort((a, b) => parseTs(b.lastUpdated) - parseTs(a.lastUpdated));
         cfg = Object.assign({}, ...candidates.reverse());
+        // Preserve studio-only or richer fields from editorCfg / writerCfg if rootCfg was a partial public export
+        const studioCfg = editorCfg || writerCfg;
+        if (studioCfg && typeof studioCfg === 'object') {
+          if (Array.isArray(studioCfg.activityLog) && (!Array.isArray(cfg.activityLog) || cfg.activityLog.length === 0)) {
+            cfg.activityLog = studioCfg.activityLog;
+          }
+          if (Array.isArray(studioCfg.deletedCategories)) {
+            cfg.deletedCategories = Array.from(new Set([...(Array.isArray(cfg.deletedCategories) ? cfg.deletedCategories : []), ...studioCfg.deletedCategories]));
+          }
+          if (Array.isArray(studioCfg.deletedDraftIds)) {
+            cfg.deletedDraftIds = Array.from(new Set([...(Array.isArray(cfg.deletedDraftIds) ? cfg.deletedDraftIds : []), ...studioCfg.deletedDraftIds]));
+          }
+          if (Array.isArray(studioCfg.deletedSlugs)) {
+            cfg.deletedSlugs = Array.from(new Set([...(Array.isArray(cfg.deletedSlugs) ? cfg.deletedSlugs : []), ...studioCfg.deletedSlugs]));
+          }
+          // Prefer whichever config has an author with a non-empty avatar (preferring data: URLs)
+          const allAuthorCandidates = [editorCfg, writerCfg, rootCfg].filter(c => c && Array.isArray(c.authors) && c.authors.length > 0);
+          const withDataAvatar = allAuthorCandidates.find(c => c.authors.some(a => a && typeof a.avatar === 'string' && a.avatar.startsWith('data:')));
+          const withAnyAvatar = allAuthorCandidates.find(c => c.authors.some(a => a && typeof a.avatar === 'string' && a.avatar.trim()));
+          if (withDataAvatar) {
+            cfg.authors = withDataAvatar.authors;
+          } else if (withAnyAvatar && (!Array.isArray(cfg.authors) || !cfg.authors.some(a => a && a.avatar))) {
+            cfg.authors = withAnyAvatar.authors;
+          } else if (Array.isArray(studioCfg.authors) && studioCfg.authors.length > 0 && (!Array.isArray(cfg.authors) || cfg.authors.length === 0)) {
+            cfg.authors = studioCfg.authors;
+          }
+          if (!cfg.authorAvatar && (studioCfg.authorAvatar || (rootCfg && rootCfg.authorAvatar))) {
+            cfg.authorAvatar = studioCfg.authorAvatar || rootCfg.authorAvatar;
+          }
+        }
       }
 
       if (cfg && typeof cfg === 'object') {
+        if (Array.isArray(cfg.deletedCategories) && Array.isArray(cfg.categories)) {
+          const delCatsLower = new Set(cfg.deletedCategories.map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
+          cfg.categories = cfg.categories.filter(c => !delCatsLower.has(String(c || '').trim().toLowerCase()));
+        }
+        if (Array.isArray(cfg.deletedDraftIds) && cfg.deletedDraftIds.length > 0) {
+          try {
+            const localDel = JSON.parse(localStorage.getItem('cedar_deleted_draft_ids') || '[]');
+            const mergedDel = Array.from(new Set([...(Array.isArray(localDel) ? localDel : []), ...cfg.deletedDraftIds]));
+            localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(mergedDel));
+          } catch (e) {}
+          if (window.CedarStore && typeof window.CedarStore.markIdDeleted === 'function') {
+            cfg.deletedDraftIds.forEach(id => window.CedarStore.markIdDeleted(id));
+          }
+        }
+        if (Array.isArray(cfg.deletedSlugs) && cfg.deletedSlugs.length > 0) {
+          try {
+            const localDelSlugs = JSON.parse(localStorage.getItem('cedar_deleted_slugs') || '[]');
+            const mergedDelSlugs = Array.from(new Set([...(Array.isArray(localDelSlugs) ? localDelSlugs : []), ...cfg.deletedSlugs]));
+            localStorage.setItem('cedar_deleted_slugs', JSON.stringify(mergedDelSlugs));
+          } catch (e) {}
+        }
         if (cfg.design && window.projectConfig && window.projectConfig.design) {
           cfg.design = Object.assign({}, window.projectConfig.design, cfg.design);
         }
@@ -961,9 +1040,6 @@
         if (cfg.mediaPreferences && typeof window.applyMediaPreferences === 'function') {
           window.applyMediaPreferences(Boolean(cfg.mediaPreferences.roundedImages));
         }
-        if (typeof window.saveProjectToStorage === 'function') {
-          window.saveProjectToStorage();
-        }
       }
     } catch (e) {
       console.warn('[Vault] Could not parse config.json:', e);
@@ -985,21 +1061,77 @@
       } catch (e) {}
     }
 
+    const hadCanonicalDrafts = Array.isArray(loadedDrafts) && loadedDrafts.length > 0;
     if (!Array.isArray(loadedDrafts)) {
       loadedDrafts = [];
     }
 
+    // Build sets of deleted draft IDs, deleted slugs, and active/deleted categories
+    const deletedIdsSet = new Set(Array.isArray(window.projectConfig?.deletedDraftIds) ? window.projectConfig.deletedDraftIds : []);
+    try {
+      const localDelIds = JSON.parse(localStorage.getItem('cedar_deleted_draft_ids') || '[]');
+      if (Array.isArray(localDelIds)) localDelIds.forEach(id => deletedIdsSet.add(id));
+    } catch (e) {}
+    const deletedSlugsSet = new Set(Array.isArray(window.projectConfig?.deletedSlugs) ? window.projectConfig.deletedSlugs : []);
+    try {
+      const localDelSlugs = JSON.parse(localStorage.getItem('cedar_deleted_slugs') || '[]');
+      if (Array.isArray(localDelSlugs)) localDelSlugs.forEach(s => deletedSlugsSet.add(s));
+    } catch (e) {}
+    const deletedCatsLowerSet = new Set(
+      (Array.isArray(window.projectConfig?.deletedCategories) ? window.projectConfig.deletedCategories : [])
+        .map(c => String(c || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const activeCatsLowerSet = new Set(
+      (Array.isArray(window.projectConfig?.categories) ? window.projectConfig.categories : [])
+        .map(c => String(c || '').trim().toLowerCase())
+        .filter(c => Boolean(c) && !deletedCatsLowerSet.has(c))
+    );
+
+    // Filter loadedDrafts against deleted IDs, deleted slugs, and deleted/orphaned category aggregate pages
+    loadedDrafts = loadedDrafts.filter(d => {
+      if (!d) return false;
+      if (d.id && deletedIdsSet.has(d.id)) return false;
+      if (d.slug && deletedSlugsSet.has(d.slug)) return false;
+      if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
+        const catStr = String(d.categoryAggregate || d.title || '').trim().toLowerCase();
+        if (deletedCatsLowerSet.has(catStr) || (activeCatsLowerSet.size > 0 && !activeCatsLowerSet.has(catStr))) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const orphanedDirsToDelete = [];
+
     // Reconcile per-post and per-page folders (blog/{published,drafts,hidden} & pages/{published,drafts,hidden})
-    // so user-edited post/page data files are respected
+    // so user-edited post/page data files are respected without resurrecting deleted drafts/categories
     const mergeFolderDraft = (dJson, fallbackSlug, forcedType, basePath) => {
       if (!dJson || typeof dJson !== 'object') return;
       if (!dJson.slug && fallbackSlug) dJson.slug = fallbackSlug;
+
+      // Never resurrect an explicitly deleted draft ID or deleted slug
+      if ((dJson.id && deletedIdsSet.has(dJson.id)) || (dJson.slug && deletedSlugsSet.has(dJson.slug)) || (fallbackSlug && deletedSlugsSet.has(fallbackSlug))) {
+        if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+        return;
+      }
+
       const isPostId = Boolean(dJson.id && String(dJson.id).startsWith('post_'));
       if (!isPostId && (dJson.isCategoryAggregate || forcedType === 'page' || (dJson.id && String(dJson.id).startsWith('page_')))) {
         dJson.type = 'page';
       } else if (isPostId || forcedType === 'post') {
         dJson.type = 'post';
       }
+
+      // Never resurrect an auto-generated category page whose category was deleted or is no longer in projectConfig.categories
+      if (dJson.isCategoryAggregate || String(dJson.id || '').startsWith('page_cat_')) {
+        const catStr = String(dJson.categoryAggregate || dJson.title || '').trim().toLowerCase();
+        if (deletedCatsLowerSet.has(catStr) || !activeCatsLowerSet.has(catStr)) {
+          if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+          return;
+        }
+      }
+
       const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
       const explicitlyUnpublished = dJson.userUnpublished === true || (dJson.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + dJson.id) === 'true');
       if (isFromPublishedTier && !explicitlyUnpublished) {
@@ -1016,6 +1148,11 @@
 
       if (existingIdx !== -1) {
         const existing = loadedDrafts[existingIdx];
+        // If this folder's slug differs from the canonical draft's current slug (e.g. an old slug before rename), clean up the old folder
+        if (fallbackSlug && existing.slug && fallbackSlug !== existing.slug && basePath) {
+          orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+          return;
+        }
         const existingUnpub = existing.userUnpublished === true || (existing.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + existing.id) === 'true');
         const wasPublished = (existing.status === 'published' || dJson.status === 'published' || existing.everPublished || dJson.everPublished || Boolean(existing.publishedAt || dJson.publishedAt || existing.publishedDate || dJson.publishedDate || existing.publishedSlug || dJson.publishedSlug)) && !existingUnpub && !explicitlyUnpublished;
         const existingTime = Number(existing.updatedAt || existing.publishedAt || existing.createdAt || 0);
@@ -1032,6 +1169,13 @@
           existing.everPublished = true;
         }
       } else {
+        // When editor/drafts.json exists and is non-empty, it is the canonical manifest of all studio drafts.
+        // Any draft folder in blog/drafts, blog/hidden, pages/hidden, or any folder with a studio draft.json ID
+        // that is absent from editor/drafts.json is an orphaned leftover from a deleted draft and must be pruned, not resurrected!
+        if (hadCanonicalDrafts && (!isFromPublishedTier || Boolean(dJson.id))) {
+          if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+          return;
+        }
         if ((dJson.everPublished || dJson.publishedAt || dJson.publishedDate || dJson.publishedSlug) && !explicitlyUnpublished && dJson.status !== 'hidden') {
           dJson.status = 'published';
           dJson.everPublished = true;
@@ -1044,6 +1188,7 @@
       try {
         const entries = await listSubfolderEntries(dirHandle, basePath);
         if (!Array.isArray(entries) || entries.length === 0) return;
+        const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
         await Promise.all(entries.map(async (entry) => {
           if (entry.kind === 'directory' && !['drafts', 'published', 'hidden', 'images', 'media', 'rss'].includes(entry.name)) {
             const slug = entry.name;
@@ -1051,7 +1196,7 @@
               const dJson = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/draft.json`, 'json');
               if (dJson) {
                 mergeFolderDraft(dJson, slug, expectedType, basePath);
-              } else if (!loadedDrafts.some(d => d.slug === slug)) {
+              } else if (!loadedDrafts.some(d => d.slug === slug) && (!hadCanonicalDrafts || isFromPublishedTier)) {
                 const md = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/index.md`, 'text');
                 if (md && typeof window.importContent === 'function') {
                   const parsed = window.importContent(md);
@@ -1081,15 +1226,16 @@
       scanTierFolder('hidden', null)
     ]);
 
-    // Reconcile disk drafts with in-memory drafts so fresh local status changes (like Revert to Draft) are not overwritten
-    if (Array.isArray(loadedDrafts) && loadedDrafts.length > 0) {
-      if (window.CedarStore) {
-        const currentPostCount = typeof window.CedarStore.getPosts === 'function' ? window.CedarStore.getPosts().length : 0;
-        if (currentPostCount === 0 && typeof window.CedarStore.hydrateFromList === 'function') {
-          window.CedarStore.hydrateFromList(loadedDrafts);
-        } else if (typeof window.CedarStore.reconcileDiskDrafts === 'function') {
-          window.CedarStore.reconcileDiskDrafts(loadedDrafts);
-        }
+    if (orphanedDirsToDelete.length > 0) {
+      for (const orphanPath of orphanedDirsToDelete) {
+        try { await removeDirEntry(dirHandle, orphanPath); } catch (e) {}
+      }
+    }
+
+    // Hydrate CedarStore cleanly from the loaded folder's drafts so stale in-memory items never linger
+    if (Array.isArray(loadedDrafts)) {
+      if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+        window.CedarStore.hydrateFromList(loadedDrafts);
         loadedDrafts = window.CedarStore.getAllDrafts();
       }
       window.drafts = loadedDrafts;
@@ -1103,6 +1249,10 @@
       await hydrateImagesFromFolder(dirHandle);
     } catch (imgHydrateErr) {
       console.warn('[Vault] Image hydration notice:', imgHydrateErr);
+    }
+
+    if (typeof window.saveProjectToStorage === 'function') {
+      window.saveProjectToStorage();
     }
 
     if (Array.isArray(loadedDrafts) && loadedDrafts.length > 0) {
@@ -1181,19 +1331,61 @@
     // 1. Reconcile Author Avatars & Branding in window.projectConfig
     const cfg = window.projectConfig;
     if (cfg && typeof cfg === 'object') {
-      if (Array.isArray(cfg.authors)) {
+      const findAuthorAvatarFromMap = (authorName, currentAvatar) => {
+        if (currentAvatar && typeof currentAvatar === 'string' && !currentAvatar.startsWith('data:')) {
+          const base = currentAvatar.split('/').pop().split('\\').pop();
+          const direct = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+          if (direct && direct.dataUrl) return direct;
+        }
+        const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(authorName || 'author') : String(authorName || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
+        const candidates = [
+          `${authSlug}_avatar.jpg`,
+          `${authSlug}_avatar.png`,
+          `${authSlug}_avatar.webp`,
+          `${authSlug}_avatar.jpeg`,
+          'author_avatar.jpg',
+          'author_avatar.png',
+          'avatar.jpg',
+          'avatar.png'
+        ];
+        for (const cand of candidates) {
+          const hit = hydratedMap.get(cand) || hydratedMap.get(cand.toLowerCase());
+          if (hit && hit.dataUrl) return hit;
+        }
+        for (const [, info] of hydratedMap.entries()) {
+          if (info && info.dataUrl && typeof info.relPath === 'string' && info.relPath.toLowerCase().includes('media/authors/')) {
+            return info;
+          }
+        }
+        return null;
+      };
+
+      if (Array.isArray(cfg.authors) && cfg.authors.length > 0) {
         cfg.authors.forEach(auth => {
-          if (!auth || typeof auth !== 'object' || !auth.avatar) return;
-          if (!auth.avatar.startsWith('data:')) {
-            const base = String(auth.avatar).split('/').pop().split('\\').pop();
-            const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+          if (!auth || typeof auth !== 'object') return;
+          if (!auth.avatar || !String(auth.avatar).startsWith('data:')) {
+            const found = findAuthorAvatarFromMap(auth.name || cfg.defaultAuthor, auth.avatar);
             if (found && found.dataUrl) {
-              auth.avatarFile = auth.avatar;
+              if (auth.avatar && !String(auth.avatar).startsWith('data:')) auth.avatarFile = auth.avatar;
               auth.avatar = found.dataUrl;
+              cfg.authorAvatar = found.dataUrl;
               configChanged = true;
             }
+          } else if (!cfg.authorAvatar) {
+            cfg.authorAvatar = auth.avatar;
           }
         });
+      } else {
+        const found = findAuthorAvatarFromMap(cfg.defaultAuthor || 'Author', cfg.authorAvatar);
+        if (found && found.dataUrl) {
+          cfg.authorAvatar = found.dataUrl;
+          cfg.authors = [{
+            name: cfg.defaultAuthor || 'Author',
+            bio: '',
+            avatar: found.dataUrl
+          }];
+          configChanged = true;
+        }
       }
       if (cfg.authorAvatar && typeof cfg.authorAvatar === 'string' && !cfg.authorAvatar.startsWith('data:')) {
         const base = cfg.authorAvatar.split('/').pop().split('\\').pop();

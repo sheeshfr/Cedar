@@ -45,8 +45,11 @@
       };
     }
 
-    // Find key Cedar manifests
-    const configFile = files.find(f => f.name === 'config.json' || f.name.endsWith('/config.json'));
+    // Find key Cedar manifests (prefer editor/config.json or cedar_config.json over stripped root config.json)
+    const configFile = files.find(f => f.name === 'editor/config.json' || f.name.endsWith('/editor/config.json'))
+      || files.find(f => f.name === 'cedar_config.json' || f.name.endsWith('/cedar_config.json'))
+      || files.find(f => f.name === 'writer/config.json' || f.name.endsWith('/writer/config.json'))
+      || files.find(f => f.name === 'config.json' || f.name.endsWith('/config.json'));
     const draftsFile = files.find(f =>
       f.name === 'editor/drafts.json' ||
       f.name === 'writer/drafts.json' ||
@@ -398,22 +401,33 @@
       }
     }
 
-    // 2. Sync config.json
-    const configFile = files.find(f => f.name === 'config.json' || f.name.endsWith('/config.json'));
+    // 2. Sync config.json (prefer studio config with full authors/activityLog over stripped public root config.json)
+    const configFile = files.find(f => f.name === 'editor/config.json' || f.name.endsWith('/editor/config.json'))
+      || files.find(f => f.name === 'cedar_config.json' || f.name.endsWith('/cedar_config.json'))
+      || files.find(f => f.name === 'writer/config.json' || f.name.endsWith('/writer/config.json'))
+      || files.find(f => f.name === 'config.json' || f.name.endsWith('/config.json'));
     if (configFile) {
       const configText = decodeContent(configFile.data);
       try {
         const cfg = JSON.parse(configText);
         if (Array.isArray(cfg.authors)) {
           cfg.authors.forEach(auth => {
-            if (auth && typeof auth === 'object' && auth.avatar && !String(auth.avatar).startsWith('data:')) {
-              const avBase = String(auth.avatar).split('/').pop().split('\\').pop();
-              const matched = importedMediaBlobs.get(avBase) || importedMediaBlobs.get(avBase.toLowerCase());
+            if (!auth || typeof auth !== 'object') return;
+            if (!auth.avatar || !String(auth.avatar).startsWith('data:')) {
+              const avBase = auth.avatar ? String(auth.avatar).split('/').pop().split('\\').pop() : '';
+              const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(auth.name || 'author') : String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
+              const matched = (avBase && (importedMediaBlobs.get(avBase) || importedMediaBlobs.get(avBase.toLowerCase())))
+                || importedMediaBlobs.get(`${authSlug}_avatar.jpg`)
+                || importedMediaBlobs.get(`${authSlug}_avatar.png`)
+                || importedMediaBlobs.get(`${authSlug}_avatar.webp`)
+                || importedMediaBlobs.get('author_avatar.jpg')
+                || importedMediaBlobs.get('author_avatar.png');
               if (matched && matched.bytes) {
                 const dUrl = uint8ToDataUrl(matched.bytes, matched.mime);
                 if (dUrl) {
-                  auth.avatarFile = auth.avatar;
+                  if (auth.avatar) auth.avatarFile = auth.avatar;
                   auth.avatar = dUrl;
+                  cfg.authorAvatar = dUrl;
                 }
               }
             }

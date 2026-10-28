@@ -2582,11 +2582,48 @@
 
     const serializedConfig = JSON.stringify(effectiveConfig, null, 2);
 
+    try {
+      const delIdsRaw = localStorage.getItem('cedar_deleted_draft_ids');
+      if (delIdsRaw) {
+        const parsedDelIds = JSON.parse(delIdsRaw);
+        if (Array.isArray(parsedDelIds)) {
+          const mergedDelIds = Array.from(new Set([...(Array.isArray(effectiveConfig.deletedDraftIds) ? effectiveConfig.deletedDraftIds : []), ...parsedDelIds]));
+          effectiveConfig.deletedDraftIds = mergedDelIds;
+        }
+      }
+      const delSlugsRaw = localStorage.getItem('cedar_deleted_slugs');
+      if (delSlugsRaw) {
+        const parsedDelSlugs = JSON.parse(delSlugsRaw);
+        if (Array.isArray(parsedDelSlugs)) {
+          const mergedDelSlugs = Array.from(new Set([...(Array.isArray(effectiveConfig.deletedSlugs) ? effectiveConfig.deletedSlugs : []), ...parsedDelSlugs]));
+          effectiveConfig.deletedSlugs = mergedDelSlugs;
+        }
+      }
+    } catch (e) {}
+
+    const serializedConfig = JSON.stringify(effectiveConfig, null, 2);
     const publicRootConfigObj = Object.assign({}, effectiveConfig);
     delete publicRootConfigObj.milestones;
     delete publicRootConfigObj.activityLog;
     const serializedPublicRootConfig = JSON.stringify(publicRootConfigObj, null, 2);
     const serializedMilestones = JSON.stringify(Array.isArray(effectiveConfig.milestones) ? effectiveConfig.milestones : [], null, 2);
+
+    // Extract any data: URL author avatars so they are also written to media/authors/<slug>_avatar.jpg in the Vault
+    const authorAvatarFilesToWrite = [];
+    if (Array.isArray(effectiveConfig.authors)) {
+      effectiveConfig.authors.forEach(auth => {
+        if (auth && typeof auth === 'object' && typeof auth.avatar === 'string' && auth.avatar.startsWith('data:image/')) {
+          const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(auth.name || 'author') : String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
+          const relPath = `media/authors/${authSlug}_avatar.jpg`;
+          authorAvatarFilesToWrite.push({ relPath, dataUrl: auth.avatar, filename: `${authSlug}_avatar.jpg` });
+          if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
+            const regObj = { filename: `${authSlug}_avatar.jpg`, relativePath: '/' + relPath, dataUrl: auth.avatar, src: auth.avatar };
+            window.imageRegistry.set(relPath, regObj);
+            window.imageRegistry.set(`${authSlug}_avatar.jpg`, regObj);
+          }
+        }
+      });
+    }
 
 
 
@@ -2608,6 +2645,14 @@
           (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/config.json', serializedConfig);
           (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/milestones.json', serializedMilestones);
         } catch (e) {}
+
+        if (authorAvatarFilesToWrite.length > 0) {
+          authorAvatarFilesToWrite.forEach(af => {
+            try {
+              (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile(af.relPath, af.dataUrl);
+            } catch (e) {}
+          });
+        }
 
       } catch (e) {
 
@@ -2639,6 +2684,24 @@
           window.SheeshVault.writeFile('writer/config.json', serializedConfig);
           window.SheeshVault.writeFile('writer/milestones.json', serializedMilestones);
         } catch (e) {}
+
+        if (authorAvatarFilesToWrite.length > 0) {
+          authorAvatarFilesToWrite.forEach(af => {
+            try {
+              const parts = af.dataUrl.split(',');
+              if (parts.length === 2) {
+                const mimeMatch = parts[0].match(/:(.*?);/);
+                const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+                const bstr = atob(parts[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) u8arr[n] = bstr.charCodeAt(n);
+                const blob = new Blob([u8arr], { type: mime });
+                window.SheeshVault.writeFile(af.relPath, blob);
+              }
+            } catch (e) {}
+          });
+        }
 
       } catch (e) {}
 
@@ -5341,6 +5404,29 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     }
 
+    if (typeof window !== 'undefined' && window.CedarStore) {
+      if (typeof window.CedarStore.markIdDeleted === 'function') {
+        window.CedarStore.markIdDeleted(targetId);
+      }
+      if (typeof window.CedarStore.remove === 'function') {
+        window.CedarStore.remove(targetId);
+      }
+    }
+
+    const dSlug = draft.slug || '';
+    if (dSlug) {
+      const delPaths = [`blog/drafts/${dSlug}`, `blog/hidden/${dSlug}`, `pages/hidden/${dSlug}`];
+      delPaths.forEach(p => {
+        if (window.SheeshVault && typeof window.SheeshVault.deleteFile === 'function') {
+          try { window.SheeshVault.deleteFile(p); } catch (e) {}
+        }
+        const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        if (vStorage && typeof vStorage.deleteFile === 'function') {
+          try { vStorage.deleteFile(`${p}/draft.json`); } catch (e) {}
+        }
+      });
+    }
+
 
 
     const proj = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
@@ -6487,15 +6573,37 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     // 3. Remove from physical Vault folder or Server Bridge if connected
 
     const itemSlug = item?.slug || (item?.title && typeof window.generateSlug === 'function' ? window.generateSlug(item.title) : '');
-    const candidatePaths = itemSlug ? [
-      `blog/published/${itemSlug}`,
-      `blog/drafts/${itemSlug}`,
-      `blog/hidden/${itemSlug}`,
-      `blog/${itemSlug}`,
-      `pages/published/${itemSlug}`,
-      `pages/hidden/${itemSlug}`,
-      `pages/${itemSlug}`
-    ] : [];
+    const allItemSlugs = Array.from(new Set([
+      itemSlug,
+      item?.publishedSlug || '',
+      ...(Array.isArray(item?.previousSlugs) ? item.previousSlugs : [])
+    ].map(s => String(s || '').trim()).filter(Boolean)));
+
+    if (allItemSlugs.length > 0) {
+      try {
+        const existingDelSlugs = JSON.parse(localStorage.getItem('cedar_deleted_slugs') || '[]');
+        const nextDelSlugs = Array.from(new Set([...(Array.isArray(existingDelSlugs) ? existingDelSlugs : []), ...allItemSlugs]));
+        localStorage.setItem('cedar_deleted_slugs', JSON.stringify(nextDelSlugs));
+        if (proj) {
+          proj.deletedSlugs = Array.from(new Set([...(Array.isArray(proj.deletedSlugs) ? proj.deletedSlugs : []), ...allItemSlugs]));
+        }
+      } catch (e) {}
+    }
+
+    const candidatePaths = [];
+    allItemSlugs.forEach(s => {
+      candidatePaths.push(
+        `blog/published/${s}`,
+        `blog/drafts/${s}`,
+        `blog/hidden/${s}`,
+        `blog/${s}`,
+        `pages/published/${s}`,
+        `pages/hidden/${s}`,
+        `pages/${s}`,
+        `drafts/${s}`,
+        `hidden/${s}`
+      );
+    });
 
     if (window.SheeshVault && typeof window.SheeshVault.deleteFile === 'function' && candidatePaths.length > 0) {
       try {
@@ -6503,12 +6611,12 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       } catch (e) {}
     }
     const bridgeVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
-    if (bridgeVaultPath && candidatePaths.length > 0 && (window.Cedar && window.Cedar.isLocalServer)) {
+    if (candidatePaths.length > 0 && window.location.protocol !== 'file:') {
       candidatePaths.forEach(cp => {
         fetch('/api/vault-delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ folderPath: bridgeVaultPath, filePath: cp })
+          body: JSON.stringify({ folderPath: bridgeVaultPath, filePath: cp, targetPath: cp })
         }).catch(() => {});
       });
     }

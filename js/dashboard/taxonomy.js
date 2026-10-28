@@ -33,6 +33,9 @@
     }
 
     // 1. Update projectConfig.categories
+    if (Array.isArray(projectConfig.deletedCategories)) {
+      projectConfig.deletedCategories = projectConfig.deletedCategories.filter(dc => String(dc || '').trim().toLowerCase() !== newTrimmed.toLowerCase());
+    }
     const catIndex = projectConfig.categories.findIndex(c => c.toLowerCase() === oldTrimmed.toLowerCase());
     if (catIndex >= 0) {
       projectConfig.categories[catIndex] = newTrimmed;
@@ -379,33 +382,107 @@
           if (!confirmed) return;
         }
         projectConfig.categories = projectConfig.categories.filter(c => c && c.toLowerCase() !== cat.toLowerCase());
+        const catLower = cat.trim().toLowerCase();
+        const catSlug = (typeof window.generateSlug === 'function')
+          ? window.generateSlug(cat)
+          : catLower.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+        if (!Array.isArray(projectConfig.deletedCategories)) {
+          projectConfig.deletedCategories = [];
+        }
+        if (!projectConfig.deletedCategories.some(dc => String(dc || '').trim().toLowerCase() === catLower)) {
+          projectConfig.deletedCategories.push(catLower);
+        }
+        try {
+          localStorage.setItem('cedar_deleted_categories', JSON.stringify(projectConfig.deletedCategories));
+        } catch (e) {}
 
         let draftsChanged = false;
-        if (Array.isArray(drafts)) {
-          drafts.forEach(d => {
-            let thisDraftChanged = false;
-            if (d.tag && d.tag.toLowerCase() === cat.toLowerCase()) {
-              d.tag = '';
-              thisDraftChanged = true;
-            }
-            if (Array.isArray(d.categories)) {
-              const origLen = d.categories.length;
-              d.categories = d.categories.filter(c => c && c.toLowerCase() !== cat.toLowerCase());
-              if (d.categories.length !== origLen) {
-                thisDraftChanged = true;
+        const targetDrafts = Array.isArray(window.drafts) ? window.drafts : (typeof drafts !== 'undefined' && Array.isArray(drafts) ? drafts : []);
+        const removedPageIds = [];
+        const removedPageSlugs = new Set([catSlug]);
+
+        for (let i = targetDrafts.length - 1; i >= 0; i--) {
+          const d = targetDrafts[i];
+          if (!d) continue;
+          const isCatPage = Boolean(
+            d.isCategoryAggregate ||
+            String(d.id || '').startsWith('page_cat_') ||
+            (d.type === 'page' && ((d.title || '').trim().toLowerCase() === catLower || (d.slug || '').trim().toLowerCase() === catSlug))
+          );
+          if (isCatPage) {
+            const matchCat = (d.categoryAggregate && d.categoryAggregate.trim().toLowerCase() === catLower) ||
+              (d.title && d.title.trim().toLowerCase() === catLower) ||
+              (d.slug && d.slug.trim().toLowerCase() === catSlug) ||
+              d.id === `page_cat_${catSlug}`;
+            if (matchCat) {
+              if (d.id) removedPageIds.push(d.id);
+              if (d.slug) removedPageSlugs.add(d.slug);
+              if (window.CedarStore) {
+                if (typeof window.CedarStore.markIdDeleted === 'function' && d.id) window.CedarStore.markIdDeleted(d.id);
+                if (typeof window.CedarStore.remove === 'function' && d.id) window.CedarStore.remove(d.id);
               }
-            }
-            if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
-              d.tag = d.categories[0];
-              thisDraftChanged = true;
-            }
-            if (d.permalinkCat && d.permalinkCat.toLowerCase() === cat.toLowerCase()) {
-              d.permalinkCat = d.tag || 'uncategorized';
-              thisDraftChanged = true;
-            }
-            if (thisDraftChanged) {
+              targetDrafts.splice(i, 1);
               draftsChanged = true;
+              continue;
             }
+          }
+
+          let thisDraftChanged = false;
+          if (d.tag && d.tag.toLowerCase() === catLower) {
+            d.tag = '';
+            thisDraftChanged = true;
+          }
+          if (Array.isArray(d.categories)) {
+            const origLen = d.categories.length;
+            d.categories = d.categories.filter(c => c && c.toLowerCase() !== catLower);
+            if (d.categories.length !== origLen) {
+              thisDraftChanged = true;
+            }
+          }
+          if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
+            d.tag = d.categories[0];
+            thisDraftChanged = true;
+          }
+          if (d.permalinkCat && d.permalinkCat.toLowerCase() === catLower) {
+            d.permalinkCat = d.tag || 'uncategorized';
+            thisDraftChanged = true;
+          }
+          if (thisDraftChanged) {
+            d.updatedAt = Date.now();
+            draftsChanged = true;
+          }
+        }
+
+        // Remove category page folders from physical Vault & Virtual Storage
+        const candidatePaths = [];
+        removedPageSlugs.forEach(s => {
+          if (!s) return;
+          candidatePaths.push(`pages/published/${s}`, `pages/hidden/${s}`, `pages/${s}`);
+        });
+        if (window.SheeshVault && typeof window.SheeshVault.deleteFile === 'function') {
+          candidatePaths.forEach(cp => {
+            try { window.SheeshVault.deleteFile(cp); } catch (e) {}
+          });
+        }
+        const bridgeVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
+        if (bridgeVaultPath && candidatePaths.length > 0 && (window.Cedar && window.Cedar.isLocalServer)) {
+          candidatePaths.forEach(cp => {
+            fetch('/api/vault-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ folderPath: bridgeVaultPath, filePath: cp, targetPath: cp })
+            }).catch(() => {});
+          });
+        }
+        const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        if (vStorage && typeof vStorage.deleteFile === 'function') {
+          candidatePaths.forEach(cp => {
+            try {
+              vStorage.deleteFile(`${cp}/draft.json`);
+              vStorage.deleteFile(`${cp}/index.md`);
+              vStorage.deleteFile(`${cp}/index.html`);
+            } catch (e) {}
           });
         }
 
@@ -414,15 +491,33 @@
           if (typeof renderPipelineGrid === 'function') renderPipelineGrid();
         }
 
-        if (projectConfig && Array.isArray(projectConfig.activityLog)) {
-          projectConfig.activityLog = projectConfig.activityLog.filter(item => {
-            if (!item) return false;
-            if (item.type === 'category' && item.id && item.id.startsWith('synth-cat-')) {
-              const cName = String(item.data?.categoryName || '').trim().toLowerCase();
-              return cName !== cat.toLowerCase();
+        const filterCatActivity = (item) => {
+          if (!item) return false;
+          if (item.type === 'category') {
+            const cName = String(item.data?.categoryName || item.data?.newName || item.data?.oldName || '').trim().toLowerCase();
+            if (cName === catLower || item.id === `synth-cat-${cat}` || String(item.id || '').toLowerCase() === `synth-cat-${catLower}`) {
+              return false;
             }
-            return true;
-          });
+          }
+          if (item.type === 'page') {
+            const pId = String(item.data?.id || item.id || '').trim();
+            const pTitle = String(item.data?.title || '').trim().toLowerCase();
+            const pSlug = String(item.data?.slug || '').trim().toLowerCase();
+            if (pId === `page_cat_${catSlug}` || removedPageIds.includes(pId) || pTitle === catLower || pSlug === catSlug) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        if (projectConfig && Array.isArray(projectConfig.activityLog)) {
+          projectConfig.activityLog = projectConfig.activityLog.filter(filterCatActivity);
+          try {
+            localStorage.setItem('cedar_activity_log', JSON.stringify(projectConfig.activityLog));
+          } catch (e) {}
+        }
+        if (typeof window !== 'undefined' && Array.isArray(window.activityLog)) {
+          window.activityLog = window.activityLog.filter(filterCatActivity);
         }
 
         saveProjectToStorage();
@@ -630,7 +725,13 @@
           showToast("Woah! That's a reserved name - pick something else.");
           return;
         }
-        if (!projectConfig.categories.includes(val)) {
+        if (!projectConfig.categories.some(c => c && c.toLowerCase() === val.toLowerCase())) {
+          if (Array.isArray(projectConfig.deletedCategories)) {
+            projectConfig.deletedCategories = projectConfig.deletedCategories.filter(dc => String(dc || '').trim().toLowerCase() !== val.toLowerCase());
+            try {
+              localStorage.setItem('cedar_deleted_categories', JSON.stringify(projectConfig.deletedCategories));
+            } catch (e) {}
+          }
           projectConfig.categories.push(val);
           saveProjectToStorage();
           if (typeof window.logActivity === 'function') {

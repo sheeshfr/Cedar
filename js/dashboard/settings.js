@@ -18,6 +18,7 @@
   window.Outpost.dashboard = window.Cedar.dashboard;
 
   let currentSettingsAuthorAvatar = '';
+  let authorAvatarExplicitlyRemoved = false;
   let siteInfoAutoSaveTimer = null;
 
   function flushAutoSaveSiteInfo() {
@@ -50,9 +51,17 @@
     const prevAuthorName = (projectConfig.defaultAuthor || (projectConfig.authors && projectConfig.authors[0] && projectConfig.authors[0].name) || '').trim();
     const authorNameVal = (authorNameInputEl ? authorNameInputEl.value.trim() : '') || prevAuthorName || 'Cedar Staff';
     const authorBioVal = authorBioInputEl ? authorBioInputEl.value.trim() : ((projectConfig.authors && projectConfig.authors[0] && projectConfig.authors[0].bio) || '');
-    const authorAvatarVal = currentSettingsAuthorAvatar || '';
+    const existingAvatar = (projectConfig.authors && projectConfig.authors[0] && (projectConfig.authors[0].avatar || projectConfig.authors[0].image))
+      || projectConfig.authorAvatar
+      || (typeof window.resolveAuthorAvatar === 'function' ? window.resolveAuthorAvatar(authorNameVal) : '')
+      || '';
+    const authorAvatarVal = authorAvatarExplicitlyRemoved ? '' : (currentSettingsAuthorAvatar || existingAvatar || '');
+    if (authorAvatarVal && !currentSettingsAuthorAvatar) {
+      currentSettingsAuthorAvatar = authorAvatarVal;
+    }
 
     projectConfig.defaultAuthor = authorNameVal;
+    projectConfig.authorAvatar = authorAvatarVal;
     projectConfig.authors = [{
       name: authorNameVal,
       bio: authorBioVal,
@@ -67,10 +76,13 @@
       let updatedAny = false;
       window.drafts.forEach(d => {
         if (d && d.type !== 'page') {
-          if (d.authorName !== authorNameVal || d.author !== authorNameVal || !Array.isArray(d.authors) || d.authors.length !== 1 || d.authors[0] !== authorNameVal) {
+          if (d.authorName !== authorNameVal || d.author !== authorNameVal || !Array.isArray(d.authors) || d.authors.length !== 1 || d.authors[0] !== authorNameVal || (authorAvatarVal && d.authorAvatar !== authorAvatarVal) || (authorAvatarExplicitlyRemoved && d.authorAvatar)) {
             d.authorName = authorNameVal;
             d.author = authorNameVal;
             d.authors = [authorNameVal];
+            if (authorAvatarVal || authorAvatarExplicitlyRemoved) {
+              d.authorAvatar = authorAvatarVal;
+            }
             updatedAny = true;
           }
         }
@@ -84,6 +96,7 @@
         }
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
         if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
+        if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
       }
     }
 
@@ -270,6 +283,7 @@
       bioInput.value = (typeof primaryAuthor === 'object' ? primaryAuthor.bio : '') || '';
     }
     const rawAvatar = (typeof primaryAuthor === 'object' ? (primaryAuthor.avatar || primaryAuthor.image || '') : '') || '';
+    authorAvatarExplicitlyRemoved = false;
     currentSettingsAuthorAvatar = (typeof window.resolveAuthorAvatar === 'function' && primaryAuthor?.name)
       ? (window.resolveAuthorAvatar(primaryAuthor.name, rawAvatar) || rawAvatar)
       : rawAvatar;
@@ -294,6 +308,7 @@
         const file = e.target.files && e.target.files[0];
         if (!file) return;
         optimizeAuthorAvatarImage(file, (optimized) => {
+          authorAvatarExplicitlyRemoved = false;
           currentSettingsAuthorAvatar = optimized;
           updateSettingsAuthorAvatarUI();
           scheduleAutoSaveSiteInfo(true);
@@ -314,6 +329,7 @@
           const src = first.dataUrl || first.url || (first.blob ? URL.createObjectURL(first.blob) : '');
           if (src) {
             optimizeAuthorAvatarImage(src, (optimized) => {
+              authorAvatarExplicitlyRemoved = false;
               currentSettingsAuthorAvatar = optimized;
               updateSettingsAuthorAvatarUI();
               scheduleAutoSaveSiteInfo(true);
@@ -329,6 +345,7 @@
             const src = sel.dataUrl || sel.url || (sel.blob ? URL.createObjectURL(sel.blob) : '');
             if (src) {
               optimizeAuthorAvatarImage(src, (optimized) => {
+                authorAvatarExplicitlyRemoved = false;
                 currentSettingsAuthorAvatar = optimized;
                 updateSettingsAuthorAvatarUI();
                 scheduleAutoSaveSiteInfo(true);
@@ -352,6 +369,7 @@
             })
           : confirm('Are you sure you want to remove your author photo?');
         if (!confirmed) return;
+        authorAvatarExplicitlyRemoved = true;
         currentSettingsAuthorAvatar = '';
         updateSettingsAuthorAvatarUI();
         scheduleAutoSaveSiteInfo(true);
@@ -1517,11 +1535,19 @@
         // Author Profile Save
         const authorBioInputEl = document.getElementById('setting-author-bio');
         const authorBioVal = authorBioInputEl ? authorBioInputEl.value.trim() : '';
-        const authorAvatarVal = currentSettingsAuthorAvatar || '';
+        const existingAvatar = (projectConfig.authors && projectConfig.authors[0] && (projectConfig.authors[0].avatar || projectConfig.authors[0].image))
+          || projectConfig.authorAvatar
+          || (typeof window.resolveAuthorAvatar === 'function' ? window.resolveAuthorAvatar(authorNameVal) : '')
+          || '';
+        const authorAvatarVal = authorAvatarExplicitlyRemoved ? '' : (currentSettingsAuthorAvatar || existingAvatar || '');
+        if (authorAvatarVal && !currentSettingsAuthorAvatar) {
+          currentSettingsAuthorAvatar = authorAvatarVal;
+        }
 
         const prevAuthorName = (projectConfig.defaultAuthor || (projectConfig.authors && projectConfig.authors[0] && projectConfig.authors[0].name) || '').trim();
 
         projectConfig.defaultAuthor = authorNameVal;
+        projectConfig.authorAvatar = authorAvatarVal;
         projectConfig.authors = [{
           name: authorNameVal,
           bio: authorBioVal,
@@ -1549,6 +1575,9 @@
               d.authorName = authorNameVal;
               d.author = authorNameVal;
               d.authors = [authorNameVal];
+              if (authorAvatarVal || authorAvatarExplicitlyRemoved) {
+                d.authorAvatar = authorAvatarVal;
+              }
             }
           });
           if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
