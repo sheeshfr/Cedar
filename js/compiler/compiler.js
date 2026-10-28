@@ -4482,12 +4482,7 @@ ${itemsXml}
     'fonts/fraunces.woff2',
     'fonts/syne.woff2',
     'fonts/jetbrains-mono.woff2',
-    'fonts/shantell-sans.woff2',
-    'icon.png',
-    'icon.ico',
-    'logo.png',
-    'images/Lamp.png',
-    'images/sunflower-showcase.jpg'
+    'fonts/shantell-sans.woff2'
   ];
 
   async function buildProductionSiteFiles(options = {}) {
@@ -4561,11 +4556,18 @@ ${itemsXml}
       || '';
     if (brand.files) delete brand.files;
     const bestLogoData = (brand.originalLogo && brand.originalLogo.startsWith('data:')) ? brand.originalLogo : brand.generalLogo;
-    if (bestLogoData && bestLogoData.startsWith('data:')) {
-      const logoBlob = dataUrlToBlob(bestLogoData);
+    const mastheadLogoData = (brand.generalLogo && brand.generalLogo.startsWith('data:')) ? brand.generalLogo : bestLogoData;
+    if (mastheadLogoData && mastheadLogoData.startsWith('data:')) {
+      const logoBlob = dataUrlToBlob(mastheadLogoData);
       if (logoBlob) {
         addFile('media/branding/logo.png', logoBlob);
         brand.generalLogo = '/media/branding/logo.png';
+      }
+    }
+    if (bestLogoData && bestLogoData.startsWith('data:')) {
+      const origBlob = dataUrlToBlob(bestLogoData);
+      if (origBlob) {
+        addFile('media/branding/logo-original.png', origBlob);
       }
     }
     const resolvedFavData = (brand.tabLogo && brand.tabLogo.startsWith('data:'))
@@ -4581,6 +4583,8 @@ ${itemsXml}
         addFile('icon.ico', iconBlob);
         brand.tabLogo = resolvedFavData;
       }
+    } else if (brand.tabLogo === 'icon.png' || brand.tabLogo === '/icon.png') {
+      brand.tabLogo = '';
     }
     if (brand.originalLogo && brand.originalLogo.startsWith('data:')) {
       delete brand.originalLogo;

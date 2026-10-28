@@ -74,7 +74,7 @@
           stickyHeader: false,
           branding: {
             generalLogo: '',
-            tabLogo: 'icon.png',
+            tabLogo: '',
             siteTitle: 'Cedar',
             tagline: ''
           },

@@ -685,17 +685,22 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     return fb
         base_fn = os.path.basename(clean_path)
         if '.' in base_fn:
-            root_fb = super().translate_path('/' + base_fn)
-            if os.path.exists(root_fb):
-                return root_fb
-            img_fb = super().translate_path('/images/' + base_fn)
-            if os.path.exists(img_fb):
-                return img_fb
             img_exts = ('.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.avif', '.bmp')
             if base_fn.lower().endswith(img_exts):
                 vault_fb = find_image_in_vault(raw_path)
                 if vault_fb and os.path.isfile(vault_fb):
                     return vault_fb
+            if '/media/' not in raw_path and base_fn.lower() not in ('icon.png', 'icon.ico', 'logo.png'):
+                root_fb = super().translate_path('/' + base_fn)
+                if os.path.exists(root_fb):
+                    return root_fb
+                img_fb = super().translate_path('/images/' + base_fn)
+                if os.path.exists(img_fb):
+                    return img_fb
+            elif clean_path in ('/icon.png', '/icon.ico', '/logo.png'):
+                root_fb = super().translate_path('/' + base_fn)
+                if os.path.exists(root_fb):
+                    return root_fb
 
         if clean_path == '/help' or clean_path == '/help/index.html':
             return super().translate_path('/index.html')
@@ -752,17 +757,22 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         return fb
             base_fn = os.path.basename(clean_path)
             if '.' in base_fn:
-                root_fb = super().translate_path('/' + base_fn)
-                if os.path.exists(root_fb):
-                    return root_fb
-                img_fb = super().translate_path('/images/' + base_fn)
-                if os.path.exists(img_fb):
-                    return img_fb
                 img_exts = ('.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.avif', '.bmp')
                 if base_fn.lower().endswith(img_exts):
                     vault_fb = find_image_in_vault(raw_path)
                     if vault_fb and os.path.isfile(vault_fb):
                         return vault_fb
+                if '/media/' not in raw_path and base_fn.lower() not in ('icon.png', 'icon.ico', 'logo.png'):
+                    root_fb = super().translate_path('/' + base_fn)
+                    if os.path.exists(root_fb):
+                        return root_fb
+                    img_fb = super().translate_path('/images/' + base_fn)
+                    if os.path.exists(img_fb):
+                        return img_fb
+                elif clean_path in ('/icon.png', '/icon.ico', '/logo.png'):
+                    root_fb = super().translate_path('/' + base_fn)
+                    if os.path.exists(root_fb):
+                        return root_fb
 
             # 2. SPA clean URL route fallback
             if '.' not in os.path.basename(clean_path):

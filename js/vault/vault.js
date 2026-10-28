@@ -1400,26 +1400,54 @@
         ['generalLogo', 'originalLogo', 'tabLogo'].forEach(prop => {
           const val = b[prop];
           if (val && typeof val === 'string' && !val.startsWith('data:') && val !== 'icon.png' && val !== '/icon.png') {
+            const cleanRel = val.replace(/^\/+/, '');
             const base = val.split('/').pop().split('\\').pop();
-            const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+            const found = hydratedMap.get(cleanRel) || hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
             if (found && found.dataUrl) {
               b[prop] = found.dataUrl;
               configChanged = true;
             }
           }
         });
-        // If logo-original.png exists in the Vault and the user has an active logo, ensure originalLogo and generalLogo use the full-resolution asset
-        const foundOrig = hydratedMap.get('logo-original.png') || hydratedMap.get('logo.png');
-        if (foundOrig && foundOrig.dataUrl && (b.generalLogo || b.originalLogo)) {
+        // Restore branding logo & originalLogo from media/branding/ if present on disk
+        const foundOrig = hydratedMap.get('media/branding/logo-original.png')
+          || hydratedMap.get('logo-original.png')
+          || hydratedMap.get('media/branding/logo.png')
+          || hydratedMap.get('logo.png');
+        const foundLogo = hydratedMap.get('media/branding/logo.png')
+          || hydratedMap.get('logo.png')
+          || foundOrig;
+        if (foundOrig && foundOrig.dataUrl && (String(foundOrig.relPath || '').includes('media/branding') || b.generalLogo || b.originalLogo)) {
           if (!b.originalLogo || !b.originalLogo.startsWith('data:') || foundOrig.dataUrl.length > b.originalLogo.length) {
             b.originalLogo = foundOrig.dataUrl;
             configChanged = true;
           }
-          if (!b.generalLogo || !b.generalLogo.startsWith('data:') || foundOrig.dataUrl.length > b.generalLogo.length) {
-            b.generalLogo = foundOrig.dataUrl;
-            cfg.logo = foundOrig.dataUrl;
+          const targetLogoData = (foundLogo && foundLogo.dataUrl) ? foundLogo.dataUrl : foundOrig.dataUrl;
+          if (!b.generalLogo || !b.generalLogo.startsWith('data:')) {
+            b.generalLogo = targetLogoData;
+            cfg.logo = targetLogoData;
             configChanged = true;
           }
+          b.files = Object.assign({}, b.files || {}, {
+            'media/branding/logo.png': targetLogoData,
+            'media/branding/logo-original.png': foundOrig.dataUrl
+          });
+          window.brandingFiles = Object.assign({}, window.brandingFiles || {}, b.files);
+        }
+        // Restore favicon from media/branding/icon.png if present on disk and not explicitly removed
+        const foundFav = hydratedMap.get('media/branding/icon.png') || hydratedMap.get('site_favicon.png');
+        if (foundFav && foundFav.dataUrl && !b.faviconExplicitlyRemoved) {
+          if (!b.tabLogo || !b.tabLogo.startsWith('data:') || b.tabLogo === 'icon.png' || b.tabLogo === '/icon.png') {
+            b.tabLogo = foundFav.dataUrl;
+            configChanged = true;
+          }
+          b.files = Object.assign({}, b.files || {}, {
+            'media/branding/icon.png': foundFav.dataUrl
+          });
+          window.brandingFiles = Object.assign({}, window.brandingFiles || {}, b.files);
+          try {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': foundFav.dataUrl }));
+          } catch (e) {}
         }
       }
       if (Array.isArray(cfg.mediaLibrary)) {
@@ -1462,8 +1490,14 @@
 
     if (configChanged && typeof window.saveProjectToStorage === 'function') {
       try { window.saveProjectToStorage(); } catch (e) {}
+      if (typeof window.renderDerivedMediaLibrary === 'function') {
+        try { window.renderDerivedMediaLibrary(); } catch (e) {}
+      }
       if (typeof window.renderProjectSettings === 'function') {
         try { window.renderProjectSettings(); } catch (e) {}
+      }
+      if (typeof window.renderSettingsAuthorProfile === 'function') {
+        try { window.renderSettingsAuthorProfile(); } catch (e) {}
       }
       if (typeof window.renderDesigner === 'function') {
         try { window.renderDesigner(); } catch (e) {}
@@ -1479,11 +1513,11 @@
     if (!dirHandle) return;
     const isImgFile = (name) => /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(name || ''));
     const candidateDirs = new Set([
-      'images',
-      'blog/images',
-      'media',
+      'media/branding',
       'media/authors',
-      'media/branding'
+      'media',
+      'blog/images',
+      'images'
     ]);
 
     const allDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
@@ -1504,7 +1538,7 @@
     });
 
     const filePathsToRead = [];
-    const seenFilenames = new Set();
+    const seenRelPaths = new Set();
 
     await Promise.all(Array.from(candidateDirs).map(async (subDir) => {
       try {
@@ -1512,10 +1546,11 @@
         if (!Array.isArray(entries)) return;
         for (const entry of entries) {
           if (entry.kind === 'file' && isImgFile(entry.name)) {
-            const key = entry.name.toLowerCase();
-            if (!seenFilenames.has(key)) {
-              seenFilenames.add(key);
-              filePathsToRead.push({ name: entry.name, relPath: `${subDir}/${entry.name}` });
+            const relPath = `${subDir}/${entry.name}`;
+            const key = relPath.toLowerCase();
+            if (!seenRelPaths.has(key)) {
+              seenRelPaths.add(key);
+              filePathsToRead.push({ name: entry.name, relPath });
             }
           }
         }
@@ -1534,12 +1569,19 @@
         const objectUrl = URL.createObjectURL(blob);
         const dataUrl = await blobToDataUrl(blob);
         const info = { filename: name, relPath, blob, objectUrl, dataUrl };
-        hydratedMap.set(name, info);
-        hydratedMap.set(name.toLowerCase(), info);
+        hydratedMap.set(relPath, info);
+        hydratedMap.set(relPath.toLowerCase(), info);
+        const isPriorityMedia = relPath.startsWith('media/');
+        if (isPriorityMedia || !hydratedMap.has(name)) {
+          hydratedMap.set(name, info);
+          hydratedMap.set(name.toLowerCase(), info);
+        }
 
         if (vStorage && typeof vStorage.writeBlob === 'function') {
           try {
-            await vStorage.writeBlob(`blog/images/${name}`, blob);
+            if (!relPath.startsWith('media/')) {
+              await vStorage.writeBlob(`blog/images/${name}`, blob);
+            }
             await vStorage.writeBlob(relPath, blob);
           } catch (e) {}
         }
@@ -1563,15 +1605,16 @@
     if (!Array.isArray(allFiles) || allFiles.length === 0) return false;
 
     const imgFiles = [];
-    const seenFilenames = new Set();
+    const seenRelPaths = new Set();
     for (const f of allFiles) {
       if (!f || f.kind === 'directory') continue;
       const name = f.name || String(f.path || '').split('/').pop();
       if (name && isImgFile(name)) {
-        const key = name.toLowerCase();
-        if (!seenFilenames.has(key)) {
-          seenFilenames.add(key);
-          imgFiles.push({ name, relPath: f.path || `blog/images/${name}` });
+        const relPath = f.path || `blog/images/${name}`;
+        const key = relPath.toLowerCase();
+        if (!seenRelPaths.has(key)) {
+          seenRelPaths.add(key);
+          imgFiles.push({ name, relPath });
         }
       }
     }
@@ -1581,8 +1624,8 @@
     await Promise.all(imgFiles.map(async ({ name, relPath }) => {
       try {
         // Skip if already in imageRegistry with a valid dataUrl
-        if (window.imageRegistry && window.imageRegistry.has(name)) {
-          const existing = window.imageRegistry.get(name);
+        if (window.imageRegistry && window.imageRegistry.has(relPath)) {
+          const existing = window.imageRegistry.get(relPath);
           if (existing && existing.dataUrl && existing.dataUrl.startsWith('data:')) return;
         }
         const blob = await vStorage.readFile(relPath, 'blob');
@@ -1590,8 +1633,13 @@
         const objectUrl = URL.createObjectURL(blob);
         const dataUrl = await blobToDataUrl(blob);
         const info = { filename: name, relPath, blob, objectUrl, dataUrl };
-        hydratedMap.set(name, info);
-        hydratedMap.set(name.toLowerCase(), info);
+        hydratedMap.set(relPath, info);
+        hydratedMap.set(relPath.toLowerCase(), info);
+        const isPriorityMedia = relPath.startsWith('media/');
+        if (isPriorityMedia || !hydratedMap.has(name)) {
+          hydratedMap.set(name, info);
+          hydratedMap.set(name.toLowerCase(), info);
+        }
       } catch (e) {}
     }));
 
@@ -1997,8 +2045,12 @@
         try {
           const savedHandle = await getHandleFromDb();
           if (savedHandle) {
-            const hasPerm = await verifyPermission(savedHandle, true);
-            if (hasPerm) {
+            window.__cedarCachedSavedHandle = savedHandle;
+            let permState = 'prompt';
+            try {
+              permState = await savedHandle.queryPermission({ mode: 'readwrite' });
+            } catch (e) {}
+            if (permState === 'granted') {
               rootHandle = savedHandle;
               await ensureVaultStructure();
               await loadBlogFromFolder(rootHandle);
@@ -2012,13 +2064,11 @@
               updateAllVaultBadges('needs-permission');
               if (!window.__cedarAutoUnlockBound) {
                 window.__cedarAutoUnlockBound = true;
-                const unlockOnGesture = async () => {
+                const unlockOnGesture = () => {
                   window.removeEventListener('pointerdown', unlockOnGesture, true);
                   window.removeEventListener('keydown', unlockOnGesture, true);
                   window.__cedarAutoUnlockBound = false;
-                  try {
-                    await Vault.requestSavedPermission();
-                  } catch (e) {}
+                  Vault.requestSavedPermission(savedHandle).catch(() => {});
                 };
                 window.addEventListener('pointerdown', unlockOnGesture, { capture: true, once: true });
                 window.addEventListener('keydown', unlockOnGesture, { capture: true, once: true });
@@ -2058,20 +2108,48 @@
       return false;
     },
 
-    async requestSavedPermission() {
-      const savedHandle = await getHandleFromDb();
-      if (savedHandle) {
-        const hasPerm = await verifyPermission(savedHandle, true);
-        if (hasPerm) {
-          rootHandle = savedHandle;
-          await ensureVaultStructure();
-          await loadBlogFromFolder(rootHandle);
-          localStorage.setItem('cedar_vault_connected', '1');
-          localStorage.setItem('cedar_vault_name', savedHandle.name);
-          this.emit('connected', { name: savedHandle.name, info: vaultInfo });
-          updateAllVaultBadges();
-          return true;
+    async requestSavedPermission(preloadedHandle) {
+      let savedHandle = preloadedHandle || window.__cedarCachedSavedHandle || null;
+      let granted = false;
+      // Call requestPermission synchronously on the first turn if we already have the handle so transient user activation is never lost
+      if (savedHandle && typeof savedHandle.requestPermission === 'function') {
+        try {
+          const perm = await savedHandle.requestPermission({ mode: 'readwrite' });
+          granted = (perm === 'granted');
+        } catch (e) {
+          granted = await verifyPermission(savedHandle, true);
         }
+      } else {
+        savedHandle = await getHandleFromDb();
+        if (savedHandle) {
+          window.__cedarCachedSavedHandle = savedHandle;
+          granted = await verifyPermission(savedHandle, true);
+        }
+      }
+      if (savedHandle && granted) {
+        rootHandle = savedHandle;
+        await ensureVaultStructure();
+        // Check if the browser's current state is newer than the disk folder (e.g. edits made while handle was awaiting permission)
+        let browserIsNewer = false;
+        try {
+          const diskCfg = await readFileFromDirHandle(rootHandle, 'editor/config.json', 'json').catch(() => null)
+            || await readFileFromDirHandle(rootHandle, 'config.json', 'json').catch(() => null);
+          const diskTs = Number((diskCfg && diskCfg.lastUpdated) || 0);
+          const memTs = Number((window.projectConfig && window.projectConfig.lastUpdated) || 0);
+          if (diskCfg && memTs > diskTs && (!diskCfg.name || !window.projectConfig?.name || diskCfg.name === window.projectConfig.name)) {
+            browserIsNewer = true;
+          }
+        } catch (e) {}
+        if (browserIsNewer) {
+          await copyBlogToFolder(rootHandle);
+        } else {
+          await loadBlogFromFolder(rootHandle);
+        }
+        localStorage.setItem('cedar_vault_connected', '1');
+        localStorage.setItem('cedar_vault_name', savedHandle.name);
+        this.emit('connected', { name: savedHandle.name, info: vaultInfo });
+        updateAllVaultBadges();
+        return true;
       }
       return false;
     },

@@ -326,9 +326,9 @@
 
         branding: {
 
-          generalLogo: 'images/Lamp.png',
+          generalLogo: '',
 
-          tabLogo: 'icon.png',
+          tabLogo: '',
 
           siteTitle: 'Cedar',
 
@@ -2322,7 +2322,7 @@
 
         generalLogo: '',
 
-        tabLogo: 'icon.png',
+        tabLogo: '',
 
         siteTitle: projectConfig.name || 'Cedar',
 
@@ -2336,9 +2336,23 @@
 
       }, projectConfig.design.branding || {});
 
-      if (projectConfig.design.branding.generalLogo === 'logo.png' || projectConfig.design.branding.generalLogo === '/logo.png') {
+      if (
+        projectConfig.design.branding.generalLogo === 'logo.png' ||
+        projectConfig.design.branding.generalLogo === '/logo.png' ||
+        projectConfig.design.branding.generalLogo === 'images/Lamp.png' ||
+        projectConfig.design.branding.generalLogo === '/images/Lamp.png'
+      ) {
 
         projectConfig.design.branding.generalLogo = '';
+
+      }
+
+      if (
+        projectConfig.design.branding.tabLogo === 'icon.png' ||
+        projectConfig.design.branding.tabLogo === '/icon.png'
+      ) {
+
+        projectConfig.design.branding.tabLogo = '';
 
       }
 
@@ -2580,8 +2594,6 @@
 
 
 
-    const serializedConfig = JSON.stringify(effectiveConfig, null, 2);
-
     try {
       const delIdsRaw = localStorage.getItem('cedar_deleted_draft_ids');
       if (delIdsRaw) {
@@ -2608,7 +2620,7 @@
     const serializedPublicRootConfig = JSON.stringify(publicRootConfigObj, null, 2);
     const serializedMilestones = JSON.stringify(Array.isArray(effectiveConfig.milestones) ? effectiveConfig.milestones : [], null, 2);
 
-    // Extract any data: URL author avatars so they are also written to media/authors/<slug>_avatar.jpg in the Vault
+    // Extract any data: URL author avatars & branding assets so they are also written to media/ in the Vault
     const authorAvatarFilesToWrite = [];
     if (Array.isArray(effectiveConfig.authors)) {
       effectiveConfig.authors.forEach(auth => {
@@ -2623,6 +2635,22 @@
           }
         }
       });
+    }
+    if (effectiveConfig.design && effectiveConfig.design.branding && typeof effectiveConfig.design.branding === 'object') {
+      const br = effectiveConfig.design.branding;
+      const brFiles = Object.assign({}, window.brandingFiles || {}, br.files || {});
+      const logoData = (typeof br.generalLogo === 'string' && br.generalLogo.startsWith('data:image/')) ? br.generalLogo : (brFiles['media/branding/logo.png'] || '');
+      const origData = (typeof br.originalLogo === 'string' && br.originalLogo.startsWith('data:image/')) ? br.originalLogo : (brFiles['media/branding/logo-original.png'] || logoData);
+      const favData = (typeof br.tabLogo === 'string' && br.tabLogo.startsWith('data:image/')) ? br.tabLogo : (brFiles['media/branding/icon.png'] || '');
+      if (logoData && logoData.startsWith('data:image/')) {
+        authorAvatarFilesToWrite.push({ relPath: 'media/branding/logo.png', dataUrl: logoData, filename: 'logo.png' });
+      }
+      if (origData && origData.startsWith('data:image/')) {
+        authorAvatarFilesToWrite.push({ relPath: 'media/branding/logo-original.png', dataUrl: origData, filename: 'logo-original.png' });
+      }
+      if (favData && favData.startsWith('data:image/') && !br.faviconExplicitlyRemoved) {
+        authorAvatarFilesToWrite.push({ relPath: 'media/branding/icon.png', dataUrl: favData, filename: 'icon.png' });
+      }
     }
 
 
@@ -2923,7 +2951,7 @@
 
       }
 
-      if (safeConfig.design && safeConfig.design.branding && (safeConfig.design.branding.files || safeConfig.design.branding.originalLogo)) {
+      if (safeConfig.design && safeConfig.design.branding && safeConfig.design.branding.files) {
         safeConfig = {
           ...safeConfig,
           design: {
@@ -2934,7 +2962,6 @@
           }
         };
         delete safeConfig.design.branding.files;
-        delete safeConfig.design.branding.originalLogo;
         if (safeConfig.design.branding.generalLogo && safeConfig.logo === safeConfig.design.branding.generalLogo) {
           delete safeConfig.logo;
         }

@@ -419,7 +419,7 @@
             rawFav = logo;
           }
         }
-        const favicon = rawFav || 'icon.png';
+        const favicon = (rawFav && rawFav !== 'icon.png' && rawFav !== '/icon.png') ? rawFav : '';
 
         document.getElementById('page-title').textContent = `Home — ${siteName}`;
         document.getElementById('header-title').textContent = siteName;
@@ -451,7 +451,7 @@
         }
 
         const favEl = document.getElementById('site-favicon');
-        if (favEl) favEl.href = window.resolveAssetUrl(favicon);
+        if (favEl) favEl.href = favicon ? window.resolveAssetUrl(favicon) : 'data:,';
 
         const isRss = Boolean(getConfig().rssEnabled);
         const rssLinkPosts = document.getElementById('rss-link-posts');
