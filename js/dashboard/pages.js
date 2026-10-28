@@ -1747,15 +1747,15 @@
       const rankA = getTypeRank(a);
       const rankB = getTypeRank(b);
       if (rankA !== rankB) return rankA - rankB;
-      const timeA = getPageCreatedTime(a);
-      const timeB = getPageCreatedTime(b);
-      if (timeA !== timeB) return timeB - timeA;
       if (rankA === 4) {
         const orderMap = { 'about': 1, 'links': 2, 'rss': 3 };
         const aSlug = (a.slug || a.id || a.title || '').toLowerCase().replace(/^page_/, '');
         const bSlug = (b.slug || b.id || b.title || '').toLowerCase().replace(/^page_/, '');
         return (orderMap[aSlug] || 99) - (orderMap[bSlug] || 99);
       }
+      const timeA = getPageCreatedTime(a);
+      const timeB = getPageCreatedTime(b);
+      if (timeA !== timeB) return timeB - timeA;
       return (a.title || '').localeCompare(b.title || '');
     };
 

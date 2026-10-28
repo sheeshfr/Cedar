@@ -753,6 +753,11 @@
               entry.data.id = matchDraft.id;
               addedCount++;
             }
+            const blogCreatedTs = Number((getProjectConfig() && getProjectConfig().createdAt) || 0);
+            if (blogCreatedTs > 0 && (!entry.timestamp || entry.timestamp < blogCreatedTs) && matchDraft.createdAt >= blogCreatedTs) {
+              entry.timestamp = matchDraft.createdAt;
+              addedCount++;
+            }
           }
         } else if (canonicalKey) {
           // Duplicate page entry found in log!
@@ -861,8 +866,27 @@
       }
     });
 
-    // Always keep log strictly chronologically sorted by timestamp descending
-    log.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Always keep log strictly chronologically sorted by timestamp descending,
+    // with built-in pages ordered All -> About -> Links -> RSS when created together
+    const getBuiltInPageRank = (item) => {
+      if (!item || item.type !== 'page') return 0;
+      const pid = String(item.data?.id || item.id || '').toLowerCase();
+      const pslug = String(item.data?.slug || '').toLowerCase();
+      const ptitle = String(item.data?.title || '').trim().toLowerCase();
+      if (pid.includes('page_all') || pslug === 'all' || ptitle === 'all') return 1;
+      if (pid.includes('page_about') || pslug === 'about' || ptitle === 'about') return 2;
+      if (pid.includes('page_links') || pslug === 'links' || ptitle === 'links') return 3;
+      if (pid.includes('page_rss') || pslug === 'rss' || ptitle === 'rss') return 4;
+      return 0;
+    };
+    log.sort((a, b) => {
+      const rankA = getBuiltInPageRank(a);
+      const rankB = getBuiltInPageRank(b);
+      if (rankA > 0 && rankB > 0 && (a.data?.action || 'created') === 'created' && (b.data?.action || 'created') === 'created') {
+        return rankA - rankB;
+      }
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
     if (log.length > MAX_LOG_ITEMS) log.length = MAX_LOG_ITEMS;
 
     if (addedCount > 0 && typeof saveProjectToStorage === 'function') {
@@ -1562,8 +1586,28 @@
       saveProjectToStorage();
     }
 
-    // Sort newest first
-    const sorted = rawLog.filter(e => e && e.type !== 'note' && e.type !== 'media_batch' && e.type !== 'media_upload').sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Sort newest first, with built-in pages ordered All -> About -> Links -> RSS when created together
+    const getBuiltInPageStreamRank = (item) => {
+      if (!item || item.type !== 'page') return 0;
+      const pid = String(item.data?.id || item.id || '').toLowerCase();
+      const pslug = String(item.data?.slug || '').toLowerCase();
+      const ptitle = String(item.data?.title || '').trim().toLowerCase();
+      if (pid.includes('page_all') || pslug === 'all' || ptitle === 'all') return 1;
+      if (pid.includes('page_about') || pslug === 'about' || ptitle === 'about') return 2;
+      if (pid.includes('page_links') || pslug === 'links' || ptitle === 'links') return 3;
+      if (pid.includes('page_rss') || pslug === 'rss' || ptitle === 'rss') return 4;
+      return 0;
+    };
+    const sorted = rawLog
+      .filter(e => e && e.type !== 'note' && e.type !== 'media_batch' && e.type !== 'media_upload')
+      .sort((a, b) => {
+        const rankA = getBuiltInPageStreamRank(a);
+        const rankB = getBuiltInPageStreamRank(b);
+        if (rankA > 0 && rankB > 0 && (a.data?.action || 'created') === 'created' && (b.data?.action || 'created') === 'created') {
+          return rankA - rankB;
+        }
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
     const stream = groupActivityFeed(sorted);
 
     // 1. Filter by activeFilter, while strictly keeping scheduled future posts out of the timeline

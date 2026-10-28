@@ -3110,15 +3110,15 @@
 
       images: [],
 
-      createdAt: now - 86400000 * 2,
+      createdAt: now + 3,
 
-      updatedAt: now - 86400000 * 2,
+      updatedAt: now + 3,
 
-      publishedAt: now - 86400000 * 2,
+      publishedAt: now + 3,
 
-      date: new Date(now - 86400000 * 2).toISOString().split('T')[0],
+      date: new Date(now).toISOString().split('T')[0],
 
-      publishedDate: new Date(now - 86400000 * 2).toISOString().split('T')[0]
+      publishedDate: new Date(now).toISOString().split('T')[0]
 
     };
 
@@ -3165,15 +3165,15 @@ function createDefaultAboutPage() {
 
       images: [],
 
-      createdAt: now - 86400000 * 2,
+      createdAt: now + 2,
 
-      updatedAt: now - 86400000 * 2,
+      updatedAt: now + 2,
 
-      publishedAt: now - 86400000 * 2,
+      publishedAt: now + 2,
 
-      date: new Date(now - 86400000 * 2).toISOString().split('T')[0],
+      date: new Date(now).toISOString().split('T')[0],
 
-      publishedDate: new Date(now - 86400000 * 2).toISOString().split('T')[0]
+      publishedDate: new Date(now).toISOString().split('T')[0]
 
     };
 
@@ -3279,15 +3279,15 @@ function createDefaultAboutPage() {
 
       images: [],
 
-      createdAt: now - 86400000 * 2,
+      createdAt: now + 1,
 
-      updatedAt: now - 86400000 * 2,
+      updatedAt: now + 1,
 
-      publishedAt: now - 86400000 * 2,
+      publishedAt: now + 1,
 
-      date: new Date(now - 86400000 * 2).toISOString().split('T')[0],
+      date: new Date(now).toISOString().split('T')[0],
 
-      publishedDate: new Date(now - 86400000 * 2).toISOString().split('T')[0]
+      publishedDate: new Date(now).toISOString().split('T')[0]
 
     };
 
@@ -4277,11 +4277,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
         images: [],
 
-        createdAt: Date.now() - 86400000,
+        createdAt: Date.now(),
 
         updatedAt: Date.now(),
 
-        publishedAt: Date.now() - 86400000,
+        publishedAt: Date.now(),
 
         date: new Date().toISOString().split('T')[0],
 
@@ -4526,15 +4526,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       images: [],
 
-      createdAt: now - 86400000,
+      createdAt: now,
 
-      updatedAt: now - 86400000,
+      updatedAt: now,
 
-      publishedAt: now - 86400000,
+      publishedAt: now,
 
-      date: new Date(now - 86400000).toISOString().split('T')[0],
+      date: new Date(now).toISOString().split('T')[0],
 
-      publishedDate: new Date(now - 86400000).toISOString().split('T')[0]
+      publishedDate: new Date(now).toISOString().split('T')[0]
 
     };
 
@@ -4797,6 +4797,32 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           }
           allDraft.hasHadRecentPostsInit = true;
         }
+      }
+
+      // Heal legacy backdated createdAt (-1d / -2d) on built-in pages so fresh blogs show "Just now" and sort All, About, Links, RSS
+      const blogCreatedTs = Number((window.projectConfig && window.projectConfig.createdAt) || 0);
+      if (blogCreatedTs > 0) {
+        const builtInOrderOffsets = [
+          { draft: allDraft, offset: 3 },
+          { draft: aboutDraft, offset: 2 },
+          { draft: linksDraft, offset: 1 },
+          { draft: rssDraft, offset: 0 }
+        ];
+        builtInOrderOffsets.forEach(({ draft, offset }) => {
+          if (draft && (!draft.createdAt || draft.createdAt < blogCreatedTs)) {
+            const targetTs = blogCreatedTs + offset;
+            draft.createdAt = targetTs;
+            if (!draft.updatedAt || draft.updatedAt < blogCreatedTs) {
+              draft.updatedAt = targetTs;
+            }
+            if (!draft.publishedAt || draft.publishedAt < blogCreatedTs) {
+              draft.publishedAt = targetTs;
+            }
+            const isoDay = new Date(targetTs).toISOString().split('T')[0];
+            draft.date = isoDay;
+            draft.publishedDate = isoDay;
+          }
+        });
       }
     },
 

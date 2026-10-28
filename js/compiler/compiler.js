@@ -5668,9 +5668,9 @@ ${page.markdown || ''}`;
         hidden: !isRssOn,
         retired: !isRssOn,
         images: [],
-        createdAt: Date.now() - 86400000,
+        createdAt: Date.now(),
         updatedAt: Date.now(),
-        publishedAt: Date.now() - 86400000,
+        publishedAt: Date.now(),
         date: new Date().toISOString().split('T')[0],
         publishedDate: new Date().toISOString().split('T')[0]
       };
