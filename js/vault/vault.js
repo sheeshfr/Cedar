@@ -646,6 +646,31 @@
       vaultPath: (localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || window.projectConfig?.vaultPath || '',
       lastUpdated: Date.now()
     });
+    const milestonesList = [];
+    const seenSyncMsIds = new Set();
+    let storedSyncMs = [];
+    try { storedSyncMs = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || []; } catch (e) {}
+    const logMsItems = Array.isArray(window.projectConfig?.activityLog)
+      ? window.projectConfig.activityLog.filter(a => a && a.type === 'milestone').map(a => ({
+          id: (a.data && a.data.id) || a.id,
+          text: (a.data && a.data.text) || a.text || '',
+          date: (a.data && a.data.date) || a.date || '',
+          timestamp: a.timestamp || Date.now(),
+          authorName: (a.data && a.data.authorName) || a.authorName || ''
+        }))
+      : [];
+    []
+      .concat(Array.isArray(window.projectConfig?.milestones) ? window.projectConfig.milestones : [])
+      .concat(Array.isArray(storedSyncMs) ? storedSyncMs : [])
+      .concat(logMsItems)
+      .forEach(m => {
+        if (m && m.id && m.text && !seenSyncMsIds.has(m.id)) {
+          seenSyncMsIds.add(m.id);
+          milestonesList.push(m);
+        }
+      });
+    configData.milestones = milestonesList;
+    if (window.projectConfig) window.projectConfig.milestones = milestonesList;
     const configSerialized = JSON.stringify(configData, null, 2);
     const publicRootConfig = Object.assign({}, configData);
     delete publicRootConfig.milestones;
@@ -656,7 +681,6 @@
 
     // 2. editor/drafts.json & editor/milestones.json (and clean up legacy static-writer/ and pages/drafts/)
     const draftsList = Array.isArray(window.drafts) ? window.drafts : [];
-    const milestonesList = Array.isArray(window.projectConfig?.milestones) ? window.projectConfig.milestones : [];
     await writeFileToDirHandle(dirHandle, 'editor/drafts.json', JSON.stringify(draftsList, null, 2));
     await writeFileToDirHandle(dirHandle, 'editor/milestones.json', JSON.stringify(milestonesList, null, 2));
     try {
@@ -924,6 +948,9 @@
       if (!Array.isArray(fileMilestones)) {
         try { fileMilestones = await readFileFromDirHandle(dirHandle, 'writer/milestones.json', 'json'); } catch (e) {}
       }
+      if (!Array.isArray(fileMilestones)) {
+        try { fileMilestones = await readFileFromDirHandle(dirHandle, 'milestones.json', 'json'); } catch (e) {}
+      }
 
       let cfg = null;
       const parseTs = (v) => {
@@ -1003,9 +1030,21 @@
         try {
           storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
         } catch (e) {}
+        const logMilestones = Array.isArray(cfg.activityLog)
+          ? cfg.activityLog.filter(a => a && a.type === 'milestone').map(a => ({
+              id: (a.data && a.data.id) || a.id,
+              text: (a.data && a.data.text) || a.text || '',
+              date: (a.data && a.data.date) || a.date || '',
+              timestamp: a.timestamp || Date.now(),
+              authorName: (a.data && a.data.authorName) || a.authorName || ''
+            }))
+          : [];
         []
           .concat(Array.isArray(fileMilestones) ? fileMilestones : [])
+          .concat(Array.isArray(editorCfg && editorCfg.milestones) ? editorCfg.milestones : [])
+          .concat(Array.isArray(writerCfg && writerCfg.milestones) ? writerCfg.milestones : [])
           .concat(Array.isArray(cfg.milestones) ? cfg.milestones : [])
+          .concat(logMilestones)
           .concat(Array.isArray(window.projectConfig && window.projectConfig.milestones) ? window.projectConfig.milestones : [])
           .concat(Array.isArray(storedMsList) ? storedMsList : [])
           .forEach(m => {
@@ -1015,6 +1054,12 @@
             }
           });
         cfg.milestones = mergedMilestones;
+        try {
+          localStorage.setItem('cedar_milestones_v1', JSON.stringify(mergedMilestones));
+          if (Array.isArray(cfg.activityLog)) {
+            localStorage.setItem('cedar_activity_log', JSON.stringify(cfg.activityLog));
+          }
+        } catch (e) {}
         Object.assign(window.projectConfig, cfg);
 
         const resolvedEditorTheme = (cfg.design && (cfg.design.customColors || cfg.design.blogTheme || cfg.design.activeTheme))

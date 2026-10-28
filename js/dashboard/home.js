@@ -1258,9 +1258,11 @@
         activeCfg.activityLog.unshift(newLogEntry);
       }
 
+      activeCfg.lastUpdated = Date.now();
       if (typeof window !== 'undefined' && window.projectConfig && window.projectConfig !== activeCfg) {
         window.projectConfig.milestones = activeCfg.milestones;
         window.projectConfig.activityLog = activeCfg.activityLog;
+        window.projectConfig.lastUpdated = activeCfg.lastUpdated;
       }
       try {
         localStorage.setItem('cedar_milestones_v1', JSON.stringify(activeCfg.milestones));
@@ -1272,6 +1274,9 @@
       window.saveProjectToStorage();
     } else if (typeof saveProjectToStorage === 'function') {
       saveProjectToStorage();
+    }
+    if (window.CedarVault && typeof window.CedarVault.syncToFolder === 'function') {
+      window.CedarVault.syncToFolder().catch(() => {});
     }
 
     closeMilestoneModal();
@@ -1293,9 +1298,11 @@
       if (Array.isArray(activeCfg.activityLog)) {
         activeCfg.activityLog = activeCfg.activityLog.filter(item => !(item.type === 'milestone' && (item.id === milestoneId || item.data?.id === milestoneId)));
       }
+      activeCfg.lastUpdated = Date.now();
       if (typeof window !== 'undefined' && window.projectConfig && window.projectConfig !== activeCfg) {
         window.projectConfig.milestones = activeCfg.milestones;
         window.projectConfig.activityLog = activeCfg.activityLog;
+        window.projectConfig.lastUpdated = activeCfg.lastUpdated;
       }
       try {
         localStorage.setItem('cedar_milestones_v1', JSON.stringify(activeCfg.milestones || []));
@@ -1307,6 +1314,9 @@
       window.saveProjectToStorage();
     } else if (typeof saveProjectToStorage === 'function') {
       saveProjectToStorage();
+    }
+    if (window.CedarVault && typeof window.CedarVault.syncToFolder === 'function') {
+      window.CedarVault.syncToFolder().catch(() => {});
     }
 
     renderHomeActivityStream();

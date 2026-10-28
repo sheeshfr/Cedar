@@ -370,6 +370,7 @@
         const blob = new Blob([bytes], { type: mime });
         importedMediaBlobs.set(cleanFilename, { bytes, blob, mime, cleanPath });
         importedMediaBlobs.set(cleanFilename.toLowerCase(), { bytes, blob, mime, cleanPath });
+        importedMediaBlobs.set(cleanPath.toLowerCase(), { bytes, blob, mime, cleanPath });
         if (vStorage && typeof vStorage.writeBlob === 'function') {
           await vStorage.writeBlob(`blog/images/${cleanFilename}`, blob);
           await vStorage.writeBlob(cleanPath, blob);
@@ -377,39 +378,46 @@
       } catch (e) {}
     }
 
-    // 1. Sync drafts.json
-    const draftsFile = files.find(f =>
-      f.name === 'editor/drafts.json' ||
-      f.name === 'writer/drafts.json' ||
-      f.name === 'static-writer/drafts.json' ||
-      f.name === 'drafts.json' ||
-      f.name.endsWith('/drafts.json')
+    // 1. Sync config.json & milestones.json first so deleted tombstones can filter drafts
+    const milestonesFile = files.find(f =>
+      f.name === 'editor/milestones.json' ||
+      f.name === 'writer/milestones.json' ||
+      f.name === 'milestones.json' ||
+      f.name.endsWith('/milestones.json')
     );
-    if (draftsFile) {
-      const draftsText = decodeContent(draftsFile.data);
+    let parsedFileMilestones = [];
+    if (milestonesFile) {
       try {
-        const parsed = JSON.parse(draftsText);
-        if (Array.isArray(parsed)) {
-          localStorage.setItem('sheesh_static_writer_drafts_v2', draftsText);
-          importedDraftsCount = parsed.length;
-          if (typeof window.drafts !== 'undefined') {
-            window.drafts = parsed;
-          }
-        }
-      } catch (e) {
-        console.warn('[Migration] Failed to parse drafts during applyImport:', e);
-      }
+        const msArr = JSON.parse(decodeContent(milestonesFile.data));
+        if (Array.isArray(msArr)) parsedFileMilestones = msArr;
+      } catch (e) {}
     }
 
-    // 2. Sync config.json (prefer studio config with full authors/activityLog over stripped public root config.json)
     const configFile = files.find(f => f.name === 'editor/config.json' || f.name.endsWith('/editor/config.json'))
       || files.find(f => f.name === 'cedar_config.json' || f.name.endsWith('/cedar_config.json'))
       || files.find(f => f.name === 'writer/config.json' || f.name.endsWith('/writer/config.json'))
       || files.find(f => f.name === 'config.json' || f.name.endsWith('/config.json'));
+
+    let importedDeletedIds = new Set();
+    let importedDeletedSlugs = new Set();
     if (configFile) {
       const configText = decodeContent(configFile.data);
       try {
         const cfg = JSON.parse(configText);
+        if (Array.isArray(cfg.deletedDraftIds)) {
+          cfg.deletedDraftIds.forEach(id => id && importedDeletedIds.add(String(id)));
+          try { localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(cfg.deletedDraftIds)); } catch (e) {}
+        }
+        if (Array.isArray(cfg.deletedSlugs)) {
+          cfg.deletedSlugs.forEach(s => s && importedDeletedSlugs.add(String(s).trim().toLowerCase()));
+          try { localStorage.setItem('cedar_deleted_slugs', JSON.stringify(cfg.deletedSlugs)); } catch (e) {}
+        }
+        if (Array.isArray(cfg.deletedCategories) && Array.isArray(cfg.categories)) {
+          const delCatsLower = new Set(cfg.deletedCategories.map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
+          cfg.categories = cfg.categories.filter(c => !delCatsLower.has(String(c || '').trim().toLowerCase()));
+        }
+
+        // Hydrate author avatars from media/authors/
         if (Array.isArray(cfg.authors)) {
           cfg.authors.forEach(auth => {
             if (!auth || typeof auth !== 'object') return;
@@ -417,6 +425,7 @@
               const avBase = auth.avatar ? String(auth.avatar).split('/').pop().split('\\').pop() : '';
               const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(auth.name || 'author') : String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
               const matched = (avBase && (importedMediaBlobs.get(avBase) || importedMediaBlobs.get(avBase.toLowerCase())))
+                || importedMediaBlobs.get(`media/authors/${authSlug}_avatar.jpg`)
                 || importedMediaBlobs.get(`${authSlug}_avatar.jpg`)
                 || importedMediaBlobs.get(`${authSlug}_avatar.png`)
                 || importedMediaBlobs.get(`${authSlug}_avatar.webp`)
@@ -433,11 +442,86 @@
             }
           });
         }
+
+        // Hydrate branding logos & favicon from media/branding/
+        cfg.design = cfg.design || {};
+        cfg.design.branding = cfg.design.branding || {};
+        const br = cfg.design.branding;
+        br.files = br.files || {};
+        const logoBlob = importedMediaBlobs.get('media/branding/logo.png') || importedMediaBlobs.get('media/branding/site_logo.png');
+        const origBlob = importedMediaBlobs.get('media/branding/logo-original.png') || logoBlob;
+        const favBlob = importedMediaBlobs.get('media/branding/icon.png') || importedMediaBlobs.get('media/branding/favicon.png');
+        if (logoBlob && logoBlob.bytes) {
+          const dUrl = uint8ToDataUrl(logoBlob.bytes, logoBlob.mime);
+          if (dUrl) {
+            if (!br.generalLogo || !String(br.generalLogo).startsWith('data:')) br.generalLogo = dUrl;
+            br.files['media/branding/logo.png'] = dUrl;
+          }
+        }
+        if (origBlob && origBlob.bytes) {
+          const dUrl = uint8ToDataUrl(origBlob.bytes, origBlob.mime);
+          if (dUrl) {
+            if (!br.originalLogo || !String(br.originalLogo).startsWith('data:')) br.originalLogo = dUrl;
+            br.files['media/branding/logo-original.png'] = dUrl;
+          }
+        }
+        if (favBlob && favBlob.bytes && !br.faviconExplicitlyRemoved) {
+          const dUrl = uint8ToDataUrl(favBlob.bytes, favBlob.mime);
+          if (dUrl) {
+            if (!br.tabLogo || !String(br.tabLogo).startsWith('data:')) br.tabLogo = dUrl;
+            br.files['media/branding/icon.png'] = dUrl;
+          }
+        }
+        if (Object.keys(br.files).length > 0) {
+          try { localStorage.setItem('cedar_branding_files_v1', JSON.stringify(br.files)); } catch (e) {}
+        }
+
+        // Merge Milestones from milestones.json, config.milestones, and activityLog
+        const mergedMilestones = [];
+        const seenMsIds = new Set();
+        const logMilestones = Array.isArray(cfg.activityLog)
+          ? cfg.activityLog.filter(a => a && a.type === 'milestone').map(a => ({
+              id: (a.data && a.data.id) || a.id,
+              text: (a.data && a.data.text) || a.text || '',
+              date: (a.data && a.data.date) || a.date || '',
+              timestamp: a.timestamp || Date.now(),
+              authorName: (a.data && a.data.authorName) || a.authorName || ''
+            }))
+          : [];
+        []
+          .concat(parsedFileMilestones)
+          .concat(Array.isArray(cfg.milestones) ? cfg.milestones : [])
+          .concat(logMilestones)
+          .forEach(m => {
+            if (m && m.id && m.text && !seenMsIds.has(m.id)) {
+              seenMsIds.add(m.id);
+              mergedMilestones.push(m);
+            }
+          });
+        cfg.milestones = mergedMilestones;
+        try {
+          localStorage.setItem('cedar_milestones_v1', JSON.stringify(mergedMilestones));
+          if (Array.isArray(cfg.activityLog)) {
+            localStorage.setItem('cedar_activity_log', JSON.stringify(cfg.activityLog));
+          }
+        } catch (e) {}
+
+        // Restore GitHub repo, branch, and PAT if present in studio config
+        if (cfg.githubRepo) {
+          try { localStorage.setItem('cedar_github_repo', cfg.githubRepo); } catch (e) {}
+        }
+        if (cfg.githubBranch) {
+          try { localStorage.setItem('cedar_github_branch', cfg.githubBranch); } catch (e) {}
+        }
+        if (cfg.githubToken) {
+          try { localStorage.setItem('cedar_github_pat', cfg.githubToken); } catch (e) {}
+        }
+
         const finalConfigText = JSON.stringify(cfg);
         localStorage.setItem('sheesh_static_writer_project_v1', finalConfigText);
         if (cfg.domain) {
           localStorage.setItem('cedar_user_domain', cfg.domain);
-        try { localStorage.setItem('outpost_user_domain', cfg.domain); } catch (e) {}
+          try { localStorage.setItem('outpost_user_domain', cfg.domain); } catch (e) {}
         }
         if (typeof window.projectConfig !== 'undefined') {
           window.projectConfig = cfg;
@@ -445,6 +529,39 @@
         configUpdated = true;
       } catch (e) {
         console.warn('[Migration] Failed to parse config during applyImport:', e);
+      }
+    }
+
+    // 2. Sync drafts.json (filtering any deleted draft tombstones)
+    const draftsFile = files.find(f =>
+      f.name === 'editor/drafts.json' ||
+      f.name === 'writer/drafts.json' ||
+      f.name === 'static-writer/drafts.json' ||
+      f.name === 'drafts.json' ||
+      f.name.endsWith('/drafts.json')
+    );
+    if (draftsFile) {
+      const draftsText = decodeContent(draftsFile.data);
+      try {
+        let parsed = JSON.parse(draftsText);
+        if (Array.isArray(parsed)) {
+          if (importedDeletedIds.size > 0 || importedDeletedSlugs.size > 0) {
+            parsed = parsed.filter(d => {
+              if (!d) return false;
+              if (d.id && importedDeletedIds.has(String(d.id))) return false;
+              const slugKey = String(d.slug || '').trim().toLowerCase();
+              if (slugKey && importedDeletedSlugs.has(slugKey)) return false;
+              return true;
+            });
+          }
+          localStorage.setItem('sheesh_static_writer_drafts_v2', JSON.stringify(parsed));
+          importedDraftsCount = parsed.length;
+          if (typeof window.drafts !== 'undefined') {
+            window.drafts = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('[Migration] Failed to parse drafts during applyImport:', e);
       }
     }
 
