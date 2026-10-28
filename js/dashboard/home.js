@@ -2504,7 +2504,7 @@
       const isRenamed = page.action === 'renamed';
       let pageText = '';
       if (isRedirectPage) {
-        pageText = `<strong class="activity-link-target">${escapeHtml(title)}</strong> has been linked to pages`;
+        pageText = `<strong class="activity-link-target">${escapeHtml(title)}</strong> has been linked to Pages`;
       } else if (isRenamed && page.oldTitle) {
         pageText = `Renamed the <strong>${escapeHtml(page.oldTitle)}</strong> page to <strong class="activity-link-target">${escapeHtml(title)}</strong>`;
       } else if (isRenamed) {
