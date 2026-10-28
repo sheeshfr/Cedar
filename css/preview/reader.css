@@ -874,7 +874,14 @@
     .image-media-wrapper img {
       margin: 0 auto;
       display: block;
+      max-width: 100%;
+      height: auto;
       border-radius: var(--post-image-radius, 0px);
+    }
+    .captioned-image-container[data-pixelated="true"] img,
+    .image-media-wrapper img[data-pixelated="true"] {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
 
     .video-wrapper {

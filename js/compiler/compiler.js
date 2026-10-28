@@ -596,6 +596,9 @@
           case 'p':
           case 'div': {
             const pContent = inlineDomToMarkdown(node).trim();
+            if (!pContent && node.getAttribute && node.getAttribute('data-auto-trailing') === 'true') {
+              break;
+            }
             const align = getAlignment(node);
             const indent = getIndent(node);
             const attrs = buildBlockAttrs(align, indent);
@@ -2469,6 +2472,12 @@
       height: auto;
       box-sizing: border-box;
       border-radius: ${mediaInnerRadius};
+    }
+
+    .captioned-image-container[data-pixelated="true"] img,
+    .article-prose img[data-pixelated="true"] {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
 
     .captioned-image-container figcaption {

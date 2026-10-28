@@ -37,25 +37,30 @@
   /**
    * Generates clean HTML markup for a standalone captioned image block.
    */
-  function createFigureHtml(imgSrc, originalSrc, imgName, altText, caption, size = 'full') {
+  function createFigureHtml(imgSrc, originalSrc, imgName, altText, caption, size = 'full', scaleWidth = '', pixelated = false) {
     const trimmedCaption = (caption || '').trim();
     const hasCaption = trimmedCaption.length > 0 && trimmedCaption !== 'Add caption here...' && trimmedCaption !== 'Add image caption here...';
-    return `<div class="captioned-image-container${hasCaption ? ' has-caption' : ''}" data-size="${size}" contenteditable="false" draggable="true" tabindex="0">
-      <figure>
-        <div class="image-media-wrapper">
+    const scaleAttr = scaleWidth ? ` data-scale-width="${escapeHtml(scaleWidth)}"` : '';
+    const pixAttr = pixelated ? ` data-pixelated="true"` : '';
+    const figStyle = scaleWidth ? ` style="width: ${escapeHtml(scaleWidth)}; max-width: 100%;"` : '';
+    const wrapStyle = scaleWidth ? ` style="width: 100%; max-width: 100%;"` : '';
+    const imgStyle = `style="${scaleWidth ? 'width: 100%; max-width: 100%;' : ''}${pixelated ? ' image-rendering: pixelated;' : ''}"`;
+    return `<div class="captioned-image-container${hasCaption ? ' has-caption' : ''}" data-size="${size}"${scaleAttr}${pixAttr} contenteditable="false" draggable="true" tabindex="0">
+      <figure${figStyle}>
+        <div class="image-media-wrapper"${wrapStyle}>
           <button type="button" class="image-side-add-btn side-left" data-side="left" title="Add picture to the left">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
-          <img src="${escapeHtml(imgSrc)}" data-original-src="${escapeHtml(originalSrc)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(altText)}" loading="lazy" draggable="false">
+          <img src="${escapeHtml(imgSrc)}" data-original-src="${escapeHtml(originalSrc)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(altText)}" ${imgStyle} loading="lazy" draggable="false">
           <button type="button" class="image-side-add-btn side-right" data-side="right" title="Add picture to the right">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
           <div class="figure-hover-actions">
-            <button type="button" class="figure-action-btn btn-move-block-up" title="Move Up">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"></polyline></svg>
+            <button type="button" class="figure-action-btn btn-scale-img-down" title="Decrease Image Scale (-)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
-            <button type="button" class="figure-action-btn btn-move-block-down" title="Move Down">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <button type="button" class="figure-action-btn btn-scale-img-up" title="Increase Image Scale (+)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
             <div class="figure-action-sep"></div>
             <button type="button" class="figure-action-btn btn-delete-fig" title="Delete Image">
@@ -897,13 +902,257 @@
   // CAPTION & WRAPPER SYNCHRONIZATION
   // =========================================================================
 
+  // =========================================================================
+  // SMART IMAGE SIZING, INTEGER SCALING & +/- SCALE CONTROLS
+  // =========================================================================
+
+  function getEditorMarginWidth(container) {
+    const proseEl = (container && container.closest)
+      ? container.closest('#rich-canvas-prose, .article-prose, .canvas-prose')
+      : document.getElementById('rich-canvas-prose');
+    if (proseEl && proseEl.clientWidth > 200) {
+      return proseEl.clientWidth;
+    }
+    return 728;
+  }
+
+  function buildImageScaleSteps(naturalWidth, marginWidth) {
+    const minAdjustablePx = Math.min(200, marginWidth);
+    const isTiny = naturalWidth > 0 && naturalWidth < 360;
+    const stepsSet = new Set();
+
+    if (isTiny) {
+      // Integer multiples of naturalWidth (1x, 2x, 3x, 4x...) within [minAdjustablePx, marginWidth]
+      let k = 1;
+      while (k * naturalWidth <= marginWidth) {
+        const px = Math.round(k * naturalWidth);
+        if (px >= minAdjustablePx) {
+          stepsSet.add(px);
+        }
+        k++;
+      }
+      // Ensure at least minAdjustablePx and marginWidth are reachable, plus intermediate steps if naturalWidth is ~180-359
+      stepsSet.add(Math.max(minAdjustablePx, Math.min(marginWidth, naturalWidth)));
+      if (stepsSet.size < 4) {
+        [0.35, 0.5, 0.68, 0.84, 1.0].forEach(pct => {
+          const px = Math.round(marginWidth * pct);
+          if (px >= minAdjustablePx && px <= marginWidth) stepsSet.add(px);
+        });
+      }
+      stepsSet.add(marginWidth);
+    } else {
+      // Clean percentage steps of marginWidth for normal and huge images
+      [0.30, 0.44, 0.58, 0.72, 0.86, 1.00].forEach(pct => {
+        const px = Math.max(minAdjustablePx, Math.round(marginWidth * pct));
+        if (px <= marginWidth) stepsSet.add(px);
+      });
+      if (naturalWidth >= minAdjustablePx && naturalWidth < marginWidth) {
+        stepsSet.add(Math.round(naturalWidth));
+      }
+    }
+
+    const sorted = Array.from(stepsSet).sort((a, b) => a - b);
+    // Filter out steps that are too close (< 24px apart) except keep first and last
+    const filtered = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i === 0 || i === sorted.length - 1 || sorted[i] - filtered[filtered.length - 1] >= 24) {
+        filtered.push(sorted[i]);
+      }
+    }
+    return filtered;
+  }
+
+  function updateScaleButtonsState(container, renderedPx, marginWidth) {
+    if (!container) return;
+    const minAdjustablePx = Math.min(200, marginWidth);
+    const downBtn = container.querySelector('.btn-scale-img-down');
+    const upBtn = container.querySelector('.btn-scale-img-up');
+    if (downBtn) {
+      const atMin = renderedPx <= minAdjustablePx + 4;
+      downBtn.classList.toggle('is-at-limit', atMin);
+    }
+    if (upBtn) {
+      const atMax = renderedPx >= marginWidth - 4;
+      upBtn.classList.toggle('is-at-limit', atMax);
+    }
+  }
+
+  function applySmartImageSizing(container) {
+    if (!container || !container.classList || !container.classList.contains('captioned-image-container')) return;
+    const figure = container.querySelector('figure');
+    const wrapper = container.querySelector('.image-media-wrapper');
+    const img = container.querySelector('img');
+    if (!figure || !wrapper || !img) return;
+
+    if (!img.complete || !img.naturalWidth) {
+      if (!img._hasCedarSmartSizeLoad) {
+        img._hasCedarSmartSizeLoad = true;
+        img.addEventListener('load', () => {
+          applySmartImageSizing(container);
+        }, { once: true });
+      }
+      return;
+    }
+
+    const naturalWidth = img.naturalWidth;
+    const marginWidth = getEditorMarginWidth(container);
+    const minAdjustablePx = Math.min(200, marginWidth);
+    const isTiny = naturalWidth > 0 && naturalWidth < 360;
+
+    if (isTiny) {
+      container.setAttribute('data-pixelated', 'true');
+      img.style.imageRendering = 'pixelated';
+    } else if (container.getAttribute('data-pixelated') !== 'true') {
+      img.style.imageRendering = '';
+    }
+
+    let scaleWidth = (container.getAttribute('data-scale-width') || '').trim();
+
+    if (!scaleWidth) {
+      // Smart default rule of thumb:
+      // 1. Tiny pictures (< 360px): inflate via integer scaling so they showcase crisply without faking pixels
+      // 2. Huge pictures (>= marginWidth): scale down to 100% of editor margins
+      // 3. Medium pictures (360px .. marginWidth): fit comfortably within margins
+      if (isTiny) {
+        const minMult = Math.max(2, Math.ceil(280 / naturalWidth));
+        const maxMult = Math.max(1, Math.floor(marginWidth / naturalWidth));
+        const mult = Math.min(minMult, maxMult);
+        const targetPx = Math.min(marginWidth, Math.max(minAdjustablePx, mult * naturalWidth));
+        scaleWidth = `${targetPx}px`;
+        container.setAttribute('data-scale-width', scaleWidth);
+      } else if (naturalWidth >= marginWidth * 0.92) {
+        scaleWidth = '100%';
+        container.setAttribute('data-scale-width', scaleWidth);
+      } else {
+        scaleWidth = `${Math.max(minAdjustablePx, naturalWidth)}px`;
+        container.setAttribute('data-scale-width', scaleWidth);
+      }
+    } else {
+      // Clamp existing scaleWidth within [minAdjustablePx, marginWidth]
+      if (scaleWidth.endsWith('px')) {
+        const pxVal = parseFloat(scaleWidth);
+        if (!isNaN(pxVal)) {
+          if (pxVal > marginWidth) {
+            scaleWidth = '100%';
+          } else if (pxVal < minAdjustablePx) {
+            scaleWidth = `${minAdjustablePx}px`;
+          }
+          container.setAttribute('data-scale-width', scaleWidth);
+        }
+      } else if (scaleWidth.endsWith('%')) {
+        const pctVal = parseFloat(scaleWidth);
+        if (!isNaN(pctVal)) {
+          const minPct = Math.ceil((minAdjustablePx / marginWidth) * 100);
+          const clampedPct = Math.min(100, Math.max(minPct, pctVal));
+          scaleWidth = `${clampedPct}%`;
+          container.setAttribute('data-scale-width', scaleWidth);
+        }
+      }
+    }
+
+    figure.style.width = scaleWidth;
+    figure.style.maxWidth = '100%';
+    wrapper.style.width = '100%';
+    wrapper.style.maxWidth = '100%';
+    img.style.width = '100%';
+    img.style.maxWidth = '100%';
+
+    const renderedPx = scaleWidth.endsWith('%')
+      ? Math.round((parseFloat(scaleWidth) / 100) * marginWidth)
+      : (parseFloat(scaleWidth) || marginWidth);
+    updateScaleButtonsState(container, renderedPx, marginWidth);
+  }
+
+  function stepImageScale(container, direction) {
+    if (!container || !container.classList || !container.classList.contains('captioned-image-container')) return;
+    const figure = container.querySelector('figure');
+    const wrapper = container.querySelector('.image-media-wrapper');
+    const img = container.querySelector('img');
+    if (!figure || !wrapper || !img) return;
+
+    const naturalWidth = img.naturalWidth || 728;
+    const marginWidth = getEditorMarginWidth(container);
+    const minAdjustablePx = Math.min(200, marginWidth);
+    const isTiny = naturalWidth > 0 && naturalWidth < 360;
+
+    const steps = buildImageScaleSteps(naturalWidth, marginWidth);
+    if (steps.length === 0) return;
+
+    const currentRectWidth = figure.getBoundingClientRect().width || img.getBoundingClientRect().width || marginWidth;
+    const currentWidth = Math.min(marginWidth, Math.max(minAdjustablePx, Math.round(currentRectWidth)));
+
+    let nextPx = null;
+    if (direction === 'up') {
+      for (let i = 0; i < steps.length; i++) {
+        if (steps[i] > currentWidth + 6) {
+          nextPx = steps[i];
+          break;
+        }
+      }
+      if (nextPx === null) {
+        if (currentWidth < marginWidth - 2) {
+          nextPx = marginWidth;
+        } else {
+          updateScaleButtonsState(container, marginWidth, marginWidth);
+          return;
+        }
+      }
+    } else {
+      for (let i = steps.length - 1; i >= 0; i--) {
+        if (steps[i] < currentWidth - 6) {
+          nextPx = steps[i];
+          break;
+        }
+      }
+      if (nextPx === null) {
+        if (currentWidth > minAdjustablePx + 2) {
+          nextPx = minAdjustablePx;
+        } else {
+          updateScaleButtonsState(container, minAdjustablePx, marginWidth);
+          return;
+        }
+      }
+    }
+
+    if (window.commitCheckpoint) window.commitCheckpoint();
+
+    let scaleValue = '';
+    if (nextPx >= marginWidth - 2) {
+      scaleValue = '100%';
+    } else if (isTiny) {
+      // Keep exact pixel width for integer-scaled small images so pixels stay sharp
+      scaleValue = `${nextPx}px`;
+      container.setAttribute('data-pixelated', 'true');
+      img.style.imageRendering = 'pixelated';
+    } else {
+      const pct = Math.min(100, Math.max(Math.ceil((minAdjustablePx / marginWidth) * 100), Math.round((nextPx / marginWidth) * 100)));
+      scaleValue = `${pct}%`;
+    }
+
+    container.setAttribute('data-scale-width', scaleValue);
+    figure.style.width = scaleValue;
+    figure.style.maxWidth = '100%';
+    wrapper.style.width = '100%';
+    wrapper.style.maxWidth = '100%';
+    img.style.width = '100%';
+    img.style.maxWidth = '100%';
+
+    updateScaleButtonsState(container, nextPx, marginWidth);
+
+    if (window.recordAction) window.recordAction('image-scale', true);
+    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
+    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+  }
+
   function ensureImageCaptionElements(root) {
     if (!root) return;
     if (typeof normalizeRawImages === 'function') {
       normalizeRawImages(root);
     }
     root.querySelectorAll('#canvas-drop-indicator').forEach(el => el.remove());
-    const containers = root.querySelectorAll('.captioned-image-container');
+    const containers = root.classList && root.classList.contains('captioned-image-container')
+      ? [root]
+      : Array.from(root.querySelectorAll('.captioned-image-container'));
     containers.forEach(container => {
       const figure = container.querySelector('figure');
       if (!figure) return;
@@ -957,17 +1206,21 @@
           }
         }
 
-        // Ensure strictly ONE .figure-hover-actions with Move Up, Move Down, and Delete button
+        // Ensure strictly ONE .figure-hover-actions with Decrease Scale (-), Increase Scale (+), and Delete button
         let hoverActions = wrapper.querySelector('.figure-hover-actions');
-        if (!hoverActions) {
-          hoverActions = document.createElement('div');
-          hoverActions.className = 'figure-hover-actions';
+        const needsScaleButtonsUpgrade = hoverActions && (!hoverActions.querySelector('.btn-scale-img-down') || !hoverActions.querySelector('.btn-scale-img-up') || hoverActions.querySelector('.btn-move-block-up, .btn-move-block-down'));
+        if (!hoverActions || needsScaleButtonsUpgrade) {
+          if (!hoverActions) {
+            hoverActions = document.createElement('div');
+            hoverActions.className = 'figure-hover-actions';
+            wrapper.appendChild(hoverActions);
+          }
           hoverActions.innerHTML = `
-            <button type="button" class="figure-action-btn btn-move-block-up" title="Move Up">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"></polyline></svg>
+            <button type="button" class="figure-action-btn btn-scale-img-down" title="Decrease Image Scale (-)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
-            <button type="button" class="figure-action-btn btn-move-block-down" title="Move Down">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <button type="button" class="figure-action-btn btn-scale-img-up" title="Increase Image Scale (+)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
             <div class="figure-action-sep"></div>
             <button type="button" class="figure-action-btn btn-delete-fig" title="Delete Image">
@@ -975,9 +1228,10 @@
               <span>Delete</span>
             </button>
           `;
-          wrapper.appendChild(hoverActions);
         }
       }
+
+      applySmartImageSizing(container);
 
       const figcaption = figure.querySelector('figcaption');
       if (figcaption) {
@@ -1244,6 +1498,10 @@
       const afterSyncSrc = imgEl.getAttribute('src') || '';
       if (!afterSyncSrc || (!afterSyncSrc.startsWith('data:') && !afterSyncSrc.startsWith('blob:') && !/^https?:\/\//i.test(afterSyncSrc))) {
         hydrateFromVault();
+      }
+      const parentFig = imgEl.closest ? imgEl.closest('.captioned-image-container') : null;
+      if (parentFig) {
+        applySmartImageSizing(parentFig);
       }
     });
   }
@@ -1868,7 +2126,7 @@
     };
 
     const onDrop = async (e) => {
-      if (document.body.classList.contains('is-dragging-active')) return;
+      if (e._cedarInternalDropHandled || document.body.classList.contains('is-dragging-active')) return;
       if (canvasProse) {
         canvasProse.classList.remove('dragover');
         canvasProse.querySelectorAll('.gallery-slot-placeholder.dragover-slot').forEach(el => el.classList.remove('dragover-slot'));
@@ -2568,6 +2826,8 @@
   window.getAdjacentImageBlock = getAdjacentImageBlock;
   window.mergeImageBlocks = mergeImageBlocks;
   window.ensureImageCaptionElements = ensureImageCaptionElements;
+  window.applySmartImageSizing = applySmartImageSizing;
+  window.stepImageScale = stepImageScale;
   window.hydrateCanvasImages = hydrateCanvasImages;
   window.renderEditorMediaPopup = renderEditorMediaPopup;
   window.insertMediaIntoPostEditor = insertMediaIntoPostEditor;
@@ -2592,6 +2852,8 @@
     getAdjacentImageBlock,
     mergeImageBlocks,
     ensureImageCaptionElements,
+    applySmartImageSizing,
+    stepImageScale,
     hydrateCanvasImages,
     renderEditorMediaPopup,
     insertMediaIntoPostEditor,

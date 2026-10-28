@@ -52,7 +52,6 @@
     }
 
     function clearIndicators() {
-      document.body.classList.remove('is-dragging-active');
       const ind = document.getElementById('canvas-drop-indicator');
       if (ind) {
         ind.classList.remove('visible');
@@ -417,9 +416,11 @@
     function onDrop(e) {
       if (!draggedBlock && !draggedGalleryItem) return;
 
+      e._cedarInternalDropHandled = true;
       if (isFalseDropZone(e)) {
         e.preventDefault();
         e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
         handleDragTermination();
         return;
       }
@@ -433,12 +434,13 @@
       if (targetSlot) {
         e.preventDefault();
         e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
         if (draggedGalleryItem) {
           const srcItem = draggedGalleryItem;
           draggedGalleryItem = null;
           window._draggedGalleryItem = null;
-          clearIndicators();
+          handleDragTermination();
           if (window.commitCheckpoint) window.commitCheckpoint();
           if (srcItem.gallery === targetSlot.closest('.custom-gallery-grid')) {
             srcItem.itemElement.remove();
@@ -458,7 +460,7 @@
         if (draggedBlock && (typeof window.isImageBlock === 'function' && window.isImageBlock(draggedBlock))) {
           const sourceBlock = draggedBlock;
           draggedBlock = null;
-          clearIndicators();
+          handleDragTermination();
           const img = sourceBlock.querySelector('img');
           if (img) {
             if (window.commitCheckpoint) window.commitCheckpoint();
@@ -490,11 +492,12 @@
       if (draggedGalleryItem) {
         e.preventDefault();
         e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
         const srcItem = draggedGalleryItem;
         draggedGalleryItem = null;
         window._draggedGalleryItem = null;
         const currentAction = dropAction;
-        clearIndicators();
+        handleDragTermination();
 
         if (currentAction && currentAction.targetBlock) {
           if (window.commitCheckpoint) window.commitCheckpoint();
@@ -522,9 +525,8 @@
           if (typeof window.ensureImageCaptionElements === 'function') window.ensureImageCaptionElements(canvasProse);
 
           document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block').forEach(c => c.classList.remove('selected'));
-          newFig.classList.add('selected');
-          window._selectedImageBlock = newFig;
-          window._lastActiveImageBlock = newFig;
+          window._selectedImageBlock = null;
+          window._lastActiveImageBlock = null;
 
           if (window.recordAction) window.recordAction('image-extract', true);
           if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
@@ -539,10 +541,11 @@
       if (!draggedBlock) return;
       e.preventDefault();
       e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       const currentAction = dropAction || calculateDropTarget(e);
       const currentDragged = draggedBlock;
       draggedBlock = null;
-      clearIndicators();
+      handleDragTermination();
 
       if (currentAction && currentAction.targetBlock && currentAction.targetBlock !== currentDragged) {
         if (currentAction.position === 'merge' && (typeof window.isImageBlock === 'function' && window.isImageBlock(currentDragged) && window.isImageBlock(currentAction.targetBlock))) {
@@ -563,15 +566,30 @@
             insertRef = currentAction.targetBlock.nextSibling;
           }
 
-          // Mark any existing empty paragraphs as intentional so moving a block past an empty space
-          // never collapses or deletes the empty space.
-          Array.from(canvasProse.children).forEach(ch => {
-            if (ch.tagName === 'P' && (!ch.textContent.trim() || ch.innerHTML === '<br>')) {
-              ch.setAttribute('data-intentional-space', 'true');
-            }
-          });
+          // Detect if currentDragged had an auto-trailing empty paragraph right after it at the bottom of canvasProse
+          const nextAfterDragged = currentDragged.nextElementSibling;
+          const orphanedTrailingP = (
+            nextAfterDragged &&
+            nextAfterDragged === canvasProse.lastElementChild &&
+            nextAfterDragged.tagName === 'P' &&
+            (!nextAfterDragged.textContent.trim() || nextAfterDragged.innerHTML === '<br>') &&
+            nextAfterDragged.getAttribute('data-intentional-space') !== 'true'
+          ) ? nextAfterDragged : null;
 
           canvasProse.insertBefore(currentDragged, insertRef);
+
+          // If moving currentDragged left its old bottom auto-trailing paragraph stranded below a text block, remove it
+          if (orphanedTrailingP && orphanedTrailingP.parentNode === canvasProse && orphanedTrailingP !== currentDragged.nextElementSibling) {
+            orphanedTrailingP.remove();
+          }
+
+          // Clear selection state on moved block so pressing Backspace later in text never deletes it
+          canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
+          window._selectedImageBlock = null;
+          window._lastActiveImageBlock = null;
+          window._lastActiveBlock = null;
+          if (typeof currentDragged.blur === 'function') currentDragged.blur();
+
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
           if (window.recordAction) window.recordAction('block-drag-reorder', true);
           if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
@@ -590,6 +608,7 @@
     }
 
     function handleDragTermination() {
+      document.body.classList.remove('is-dragging-active');
       clearIndicators();
       if (draggedBlock) {
         draggedBlock.classList.remove('block-is-dragging');

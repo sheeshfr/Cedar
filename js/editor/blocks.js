@@ -1339,6 +1339,19 @@
     const canvasProse = document.getElementById('rich-canvas-prose');
     if (!canvasProse) return null;
 
+    // Clean up any auto-generated trailing paragraphs that are no longer needed
+    // (e.g. when a bottom image block was dragged above a text block)
+    Array.from(canvasProse.querySelectorAll('p[data-auto-trailing="true"]')).forEach(autoP => {
+      if (!isTrulyEmptyBlock(autoP)) {
+        autoP.removeAttribute('data-auto-trailing');
+      } else {
+        const prev = autoP.previousElementSibling;
+        if (autoP !== canvasProse.lastElementChild || (prev && isTextBlock(prev))) {
+          autoP.remove();
+        }
+      }
+    });
+
     // Hard Rule: If a Recent Posts block exists, it MUST finish the page out. Nothing can be below it.
     const recentBlocks = Array.from(canvasProse.querySelectorAll('.page-recent-posts-block, [data-block-type="recent-posts"]'));
     if (recentBlocks.length > 0) {
@@ -1381,6 +1394,7 @@
     // Otherwise, the lowest block is an item that ISN'T a text block (image, gallery, video, individual-post, etc.)
     // Ensure there is one text block directly underneath it:
     const p = document.createElement('p');
+    p.setAttribute('data-auto-trailing', 'true');
     p.innerHTML = '<br>';
     canvasProse.appendChild(p);
     return p;
@@ -1517,6 +1531,13 @@
     }
 
     // Clean up topBlock if it was emptied or has empty trailing inline tags
+    if (topBlock.hasAttribute && topBlock.hasAttribute('data-auto-trailing')) {
+      topBlock.removeAttribute('data-auto-trailing');
+    }
+    if (isEmptyBlock) {
+      topBlock.setAttribute('data-intentional-space', 'true');
+      newP.setAttribute('data-intentional-space', 'true');
+    }
     if (topBlock.textContent.trim().length === 0 && !topBlock.querySelector('img, iframe, hr, video, audio')) {
       topBlock.innerHTML = '<br>';
     } else {
@@ -2286,9 +2307,13 @@
     });
 
     container.remove();
+    canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
+    window._selectedImageBlock = null;
+    window._lastActiveImageBlock = null;
+    window._lastActiveBlock = null;
 
-    // If nextSib was an empty paragraph and prevSib is also a text block, remove nextSib to avoid leaving a stray blank line
-    if (nextIsEmptyP && prevSib && isTextBlock(prevSib)) {
+    // If nextSib was an auto-trailing paragraph or an empty paragraph after a text block, remove nextSib to avoid leaving a stray blank line
+    if (nextIsEmptyP && ((prevSib && isTextBlock(prevSib) && nextSib.getAttribute('data-intentional-space') !== 'true') || nextSib.getAttribute('data-auto-trailing') === 'true')) {
       nextSib.remove();
     }
 
@@ -2310,9 +2335,6 @@
       });
       if (typeof updateImagesCount === 'function') updateImagesCount();
     }
-
-    // Clean up consecutive empty paragraphs around the deletion spot
-    cleanConsecutiveEmptyParagraphs(canvasProse);
 
     // Guarantee at least one paragraph exists
     if (!canvasProse.firstElementChild) {

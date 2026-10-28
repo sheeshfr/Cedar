@@ -550,6 +550,30 @@
         }
       }
 
+      // Decrease Image Scale (-) button
+      const scaleDownBtn = e.target.closest('.btn-scale-img-down');
+      if (scaleDownBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const container = scaleDownBtn.closest('.captioned-image-container');
+        if (container && typeof window.stepImageScale === 'function') {
+          window.stepImageScale(container, 'down');
+        }
+        return;
+      }
+
+      // Increase Image Scale (+) button
+      const scaleUpBtn = e.target.closest('.btn-scale-img-up');
+      if (scaleUpBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const container = scaleUpBtn.closest('.captioned-image-container');
+        if (container && typeof window.stepImageScale === 'function') {
+          window.stepImageScale(container, 'up');
+        }
+        return;
+      }
+
       // Move Up button
       const moveUpBtn = e.target.closest('.btn-move-block-up');
       if (moveUpBtn) {
@@ -558,12 +582,18 @@
         const container = moveUpBtn.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-individual-post-block');
         if (container && container.previousElementSibling) {
           if (window.commitCheckpoint) window.commitCheckpoint();
-          Array.from(canvasProse.children).forEach(ch => {
-            if (ch.tagName === 'P' && (!ch.textContent.trim() || ch.innerHTML === '<br>')) {
-              ch.setAttribute('data-intentional-space', 'true');
-            }
-          });
+          const nextAfter = container.nextElementSibling;
+          const orphanedTrailingP = (
+            nextAfter &&
+            nextAfter === canvasProse.lastElementChild &&
+            nextAfter.tagName === 'P' &&
+            (!nextAfter.textContent.trim() || nextAfter.innerHTML === '<br>') &&
+            nextAfter.getAttribute('data-intentional-space') !== 'true'
+          ) ? nextAfter : null;
           container.parentNode.insertBefore(container, container.previousElementSibling);
+          if (orphanedTrailingP && orphanedTrailingP.parentNode === canvasProse && orphanedTrailingP !== container.nextElementSibling) {
+            orphanedTrailingP.remove();
+          }
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
           if (window.recordAction) window.recordAction('block-move-up', true);
           if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
@@ -587,11 +617,6 @@
             return;
           }
           if (window.commitCheckpoint) window.commitCheckpoint();
-          Array.from(canvasProse.children).forEach(ch => {
-            if (ch.tagName === 'P' && (!ch.textContent.trim() || ch.innerHTML === '<br>')) {
-              ch.setAttribute('data-intentional-space', 'true');
-            }
-          });
           container.parentNode.insertBefore(container, container.nextElementSibling.nextSibling);
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
           if (window.recordAction) window.recordAction('block-move-down', true);
@@ -677,25 +702,27 @@
         return;
       }
 
-      // Check if user clicked horizontally beside an image block (e.g. to the right/left of image)
-      const allImageBlocks = Array.from(canvasProse.querySelectorAll('.captioned-image-container, .custom-gallery-grid'));
-      let clickedBesideBlock = null;
-      for (const ib of allImageBlocks) {
-        const rect = ib.getBoundingClientRect();
-        if (e.clientY >= rect.top - 8 && e.clientY <= rect.bottom + 8) {
-          clickedBesideBlock = ib;
-          break;
+      // Check if user clicked horizontally beside an image block (only when clicking directly on canvasProse background, never inside a text block)
+      if (e.target === canvasProse) {
+        const allImageBlocks = Array.from(canvasProse.querySelectorAll('.captioned-image-container, .custom-gallery-grid'));
+        let clickedBesideBlock = null;
+        for (const ib of allImageBlocks) {
+          const rect = ib.getBoundingClientRect();
+          if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            clickedBesideBlock = ib;
+            break;
+          }
         }
-      }
 
-      if (clickedBesideBlock) {
-        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider').forEach(c => c.classList.remove('selected'));
-        clickedBesideBlock.classList.add('selected');
-        window._selectedImageBlock = clickedBesideBlock;
-        window._lastActiveImageBlock = clickedBesideBlock;
-        window._lastActiveBlock = clickedBesideBlock;
-        if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
-        return;
+        if (clickedBesideBlock) {
+          document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider').forEach(c => c.classList.remove('selected'));
+          clickedBesideBlock.classList.add('selected');
+          window._selectedImageBlock = clickedBesideBlock;
+          window._lastActiveImageBlock = clickedBesideBlock;
+          window._lastActiveBlock = clickedBesideBlock;
+          if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+          return;
+        }
       }
 
       // If clicked elsewhere, check if we need to cancel an active placeholder
@@ -709,9 +736,10 @@
         }
       }
 
-      // If clicked elsewhere, deselect non-text blocks
-      document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider').forEach(c => c.classList.remove('selected'));
+      // If clicked elsewhere (such as inside a text block), deselect non-text blocks completely
+      document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
       window._selectedImageBlock = null;
+      window._lastActiveImageBlock = null;
       if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
     });
 
@@ -1205,6 +1233,26 @@
         return;
       }
 
+      // If topBlock is the تنها block on the entire canvas and is empty, keep it alive
+      if (direction === 'backward' && !prevSib && !nextSib) {
+        topBlock.innerHTML = '<br>';
+        placeCaretInBlock(topBlock, true);
+        return;
+      }
+
+      // If topBlock is an empty paragraph immediately after another editable text block,
+      // remove ONLY this single empty line and move the caret to the end of prevSib!
+      if (direction === 'backward' && prevSib && !isNonTextBlock(prevSib)) {
+        if (window.commitCheckpoint) window.commitCheckpoint();
+        topBlock.remove();
+        if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+        placeCaretAtEndOfNode(prevSib);
+        if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+        if (typeof window.updateStats === 'function') window.updateStats();
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+        return;
+      }
+
       // If topBlock is the mandatory trailing text block after a non-text block at the very end of canvasProse,
       // or if preceding block is an HR divider line, allow Backspace to select the preceding non-text block, or delete it if already selected.
       if (direction === 'backward' && (!nextSib || prevSib.tagName === 'HR' || (prevSib.classList && prevSib.classList.contains('canvas-divider'))) && isNonTextBlock(prevSib)) {
@@ -1416,10 +1464,24 @@
               const postText = (postRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
 
               if (inputType.includes('Backward')) {
-                if (rawText.length === 0 && !hasMedia && (isNonTextBlock(prevSib) || isNonTextBlock(nextSib) || !prevSib)) {
+                if (rawText.length === 0 && !hasMedia) {
                   e.preventDefault();
                   removeEmptyEditableBlockSafely(topBlock, 'backward');
                   return;
+                }
+                if (preText.length === 0 && !hasMedia && prevSib && !isNonTextBlock(prevSib)) {
+                  const prevRawText = (prevSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+                  const prevHasMedia = Boolean(prevSib.querySelector && prevSib.querySelector('img, video, iframe, hr, audio'));
+                  if (prevRawText.length === 0 && !prevHasMedia && prevSib.tagName === 'P') {
+                    e.preventDefault();
+                    if (window.commitCheckpoint) window.commitCheckpoint();
+                    prevSib.remove();
+                    placeCaretInBlock(topBlock, true);
+                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+                    if (typeof window.updateStats === 'function') window.updateStats();
+                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+                    return;
+                  }
                 }
                 if (preText.length === 0 && !hasMedia && isNonTextBlock(prevSib)) {
                   e.preventDefault();
@@ -1626,16 +1688,25 @@
         return;
       }
 
-      // 2. Delete selected or focused block on backspace / delete (only if not actively typing in an editable field)
+      // 2. Delete selected or focused block on backspace / delete (only if not actively typing or caret-focused in an editable text block)
       if (e.key === 'Backspace' || e.key === 'Delete') {
         const activeEl = document.activeElement;
-        const isInEditableField = activeEl && (
+        const selCheck = window.getSelection();
+        const caretInEditableBlock = (selCheck && selCheck.rangeCount > 0)
+          ? Boolean(getTopLevelEditableBlock(selCheck.getRangeAt(0).commonAncestorContainer))
+          : false;
+        const isInEditableField = caretInEditableBlock || (activeEl && (
           activeEl.tagName === 'INPUT' ||
           activeEl.tagName === 'TEXTAREA' ||
           activeEl.tagName === 'FIGCAPTION' ||
           (activeEl.classList && activeEl.classList.contains('gallery-caption')) ||
           (activeEl.closest && activeEl.closest('figcaption, .gallery-caption, input, textarea'))
-        );
+        ));
+        if (caretInEditableBlock) {
+          canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
+          window._selectedImageBlock = null;
+          window._lastActiveImageBlock = null;
+        }
         if (!isInEditableField) {
           const activeBlock = (activeEl && activeEl.closest ? activeEl.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider') : null);
           const selectedBlock = canvasProse.querySelector('.selected, .captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected') || activeBlock;
@@ -1822,12 +1893,28 @@
                   }
                   return;
                 }
-                // Case 1: Block is already completely empty (<p><br></p>)
-                if (rawText.length === 0 && !hasMedia && (isNonTextBlock(prevSib) || isNonTextBlock(nextSib) || !prevSib)) {
+                // Case 1: Block is already completely empty (<p><br></p>) -> remove 1 single empty line cleanly
+                if (rawText.length === 0 && !hasMedia) {
                   e.preventDefault();
                   e.stopPropagation();
                   removeEmptyEditableBlockSafely(topBlock, 'backward');
                   return;
+                }
+                // Case 1B: Caret is at the very start of topBlock and previous sibling is an empty <p> -> remove that 1 empty <p> above topBlock
+                if (preText.length === 0 && !hasMedia && prevSib && !isNonTextBlock(prevSib)) {
+                  const prevRawText = (prevSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+                  const prevHasMedia = Boolean(prevSib.querySelector && prevSib.querySelector('img, video, iframe, hr, audio'));
+                  if (prevRawText.length === 0 && !prevHasMedia && prevSib.tagName === 'P') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (window.commitCheckpoint) window.commitCheckpoint();
+                    prevSib.remove();
+                    placeCaretInBlock(topBlock, true);
+                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+                    if (typeof window.updateStats === 'function') window.updateStats();
+                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+                    return;
+                  }
                 }
                 // Case 2: Caret is at the very beginning of topBlock (offset 0) and previous sibling is a non-text block
                 if (preText.length === 0 && !hasMedia && isNonTextBlock(prevSib)) {
@@ -2309,14 +2396,8 @@
           targetBlock = canvasProse.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected, .selected');
         }
 
-        if (!targetBlock && window._selectedImageBlock && document.contains(window._selectedImageBlock)) {
+        if (!targetBlock && window._selectedImageBlock && document.contains(window._selectedImageBlock) && window._selectedImageBlock.classList.contains('selected')) {
           targetBlock = window._selectedImageBlock;
-        }
-        if (!targetBlock && window._lastActiveImageBlock && document.contains(window._lastActiveImageBlock)) {
-          targetBlock = window._lastActiveImageBlock;
-        }
-        if (!targetBlock && window._lastActiveBlock && document.contains(window._lastActiveBlock) && isNonTextBlock(window._lastActiveBlock)) {
-          targetBlock = window._lastActiveBlock;
         }
 
         if (!targetBlock) {
@@ -2586,6 +2667,9 @@
             ev.target.classList.contains('article-wrapper') ||
             ev.target.classList.contains('article-container') ||
             ev.target === canvasProse) {
+          document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
+          window._selectedImageBlock = null;
+          window._lastActiveImageBlock = null;
           const trailingP = typeof window.ensureTrailingTextBlock === 'function' ? window.ensureTrailingTextBlock() : null;
           if (trailingP && typeof window.focusNodeCaret === 'function') {
             window.focusNodeCaret(trailingP, false);

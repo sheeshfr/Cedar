@@ -907,7 +907,7 @@
 .canvas-prose {
   position: relative;
   outline: none;
-  min-height: 450px;
+  min-height: 120px;
   font-size: 1.075rem;
   line-height: 1.8;
   color: var(--text-primary, #d4d4d8);
@@ -1356,17 +1356,20 @@
   margin: 0;
   display: inline-block;
   max-width: 100%;
+  min-width: min(200px, 100%);
   position: relative;
+  transition: width 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .image-media-wrapper {
   position: relative;
   display: inline-block;
+  max-width: 100%;
   border-radius: var(--post-image-radius, 0px);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  transition: border-color 0.2s, box-shadow 0.2s, border-radius 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, border-radius 0.2s, width 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   background: #121214;
 }
 
@@ -1385,6 +1388,12 @@
   height: auto;
   border-radius: var(--post-image-radius, 0px);
   transition: border-radius 0.2s;
+}
+
+.captioned-image-container[data-pixelated="true"] img,
+.captioned-image-container img[data-pixelated="true"] {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 
@@ -1524,6 +1533,17 @@
   border-color: rgba(255, 255, 255, 0.3);
   color: #fff;
   transform: scale(1.03);
+}
+
+.figure-action-btn.is-at-limit {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.figure-action-btn.is-at-limit:hover {
+  background: rgba(24, 24, 27, 0.88);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: none;
 }
 
 .figure-action-btn.btn-delete-fig:hover {

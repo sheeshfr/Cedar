@@ -74,6 +74,13 @@
         }
         if (node && node.parentNode === canvas) {
           window._lastActiveBlock = node;
+          if (canvas) {
+            canvas.querySelectorAll('.selected, .selected-item').forEach(el => {
+              if (el !== node) el.classList.remove('selected', 'selected-item');
+            });
+          }
+          window._selectedImageBlock = null;
+          window._lastActiveImageBlock = null;
         }
       }
     }
@@ -1221,6 +1228,13 @@
     }
     if (node && node.parentNode === canvas) {
       window._lastActiveBlock = node;
+      if (canvas) {
+        canvas.querySelectorAll('.selected, .selected-item').forEach(el => {
+          if (el !== node) el.classList.remove('selected', 'selected-item');
+        });
+      }
+      window._selectedImageBlock = null;
+      window._lastActiveImageBlock = null;
     }
   }
 
