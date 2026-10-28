@@ -704,8 +704,8 @@
       let baseRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
       appendPublishLog(`Remote HEAD at ${String(headSha).slice(0, 7)} (local rev #${baseRev})`, 'info', '>');
 
-      // Collision Check: Warn if a DIFFERENT Cedar device pushed a newer revision since our last sync (including first push on a new workstation!)
-      if (!isForce && headSha !== lastSyncedSha) {
+      // Collision Check: Only warn if a DIFFERENT Cedar device pushed a newer revision since our last sync
+      if (!isForce && lastSyncedSha && headSha !== lastSyncedSha) {
         const remoteStatus = await getRemoteStatus();
         if (remoteStatus && remoteStatus.revision > baseRev) {
           baseRev = remoteStatus.revision;
@@ -718,16 +718,10 @@
           remoteStatus.device !== getDeviceName()
         );
         const localRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
-        if ((isDifferentDevice || !lastSyncedSha) && remoteStatus && remoteStatus.revision > localRev) {
-          appendPublishLog(`Remote revision #${remoteStatus.revision} from ${remoteStatus.device || 'another workstation'} is newer than local #${localRev}. Prompting conflict resolution...`, 'warn', '!');
-          const action = await showConflictModal(remoteStatus);
-          if (action === 'pull') {
-            appendPublishLog('User chose to Pull from GitHub instead of overwriting...', 'info', '>');
-            isPublishingToGitHub = false;
-            await pullFromGitHub();
-            return false;
-          }
-          if (!action) {
+        if (isDifferentDevice && remoteStatus.revision > localRev) {
+          appendPublishLog(`Remote revision #${remoteStatus.revision} from ${remoteStatus.device} is newer than local #${localRev}. Prompting conflict resolution...`, 'warn', '!');
+          const proceed = await showConflictModal(remoteStatus);
+          if (!proceed) {
             appendPublishLog('Publish cancelled by user.', 'warn', '!');
             setPublishTerminalStatus('idle', 'Cancelled');
             if (typeof window.showToast === 'function') window.showToast('Push cancelled.');
@@ -1063,51 +1057,45 @@
   function showConflictModal(remoteStatus) {
     return new Promise((resolve) => {
       let modal = document.getElementById('modal-github-conflict');
-      if (modal) modal.remove();
-      modal = document.createElement('div');
-      modal.id = 'modal-github-conflict';
-      modal.className = 'cedar-modal-overlay';
-      modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(4px);';
-      modal.innerHTML = `
-        <div class="cedar-modal-card" style="background: var(--bg-primary, #18181b); color: var(--text-primary, #fafafa); border: 1px solid var(--border-subtle, #27272a); border-radius: 12px; max-width: 480px; width: 90%; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;">
-            <span style="font-size: 1.5rem;">⚠️</span>
-            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 600;">Newer Site Found on GitHub</h3>
-          </div>
-          <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted, #a1a1aa); margin-bottom: 1.25rem;" id="conflict-modal-desc">
-            The GitHub repository has been updated from another workstation. Pull from GitHub first to restore your latest published posts, design settings, logo, and author profile before publishing.
-          </p>
-          <div style="display: flex; flex-direction: column; gap: 0.6rem;">
-            <button type="button" class="btn btn-primary" id="btn-conflict-pull" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.65rem; font-weight: 600;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              <span>Pull from GitHub First (Recommended)</span>
-            </button>
-            <button type="button" class="btn btn-secondary" id="btn-conflict-backup" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.6rem;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              <span>Export Local Backup (.ZIP)</span>
-            </button>
-            <div style="display: flex; gap: 0.6rem; margin-top: 0.25rem;">
-              <button type="button" class="btn btn-secondary" id="btn-conflict-cancel" style="flex: 1;">Cancel</button>
-              <button type="button" class="btn btn-danger" id="btn-conflict-overwrite" style="flex: 1; background: #dc2626; color: #fff;">Overwrite Anyway</button>
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-github-conflict';
+        modal.className = 'cedar-modal-overlay';
+        modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(4px);';
+        modal.innerHTML = `
+          <div class="cedar-modal-card" style="background: var(--bg-primary, #18181b); color: var(--text-primary, #fafafa); border: 1px solid var(--border-subtle, #27272a); border-radius: 12px; max-width: 480px; width: 90%; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;">
+              <span style="font-size: 1.5rem;">⚠️</span>
+              <h3 style="margin: 0; font-size: 1.15rem; font-weight: 600;">GitHub Conflict Detected</h3>
+            </div>
+            <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted, #a1a1aa); margin-bottom: 1.25rem;" id="conflict-modal-desc">
+              The GitHub repository has been updated from another device since you loaded this page. If you push now, you risk overwriting those changes.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+              <button type="button" class="btn btn-secondary" id="btn-conflict-backup" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.6rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export Backup (.ZIP) First</span>
+              </button>
+              <div style="display: flex; gap: 0.6rem; margin-top: 0.25rem;">
+                <button type="button" class="btn btn-secondary" id="btn-conflict-cancel" style="flex: 1;">Cancel</button>
+                <button type="button" class="btn btn-danger" id="btn-conflict-overwrite" style="flex: 1; background: #dc2626; color: #fff;">Overwrite Anyway</button>
+              </div>
             </div>
           </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
+        `;
+        document.body.appendChild(modal);
+      }
 
       const desc = modal.querySelector('#conflict-modal-desc');
       if (desc && remoteStatus) {
         const timeAgo = remoteStatus.lastSavedAt ? new Date(remoteStatus.lastSavedAt).toLocaleTimeString() : 'recently';
-        desc.textContent = `Your GitHub repository has newer changes (Revision #${remoteStatus.revision || '?'}, updated around ${timeAgo} from ${remoteStatus.device || 'another workstation'}). Pull from GitHub first to restore your latest design settings, branding, author avatar, and published posts before publishing.`;
+        desc.textContent = `The GitHub repository has newer changes (Revision #${remoteStatus.revision || '?'}, updated around ${timeAgo} from ${remoteStatus.device || 'another workstation'}). Pushing now will replace those edits.`;
       }
+
+      modal.style.display = 'flex';
 
       const cleanup = () => {
         modal.style.display = 'none';
-      };
-
-      modal.querySelector('#btn-conflict-pull').onclick = () => {
-        cleanup();
-        resolve('pull');
       };
 
       modal.querySelector('#btn-conflict-cancel').onclick = () => {
@@ -1440,7 +1428,7 @@
    */
   function syncTestButtonState() {
     const btnTest = document.getElementById('btn-github-test');
-    const btnPull = document.getElementById('btn-github-pull');
+    if (!btnTest) return;
     const saved = getCredentials();
     const inRepo = document.getElementById('setting-github-repo');
     const inToken = document.getElementById('setting-github-token');
@@ -1451,22 +1439,12 @@
       typedToken &&
       typedRepo.includes('/')
     );
-    if (btnTest) {
-      btnTest.disabled = !canTest;
-      btnTest.style.opacity = canTest ? '' : '0.45';
-      btnTest.style.cursor = canTest ? '' : 'not-allowed';
-      btnTest.title = canTest
-        ? 'Verify repository access'
-        : 'Enter repository URL and Personal Access Token to test connection';
-    }
-    if (btnPull) {
-      btnPull.disabled = !canTest;
-      btnPull.style.opacity = canTest ? '' : '0.45';
-      btnPull.style.cursor = canTest ? '' : 'not-allowed';
-      btnPull.title = canTest
-        ? 'Pull published site, design settings, branding, and author profile from GitHub into this workstation'
-        : 'Enter repository URL and Personal Access Token to pull from GitHub';
-    }
+    btnTest.disabled = !canTest;
+    btnTest.style.opacity = canTest ? '' : '0.45';
+    btnTest.style.cursor = canTest ? '' : 'not-allowed';
+    btnTest.title = canTest
+      ? 'Verify repository access'
+      : 'Enter repository URL and Personal Access Token to test connection';
   }
 
   /**
@@ -1609,33 +1587,6 @@
           if (typeof window.showToast === 'function') {
             window.showToast(res.error || 'Connection failed', 'error');
           }
-        }
-      });
-    }
-
-    // Pull button
-    const btnPull = document.getElementById('btn-github-pull');
-    if (btnPull && !btnPull._hasGhPullListener) {
-      btnPull._hasGhPullListener = true;
-      btnPull.addEventListener('click', async () => {
-        const inRepo = document.getElementById('setting-github-repo');
-        const inToken = document.getElementById('setting-github-token');
-        const repo = inRepo?.value.trim();
-        const token = inToken?.value.trim();
-        if (!validateGitHubCredentials(true)) {
-          if (!repo && inRepo) inRepo.focus();
-          else if (!token && inToken) inToken.focus();
-          if (typeof window.showToast === 'function') window.showToast('Please enter both your repository and access token first.', 'error');
-          return;
-        }
-        saveCredentials(repo, token, 'main');
-        btnPull.disabled = true;
-        try {
-          await pullFromGitHub();
-        } catch (e) {
-          setPublishReadout('error', `Pull failed: ${e.message}`);
-        } finally {
-          syncTestButtonState();
         }
       });
     }
