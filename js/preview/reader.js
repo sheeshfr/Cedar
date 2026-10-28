@@ -808,60 +808,49 @@
           }
         }
 
-        // Resolve any relative image sources in prose against imageRegistry
+        // Resolve any relative image sources in prose against imageRegistry & virtual storage
         proseEl.querySelectorAll('img').forEach(imgEl => {
-          const src = imgEl.getAttribute('src');
-          if (src) {
-            const resolved = resolvePostImage(src, item);
-            if (resolved && resolved !== src) {
+          const rawSrc = (imgEl.getAttribute('src') || '').trim();
+          const origSrc = (imgEl.getAttribute('data-original-src') || '').trim();
+          const imgName = (imgEl.getAttribute('data-img-name') || '').trim();
+          const candidate = rawSrc || origSrc || imgName;
+          if (candidate) {
+            let resolved = resolvePostImage(candidate, item);
+            if ((!resolved || (!/^(data:|blob:|https?:\/\/)/i.test(resolved))) && origSrc && origSrc !== candidate) {
+              const altResolved = resolvePostImage(origSrc, item);
+              if (altResolved && (/^(data:|blob:|https?:\/\/)/i.test(altResolved) || !resolved)) {
+                resolved = altResolved;
+              }
+            }
+            if ((!resolved || (!/^(data:|blob:|https?:\/\/)/i.test(resolved))) && imgName && imgName !== candidate) {
+              const nameResolved = resolvePostImage(imgName, item);
+              if (nameResolved && (/^(data:|blob:|https?:\/\/)/i.test(nameResolved) || !resolved)) {
+                resolved = nameResolved;
+              }
+            }
+            if (resolved && resolved !== rawSrc) {
               imgEl.src = resolved;
             }
+            const finalSrc = imgEl.getAttribute('src') || resolved || '';
+            const lookupKey = imgName || origSrc || finalSrc;
+            if (lookupKey && !/^(data:|blob:|https?:\/\/)/i.test(finalSrc) && typeof window.hydratePreviewImageFromStorage === 'function') {
+              window.hydratePreviewImageFromStorage(imgEl, lookupKey);
+            }
+            imgEl.addEventListener('error', function onPreviewImgErr() {
+              imgEl.removeEventListener('error', onPreviewImgErr);
+              if (lookupKey && typeof window.hydratePreviewImageFromStorage === 'function') {
+                window.hydratePreviewImageFromStorage(imgEl, lookupKey);
+              }
+            });
           }
         });
 
-        // Helper to check if two image references point to the same asset
-        function isMatchingImage(srcA, srcB) {
-          if (!srcA || !srcB) return false;
-          if (srcA === srcB) return true;
-          const cleanA = srcA.split('?')[0].split('#')[0].replace(/\\/g, '/').toLowerCase();
-          const cleanB = srcB.split('?')[0].split('#')[0].replace(/\\/g, '/').toLowerCase();
-          if (cleanA === cleanB) return true;
-          const fileA = cleanA.split('/').pop();
-          const fileB = cleanB.split('/').pop();
-          if (fileA && fileB && fileA === fileB && !fileA.startsWith('data:') && !fileA.startsWith('blob:')) return true;
-          return false;
-        }
-
-        // Cover Image: Deduplicate against prose content so featured image never shows twice
+        // Keep reader-cover-wrap hidden so Preview preserves 1:1 block order with the Editor
+        // (Featured image is strictly for post cards, homepage spotlight, RSS, and social OpenGraph meta tags)
         const coverWrap = document.getElementById('reader-cover-wrap');
         const coverImg = document.getElementById('reader-cover-img');
-        const resolvedCover = resolvePostImage(item.coverImage || item.featuredImage, item);
-
-        const proseImages = Array.from(proseEl.querySelectorAll('img')).filter(imgEl => !imgEl.closest('.page-recent-posts-block, .page-individual-post-block'));
-        const isCoverInProse = Boolean(resolvedCover && proseImages.some(imgEl => {
-          const s = imgEl.getAttribute('src') || imgEl.src || '';
-          const orig = imgEl.dataset.originalSrc || '';
-          return isMatchingImage(s, resolvedCover) ||
-                 isMatchingImage(s, item.coverImage) ||
-                 isMatchingImage(s, item.featuredImage) ||
-                 (orig && (isMatchingImage(orig, resolvedCover) || isMatchingImage(orig, item.coverImage)));
-        }));
-
-        if (resolvedCover && !isCoverInProse) {
-          const readerColor = getMutedCoverColor(item.id || item.slug || item.title);
-          if (coverWrap) {
-            coverWrap.style.backgroundColor = readerColor;
-            coverWrap.style.aspectRatio = '16 / 9';
-            coverWrap.style.display = 'block';
-          }
-          coverImg.src = resolvedCover;
-          coverImg.alt = '';
-          coverImg.style.display = 'block';
-          coverImg.onerror = () => {
-            if (coverWrap) coverWrap.style.display = 'none';
-          };
-        } else {
-          if (coverWrap) coverWrap.style.display = 'none';
+        if (coverWrap) coverWrap.style.display = 'none';
+        if (coverImg) {
           coverImg.src = '';
           coverImg.alt = '';
           coverImg.style.display = 'none';

@@ -213,7 +213,7 @@
 
     // 5. Lookup via window.resolvePostImage
     if (typeof window.resolvePostImage === 'function') {
-      const res = window.resolvePostImage(rawUrl, draft);
+      const res = window.resolvePostImage(trimmed, draft);
       if (res && (res.startsWith('data:') || res.startsWith('blob:') || /^https?:\/\//i.test(res))) {
         return res;
       }
@@ -2493,15 +2493,24 @@
       };
 
       if (!currentDraft.images) currentDraft.images = [];
-      // Clean up previous original image from images array if any
+      // Clean up previous dedicated cover original image from images array only if it is not referenced in the post body
       if (currentDraft.coverImageOriginal) {
-        currentDraft.images = currentDraft.images.filter(im => im.relativePath !== currentDraft.coverImageOriginal);
+        currentDraft.images = currentDraft.images.filter(im => {
+          if (!im || im.relativePath !== currentDraft.coverImageOriginal) return true;
+          if (typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft)) return true;
+          return !im.isOriginal && !im.isCropped;
+        });
       }
       currentDraft.images.push(origImgObj);
 
       if (typeof imageRegistry !== 'undefined') {
         imageRegistry.set(origFilename, origImgObj);
         imageRegistry.set(origRelativePath, origImgObj);
+        imageRegistry.set(`blog/images/${origFilename}`, origImgObj);
+      }
+      const vStorageOrig = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+      if (vStorageOrig && typeof vStorageOrig.writeBlob === 'function' && origImgObj.blob) {
+        vStorageOrig.writeBlob(`blog/images/${origFilename}`, origImgObj.blob).catch(() => {});
       }
 
       currentDraft.coverImageOriginal = origRelativePath;
@@ -2511,7 +2520,10 @@
       if (isExact1280x720) {
         // If image is already exact 1280x720, use it directly without opening the crop editor
         if (currentDraft.coverImage && currentDraft.coverImage !== origRelativePath) {
-          currentDraft.images = currentDraft.images.filter(im => im.relativePath !== currentDraft.coverImage);
+          currentDraft.images = currentDraft.images.filter(im => {
+            if (!im || im.relativePath !== currentDraft.coverImage) return true;
+            return !im.isCropped && !(typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft));
+          });
         }
         currentDraft.coverImage = origRelativePath;
         renderSetupFeaturedImage();
@@ -2625,6 +2637,9 @@
     if (btnOpenCrop) {
       btnOpenCrop.addEventListener('click', () => {
         if (!currentDraft) return;
+        if (!currentDraft.coverImageOriginal && currentDraft.coverImage) {
+          currentDraft.coverImageOriginal = currentDraft.coverImage;
+        }
         const origSrc = (currentDraft.coverImageOriginal || currentDraft.coverImage || '').trim();
         if (!origSrc) {
           showToast('No image to edit. Browse or paste an image first.', 'info');
@@ -2889,15 +2904,30 @@
           };
 
           if (!currentDraft.images) currentDraft.images = [];
-          // Overwrite previous cropped cover image (different from original source)
+          // Only overwrite previous dedicated cropped cover image, NEVER an in-post body image!
           if (currentDraft.coverImage && currentDraft.coverImage !== currentDraft.coverImageOriginal) {
-            currentDraft.images = currentDraft.images.filter(im => im.relativePath !== currentDraft.coverImage);
+            const prevCover = currentDraft.coverImage;
+            currentDraft.images = currentDraft.images.filter(im => {
+              if (!im || im.relativePath !== prevCover) return true;
+              const isDedicatedCrop = Boolean(im.isCropped || /-featured-1280x720-[a-z0-9]+\./i.test(im.filename || ''));
+              return !isDedicatedCrop;
+            });
           }
           currentDraft.images.push(imgObj);
 
           if (typeof imageRegistry !== 'undefined') {
             imageRegistry.set(filename, imgObj);
             imageRegistry.set(relativePath, imgObj);
+            imageRegistry.set(`blog/images/${filename}`, imgObj);
+          }
+
+          const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+          if (vStorage && typeof vStorage.writeBlob === 'function' && blob) {
+            vStorage.writeBlob(`blog/images/${filename}`, blob).catch(() => {});
+            vStorage.writeBlob(`media/${filename}`, blob).catch(() => {});
+          }
+          if (window.SheeshVault && window.SheeshVault.currentDirHandle && typeof window.SheeshVault.writeFileToVault === 'function' && blob) {
+            window.SheeshVault.writeFileToVault(`blog/images/${filename}`, blob).catch(() => {});
           }
 
           currentDraft.coverImage = relativePath;
@@ -3128,8 +3158,23 @@
 
       // When publishing: lock in current post images, and prune unused lingering temp images without duplicating heavy dataUrl strings
       if (currentDraft && Array.isArray(currentDraft.tempImages)) {
+        if (!Array.isArray(currentDraft.images)) currentDraft.images = [];
+        currentDraft.tempImages.forEach(im => {
+          if (!im || !im.filename) return;
+          const alreadyInImages = currentDraft.images.some(existing => existing && existing.filename === im.filename);
+          if (!alreadyInImages && typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft)) {
+            const regObj = (typeof imageRegistry !== 'undefined' && imageRegistry)
+              ? (imageRegistry.get(im.filename) || imageRegistry.get(im.relativePath) || imageRegistry.get(`/blog/images/${im.filename}`))
+              : null;
+            currentDraft.images.push(regObj || im);
+          }
+        });
         const publishedFilenames = (currentDraft.images || []).map(im => im.filename);
-        const unusedTempImages = currentDraft.tempImages.filter(im => im && im.filename && !publishedFilenames.includes(im.filename));
+        const unusedTempImages = currentDraft.tempImages.filter(im => {
+          if (!im || !im.filename || publishedFilenames.includes(im.filename)) return false;
+          if (typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft)) return false;
+          return true;
+        });
         unusedTempImages.forEach(im => {
           if (typeof cleanupOrphanedImageStorage === 'function') {
             cleanupOrphanedImageStorage(im.filename, currentDraft.id);
@@ -3139,6 +3184,20 @@
           filename: im.filename,
           relativePath: im.relativePath
         }));
+      }
+
+      // Clean up any stale draft folder in virtual storage and local disk vault when publishing
+      if (currentDraft && currentDraft.slug) {
+        const baseFolder = currentDraft.type === 'page' ? 'pages' : 'blog';
+        const vStoragePub = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        if (vStoragePub && typeof vStoragePub.deleteFile === 'function') {
+          vStoragePub.deleteFile(`${baseFolder}/drafts/${currentDraft.slug}/draft.json`).catch(() => {});
+          vStoragePub.deleteFile(`${baseFolder}/drafts/${currentDraft.slug}/index.md`).catch(() => {});
+          vStoragePub.deleteFile(`${baseFolder}/drafts/${currentDraft.slug}/index.html`).catch(() => {});
+        }
+        if (window.SheeshVault && window.SheeshVault.currentDirHandle && typeof window.SheeshVault.deleteFolderFromVault === 'function') {
+          window.SheeshVault.deleteFolderFromVault(`${baseFolder}/drafts/${currentDraft.slug}`).catch(() => {});
+        }
       }
 
       // 1. Synchronize published date, publishedAt, and updatedAt

@@ -854,40 +854,74 @@
 
       function indexImages() {
         window.imageRegistry = window.imageRegistry || new Map();
+        const setReg = (key, img) => {
+          if (!key || !img) return;
+          const existing = window.imageRegistry.get(key);
+          const hasData = Boolean(img.dataUrl || img.data || img.blob || img.objectUrl);
+          const existingHasData = Boolean(existing && (existing.dataUrl || existing.data || existing.blob || existing.objectUrl));
+          if (!existing || hasData || !existingHasData) {
+            window.imageRegistry.set(key, img);
+          }
+        };
+        const registerImgObj = (img) => {
+          if (!img || !(img.filename || img.name)) return;
+          const fn = (img.filename || img.name).trim();
+          setReg(fn, img);
+          if (img.relativePath) setReg(img.relativePath, img);
+          setReg(`/blog/images/${fn}`, img);
+          setReg(`blog/images/${fn}`, img);
+          setReg(`images/${fn}`, img);
+        };
+        try {
+          const srcWin = (window.parent && window.parent !== window)
+            ? window.parent
+            : (window.opener && !window.opener.closed ? window.opener : null);
+          if (srcWin && srcWin.imageRegistry && typeof srcWin.imageRegistry.forEach === 'function') {
+            srcWin.imageRegistry.forEach((val, key) => {
+              if (val && typeof val === 'object') {
+                setReg(key, val);
+                registerImgObj(val);
+              }
+            });
+          }
+        } catch (e) {}
         if (Array.isArray(drafts)) {
           drafts.forEach(d => {
             if (Array.isArray(d.images)) {
-              d.images.forEach(img => {
-                if (img && (img.filename || img.name)) {
-                  const fn = (img.filename || img.name).trim();
-                  window.imageRegistry.set(fn, img);
-                  if (img.relativePath) window.imageRegistry.set(img.relativePath, img);
-                  window.imageRegistry.set(`/blog/images/${fn}`, img);
-                  window.imageRegistry.set(`blog/images/${fn}`, img);
-                  window.imageRegistry.set(`images/${fn}`, img);
-                }
-              });
+              d.images.forEach(registerImgObj);
             }
           });
         }
         const mediaLib = (projectConfig && Array.isArray(projectConfig.mediaLibrary)) ? projectConfig.mediaLibrary : [];
-        mediaLib.forEach(img => {
-          if (img && (img.filename || img.name)) {
-            const fn = (img.filename || img.name).trim();
-            window.imageRegistry.set(fn, img);
-            if (img.relativePath) window.imageRegistry.set(img.relativePath, img);
-            window.imageRegistry.set(`/blog/images/${fn}`, img);
-            window.imageRegistry.set(`blog/images/${fn}`, img);
-            window.imageRegistry.set(`images/${fn}`, img);
-          }
-        });
+        mediaLib.forEach(registerImgObj);
+      }
+
+      function extractImmediateDisplayUrl(im) {
+        if (!im) return '';
+        if (typeof im === 'string') {
+          return /^(data:|blob:|https?:\/\/)/i.test(im) ? im : '';
+        }
+        if (im.dataUrl) return im.dataUrl;
+        if (im.data && /^(data:|blob:|https?:\/\/)/i.test(im.data)) return im.data;
+        if (im.objectUrl) return im.objectUrl;
+        if (im.blob && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+          try {
+            im.objectUrl = URL.createObjectURL(im.blob);
+            return im.objectUrl;
+          } catch (e) {}
+        }
+        if (im.url && /^(data:|blob:|https?:\/\/)/i.test(im.url)) return im.url;
+        if (im.src && /^(data:|blob:|https?:\/\/)/i.test(im.src)) return im.src;
+        return '';
       }
 
       function resolvePostImage(imgUrlOrObj, draft) {
         if (!imgUrlOrObj) return '';
         let target = '';
         if (typeof imgUrlOrObj === 'object') {
-          target = imgUrlOrObj.dataUrl || imgUrlOrObj.data || imgUrlOrObj.url || imgUrlOrObj.src || imgUrlOrObj.filename || '';
+          const direct = extractImmediateDisplayUrl(imgUrlOrObj);
+          if (direct) return direct;
+          target = imgUrlOrObj.url || imgUrlOrObj.src || imgUrlOrObj.relativePath || imgUrlOrObj.filename || imgUrlOrObj.name || '';
         } else {
           target = String(imgUrlOrObj).trim();
         }
@@ -899,7 +933,24 @@
         }
 
         // Clean filename for registry matching
-        const cleanName = target.split('/').pop().split('\\').pop();
+        const cleanName = target.split('/').pop().split('\\').pop().split('?')[0];
+        let fallbackPath = '';
+
+        // 0. Check parent/opener resolvePostImage or imageRegistry if on same origin
+        try {
+          const srcWin = (window.parent && window.parent !== window)
+            ? window.parent
+            : (window.opener && !window.opener.closed ? window.opener : null);
+          if (srcWin && srcWin.imageRegistry && typeof srcWin.imageRegistry.get === 'function') {
+            const pReg = srcWin.imageRegistry.get(target) ||
+                         srcWin.imageRegistry.get(cleanName) ||
+                         srcWin.imageRegistry.get(`/blog/images/${cleanName}`) ||
+                         srcWin.imageRegistry.get(`blog/images/${cleanName}`) ||
+                         srcWin.imageRegistry.get(`images/${cleanName}`);
+            const pDirect = extractImmediateDisplayUrl(pReg);
+            if (pDirect) return pDirect;
+          }
+        } catch (e) {}
 
         // 1. Check in draft.images and draft.tempImages if draft is provided
         const draftImgs = [
@@ -914,8 +965,9 @@
             return (imFn && imFn === cleanName) || (imPath && (imPath === target || imPath.endsWith(cleanName)));
           });
           if (match) {
-            const res = match.dataUrl || match.data || match.url || match.src || match.relativePath;
-            if (res) return res;
+            const direct = extractImmediateDisplayUrl(match);
+            if (direct) return direct;
+            if (!fallbackPath) fallbackPath = match.url || match.src || match.relativePath || '';
           }
         }
 
@@ -927,8 +979,11 @@
                     window.imageRegistry.get(`blog/images/${cleanName}`) ||
                     window.imageRegistry.get(`images/${cleanName}`);
           if (reg) {
-            const res = typeof reg === 'object' ? (reg.dataUrl || reg.data || reg.url || reg.src || reg.relativePath) : reg;
-            if (res) return res;
+            const direct = extractImmediateDisplayUrl(reg);
+            if (direct) return direct;
+            if (!fallbackPath && typeof reg === 'object') {
+              fallbackPath = reg.url || reg.src || reg.relativePath || '';
+            }
           }
         }
 
@@ -942,13 +997,15 @@
           return (imFn && imFn === cleanName) || (im.url && im.url === target);
         });
         if (mediaMatch) {
-          const res = mediaMatch.dataUrl || mediaMatch.data || mediaMatch.url || mediaMatch.src || mediaMatch.relativePath;
-          if (res) return res;
+          const direct = extractImmediateDisplayUrl(mediaMatch);
+          if (direct) return direct;
+          if (!fallbackPath) fallbackPath = mediaMatch.url || mediaMatch.src || mediaMatch.relativePath || '';
         }
 
-        // 4. Check across all drafts in memory ONLY IF no draft was provided
-        if (!draft && Array.isArray(drafts)) {
+        // 4. Check across all drafts in memory (both images array and inline proseHtml data: URLs)
+        if (Array.isArray(drafts)) {
           for (const d of drafts) {
+            if (!d) continue;
             const dImgs = [
               ...(Array.isArray(d.images) ? d.images : []),
               ...(Array.isArray(d.tempImages) ? d.tempImages : [])
@@ -960,11 +1017,24 @@
               return cleanName && cleanName.length >= 3 && (imFn === cleanName.toLowerCase() || imPath.endsWith('/' + cleanName.toLowerCase()));
             });
             if (dMatch) {
-              const res = dMatch.dataUrl || dMatch.data || dMatch.url || dMatch.src || dMatch.relativePath;
-              if (res) return res;
+              const direct = extractImmediateDisplayUrl(dMatch);
+              if (direct) return direct;
+              if (!fallbackPath) fallbackPath = dMatch.url || dMatch.src || dMatch.relativePath || '';
+            }
+            const dProse = (d.proseHtml || '') + (d.html || '');
+            if (cleanName && dProse && dProse.includes(cleanName)) {
+              const imgRe = /<img[^>]+src=["'](data:image\/[^"']+|blob:[^"']+)["'][^>]*>/gi;
+              let m;
+              while ((m = imgRe.exec(dProse)) !== null) {
+                if (m[0].includes(cleanName)) {
+                  return m[1];
+                }
+              }
             }
           }
         }
+
+        if (fallbackPath) return fallbackPath;
 
         if (draft && draft.slug && cleanName && !target.startsWith('/') && !target.includes('/')) {
           const baseFolder = draft.type === 'page' ? 'pages' : 'blog';
@@ -973,6 +1043,84 @@
 
         return target;
       }
+
+      async function hydratePreviewImageFromStorage(imgEl, rawNameOrSrc) {
+        if (!imgEl || !rawNameOrSrc) return;
+        const cleanName = String(rawNameOrSrc).split('/').pop().split('\\').pop().split('?')[0].trim();
+        if (!cleanName || /^(data:|blob:)/i.test(cleanName)) return;
+
+        const applyBlobOrData = (blobOrData) => {
+          if (!blobOrData) return false;
+          if (typeof blobOrData === 'string' && /^(data:|blob:)/i.test(blobOrData)) {
+            imgEl.src = blobOrData;
+            if (window.imageRegistry) {
+              const entry = { filename: cleanName, relativePath: `/blog/images/${cleanName}`, dataUrl: blobOrData };
+              window.imageRegistry.set(cleanName, entry);
+              window.imageRegistry.set(`/blog/images/${cleanName}`, entry);
+            }
+            return true;
+          }
+          if (blobOrData instanceof Blob) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (reader.result) {
+                imgEl.src = reader.result;
+                if (window.imageRegistry) {
+                  const entry = { filename: cleanName, relativePath: `/blog/images/${cleanName}`, dataUrl: reader.result, blob: blobOrData };
+                  window.imageRegistry.set(cleanName, entry);
+                  window.imageRegistry.set(`/blog/images/${cleanName}`, entry);
+                }
+              }
+            };
+            reader.readAsDataURL(blobOrData);
+            return true;
+          }
+          return false;
+        };
+
+        try {
+          const srcWin = (window.parent && window.parent !== window)
+            ? window.parent
+            : (window.opener && !window.opener.closed ? window.opener : null);
+          const vStorage = (window.CedarVirtualStorage || window.OutpostVirtualStorage) ||
+            (srcWin && (srcWin.CedarVirtualStorage || srcWin.OutpostVirtualStorage));
+          if (vStorage && typeof vStorage.readBlob === 'function') {
+            let b = await vStorage.readBlob(`blog/images/${cleanName}`);
+            if (!b) b = await vStorage.readBlob(`media/${cleanName}`);
+            if (b && applyBlobOrData(b)) return;
+          }
+        } catch (e) {}
+
+        // Direct IndexedDB fallback for standalone preview.html tabs
+        try {
+          if (typeof indexedDB !== 'undefined') {
+            const db = await new Promise((resolve) => {
+              const req = indexedDB.open('cedar_virtual_fs', 1);
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => resolve(null);
+            });
+            if (db && db.objectStoreNames.contains('files')) {
+              const readKey = (k) => new Promise((resolve) => {
+                try {
+                  const tx = db.transaction('files', 'readonly');
+                  const req = tx.objectStore('files').get(k);
+                  req.onsuccess = () => resolve(req.result || null);
+                  req.onerror = () => resolve(null);
+                } catch (err) {
+                  resolve(null);
+                }
+              });
+              let rec = await readKey(`blog/images/${cleanName}`);
+              if (!rec) rec = await readKey(`media/${cleanName}`);
+              if (rec && (rec.content || rec.blob || rec.dataUrl)) {
+                applyBlobOrData(rec.content || rec.blob || rec.dataUrl);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      window.hydratePreviewImageFromStorage = hydratePreviewImageFromStorage;
+      window.CedarPreview.hydratePreviewImageFromStorage = hydratePreviewImageFromStorage;
 
       function getPostFeaturedImage(post) {
         if (!post) return '';

@@ -2418,7 +2418,18 @@
         if (el.closest('[contenteditable="false"]')) return;
         if (el.tagName === 'SPAN' && el.classList.contains('cedar-custom-color') && el.getAttribute('data-custom-color')) {
           const customHex = el.getAttribute('data-custom-color');
-          if (el.style.backgroundColor || el.style.fontFamily || el.style.fontSize) {
+          const td = (el.style.textDecoration || el.style.textDecorationLine || '').toLowerCase();
+          if (td.includes('underline') && !el.closest('u')) {
+            const alreadyU = el.children.length === 1 && el.childNodes.length === 1 && el.firstElementChild.tagName === 'U';
+            if (!alreadyU) {
+              const u = document.createElement('u');
+              while (el.firstChild) {
+                u.appendChild(el.firstChild);
+              }
+              el.appendChild(u);
+            }
+          }
+          if (el.style.backgroundColor || el.style.fontFamily || el.style.fontSize || el.style.textDecoration || el.style.textDecorationLine || el.style.textDecorationColor) {
             el.removeAttribute('style');
             el.style.color = customHex;
           }
@@ -2427,13 +2438,21 @@
         const parent = el.parentNode;
         if (parent) {
           const fw = (el.style && el.style.fontWeight) ? String(el.style.fontWeight).toLowerCase() : '';
+          const td = (el.style && (el.style.textDecoration || el.style.textDecorationLine)) ? String(el.style.textDecoration || el.style.textDecorationLine).toLowerCase() : '';
           const isBoldSpan = fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600;
+          const isUnderlineSpan = td.includes('underline');
           if (isBoldSpan && !el.closest('strong, b, h1, h2, h3, h4')) {
             const strong = document.createElement('strong');
             while (el.firstChild) {
               strong.appendChild(el.firstChild);
             }
             parent.replaceChild(strong, el);
+          } else if (isUnderlineSpan && !el.closest('u')) {
+            const u = document.createElement('u');
+            while (el.firstChild) {
+              u.appendChild(el.firstChild);
+            }
+            parent.replaceChild(u, el);
           } else {
             while (el.firstChild) {
               parent.insertBefore(el.firstChild, el);
@@ -2442,6 +2461,10 @@
           }
         }
       });
+
+      if (typeof window.normalizeCustomColorNodes === 'function') {
+        window.normalizeCustomColorNodes(canvasProse);
+      }
 
       // Check for horizontal rule (divider) shortcut: ---, ***, or ___ in a block
       const sel = window.getSelection();

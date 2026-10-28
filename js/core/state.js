@@ -4020,8 +4020,17 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         const loseIdx = curWins ? matchIdx : i;
 
         // If one copy was published and the other was a duplicate draft creation, preserve published status
-        if (loser.status === 'published' && winner.status !== 'published' && (!winner.updatedAt || winner.updatedAt <= loser.updatedAt)) {
+        const explicitlyUnpub = winner.userUnpublished === true || loser.userUnpublished === true ||
+          (winner.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + winner.id) === 'true');
+        const eitherWasPublished = loser.status === 'published' || winner.status === 'published' ||
+          loser.everPublished === true || winner.everPublished === true ||
+          Boolean(loser.publishedAt || winner.publishedAt || loser.publishedDate || winner.publishedDate || loser.publishedSlug || winner.publishedSlug);
+        if (eitherWasPublished && !explicitlyUnpub && winner.status !== 'hidden') {
           winner.status = 'published';
+          winner.everPublished = true;
+          if (!winner.publishedAt && loser.publishedAt) winner.publishedAt = loser.publishedAt;
+          if (!winner.publishedDate && loser.publishedDate) winner.publishedDate = loser.publishedDate;
+          if (!winner.publishedSlug && loser.publishedSlug) winner.publishedSlug = loser.publishedSlug;
         }
 
         // Preserve non-empty fields from loser if winner lacks them
@@ -4738,6 +4747,29 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         localStorage.removeItem('outpost_browser_backup_drafts');
         localStorage.removeItem(window.LEGACY_STORAGE_DRAFTS || 'sheesh_static_writer_drafts');
       } catch (e) {}
+      const slimProseImgs = (html, dImages) => {
+        if (!html || typeof html !== 'string') return html;
+        return html.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
+          const nameMatch = attrs.match(/data-img-name=["']([^"']+)["']/i);
+          const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
+          const srcMatch = attrs.match(/(?:^|\s)src=["'](data:image\/[^"']+)["']/i);
+          let fallbackRel = '';
+          if (nameMatch && nameMatch[1]) {
+            fallbackRel = `/blog/images/${nameMatch[1].split('/').pop().split('\\').pop()}`;
+          } else if (origMatch && origMatch[1] && !origMatch[1].startsWith('data:')) {
+            fallbackRel = origMatch[1];
+          } else if (srcMatch && srcMatch[1] && Array.isArray(dImages)) {
+            const foundIm = dImages.find(im => im && im.dataUrl === srcMatch[1] && (im.relativePath || im.filename));
+            if (foundIm) fallbackRel = foundIm.relativePath || `/blog/images/${foundIm.filename}`;
+          }
+          let outTag = fullTag;
+          if (fallbackRel) {
+            outTag = outTag.replace(/(\s|^)src=["']data:image\/[^"']+["']/i, `$1src="${fallbackRel}"`);
+            outTag = outTag.replace(/data-original-src=["']data:image\/[^"']+["']/i, `data-original-src="${fallbackRel}"`);
+          }
+          return outTag;
+        });
+      };
       try {
         localStorage.setItem(key, JSON.stringify(list));
         return true;
@@ -4745,18 +4777,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         try {
           const slimProse = list.map(d => {
             if (!d || typeof d !== 'object') return d;
-            let slimHtml = d.proseHtml;
-            if (slimHtml && typeof slimHtml === 'string') {
-              slimHtml = slimHtml.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
-                const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
-                const srcMatch = attrs.match(/\bsrc=["'](data:image\/[^"']+)["']/i);
-                if (origMatch && srcMatch) {
-                  return fullTag.replace(srcMatch[0], `src="${origMatch[1]}"`);
-                }
-                return fullTag;
-              });
-            }
-            return { ...d, proseHtml: slimHtml };
+            return { ...d, proseHtml: slimProseImgs(d.proseHtml, d.images) };
           });
           localStorage.setItem(key, JSON.stringify(slimProse));
           return true;
@@ -4764,17 +4785,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           try {
             const slimAll = list.map(d => {
               if (!d || typeof d !== 'object') return d;
-              let slimHtml = d.proseHtml;
-              if (slimHtml && typeof slimHtml === 'string') {
-                slimHtml = slimHtml.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
-                  const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
-                  const srcMatch = attrs.match(/\bsrc=["'](data:image\/[^"']+)["']/i);
-                  if (origMatch && srcMatch) {
-                    return fullTag.replace(srcMatch[0], `src="${origMatch[1]}"`);
-                  }
-                  return fullTag;
-                });
-              }
+              const slimHtml = slimProseImgs(d.proseHtml, d.images);
               const slimImages = Array.isArray(d.images)
                 ? d.images.map(im => (im && typeof im === 'object' && im.dataUrl) ? { ...im, dataUrl: undefined, blob: undefined } : im)
                 : d.images;
@@ -4879,6 +4890,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         } else {
           d.type = 'post';
           if (!d.status) d.status = 'draft';
+          const explicitlyUnpublished = d.userUnpublished === true ||
+            (d.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + d.id) === 'true');
+          const wasPublished = d.status === 'published' ||
+            d.everPublished === true ||
+            Boolean(d.publishedAt || d.publishedDate || d.publishedSlug);
+          if (wasPublished && !explicitlyUnpublished && d.status !== 'hidden') {
+            d.status = 'published';
+            d.everPublished = true;
+          }
           if (!d.createdAt) d.createdAt = d.updatedAt || Date.now();
           if (!d.updatedAt) d.updatedAt = Date.now();
           if (!d.images) d.images = [];
@@ -4978,16 +4998,22 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           const memTime = Number(localItem.updatedAt || localItem.createdAt || 0);
           const diskTime = Number(diskItem.updatedAt || diskItem.createdAt || 0);
           const recentStatusChange = (this._statusChangeTimestamps.get(localItem.id) && (Date.now() - this._statusChangeTimestamps.get(localItem.id) < 30000));
+          const explicitlyUnpublished = diskItem.userUnpublished === true || localItem.userUnpublished === true ||
+            (localItem.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + localItem.id) === 'true');
+          const wasPublished = (localItem.status === 'published' || diskItem.status === 'published' ||
+            localItem.everPublished === true || diskItem.everPublished === true ||
+            Boolean(localItem.publishedAt || diskItem.publishedAt || localItem.publishedDate || diskItem.publishedDate || localItem.publishedSlug || diskItem.publishedSlug)) && !explicitlyUnpublished;
 
           if (diskTime >= memTime) {
-            const preservedStatus = recentStatusChange ? localItem.status : diskItem.status;
+            const preservedStatus = recentStatusChange ? localItem.status : (wasPublished && diskItem.status !== 'hidden' ? 'published' : diskItem.status);
             Object.assign(localItem, diskItem);
-            if (recentStatusChange) localItem.status = preservedStatus;
+            localItem.status = preservedStatus;
+            if (wasPublished && localItem.status === 'published') localItem.everPublished = true;
             this.healDraftItem(localItem);
             anyUpdated = true;
           } else {
             const savedTitle = localItem.title;
-            const savedStatus = localItem.status;
+            const savedStatus = (wasPublished && localItem.status !== 'hidden') ? 'published' : localItem.status;
             const savedSlug = localItem.slug;
             const savedMd = localItem.markdown;
             const savedHtml = localItem.proseHtml;
@@ -5000,6 +5026,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
               proseHtml: savedHtml,
               updatedAt: savedUpdated
             });
+            if (wasPublished && localItem.status === 'published') localItem.everPublished = true;
             if (this.healDraftItem(localItem)) anyUpdated = true;
           }
         }
@@ -5647,27 +5674,35 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
           // Slim inline dataUrl duplicates in proseHtml where d.images already stores the dataUrl
 
+          const slimProseTagHelper = (html, dImages) => {
+            if (!html || typeof html !== 'string') return html;
+            return html.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
+              const nameMatch = attrs.match(/data-img-name=["']([^"']+)["']/i);
+              const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
+              const srcMatch = attrs.match(/(?:^|\s)src=["'](data:image\/[^"']+)["']/i);
+              let fallbackRel = '';
+              if (nameMatch && nameMatch[1]) {
+                fallbackRel = `/blog/images/${nameMatch[1].split('/').pop().split('\\').pop()}`;
+              } else if (origMatch && origMatch[1] && !origMatch[1].startsWith('data:')) {
+                fallbackRel = origMatch[1];
+              } else if (srcMatch && srcMatch[1] && Array.isArray(dImages)) {
+                const foundIm = dImages.find(im => im && im.dataUrl === srcMatch[1] && (im.relativePath || im.filename));
+                if (foundIm) fallbackRel = foundIm.relativePath || `/blog/images/${foundIm.filename}`;
+              }
+              let outTag = fullTag;
+              if (fallbackRel) {
+                outTag = outTag.replace(/(\s|^)src=["']data:image\/[^"']+["']/i, `$1src="${fallbackRel}"`);
+                outTag = outTag.replace(/data-original-src=["']data:image\/[^"']+["']/i, `data-original-src="${fallbackRel}"`);
+              }
+              return outTag;
+            });
+          };
+
           const slimDrafts = drafts.map(d => {
 
-            if (!d || !d.proseHtml || !Array.isArray(d.images) || d.images.length === 0) return d;
+            if (!d || !d.proseHtml) return d;
 
-            const slimHtml = d.proseHtml.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
-
-              const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
-
-              const srcMatch = attrs.match(/\bsrc=["'](data:image\/[^"']+)["']/i);
-
-              if (origMatch && srcMatch) {
-
-                return fullTag.replace(srcMatch[0], `src="${origMatch[1]}"`);
-
-              }
-
-              return fullTag;
-
-            });
-
-            return { ...d, proseHtml: slimHtml };
+            return { ...d, proseHtml: slimProseTagHelper(d.proseHtml, d.images) };
 
           });
 
@@ -5727,7 +5762,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
               if (typeof copy.proseHtml === 'string' && copy.proseHtml.includes('data:image/') && copy.proseHtml.length > 16384) {
 
-                copy.proseHtml = copy.proseHtml.replace(/\bsrc=["'](data:image\/[^"']{4096,})["']/gi, 'src=""');
+                copy.proseHtml = slimProseTagHelper(copy.proseHtml, d.images);
 
               }
 

@@ -991,16 +991,51 @@
 
     // Reconcile per-post and per-page folders (blog/{published,drafts,hidden} & pages/{published,drafts,hidden})
     // so user-edited post/page data files are respected
-    const mergeFolderDraft = (dJson, fallbackSlug, forcedType) => {
+    const mergeFolderDraft = (dJson, fallbackSlug, forcedType, basePath) => {
       if (!dJson || typeof dJson !== 'object') return;
       if (!dJson.slug && fallbackSlug) dJson.slug = fallbackSlug;
       const isPostId = Boolean(dJson.id && String(dJson.id).startsWith('post_'));
       if (!isPostId && (dJson.isCategoryAggregate || forcedType === 'page' || (dJson.id && String(dJson.id).startsWith('page_')))) {
         dJson.type = 'page';
-      } else if (isPostId) {
+      } else if (isPostId || forcedType === 'post') {
         dJson.type = 'post';
       }
-else {
+      const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
+      const explicitlyUnpublished = dJson.userUnpublished === true || (dJson.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + dJson.id) === 'true');
+      if (isFromPublishedTier && !explicitlyUnpublished) {
+        dJson.status = 'published';
+        dJson.everPublished = true;
+      }
+
+      const existingIdx = loadedDrafts.findIndex(existing => {
+        if (!existing) return false;
+        if (dJson.id && existing.id && dJson.id === existing.id) return true;
+        if (dJson.slug && existing.slug && dJson.slug === existing.slug && (existing.type || 'post') === (dJson.type || 'post')) return true;
+        return false;
+      });
+
+      if (existingIdx !== -1) {
+        const existing = loadedDrafts[existingIdx];
+        const existingUnpub = existing.userUnpublished === true || (existing.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + existing.id) === 'true');
+        const wasPublished = (existing.status === 'published' || dJson.status === 'published' || existing.everPublished || dJson.everPublished || Boolean(existing.publishedAt || dJson.publishedAt || existing.publishedDate || dJson.publishedDate || existing.publishedSlug || dJson.publishedSlug)) && !existingUnpub && !explicitlyUnpublished;
+        const existingTime = Number(existing.updatedAt || existing.publishedAt || existing.createdAt || 0);
+        const incomingTime = Number(dJson.updatedAt || dJson.publishedAt || dJson.createdAt || 0);
+        if (incomingTime > existingTime || (isFromPublishedTier && existing.status !== 'published')) {
+          const merged = Object.assign({}, existing, dJson);
+          if (wasPublished) {
+            merged.status = 'published';
+            merged.everPublished = true;
+          }
+          loadedDrafts[existingIdx] = merged;
+        } else if (wasPublished && existing.status !== 'published') {
+          existing.status = 'published';
+          existing.everPublished = true;
+        }
+      } else {
+        if ((dJson.everPublished || dJson.publishedAt || dJson.publishedDate || dJson.publishedSlug) && !explicitlyUnpublished && dJson.status !== 'hidden') {
+          dJson.status = 'published';
+          dJson.everPublished = true;
+        }
         loadedDrafts.push(dJson);
       }
     };
@@ -1015,7 +1050,7 @@ else {
             try {
               const dJson = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/draft.json`, 'json');
               if (dJson) {
-                mergeFolderDraft(dJson, slug, expectedType);
+                mergeFolderDraft(dJson, slug, expectedType, basePath);
               } else if (!loadedDrafts.some(d => d.slug === slug)) {
                 const md = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/index.md`, 'text');
                 if (md && typeof window.importContent === 'function') {
@@ -1023,7 +1058,7 @@ else {
                   if (parsed) {
                     parsed.slug = slug;
                     if (expectedType) parsed.type = expectedType;
-                    mergeFolderDraft(parsed, slug, expectedType);
+                    mergeFolderDraft(parsed, slug, expectedType, basePath);
                   }
                 }
               }

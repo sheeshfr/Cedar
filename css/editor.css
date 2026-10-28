@@ -1056,10 +1056,45 @@
 .canvas-prose u, .article-prose u {
   color: inherit;
   text-decoration: underline;
+  text-decoration-color: currentColor !important;
   text-underline-offset: 3px;
   text-decoration-thickness: 1.5px;
   overflow-wrap: break-word;
   word-break: normal;
+}
+
+.canvas-prose .cedar-custom-color u,
+.article-prose .cedar-custom-color u,
+.canvas-prose .cedar-custom-color a:not(.post-card):not(.post-card-link):not(.btn),
+.article-prose .cedar-custom-color a:not(.post-card):not(.post-card-link):not(.btn) {
+  color: inherit !important;
+  text-decoration: underline;
+  text-decoration-color: currentColor !important;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+.canvas-prose u .cedar-custom-color,
+.article-prose u .cedar-custom-color,
+.canvas-prose u span[style*="color"],
+.article-prose u span[style*="color"],
+.canvas-prose a:not(.post-card):not(.post-card-link):not(.btn) .cedar-custom-color,
+.article-prose a:not(.post-card):not(.post-card-link):not(.btn) .cedar-custom-color,
+.canvas-prose a:not(.post-card):not(.post-card-link):not(.btn) span[style*="color"],
+.article-prose a:not(.post-card):not(.post-card-link):not(.btn) span[style*="color"] {
+  text-decoration: underline !important;
+  text-decoration-color: currentColor !important;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+.canvas-prose u:has(> .cedar-custom-color:only-child),
+.article-prose u:has(> .cedar-custom-color:only-child),
+.canvas-prose a:not(.post-card):not(.post-card-link):not(.btn):has(> .cedar-custom-color:only-child),
+.article-prose a:not(.post-card):not(.post-card-link):not(.btn):has(> .cedar-custom-color:only-child),
+.canvas-prose u:has(> a:not(.post-card):not(.post-card-link):not(.btn):only-child),
+.article-prose u:has(> a:not(.post-card):not(.post-card-link):not(.btn):only-child) {
+  text-decoration: none !important;
 }
 
 .canvas-prose s, .article-prose s,
@@ -1117,8 +1152,10 @@
 .article-prose a:not(.post-card):not(.post-card-link) {
   color: var(--accent-primary, #71717a);
   text-decoration: underline;
+  text-decoration-color: currentColor !important;
   text-underline-offset: 3px;
-  transition: color 0.2s;
+  text-decoration-thickness: 1.5px;
+  transition: color 0.2s, opacity 0.2s;
   overflow-wrap: break-word;
   word-break: normal;
   max-width: 100%;
@@ -1127,6 +1164,15 @@
 .canvas-prose a:not(.post-card):not(.post-card-link):hover,
 .article-prose a:not(.post-card):not(.post-card-link):hover {
   color: #f472b6;
+  text-decoration-color: currentColor !important;
+}
+
+.canvas-prose .cedar-custom-color a:not(.post-card):not(.post-card-link):hover,
+.article-prose .cedar-custom-color a:not(.post-card):not(.post-card-link):hover,
+.canvas-prose a:not(.post-card):not(.post-card-link):has(.cedar-custom-color):hover,
+.article-prose a:not(.post-card):not(.post-card-link):has(.cedar-custom-color):hover {
+  color: inherit !important;
+  opacity: 0.85;
 }
 
 .canvas-prose code:not(pre code),
@@ -4681,9 +4727,21 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   pointer-events: none;
 }
 
+.canvas-prose .post-card:not(.post-card-no-cover) .post-card-showcase-cluster {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+.canvas-prose .post-card:not(.post-card-no-cover) .post-card-showcase-text {
+  display: none !important;
+}
+
 .canvas-prose .post-card-img {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
@@ -4693,27 +4751,32 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 }
 
 .canvas-prose .post-card-body {
-  padding: 1rem 1.15rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  padding: 0.5rem 1rem 0.75rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  gap: 0.22rem !important;
   flex: 1;
   min-width: 0;
 }
 
 .canvas-prose .post-card-title {
   margin: 0 !important;
+  padding: 0 !important;
   font-size: 1.02rem !important;
   font-weight: 700 !important;
-  line-height: 1.35 !important;
+  line-height: 1.28 !important;
   color: var(--text-primary, #f4f4f5) !important;
   text-decoration: none !important;
 }
 
 .canvas-prose .post-card-desc {
   margin: 0 !important;
+  padding: 0 !important;
+  flex: 0 0 auto !important;
   font-size: 0.85rem !important;
-  line-height: 1.45 !important;
+  line-height: 1.4 !important;
   color: var(--text-secondary, #a1a1aa) !important;
   text-decoration: none !important;
   display: -webkit-box;
@@ -4730,9 +4793,11 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   flex-wrap: wrap;
   gap: 0.4rem;
   font-size: 0.74rem;
+  line-height: 1.2 !important;
   color: var(--text-muted, #71717a) !important;
   text-decoration: none !important;
-  margin-top: auto;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .external-card-domain-bar {
@@ -4740,10 +4805,27 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   align-items: center;
   gap: 6px;
   font-size: 0.74rem;
+  line-height: 1.2;
   color: var(--text-muted, #a1a1aa);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.external-card-domain-bar img {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  max-width: 14px !important;
+  border-radius: 2px !important;
+  margin: 0 !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
 .canvas-prose .post-card-author {

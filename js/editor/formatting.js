@@ -112,6 +112,10 @@
     restoreEditorSelection();
     if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
     document.execCommand(command, false, null);
+    const canvas = document.getElementById('rich-canvas-prose');
+    if (canvas) {
+      normalizeCustomColorNodes(canvas);
+    }
     saveCurrentSelection();
     updateToolbarActiveStates();
     if (typeof window.recordAction === 'function') window.recordAction('format', true);
@@ -132,17 +136,42 @@
     if (!inlineEl || !inlineEl.parentNode || !range) return null;
     const parent = inlineEl.parentNode;
 
-    const beforeRange = document.createRange();
-    beforeRange.selectNodeContents(inlineEl);
-    beforeRange.setEnd(range.startContainer, range.startOffset);
-
+    // Extract afterRange FIRST so range.startContainer / range.startOffset are never shifted
     const afterRange = document.createRange();
     afterRange.selectNodeContents(inlineEl);
     afterRange.setStart(range.endContainer, range.endOffset);
-
-    const beforeFrag = beforeRange.extractContents();
     const afterFrag = afterRange.extractContents();
-    const middleFrag = range.extractContents();
+
+    // Extract beforeRange SECOND; what remains inside inlineEl is the exact middle selection
+    // WITH all intermediate inline formatting tags (<u>, <s>, <strong>, <em>, etc.) preserved!
+    const beforeRange = document.createRange();
+    beforeRange.selectNodeContents(inlineEl);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+    const beforeFrag = beforeRange.extractContents();
+
+    const pruneEmptyInlineShells = (root) => {
+      if (!root || !root.querySelectorAll) return;
+      let removed = true;
+      while (removed) {
+        removed = false;
+        root.querySelectorAll('u, s, del, strike, strong, b, em, i, span, mark, code, a').forEach(el => {
+          const txt = (el.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+          if (!txt && !el.querySelector('img, br')) {
+            el.remove();
+            removed = true;
+          }
+        });
+      }
+    };
+
+    pruneEmptyInlineShells(beforeFrag);
+    pruneEmptyInlineShells(afterFrag);
+    pruneEmptyInlineShells(inlineEl);
+
+    const middleFrag = document.createDocumentFragment();
+    while (inlineEl.firstChild) {
+      middleFrag.appendChild(inlineEl.firstChild);
+    }
 
     const hasVisibleOrNodes = (frag) => {
       if (!frag) return false;
@@ -469,29 +498,232 @@
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
   }
 
+  function resolveRangeTextEndpoint(node, offset, isEnd) {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) {
+      return { node, offset: Math.max(0, Math.min(offset, (node.nodeValue || '').length)) };
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const children = node.childNodes;
+      if (!children || children.length === 0) return null;
+      if (!isEnd) {
+        const startIdx = Math.max(0, Math.min(offset, children.length - 1));
+        for (let i = startIdx; i < children.length; i++) {
+          const walker = document.createTreeWalker(children[i], NodeFilter.SHOW_TEXT, null, false);
+          const firstTxt = children[i].nodeType === Node.TEXT_NODE ? children[i] : walker.nextNode();
+          if (firstTxt) return { node: firstTxt, offset: 0 };
+        }
+      } else {
+        const endIdx = Math.max(0, Math.min(offset - 1, children.length - 1));
+        for (let i = endIdx; i >= 0; i--) {
+          if (children[i].nodeType === Node.TEXT_NODE) {
+            return { node: children[i], offset: (children[i].nodeValue || '').length };
+          }
+          const walker = document.createTreeWalker(children[i], NodeFilter.SHOW_TEXT, null, false);
+          let lastTxt = null;
+          let cur = walker.nextNode();
+          while (cur) {
+            lastTxt = cur;
+            cur = walker.nextNode();
+          }
+          if (lastTxt) return { node: lastTxt, offset: (lastTxt.nodeValue || '').length };
+        }
+      }
+    }
+    return null;
+  }
+
   function normalizeCustomColorNodes(container) {
     if (!container || !container.querySelectorAll) return;
-    container.querySelectorAll('span.cedar-custom-color').forEach(span => {
-      if (!span.parentNode) return;
-      // Unwrap nested .cedar-custom-color with same color
-      const color = (span.getAttribute('data-custom-color') || '').toLowerCase();
-      const parentSpan = span.parentElement ? span.parentElement.closest('span.cedar-custom-color') : null;
-      if (parentSpan && (parentSpan.getAttribute('data-custom-color') || '').toLowerCase() === color) {
-        unwrapElementPreservingChildren(span);
-        return;
+
+    // Capture live selection text endpoints inside container so DOM wrapper restructuring never drops selection
+    const sel = (typeof window !== 'undefined' && window.getSelection) ? window.getSelection() : null;
+    let savedStartPt = null;
+    let savedEndPt = null;
+    let wasCollapsed = false;
+    if (sel && sel.rangeCount > 0) {
+      const r = sel.getRangeAt(0);
+      if (container.contains(r.commonAncestorContainer)) {
+        wasCollapsed = r.collapsed;
+        savedStartPt = resolveRangeTextEndpoint(r.startContainer, r.startOffset, false);
+        savedEndPt = wasCollapsed ? savedStartPt : resolveRangeTextEndpoint(r.endContainer, r.endOffset, true);
       }
-      // Merge adjacent sibling span.cedar-custom-color with identical color
-      const next = span.nextSibling;
-      if (next && next.nodeType === Node.ELEMENT_NODE && next.tagName === 'SPAN' && next.classList.contains('cedar-custom-color')) {
-        const nextColor = (next.getAttribute('data-custom-color') || '').toLowerCase();
-        if (nextColor === color) {
-          while (next.firstChild) {
-            span.appendChild(next.firstChild);
-          }
-          next.remove();
+    }
+
+    // 1. Strip any rogue inline color / text-decoration-color styles injected by browser execCommand/backspace on inline tags
+    container.querySelectorAll('u[style], s[style], del[style], strike[style], strong[style], b[style], em[style], i[style]').forEach(el => {
+      if (el.closest('[contenteditable="false"]')) return;
+      if (el.style) {
+        el.style.color = '';
+        el.style.textDecorationColor = '';
+        el.style.backgroundColor = '';
+        if (!el.getAttribute('style') || !el.getAttribute('style').trim()) {
+          el.removeAttribute('style');
         }
       }
     });
+
+    // 1B. If browser injected text-decoration: underline directly onto a span.cedar-custom-color, move it to an inner <u>
+    container.querySelectorAll('span.cedar-custom-color[style]').forEach(span => {
+      if (span.closest('[contenteditable="false"]')) return;
+      const td = (span.style.textDecoration || span.style.textDecorationLine || '').toLowerCase();
+      const customHex = (span.getAttribute('data-custom-color') || span.style.color || '').trim().toLowerCase();
+      if (td.includes('underline')) {
+        const alreadyU = span.children.length === 1 && span.childNodes.length === 1 && span.firstElementChild.tagName === 'U';
+        if (!alreadyU && !span.closest('u')) {
+          const u = document.createElement('u');
+          while (span.firstChild) {
+            u.appendChild(span.firstChild);
+          }
+          span.appendChild(u);
+        }
+      }
+      if (customHex) {
+        span.setAttribute('data-custom-color', customHex);
+        span.setAttribute('style', `color: ${customHex};`);
+      }
+    });
+
+    // 2. Ensure span.cedar-custom-color is always outside inline formatting tags (u, s, del, strike, strong, b, em, i, a)
+    // and never nested inside another span.cedar-custom-color so that underline (<u>) and strikethrough (<s>)
+    // always inherit their text's exact color (currentColor).
+    const inlineTagsToPushInside = new Set(['U', 'S', 'DEL', 'STRIKE', 'STRONG', 'B', 'EM', 'I', 'A']);
+    let moved = true;
+    let guard = 0;
+    while (moved && guard < 80) {
+      moved = false;
+      guard++;
+      const colorSpans = Array.from(container.querySelectorAll('span.cedar-custom-color'));
+      for (let i = 0; i < colorSpans.length; i++) {
+        const span = colorSpans[i];
+        if (!span.parentNode || !container.contains(span)) continue;
+        const parent = span.parentElement;
+        if (!parent || parent === container) continue;
+
+        const isParentColorSpan = parent.tagName === 'SPAN' && parent.classList && parent.classList.contains('cedar-custom-color');
+        const isParentInlineFormat = inlineTagsToPushInside.has(parent.tagName) && !parent.classList.contains('post-card') && !parent.classList.contains('post-card-link') && !parent.classList.contains('btn');
+
+        if (!isParentColorSpan && !isParentInlineFormat) continue;
+        const grandParent = parent.parentNode;
+        if (!grandParent) continue;
+
+        if (isParentColorSpan) {
+          const spanColor = (span.getAttribute('data-custom-color') || span.style?.color || '').trim().toLowerCase();
+          const parentColor = (parent.getAttribute('data-custom-color') || parent.style?.color || '').trim().toLowerCase();
+          if (spanColor === parentColor) {
+            unwrapElementPreservingChildren(span);
+            moved = true;
+            break;
+          }
+        }
+
+        // Split `parent` around `span`
+        const beforeNodes = [];
+        const afterNodes = [];
+        let seenSpan = false;
+        Array.from(parent.childNodes).forEach(child => {
+          if (child === span) {
+            seenSpan = true;
+          } else if (!seenSpan) {
+            beforeNodes.push(child);
+          } else {
+            afterNodes.push(child);
+          }
+        });
+
+        const hasMeaningfulContent = (nodes) => nodes.some(n => {
+          if (n.nodeType === Node.TEXT_NODE) return (n.nodeValue || '').length > 0;
+          if (n.nodeType === Node.ELEMENT_NODE) {
+            if (n.tagName === 'BR' || n.tagName === 'IMG') return true;
+            return (n.textContent || '').length > 0 || Boolean(n.querySelector && n.querySelector('br, img'));
+          }
+          return false;
+        });
+
+        if (hasMeaningfulContent(beforeNodes)) {
+          const beforeClone = parent.cloneNode(false);
+          beforeNodes.forEach(n => beforeClone.appendChild(n));
+          grandParent.insertBefore(beforeClone, parent);
+        }
+
+        if (isParentInlineFormat) {
+          // Wrap span's inner contents in a clone of `parent` (unless already wrapped in the same tag)
+          const onlyChildSameTag = span.children.length === 1 &&
+            span.childNodes.length === 1 &&
+            span.firstElementChild.tagName === parent.tagName;
+          if (!onlyChildSameTag) {
+            const innerClone = parent.cloneNode(false);
+            while (span.firstChild) {
+              innerClone.appendChild(span.firstChild);
+            }
+            span.appendChild(innerClone);
+          }
+        }
+        grandParent.insertBefore(span, parent);
+
+        if (hasMeaningfulContent(afterNodes)) {
+          const afterClone = parent.cloneNode(false);
+          afterNodes.forEach(n => afterClone.appendChild(n));
+          grandParent.insertBefore(afterClone, parent);
+        }
+
+        grandParent.removeChild(parent);
+        moved = true;
+        break;
+      }
+    }
+
+    // 3. Merge adjacent sibling span.cedar-custom-color with identical color
+    container.querySelectorAll('span.cedar-custom-color').forEach(span => {
+      if (!span.parentNode) return;
+      const color = (span.getAttribute('data-custom-color') || span.style?.color || '').trim().toLowerCase();
+      let next = span.nextSibling;
+      while (next && next.nodeType === Node.ELEMENT_NODE && next.tagName === 'SPAN' && next.classList.contains('cedar-custom-color')) {
+        const nextColor = (next.getAttribute('data-custom-color') || next.style?.color || '').trim().toLowerCase();
+        if (nextColor === color) {
+          const toRemove = next;
+          next = next.nextSibling;
+          while (toRemove.firstChild) {
+            span.appendChild(toRemove.firstChild);
+          }
+          toRemove.remove();
+        } else {
+          break;
+        }
+      }
+    });
+
+    // 4. Merge adjacent identical inline formatting siblings (e.g. <u>a</u><u>b</u> -> <u>ab</u>)
+    container.querySelectorAll('u, s, del, strike, strong, b, em, i').forEach(el => {
+      if (!el.parentNode) return;
+      let next = el.nextSibling;
+      while (next && next.nodeType === Node.ELEMENT_NODE && next.tagName === el.tagName && !next.getAttribute('style') && !el.getAttribute('style')) {
+        const toRemove = next;
+        next = next.nextSibling;
+        while (toRemove.firstChild) {
+          el.appendChild(toRemove.firstChild);
+        }
+        toRemove.remove();
+      }
+    });
+
+    // Restore live selection if endpoints are still connected in container
+    if (sel && savedStartPt && savedEndPt && savedStartPt.node && savedEndPt.node &&
+        savedStartPt.node.isConnected && savedEndPt.node.isConnected) {
+      try {
+        const restored = document.createRange();
+        restored.setStart(savedStartPt.node, savedStartPt.offset);
+        if (wasCollapsed) {
+          restored.collapse(true);
+        } else {
+          restored.setEnd(savedEndPt.node, savedEndPt.offset);
+        }
+        sel.removeAllRanges();
+        sel.addRange(restored);
+        savedSelectionRange = restored.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      } catch (e) {}
+    }
   }
 
   function applyFontColor(colorValue) {
@@ -531,13 +763,36 @@
     const enclosingColorSpan = (anchorEl && anchorEl.closest) ? anchorEl.closest('span.cedar-custom-color') : null;
 
     if (sel.isCollapsed) {
+      // Collect active inline formatting tags (u, s, del, strike, strong, b, em, i) inside enclosingColorSpan
+      // so stepping out of or switching color on a collapsed caret preserves underline/bold/italic/strikethrough
+      const activeFormattingTags = [];
+      if (enclosingColorSpan && anchorEl) {
+        let curr = anchorEl;
+        while (curr && curr !== enclosingColorSpan && enclosingColorSpan.contains(curr)) {
+          if (curr.nodeType === Node.ELEMENT_NODE && ['U', 'S', 'DEL', 'STRIKE', 'STRONG', 'B', 'EM', 'I'].includes(curr.tagName)) {
+            activeFormattingTags.push(curr.cloneNode(false));
+          }
+          curr = curr.parentNode;
+        }
+      }
+      const wrapZwspInActiveTags = (zwspNode) => {
+        let current = zwspNode;
+        for (let i = 0; i < activeFormattingTags.length; i++) {
+          const wrapper = activeFormattingTags[i].cloneNode(false);
+          wrapper.appendChild(current);
+          current = wrapper;
+        }
+        return current;
+      };
+
       if (normalizedColor === 'default') {
         if (enclosingColorSpan && canvas.contains(enclosingColorSpan)) {
           const visibleText = (enclosingColorSpan.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
           if (!visibleText) {
             const parent = enclosingColorSpan.parentNode;
             const zwsp = document.createTextNode('\u200B');
-            parent.replaceChild(zwsp, enclosingColorSpan);
+            const wrapped = wrapZwspInActiveTags(zwsp);
+            parent.replaceChild(wrapped, enclosingColorSpan);
             const newRange = document.createRange();
             newRange.setStart(zwsp, 1);
             newRange.collapse(true);
@@ -560,10 +815,11 @@
             }
 
             const zwsp = document.createTextNode('\u200B');
+            const wrapped = wrapZwspInActiveTags(zwsp);
             if (targetAfterNode && targetAfterNode.parentNode) {
-              targetAfterNode.parentNode.insertBefore(zwsp, targetAfterNode.nextSibling);
+              targetAfterNode.parentNode.insertBefore(wrapped, targetAfterNode.nextSibling);
             } else {
-              range.insertNode(zwsp);
+              range.insertNode(wrapped);
             }
             const newRange = document.createRange();
             newRange.setStart(zwsp, 1);
@@ -573,6 +829,7 @@
             savedSelectionRange = newRange.cloneRange();
             window._savedSelectionRange = savedSelectionRange;
           }
+          normalizeCustomColorNodes(canvas);
         }
       } else {
         // Custom hex color selected with collapsed caret
@@ -586,6 +843,7 @@
           if (!visibleText) {
             enclosingColorSpan.setAttribute('data-custom-color', normalizedColor);
             enclosingColorSpan.style.color = normalizedColor;
+            normalizeCustomColorNodes(canvas);
             updateToolbarActiveStates();
             if (typeof window.recordAction === 'function') window.recordAction('format', true);
             if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
@@ -603,7 +861,8 @@
         span.setAttribute('data-custom-color', normalizedColor);
         span.style.color = normalizedColor;
         const zwsp = document.createTextNode('\u200B');
-        span.appendChild(zwsp);
+        const wrapped = wrapZwspInActiveTags(zwsp);
+        span.appendChild(wrapped);
         range.insertNode(span);
 
         const newRange = document.createRange();
@@ -613,6 +872,7 @@
         sel.addRange(newRange);
         savedSelectionRange = newRange.cloneRange();
         window._savedSelectionRange = savedSelectionRange;
+        normalizeCustomColorNodes(canvas);
       }
 
       updateToolbarActiveStates();
@@ -632,6 +892,15 @@
     if (normalizedColor === 'default') {
       const contents = range.extractContents();
       contents.querySelectorAll('span.cedar-custom-color').forEach(s => unwrapElementPreservingChildren(s));
+      contents.querySelectorAll('[style]').forEach(el => {
+        if (el.style) {
+          el.style.color = '';
+          el.style.textDecorationColor = '';
+          if (!el.getAttribute('style') || !el.getAttribute('style').trim()) {
+            el.removeAttribute('style');
+          }
+        }
+      });
       const firstChild = contents.firstChild;
       const lastChild = contents.lastChild;
       range.insertNode(contents);
@@ -655,8 +924,6 @@
       span.appendChild(contents);
       range.insertNode(span);
 
-      normalizeCustomColorNodes(span.parentNode || canvas);
-
       if (span.isConnected) {
         const newRange = document.createRange();
         newRange.selectNodeContents(span);
@@ -665,6 +932,8 @@
         savedSelectionRange = newRange.cloneRange();
         window._savedSelectionRange = savedSelectionRange;
       }
+
+      normalizeCustomColorNodes(canvas);
     }
 
     updateToolbarActiveStates();

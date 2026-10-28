@@ -1864,13 +1864,11 @@
       }
 
       /* Mobile Post Cards: ALWAYS Image on top, Title underneath, Author & Post Date, NO subtitle or preview text */
-      .post-card,
-      .post-card.layout-horizontal,
-      .posts-list-view .post-card,
+      .post-card:not(.article-prose .post-card),
+      .post-card.layout-horizontal:not(.article-prose .post-card),
+      .posts-list-view .post-card:not(.article-prose .post-card),
       .posts-grid .post-card,
-      #all-posts-grid .post-card,
-      .article-prose .post-card,
-      .article-prose .post-card.layout-horizontal {
+      #all-posts-grid .post-card {
         display: flex !important;
         flex-direction: column !important;
         align-items: stretch !important;
@@ -1883,11 +1881,9 @@
       }
 
       /* 1) Image on top */
-      .post-card-img-wrap,
-      .post-card.layout-horizontal .post-card-img-wrap,
-      .posts-list-view .post-card-img-wrap,
-      .article-prose .post-card-img-wrap,
-      .article-prose .post-card.layout-horizontal .post-card-img-wrap {
+      .post-card:not(.article-prose .post-card) .post-card-img-wrap,
+      .post-card.layout-horizontal:not(.article-prose .post-card) .post-card-img-wrap,
+      .posts-list-view .post-card:not(.article-prose .post-card) .post-card-img-wrap {
         width: 100% !important;
         min-width: 100% !important;
         max-width: 100% !important;
@@ -1899,19 +1895,17 @@
         margin: 0 !important;
       }
 
-      .post-card-img,
-      .posts-list-view .post-card-img,
-      .article-prose .post-card-img {
+      .post-card:not(.article-prose .post-card) .post-card-img,
+      .posts-list-view .post-card:not(.article-prose .post-card) .post-card-img {
         width: 100% !important;
         height: 100% !important;
         object-fit: cover !important;
         display: block !important;
       }
 
-      .post-card-body,
-      .post-card.layout-horizontal .post-card-body,
-      .posts-list-view .post-card-body,
-      .article-prose .post-card-body {
+      .post-card:not(.article-prose .post-card) .post-card-body,
+      .post-card.layout-horizontal:not(.article-prose .post-card) .post-card-body,
+      .posts-list-view .post-card:not(.article-prose .post-card) .post-card-body {
         padding: 0.15rem 0 0 !important;
         display: flex !important;
         flex-direction: column !important;
@@ -1922,10 +1916,9 @@
       }
 
       /* 2) Title underneath */
-      .post-card-title,
-      .post-card.layout-horizontal .post-card-title,
-      .posts-list-view .post-card-title,
-      .article-prose .post-card-title {
+      .post-card:not(.article-prose .post-card) .post-card-title,
+      .post-card.layout-horizontal:not(.article-prose .post-card) .post-card-title,
+      .posts-list-view .post-card:not(.article-prose .post-card) .post-card-title {
         order: 1 !important;
         font-size: 1.15rem !important;
         font-weight: 700 !important;
@@ -1935,10 +1928,9 @@
       }
 
       /* 3) Author and post date */
-      .post-card-meta,
-      .post-card.layout-horizontal .post-card-meta,
-      .posts-list-view .post-card-meta,
-      .article-prose .post-card-meta {
+      .post-card:not(.article-prose .post-card) .post-card-meta,
+      .post-card.layout-horizontal:not(.article-prose .post-card) .post-card-meta,
+      .posts-list-view .post-card:not(.article-prose .post-card) .post-card-meta {
         order: 2 !important;
         display: flex !important;
         flex-wrap: wrap !important;
@@ -1955,12 +1947,11 @@
         white-space: nowrap !important;
       }
 
-      /* 4) No subtitle or preview text anywhere on standard image cards */
-      .post-card:not(.post-card-no-cover) .post-card-desc,
+      /* 4) No subtitle or preview text anywhere on standard image feed cards */
+      .post-card:not(.post-card-no-cover):not(.article-prose .post-card) .post-card-desc,
       .post-card-excerpt,
       .post-card-subtitle,
-      .posts-list-view .post-card:not(.post-card-no-cover) .post-card-desc,
-      .article-prose .post-card:not(.post-card-no-cover) .post-card-desc,
+      .posts-list-view .post-card:not(.post-card-no-cover):not(.article-prose .post-card) .post-card-desc,
       .spotlight-sub {
         display: none !important;
       }

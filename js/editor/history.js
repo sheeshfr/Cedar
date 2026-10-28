@@ -126,6 +126,14 @@
             fc.remove();
           }
         });
+        body.querySelectorAll('img').forEach(img => {
+          const imgName = (img.getAttribute('data-img-name') || '').trim();
+          const origSrc = (img.getAttribute('data-original-src') || '').trim();
+          if (imgName && (!origSrc || origSrc.startsWith('data:'))) {
+            const cleanFn = imgName.split('/').pop().split('\\').pop();
+            img.setAttribute('data-original-src', `/blog/images/${cleanFn}`);
+          }
+        });
         body.querySelectorAll('code:not(pre code), span.cedar-custom-color').forEach(el => {
           const visible = (el.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
           if (!visible && !el.querySelector('img, br')) {

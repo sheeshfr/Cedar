@@ -386,6 +386,7 @@
           : (curDraft.markdown || '');
       }
       canvasProse.querySelectorAll('#canvas-drop-indicator').forEach(el => el.remove());
+      if (typeof window.normalizeCustomColorNodes === 'function') window.normalizeCustomColorNodes(canvasProse);
       if (typeof window.normalizeRawImages === 'function') window.normalizeRawImages(canvasProse);
       if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
       if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
@@ -563,6 +564,9 @@
       if (canvasProse) {
         if (window.mergeAdjacentLists) {
           window.mergeAdjacentLists(canvasProse);
+        }
+        if (typeof window.normalizeCustomColorNodes === 'function') {
+          window.normalizeCustomColorNodes(canvasProse);
         }
         curDraft.proseHtml = cleanProseHtmlForStorage(canvasProse.innerHTML);
         curDraft.markdown = (typeof window.domToMarkdown === 'function') ? window.domToMarkdown(canvasProse) : (curDraft.markdown || '');
