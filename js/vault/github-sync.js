@@ -73,9 +73,9 @@
   }
 
   function getCredentials() {
-    const rawRepo = (localStorage.getItem(STORAGE_KEYS.REPO) || '').trim();
-    const token = (localStorage.getItem(STORAGE_KEYS.TOKEN) || '').trim();
-    const storedBranch = (localStorage.getItem(STORAGE_KEYS.BRANCH) || '').trim();
+    const rawRepo = (localStorage.getItem(STORAGE_KEYS.REPO) || window.projectConfig?.githubRepo || window.projectConfig?.githubRepoUrl || '').trim();
+    const token = (localStorage.getItem(STORAGE_KEYS.TOKEN) || window.projectConfig?.githubToken || '').trim();
+    const storedBranch = (localStorage.getItem(STORAGE_KEYS.BRANCH) || window.projectConfig?.githubBranch || '').trim();
     const parsed = parseGitHubRepoInput(rawRepo);
     const repo = parsed.repo;
     const branch = parsed.branch || storedBranch || 'main';
@@ -106,6 +106,7 @@
     if (window.projectConfig) {
       window.projectConfig.githubRepo = cleanRepo;
       window.projectConfig.githubBranch = effBranch;
+      window.projectConfig.githubToken = (token || '').trim();
       if (typeof window.saveProjectToStorage === 'function') {
         clearTimeout(githubAutoSaveTimer);
         githubAutoSaveTimer = setTimeout(() => {
@@ -278,86 +279,313 @@
   }
 
   /**
-   * PULL WORKSPACE: Reads config.json, writer/drafts.json, and sync.json
+   * PULL WORKSPACE: Reads site-data.js / config.json, drafts, and binary media assets from GitHub
    */
   async function pullFromGitHub(options = {}) {
     if (!isConfigured()) {
       throw new Error('GitHub sync is not configured. Please enter your repository and token in Settings.');
     }
-    const { repo, branch } = getCredentials();
-    if (typeof window.showToast === 'function') window.showToast('Pulling workspace from GitHub...');
+    const { repo, branch, token } = getCredentials();
+    if (typeof window.showToast === 'function') window.showToast('Pulling workspace & media from GitHub...');
+    appendPublishLog(`cedar pull --repo ${repo} --branch ${branch}`, 'cmd', '$');
+    setPublishTerminalStatus('running', 'Pulling...');
 
     try {
       // 1. Fetch remote status
       const remote = await getRemoteStatus();
       if (!remote) throw new Error('Could not connect to GitHub repository.');
+      appendPublishLog(`Connected to ${repo}@${branch} (HEAD ${String(remote.headSha || '').slice(0, 7)}, Rev #${remote.revision || 1})`, 'info', '>');
 
-      // 2. Read config.json
-      let cfgData = null;
+      // 2. Read site-data.js (Web Publish canonical bundle)
+      let siteDataProject = null;
+      let siteDataDrafts = null;
       try {
-        const res = await apiRequest(`/repos/${repo}/contents/config.json?ref=${branch}`);
-        if (res && res.content) {
-          const decoded = decodeURIComponent(escape(atob(res.content.replace(/\s/g, ''))));
-          cfgData = JSON.parse(decoded);
+        const resSite = await apiRequest(`/repos/${repo}/contents/site-data.js?ref=${branch}`);
+        if (resSite && resSite.content) {
+          const decoded = decodeURIComponent(escape(atob(resSite.content.replace(/\s/g, ''))));
+          const match = decoded.match(/window\.__CEDAR_STATIC_DATA__\s*=\s*(\{[\s\S]*\});?/);
+          if (match && match[1]) {
+            const parsedSite = JSON.parse(match[1].replace(/;\s*$/, ''));
+            if (parsedSite.project) siteDataProject = parsedSite.project;
+            if (Array.isArray(parsedSite.drafts)) siteDataDrafts = parsedSite.drafts;
+            appendPublishLog(`Loaded site-data.js (${(siteDataDrafts || []).length} published items, design & categories)`, 'success', '✓');
+          }
         }
-      } catch (e) {
-        console.warn('[GitHubSync] config.json not found on remote:', e);
+      } catch (eSite) {}
+
+      // 3. Also check config.json and editor/drafts.json if present on remote
+      let cfgData = siteDataProject;
+      if (!cfgData) {
+        try {
+          const res = await apiRequest(`/repos/${repo}/contents/config.json?ref=${branch}`);
+          if (res && res.content) {
+            const decoded = decodeURIComponent(escape(atob(res.content.replace(/\s/g, ''))));
+            cfgData = JSON.parse(decoded);
+          }
+        } catch (e) {}
       }
 
-      // 3. Read editor/drafts.json (fallback to writer/drafts.json and legacy static-writer/drafts.json)
-      let draftsData = null;
+      let draftsData = siteDataDrafts;
       try {
         const res = await apiRequest(`/repos/${repo}/contents/editor/drafts.json?ref=${branch}`);
         if (res && res.content) {
           const decoded = decodeURIComponent(escape(atob(res.content.replace(/\s/g, ''))));
-          draftsData = JSON.parse(decoded);
+          const parsedEdDrafts = JSON.parse(decoded);
+          if (Array.isArray(parsedEdDrafts) && parsedEdDrafts.length > 0) {
+            draftsData = parsedEdDrafts;
+          }
         }
-      } catch (e) {
+      } catch (e) {}
+
+      // 4. Download binary media blobs from the remote Git tree (branding logo/favicon, author avatars, post/page images)
+      const mimeFromName = (name) => {
+        const ext = String(name || '').split('.').pop().toLowerCase();
+        if (ext === 'png') return 'image/png';
+        if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+        if (ext === 'svg') return 'image/svg+xml';
+        if (ext === 'gif') return 'image/gif';
+        if (ext === 'ico') return 'image/x-icon';
+        if (ext === 'avif') return 'image/avif';
+        return 'image/webp';
+      };
+      const isImgPath = (p) => /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(p || ''))
+        && (p.startsWith('media/') || p.startsWith('blog/images/') || p.startsWith('blog/published/') || p.startsWith('pages/published/'));
+
+      const remoteMediaDataUrls = new Map();
+      const remoteMediaBlobs = new Map();
+      if (remote.headSha) {
         try {
-          const resWriter = await apiRequest(`/repos/${repo}/contents/writer/drafts.json?ref=${branch}`);
-          if (resWriter && resWriter.content) {
-            const decoded = decodeURIComponent(escape(atob(resWriter.content.replace(/\s/g, ''))));
-            draftsData = JSON.parse(decoded);
-          }
-        } catch (eWriter) {
-          try {
-            const resLegacy = await apiRequest(`/repos/${repo}/contents/static-writer/drafts.json?ref=${branch}`);
-            if (resLegacy && resLegacy.content) {
-              const decoded = decodeURIComponent(escape(atob(resLegacy.content.replace(/\s/g, ''))));
-              draftsData = JSON.parse(decoded);
+          const treeRes = await apiRequest(`/repos/${repo}/git/trees/${remote.headSha}?recursive=1`);
+          if (treeRes && Array.isArray(treeRes.tree)) {
+            const mediaItems = treeRes.tree.filter(item => item && item.type === 'blob' && item.path && item.sha && isImgPath(item.path));
+            if (mediaItems.length > 0) {
+              appendPublishLog(`Downloading ${mediaItems.length} media assets (branding, author avatar, post images)...`, 'info', '>');
+              const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+              window.imageRegistry = window.imageRegistry || new Map();
+
+              await Promise.all(mediaItems.map(async (item) => {
+                try {
+                  const blobRes = await apiRequest(`/repos/${repo}/git/blobs/${item.sha}`);
+                  if (!blobRes || !blobRes.content) return;
+                  const cleanB64 = blobRes.content.replace(/\s/g, '');
+                  const fname = item.path.split('/').pop();
+                  const mime = mimeFromName(fname);
+                  const dataUrl = `data:${mime};base64,${cleanB64}`;
+                  const bstr = atob(cleanB64);
+                  const u8 = new Uint8Array(bstr.length);
+                  for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+                  const blob = new Blob([u8], { type: mime });
+                  const objectUrl = URL.createObjectURL(blob);
+
+                  remoteMediaDataUrls.set(item.path, dataUrl);
+                  remoteMediaDataUrls.set('/' + item.path, dataUrl);
+                  if (item.path.startsWith('media/') || !remoteMediaDataUrls.has(fname)) {
+                    remoteMediaDataUrls.set(fname, dataUrl);
+                  }
+                  remoteMediaBlobs.set(item.path, blob);
+
+                  const regEntry = {
+                    filename: fname,
+                    relativePath: '/' + item.path,
+                    blob,
+                    objectUrl,
+                    dataUrl,
+                    src: dataUrl
+                  };
+                  window.imageRegistry.set(item.path, regEntry);
+                  window.imageRegistry.set('/' + item.path, regEntry);
+                  if (item.path.startsWith('media/') || !window.imageRegistry.has(fname)) {
+                    window.imageRegistry.set(fname, regEntry);
+                  }
+
+                  if (vStorage && typeof vStorage.writeBlob === 'function') {
+                    try {
+                      await vStorage.writeBlob(item.path, blob);
+                      if (!item.path.startsWith('media/')) {
+                        await vStorage.writeBlob(`blog/images/${fname}`, blob);
+                      }
+                    } catch (e) {}
+                  }
+                } catch (e) {}
+              }));
+              appendPublishLog(`Hydrated ${remoteMediaDataUrls.size} media paths from GitHub`, 'success', '✓');
             }
-          } catch (e2) {
-            console.warn('[GitHubSync] editor/drafts.json not found on remote:', e2);
           }
+        } catch (treeErr) {
+          console.warn('[GitHubSync] Tree media hydration notice:', treeErr);
         }
       }
 
-      // 3b. Fallback to site-data.js if remote is a Web Publish repository
-      if (!cfgData || !draftsData) {
-        try {
-          const resSite = await apiRequest(`/repos/${repo}/contents/site-data.js?ref=${branch}`);
-          if (resSite && resSite.content) {
-            const decoded = decodeURIComponent(escape(atob(resSite.content.replace(/\s/g, ''))));
-            const match = decoded.match(/window\.__CEDAR_STATIC_DATA__\s*=\s*(\{[\s\S]*\});?/);
-            if (match && match[1]) {
-              const parsedSite = JSON.parse(match[1].replace(/;\s*$/, ''));
-              if (!cfgData && parsedSite.project) cfgData = parsedSite.project;
-              if (!draftsData && Array.isArray(parsedSite.drafts)) draftsData = parsedSite.drafts;
-            }
-          }
-        } catch (eSite) {}
-      }
-
-      // Apply pulled data to workspace
+      // 5. Apply pulled project configuration while preserving local studio metadata
       if (cfgData && typeof cfgData === 'object') {
-        Object.assign(window.projectConfig, cfgData);
-        if (typeof window.saveProjectToStorage === 'function') window.saveProjectToStorage();
+        const prevCfg = window.projectConfig || {};
+        const preservedStudio = {
+          deletedDraftIds: Array.isArray(prevCfg.deletedDraftIds) ? prevCfg.deletedDraftIds : [],
+          deletedSlugs: Array.isArray(prevCfg.deletedSlugs) ? prevCfg.deletedSlugs : [],
+          deletedCategories: Array.isArray(prevCfg.deletedCategories) ? prevCfg.deletedCategories : [],
+          milestones: Array.isArray(prevCfg.milestones) ? prevCfg.milestones : [],
+          activityLog: Array.isArray(prevCfg.activityLog) ? prevCfg.activityLog : [],
+          vaultPath: prevCfg.vaultPath,
+          githubRepo: repo,
+          githubBranch: branch,
+          githubToken: token
+        };
+
+        Object.assign(window.projectConfig, cfgData, preservedStudio);
+        window.projectConfig.lastUpdated = Date.now();
+
+        // Hydrate author avatars from downloaded media/authors/*
+        if (Array.isArray(window.projectConfig.authors)) {
+          window.projectConfig.authors.forEach(auth => {
+            if (!auth || typeof auth !== 'object') return;
+            const rawAv = String(auth.avatar || '').trim();
+            const foundAv = remoteMediaDataUrls.get(rawAv)
+              || remoteMediaDataUrls.get(rawAv.replace(/^\/+/, ''))
+              || (rawAv ? remoteMediaDataUrls.get(rawAv.split('/').pop()) : null);
+            if (foundAv) {
+              auth.avatar = foundAv;
+              window.projectConfig.authorAvatar = foundAv;
+            } else {
+              for (const [mPath, mDataUrl] of remoteMediaDataUrls.entries()) {
+                if (mPath.startsWith('media/authors/')) {
+                  auth.avatar = mDataUrl;
+                  window.projectConfig.authorAvatar = mDataUrl;
+                  break;
+                }
+              }
+            }
+          });
+        }
+
+        // Hydrate branding logo, originalLogo, and favicon from media/branding/*
+        if (window.projectConfig.design && window.projectConfig.design.branding) {
+          const b = window.projectConfig.design.branding;
+          const logoData = remoteMediaDataUrls.get('media/branding/logo.png') || remoteMediaDataUrls.get('/media/branding/logo.png');
+          const origData = remoteMediaDataUrls.get('media/branding/logo-original.png') || remoteMediaDataUrls.get('/media/branding/logo-original.png') || logoData;
+          const favData = remoteMediaDataUrls.get('media/branding/icon.png') || remoteMediaDataUrls.get('/media/branding/icon.png');
+          const bFiles = Object.assign({}, b.files || {}, window.brandingFiles || {});
+          if (logoData) {
+            b.generalLogo = logoData;
+            b.originalLogo = origData || logoData;
+            window.projectConfig.logo = logoData;
+            bFiles['media/branding/logo.png'] = logoData;
+            bFiles['media/branding/logo-original.png'] = origData || logoData;
+          } else if (b.generalLogo === '/media/branding/logo.png' || b.generalLogo === 'logo.png' || b.generalLogo === '/logo.png') {
+            b.generalLogo = '';
+          }
+          if (favData && !b.faviconExplicitlyRemoved) {
+            b.tabLogo = favData;
+            bFiles['media/branding/icon.png'] = favData;
+            try {
+              localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': favData }));
+            } catch (e) {}
+          } else if (b.tabLogo === 'icon.png' || b.tabLogo === '/icon.png') {
+            b.tabLogo = '';
+          }
+          b.files = bFiles;
+          window.brandingFiles = bFiles;
+        }
+
+        // Sync editor theme to pulled design theme
+        const resolvedEditorTheme = (window.projectConfig.design && (window.projectConfig.design.customColors || window.projectConfig.design.blogTheme || window.projectConfig.design.activeTheme))
+          || window.projectConfig.editorTheme
+          || 'basalt';
+        window.projectConfig.editorTheme = resolvedEditorTheme;
+        try {
+          localStorage.setItem('cedar_editor_theme', resolvedEditorTheme);
+          localStorage.setItem('cedar_theme', resolvedEditorTheme);
+        } catch (e) {}
+        if ((window.CedarFTUE || window.OutpostFTUE) && typeof (window.CedarFTUE || window.OutpostFTUE).applyLiveTheme === 'function') {
+          (window.CedarFTUE || window.OutpostFTUE).applyLiveTheme(resolvedEditorTheme, false);
+        }
       }
 
+      // 6. Reconcile pulled published posts/pages with any valid local unpublished drafts
       if (Array.isArray(draftsData)) {
-        window.drafts = draftsData;
-        window.currentDraft = draftsData[0] || null;
-        if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
+        const deletedIdsSet = new Set(Array.isArray(window.projectConfig?.deletedDraftIds) ? window.projectConfig.deletedDraftIds : []);
+        try {
+          const localDelIds = JSON.parse(localStorage.getItem('cedar_deleted_draft_ids') || '[]');
+          if (Array.isArray(localDelIds)) localDelIds.forEach(id => deletedIdsSet.add(id));
+        } catch (e) {}
+        const deletedSlugsSet = new Set(Array.isArray(window.projectConfig?.deletedSlugs) ? window.projectConfig.deletedSlugs : []);
+        try {
+          const localDelSlugs = JSON.parse(localStorage.getItem('cedar_deleted_slugs') || '[]');
+          if (Array.isArray(localDelSlugs)) localDelSlugs.forEach(s => deletedSlugsSet.add(s));
+        } catch (e) {}
+        const activeCatsLower = new Set(
+          (Array.isArray(window.projectConfig?.categories) ? window.projectConfig.categories : [])
+            .map(c => String(c || '').trim().toLowerCase())
+            .filter(Boolean)
+        );
+
+        // Hydrate images inside pulled drafts
+        draftsData.forEach(d => {
+          if (!d) return;
+          if (d.coverImage && !d.coverImage.startsWith('data:')) {
+            const covHit = remoteMediaDataUrls.get(d.coverImage) || remoteMediaDataUrls.get(d.coverImage.replace(/^\/+/, '')) || remoteMediaDataUrls.get(d.coverImage.split('/').pop());
+            if (covHit) d.coverImage = covHit;
+          }
+          if (Array.isArray(d.images)) {
+            d.images.forEach(im => {
+              if (!im || typeof im !== 'object') return;
+              const fn = im.relativePath || im.filename || '';
+              const hit = remoteMediaDataUrls.get(fn) || remoteMediaDataUrls.get(fn.replace(/^\/+/, '')) || (im.filename ? remoteMediaDataUrls.get(im.filename) : null);
+              if (hit) {
+                im.dataUrl = hit;
+                im.src = hit;
+              }
+            });
+          }
+        });
+
+        const pulledIds = new Set(draftsData.map(d => d && d.id).filter(Boolean));
+        const pulledSlugs = new Set(draftsData.map(d => d && d.slug).filter(Boolean));
+        const existingLocal = Array.isArray(window.drafts) ? window.drafts : [];
+        const keptLocalUnpublished = existingLocal.filter(d => {
+          if (!d) return false;
+          if (d.id && (pulledIds.has(d.id) || deletedIdsSet.has(d.id))) return false;
+          if (d.slug && (pulledSlugs.has(d.slug) || deletedSlugsSet.has(d.slug))) return false;
+          if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
+            const catStr = String(d.categoryAggregate || d.title || '').trim().toLowerCase();
+            if (!activeCatsLower.has(catStr)) return false;
+          }
+          return d.status === 'draft' && !d.everPublished;
+        });
+
+        const mergedDrafts = [...draftsData, ...keptLocalUnpublished].filter(d => {
+          if (!d) return false;
+          if (d.id && deletedIdsSet.has(d.id)) return false;
+          if (d.slug && deletedSlugsSet.has(d.slug)) return false;
+          if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
+            const catStr = String(d.categoryAggregate || d.title || '').trim().toLowerCase();
+            if (activeCatsLower.size > 0 && !activeCatsLower.has(catStr)) return false;
+          }
+          return true;
+        });
+
+        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+          window.CedarStore.hydrateFromList(mergedDrafts);
+          window.drafts = window.CedarStore.getAllDrafts();
+        } else {
+          window.drafts = mergedDrafts;
+        }
+        window.currentDraft = window.drafts[0] || null;
+      }
+
+      if (typeof window.saveProjectToStorage === 'function') window.saveProjectToStorage();
+      if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
+
+      // If connected to a local folder Vault, flush the pulled workspace & media blobs to disk
+      if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
+        try {
+          for (const [mPath, blob] of remoteMediaBlobs.entries()) {
+            await window.SheeshVault.writeFile(mPath, blob);
+          }
+          if (typeof window.SheeshVault.syncAll === 'function') {
+            await window.SheeshVault.syncAll();
+          }
+          appendPublishLog('Synced pulled GitHub state & media to local Vault folder', 'success', '✓');
+        } catch (vErr) {}
       }
 
       // Record sync state
@@ -365,12 +593,23 @@
       localStorage.setItem(STORAGE_KEYS.LAST_REV, (remote.revision || 1).toString());
       localStorage.setItem(STORAGE_KEYS.LAST_TIME, new Date().toISOString());
 
-      // Refresh UI views
+      // Refresh all UI views
+      if (typeof window.updateCedarTitle === 'function') window.updateCedarTitle();
       if (typeof window.renderDashboard === 'function') window.renderDashboard();
       if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
-      if (typeof window.updateCedarTitle === 'function') window.updateCedarTitle();
+      if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
+      if (typeof window.renderDerivedMediaLibrary === 'function') window.renderDerivedMediaLibrary();
+      if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
       if (typeof window.renderProjectSettings === 'function') window.renderProjectSettings();
+      if (typeof window.renderTaxonomy === 'function') window.renderTaxonomy();
+      if (typeof window.renderSettingsAuthorProfile === 'function') window.renderSettingsAuthorProfile();
+      if (typeof window.renderDesigner === 'function') window.renderDesigner();
+      if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
       updateSyncBadges();
+
+      appendPublishLog(`Pull complete! Workspace restored to Rev #${remote.revision || 1}.`, 'success', '✓');
+      setPublishTerminalStatus('success', `Pulled Rev #${remote.revision || 1}`);
+      setPublishReadout('success', `Restored workspace, design settings, and media from GitHub (Rev #${remote.revision || 1}).`);
 
       if (typeof window.showToast === 'function') {
         window.showToast(`Pulled revision #${remote.revision || 1} from GitHub!`);
@@ -378,6 +617,8 @@
       return true;
     } catch (err) {
       console.error('[GitHubSync] Pull error:', err);
+      appendPublishLog(`Pull failed: ${err.message}`, 'error', '✗');
+      setPublishTerminalStatus('error', 'Pull Failed');
       if (typeof window.showToast === 'function') {
         window.showToast(`Pull failed: ${err.message}`, 'error');
       }
@@ -463,8 +704,8 @@
       let baseRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
       appendPublishLog(`Remote HEAD at ${String(headSha).slice(0, 7)} (local rev #${baseRev})`, 'info', '>');
 
-      // Collision Check: Only warn if a DIFFERENT Cedar device pushed a newer revision since our last sync
-      if (!isForce && lastSyncedSha && headSha !== lastSyncedSha) {
+      // Collision Check: Warn if a DIFFERENT Cedar device pushed a newer revision since our last sync (including first push on a new workstation!)
+      if (!isForce && headSha !== lastSyncedSha) {
         const remoteStatus = await getRemoteStatus();
         if (remoteStatus && remoteStatus.revision > baseRev) {
           baseRev = remoteStatus.revision;
@@ -477,10 +718,16 @@
           remoteStatus.device !== getDeviceName()
         );
         const localRev = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_REV) || '0', 10);
-        if (isDifferentDevice && remoteStatus.revision > localRev) {
-          appendPublishLog(`Remote revision #${remoteStatus.revision} from ${remoteStatus.device} is newer than local #${localRev}. Prompting conflict resolution...`, 'warn', '!');
-          const proceed = await showConflictModal(remoteStatus);
-          if (!proceed) {
+        if ((isDifferentDevice || !lastSyncedSha) && remoteStatus && remoteStatus.revision > localRev) {
+          appendPublishLog(`Remote revision #${remoteStatus.revision} from ${remoteStatus.device || 'another workstation'} is newer than local #${localRev}. Prompting conflict resolution...`, 'warn', '!');
+          const action = await showConflictModal(remoteStatus);
+          if (action === 'pull') {
+            appendPublishLog('User chose to Pull from GitHub instead of overwriting...', 'info', '>');
+            isPublishingToGitHub = false;
+            await pullFromGitHub();
+            return false;
+          }
+          if (!action) {
             appendPublishLog('Publish cancelled by user.', 'warn', '!');
             setPublishTerminalStatus('idle', 'Cancelled');
             if (typeof window.showToast === 'function') window.showToast('Push cancelled.');
@@ -816,45 +1063,51 @@
   function showConflictModal(remoteStatus) {
     return new Promise((resolve) => {
       let modal = document.getElementById('modal-github-conflict');
-      if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'modal-github-conflict';
-        modal.className = 'cedar-modal-overlay';
-        modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(4px);';
-        modal.innerHTML = `
-          <div class="cedar-modal-card" style="background: var(--bg-primary, #18181b); color: var(--text-primary, #fafafa); border: 1px solid var(--border-subtle, #27272a); border-radius: 12px; max-width: 480px; width: 90%; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;">
-              <span style="font-size: 1.5rem;">⚠️</span>
-              <h3 style="margin: 0; font-size: 1.15rem; font-weight: 600;">GitHub Conflict Detected</h3>
-            </div>
-            <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted, #a1a1aa); margin-bottom: 1.25rem;" id="conflict-modal-desc">
-              The GitHub repository has been updated from another device since you loaded this page. If you push now, you risk overwriting those changes.
-            </p>
-            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
-              <button type="button" class="btn btn-secondary" id="btn-conflict-backup" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.6rem;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                <span>Export Backup (.ZIP) First</span>
-              </button>
-              <div style="display: flex; gap: 0.6rem; margin-top: 0.25rem;">
-                <button type="button" class="btn btn-secondary" id="btn-conflict-cancel" style="flex: 1;">Cancel</button>
-                <button type="button" class="btn btn-danger" id="btn-conflict-overwrite" style="flex: 1; background: #dc2626; color: #fff;">Overwrite Anyway</button>
-              </div>
+      if (modal) modal.remove();
+      modal = document.createElement('div');
+      modal.id = 'modal-github-conflict';
+      modal.className = 'cedar-modal-overlay';
+      modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(4px);';
+      modal.innerHTML = `
+        <div class="cedar-modal-card" style="background: var(--bg-primary, #18181b); color: var(--text-primary, #fafafa); border: 1px solid var(--border-subtle, #27272a); border-radius: 12px; max-width: 480px; width: 90%; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;">
+            <span style="font-size: 1.5rem;">⚠️</span>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 600;">Newer Site Found on GitHub</h3>
+          </div>
+          <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted, #a1a1aa); margin-bottom: 1.25rem;" id="conflict-modal-desc">
+            The GitHub repository has been updated from another workstation. Pull from GitHub first to restore your latest published posts, design settings, logo, and author profile before publishing.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <button type="button" class="btn btn-primary" id="btn-conflict-pull" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.65rem; font-weight: 600;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Pull from GitHub First (Recommended)</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-conflict-backup" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.6rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Export Local Backup (.ZIP)</span>
+            </button>
+            <div style="display: flex; gap: 0.6rem; margin-top: 0.25rem;">
+              <button type="button" class="btn btn-secondary" id="btn-conflict-cancel" style="flex: 1;">Cancel</button>
+              <button type="button" class="btn btn-danger" id="btn-conflict-overwrite" style="flex: 1; background: #dc2626; color: #fff;">Overwrite Anyway</button>
             </div>
           </div>
-        `;
-        document.body.appendChild(modal);
-      }
+        </div>
+      `;
+      document.body.appendChild(modal);
 
       const desc = modal.querySelector('#conflict-modal-desc');
       if (desc && remoteStatus) {
         const timeAgo = remoteStatus.lastSavedAt ? new Date(remoteStatus.lastSavedAt).toLocaleTimeString() : 'recently';
-        desc.textContent = `The GitHub repository has newer changes (Revision #${remoteStatus.revision || '?'}, updated around ${timeAgo} from ${remoteStatus.device || 'another workstation'}). Pushing now will replace those edits.`;
+        desc.textContent = `Your GitHub repository has newer changes (Revision #${remoteStatus.revision || '?'}, updated around ${timeAgo} from ${remoteStatus.device || 'another workstation'}). Pull from GitHub first to restore your latest design settings, branding, author avatar, and published posts before publishing.`;
       }
-
-      modal.style.display = 'flex';
 
       const cleanup = () => {
         modal.style.display = 'none';
+      };
+
+      modal.querySelector('#btn-conflict-pull').onclick = () => {
+        cleanup();
+        resolve('pull');
       };
 
       modal.querySelector('#btn-conflict-cancel').onclick = () => {
@@ -1187,7 +1440,7 @@
    */
   function syncTestButtonState() {
     const btnTest = document.getElementById('btn-github-test');
-    if (!btnTest) return;
+    const btnPull = document.getElementById('btn-github-pull');
     const saved = getCredentials();
     const inRepo = document.getElementById('setting-github-repo');
     const inToken = document.getElementById('setting-github-token');
@@ -1198,12 +1451,22 @@
       typedToken &&
       typedRepo.includes('/')
     );
-    btnTest.disabled = !canTest;
-    btnTest.style.opacity = canTest ? '' : '0.45';
-    btnTest.style.cursor = canTest ? '' : 'not-allowed';
-    btnTest.title = canTest
-      ? 'Verify repository access'
-      : 'Enter repository URL and Personal Access Token to test connection';
+    if (btnTest) {
+      btnTest.disabled = !canTest;
+      btnTest.style.opacity = canTest ? '' : '0.45';
+      btnTest.style.cursor = canTest ? '' : 'not-allowed';
+      btnTest.title = canTest
+        ? 'Verify repository access'
+        : 'Enter repository URL and Personal Access Token to test connection';
+    }
+    if (btnPull) {
+      btnPull.disabled = !canTest;
+      btnPull.style.opacity = canTest ? '' : '0.45';
+      btnPull.style.cursor = canTest ? '' : 'not-allowed';
+      btnPull.title = canTest
+        ? 'Pull published site, design settings, branding, and author profile from GitHub into this workstation'
+        : 'Enter repository URL and Personal Access Token to pull from GitHub';
+    }
   }
 
   /**
@@ -1337,6 +1600,7 @@
         if (typeof window.showToast === 'function') window.showToast('Testing connection to GitHub...');
         const res = await testConnection(repo, token);
         if (res.ok) {
+          saveCredentials(repo, token, res.defaultBranch || 'main');
           const privText = res.isPrivate ? 'Private' : 'Public';
           if (typeof window.showToast === 'function') {
             window.showToast(`Connected successfully! Repo: ${res.repoName} (${privText})`);
@@ -1345,6 +1609,33 @@
           if (typeof window.showToast === 'function') {
             window.showToast(res.error || 'Connection failed', 'error');
           }
+        }
+      });
+    }
+
+    // Pull button
+    const btnPull = document.getElementById('btn-github-pull');
+    if (btnPull && !btnPull._hasGhPullListener) {
+      btnPull._hasGhPullListener = true;
+      btnPull.addEventListener('click', async () => {
+        const inRepo = document.getElementById('setting-github-repo');
+        const inToken = document.getElementById('setting-github-token');
+        const repo = inRepo?.value.trim();
+        const token = inToken?.value.trim();
+        if (!validateGitHubCredentials(true)) {
+          if (!repo && inRepo) inRepo.focus();
+          else if (!token && inToken) inToken.focus();
+          if (typeof window.showToast === 'function') window.showToast('Please enter both your repository and access token first.', 'error');
+          return;
+        }
+        saveCredentials(repo, token, 'main');
+        btnPull.disabled = true;
+        try {
+          await pullFromGitHub();
+        } catch (e) {
+          setPublishReadout('error', `Pull failed: ${e.message}`);
+        } finally {
+          syncTestButtonState();
         }
       });
     }

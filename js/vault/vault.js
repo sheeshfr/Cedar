@@ -966,6 +966,9 @@
           if (!cfg.authorAvatar && (studioCfg.authorAvatar || (rootCfg && rootCfg.authorAvatar))) {
             cfg.authorAvatar = studioCfg.authorAvatar || rootCfg.authorAvatar;
           }
+          if (studioCfg.githubRepo && !cfg.githubRepo) cfg.githubRepo = studioCfg.githubRepo;
+          if (studioCfg.githubBranch && !cfg.githubBranch) cfg.githubBranch = studioCfg.githubBranch;
+          if (studioCfg.githubToken && !cfg.githubToken) cfg.githubToken = studioCfg.githubToken;
         }
       }
 
@@ -1031,6 +1034,19 @@
           }
           if (cfg.rssEnabled !== undefined) {
             localStorage.setItem('cedar_rss_enabled', cfg.rssEnabled ? 'true' : 'false');
+          }
+          const restoredGhRepo = (cfg.githubRepo || cfg.githubRepoUrl || '').trim();
+          if (restoredGhRepo && !localStorage.getItem('cedar_github_repo')) {
+            localStorage.setItem('cedar_github_repo', restoredGhRepo);
+          }
+          if (cfg.githubBranch && !localStorage.getItem('cedar_github_branch')) {
+            localStorage.setItem('cedar_github_branch', String(cfg.githubBranch).trim());
+          }
+          if (cfg.githubToken && !localStorage.getItem('cedar_github_token')) {
+            localStorage.setItem('cedar_github_token', String(cfg.githubToken).trim());
+          }
+          if (typeof window.initGitHubSyncUI === 'function') {
+            setTimeout(() => window.initGitHubSyncUI(), 50);
           }
         } catch (e) {}
 

@@ -2356,6 +2356,22 @@
 
       }
 
+      try {
+        const lsGhRepo = (localStorage.getItem('cedar_github_repo') || '').trim();
+        const lsGhBranch = (localStorage.getItem('cedar_github_branch') || '').trim();
+        const lsGhToken = (localStorage.getItem('cedar_github_token') || '').trim();
+        const cfgGhRepo = (projectConfig.githubRepo || projectConfig.githubRepoUrl || '').trim();
+        if (!lsGhRepo && cfgGhRepo) {
+          localStorage.setItem('cedar_github_repo', cfgGhRepo);
+        }
+        if (!lsGhBranch && projectConfig.githubBranch) {
+          localStorage.setItem('cedar_github_branch', String(projectConfig.githubBranch).trim());
+        }
+        if (!lsGhToken && projectConfig.githubToken) {
+          localStorage.setItem('cedar_github_token', String(projectConfig.githubToken).trim());
+        }
+      } catch (e) {}
+
       if (!projectConfig.design.mastheadPresets) {
 
         projectConfig.design.mastheadPresets = {};
@@ -2611,12 +2627,19 @@
           effectiveConfig.deletedSlugs = mergedDelSlugs;
         }
       }
+      const ghRepoLs = (localStorage.getItem('cedar_github_repo') || '').trim();
+      const ghBranchLs = (localStorage.getItem('cedar_github_branch') || '').trim();
+      const ghTokenLs = (localStorage.getItem('cedar_github_token') || '').trim();
+      if (ghRepoLs) effectiveConfig.githubRepo = ghRepoLs;
+      if (ghBranchLs) effectiveConfig.githubBranch = ghBranchLs;
+      if (ghTokenLs) effectiveConfig.githubToken = ghTokenLs;
     } catch (e) {}
 
     const serializedConfig = JSON.stringify(effectiveConfig, null, 2);
     const publicRootConfigObj = Object.assign({}, effectiveConfig);
     delete publicRootConfigObj.milestones;
     delete publicRootConfigObj.activityLog;
+    delete publicRootConfigObj.githubToken;
     const serializedPublicRootConfig = JSON.stringify(publicRootConfigObj, null, 2);
     const serializedMilestones = JSON.stringify(Array.isArray(effectiveConfig.milestones) ? effectiveConfig.milestones : [], null, 2);
 

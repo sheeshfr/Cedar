@@ -4514,6 +4514,7 @@ ${itemsXml}
     delete publicProject.pages;
     delete publicProject.quickLinks;
     delete publicProject.webUrls;
+    delete publicProject.githubToken;
     if (!publicProject.domain && typeof window.resolveProjectDomain === 'function') {
       publicProject.domain = window.resolveProjectDomain() || '';
     }

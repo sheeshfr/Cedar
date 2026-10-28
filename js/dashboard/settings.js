@@ -2656,26 +2656,8 @@
       });
     }
 
-    // Note: btn-github-test, btn-github-save, btn-github-push, and btn-github-disconnect
+    // Note: btn-github-test, btn-github-pull, btn-github-save, btn-github-push, and btn-github-disconnect
     // are managed directly by js/vault/github-sync.js (initSyncUI) to prevent duplicate listeners.
-    const btnGhPull = document.getElementById('btn-github-pull');
-    if (btnGhPull && !btnGhPull._hasGhPullListener) {
-      btnGhPull._hasGhPullListener = true;
-      btnGhPull.addEventListener('click', async () => {
-        if (!window.Cedar?.githubSync) return;
-        if (!window.Cedar.githubSync.isConfigured()) {
-          if (typeof showToast === 'function') showToast('Please enter and save your GitHub credentials first.');
-          return;
-        }
-        const confirmPull = confirm('Pull from GitHub?\n\nThis will load your drafts, pages, and blog settings from GitHub into this browser. Any unsaved local edits will be replaced.');
-        if (!confirmPull) return;
-        try {
-          await window.Cedar.githubSync.pullFromGitHub();
-        } catch (e) {
-          // Handled inside pullFromGitHub with toast
-        }
-      });
-    }
 
 
 
