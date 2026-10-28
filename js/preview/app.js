@@ -49,21 +49,54 @@
       const p = (window.location && window.location.pathname) || '';
       return p === '/preview.html' || p.endsWith('/preview.html') || p.includes('/preview.html/');
     }
+    let _cachedProdBasePrefix = null;
+    function getProductionBasePrefix() {
+      if (_cachedProdBasePrefix !== null) return _cachedProdBasePrefix;
+      try {
+        const scripts = document.querySelectorAll('script[src]');
+        for (let i = 0; i < scripts.length; i++) {
+          const rawSrc = scripts[i].getAttribute('src') || '';
+          if (rawSrc.includes('site-data.js') && scripts[i].src) {
+            const u = new URL(scripts[i].src, window.location.origin);
+            const idx = u.pathname.indexOf('/site-data.js');
+            if (idx !== -1) {
+              _cachedProdBasePrefix = u.pathname.slice(0, idx).replace(/\/+$/, '');
+              return _cachedProdBasePrefix;
+            }
+          }
+        }
+        const baseEl = document.querySelector('base[href]');
+        if (baseEl && baseEl.href) {
+          const bu = new URL(baseEl.href, window.location.origin);
+          _cachedProdBasePrefix = bu.pathname.replace(/\/+$/, '');
+          return _cachedProdBasePrefix;
+        }
+      } catch (_) {}
+      _cachedProdBasePrefix = '';
+      return _cachedProdBasePrefix;
+    }
     function getSiteBasePrefix() {
-      if (!isPreviewSubpathMode()) return '';
-      const p = (window.location && window.location.pathname) || '';
-      const idx = p.indexOf('/preview.html');
-      return idx !== -1 ? p.slice(0, idx + '/preview.html'.length) : '/preview.html';
+      if (isPreviewSubpathMode()) {
+        const p = (window.location && window.location.pathname) || '';
+        const idx = p.indexOf('/preview.html');
+        return idx !== -1 ? p.slice(0, idx + '/preview.html'.length) : '/preview.html';
+      }
+      if (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) {
+        return getProductionBasePrefix();
+      }
+      return '';
     }
     window.isPreviewSubpathMode = isPreviewSubpathMode;
     window.getSiteBasePrefix = getSiteBasePrefix;
 
     function toPreviewUrl(canonical) {
       const prefix = getSiteBasePrefix();
+      const isProdSubpath = !isPreviewSubpathMode() && Boolean(prefix);
       const useHashForStaticPreview = isPreviewSubpathMode() && !isLocalPreviewServer();
       let clean = (canonical || '').trim();
       if (!clean || clean === '#' || clean === '#/' || clean === '/' || clean === '/preview.html' || clean === '/preview.html/' || clean === prefix || clean === prefix + '/') {
         if (useHashForStaticPreview) return prefix + '#/';
+        if (isProdSubpath) return prefix + '/';
         return prefix || '/';
       }
       clean = clean.replace(/^#\/?/, '/');
@@ -73,6 +106,7 @@
         clean = clean.slice('/preview.html'.length);
       } else if (clean === '/preview.html' || (prefix && clean === prefix)) {
         if (useHashForStaticPreview) return prefix + '#/';
+        if (isProdSubpath) return prefix + '/';
         return prefix || '/';
       }
       if (!clean.startsWith('/')) clean = '/' + clean;
@@ -146,8 +180,12 @@
     function resolveAssetUrl(url) {
       if (!url) return '';
       if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url;
-      if (url.startsWith('/')) return url;
-      return '/' + url;
+      const prodPrefix = (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) ? getProductionBasePrefix() : '';
+      let clean = url.startsWith('/') ? url : '/' + url;
+      if (prodPrefix && clean !== prodPrefix && !clean.startsWith(prodPrefix + '/')) {
+        return prodPrefix + clean;
+      }
+      return clean;
     }
     window.resolveAssetUrl = resolveAssetUrl;
 
@@ -159,6 +197,10 @@
       if (!rawHash || rawHash === '#' || rawHash === '#/') {
         const activeBlogPath = (typeof window.resolveProjectBlogPath === 'function') ? window.resolveProjectBlogPath() : '';
         let cleanP = pathname.replace(/\/preview\.html(?:\/|$)/i, '/').replace(/\/index\.html(?:\/|$)/i, '/');
+        const prodPrefix = (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) ? getProductionBasePrefix() : '';
+        if (prodPrefix && (cleanP === prodPrefix || cleanP.startsWith(prodPrefix + '/'))) {
+          cleanP = cleanP.slice(prodPrefix.length) || '/';
+        }
         if (activeBlogPath && activeBlogPath !== 'blog' && cleanP.startsWith('/' + activeBlogPath)) {
           cleanP = cleanP.slice(activeBlogPath.length + 1);
         }
@@ -705,7 +747,16 @@
 
     if (href.startsWith('/') && !/\.(xml|json|png|jpg|jpeg|webp|gif|svg|ico|css|js|pdf|zip)$/i.test(href.split('?')[0])) {
       e.preventDefault();
-      navigateTo('#/' + href.replace(/^\/+/, ''));
+      let routeTarget = href;
+      const prodPrefix = (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) ? getProductionBasePrefix() : '';
+      if (prodPrefix && (routeTarget === prodPrefix || routeTarget === prodPrefix + '/')) {
+        navigateTo('/');
+        return;
+      }
+      if (prodPrefix && routeTarget.startsWith(prodPrefix + '/')) {
+        routeTarget = routeTarget.slice(prodPrefix.length);
+      }
+      navigateTo('#/' + routeTarget.replace(/^\/+/, ''));
       return;
     }
   });

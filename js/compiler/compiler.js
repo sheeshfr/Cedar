@@ -4166,16 +4166,25 @@ ${itemsXml}
     const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
     const buildStamp = options.buildStamp || '4.6.30';
-    const initialFaviconHref = (brand.tabLogo && brand.tabLogo.startsWith('data:'))
-      ? brand.tabLogo
-      : `/icon.png?v=${buildStamp}`;
+    const is404 = Boolean(options.is404);
+    const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
+    const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
+    const relRoot = pathDepth > 0 ? '../'.repeat(pathDepth) : './';
+    const rawTabLogo = (brand.tabLogo && brand.tabLogo !== 'icon.png' && brand.tabLogo !== '/icon.png') ? String(brand.tabLogo).trim() : '';
+    const initialFaviconHref = rawTabLogo
+      ? (/^(data:|blob:|https?:\/\/)/i.test(rawTabLogo) ? rawTabLogo : `${relRoot}${rawTabLogo.replace(/^\/+/, '')}?v=${buildStamp}`)
+      : 'data:,';
+    const rssFeedHref = siteBase ? `${siteBase}/blog/feed.xml` : `${relRoot}blog/feed.xml`;
+    const baseTagScript = is404
+      ? `  <script>(function(){try{var b=document.createElement('base'),h=location.hostname||'',p=location.pathname||'/';if(/\\.github\\.io$/i.test(h)){var segs=p.split('/').filter(Boolean),s0=segs[0]||'',known=${JSON.stringify(options.knownRootRoutes || ['blog','posts','post','pages','page','author','authors','category','categories','about-cedar','about','links','rss','notes','note'])};b.href=(s0&&known.indexOf(s0.toLowerCase())===-1)?('/'+s0+'/'):'/';}else{b.href='/';}document.head.appendChild(b);}catch(e){}})();</script>\n`
+      : '';
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title id="page-title">${escapeHtml(pageTitle)}</title>
+${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
   <meta name="description" id="meta-description" content="${escapeHtml(siteDesc)}">
   <meta property="og:title" content="${escapeHtml(pageTitle)}">
   <meta property="og:description" content="${escapeHtml(siteDesc)}">
@@ -4186,20 +4195,20 @@ ${itemsXml}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
-  ${isRssEnabled ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(siteTitle)} RSS Feed" href="${siteBase ? `${siteBase}/blog/feed.xml` : '/blog/feed.xml'}" id="rss-link-posts">` : '<link rel="alternate" type="application/rss+xml" title="Recent Posts RSS Feed" href="/blog/feed.xml" id="rss-link-posts" style="display:none;">'}
+  ${isRssEnabled ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(siteTitle)} RSS Feed" href="${escapeHtml(rssFeedHref)}" id="rss-link-posts">` : `<link rel="alternate" type="application/rss+xml" title="Recent Posts RSS Feed" href="${escapeHtml(rssFeedHref)}" id="rss-link-posts" style="display:none;">`}
   <!-- Modular Site Stylesheets (1:1 with Cedar Preview) -->
-  <link rel="stylesheet" href="/css/fonts.css?v=${buildStamp}">
-  <link rel="stylesheet" href="/css/preview/theme.css?v=${buildStamp}">
-  <link rel="stylesheet" href="/css/preview/blocks.css?v=${buildStamp}">
-  <link rel="stylesheet" href="/css/preview/reader.css?v=${buildStamp}">
-  <link rel="stylesheet" href="/css/preview/gallery.css?v=${buildStamp}">
+  <link rel="stylesheet" href="${relRoot}css/fonts.css?v=${buildStamp}">
+  <link rel="stylesheet" href="${relRoot}css/preview/theme.css?v=${buildStamp}">
+  <link rel="stylesheet" href="${relRoot}css/preview/blocks.css?v=${buildStamp}">
+  <link rel="stylesheet" href="${relRoot}css/preview/reader.css?v=${buildStamp}">
+  <link rel="stylesheet" href="${relRoot}css/preview/gallery.css?v=${buildStamp}">
 </head>
 <body>
 
   <!-- Site Header -->
   <header class="site-header">
     <div class="container nav-wrap">
-      <a href="/" class="brand-link" id="header-brand-link">
+      <a href="${relRoot}" class="brand-link" id="header-brand-link">
         <img src="" alt="Logo" class="brand-logo-img" id="header-logo" style="display: none;">
         <div class="brand-text">
           <span class="brand-name" id="header-title">${escapeHtml(siteTitle)}</span>
@@ -4418,7 +4427,7 @@ ${itemsXml}
   <footer class="site-footer">
     <div class="container footer-wrap">
       <div class="footer-left">
-        <a href="/about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><span>Powered by <strong style="color: var(--text-primary);">Cedar</strong></span><img src="/logo.png" alt="" style="width: 1.15em; height: 1.15em; object-fit: contain; display: block; flex-shrink: 0;"></a>
+        <a href="${relRoot}about-cedar/" id="footer-powered-by" style="color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;"><span>Powered by <strong style="color: var(--text-primary);">Cedar</strong></span><img src="${relRoot}logo.png" alt="" style="width: 1.15em; height: 1.15em; object-fit: contain; display: block; flex-shrink: 0;"></a>
       </div>
       <div class="footer-copyright-wrap" style="color: var(--text-dim);">
         <span class="footer-copyright-date">&copy; <span id="footer-year">${createdYear}</span></span>
@@ -4430,16 +4439,16 @@ ${itemsXml}
   </footer>
 
   <!-- Production Site Data & Modular Preview Scripts -->
-  <script src="/site-data.js?v=${buildStamp}"></script>
-  <script src="/js/core/sanitizer.js?v=${buildStamp}"></script>
-  <script src="/js/compiler/compiler.js?v=${buildStamp}"></script>
-  <script src="/js/preview/theme.js?v=${buildStamp}"></script>
-  <script src="/js/preview/state.js?v=${buildStamp}"></script>
-  <script src="/js/preview/home.js?v=${buildStamp}"></script>
-  <script src="/js/editor/blocks.js?v=${buildStamp}"></script>
-  <script src="/js/preview/reader.js?v=${buildStamp}"></script>
-  <script src="/js/preview/app.js?v=${buildStamp}"></script>
-  <script src="/js/preview/search.js?v=${buildStamp}"></script>
+  <script src="${relRoot}site-data.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/core/sanitizer.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/compiler/compiler.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/preview/theme.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/preview/state.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/preview/home.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/editor/blocks.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/preview/reader.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/preview/app.js?v=${buildStamp}"></script>
+  <script src="${relRoot}js/preview/search.js?v=${buildStamp}"></script>
 
   <!-- Search Modal -->
   <div id="search-modal" class="search-modal-wrap" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: flex-start; padding-top: 8vh; backdrop-filter: blur(4px);">
@@ -4930,9 +4939,22 @@ ${itemsXml}
     }
 
     // 7. Root index.html, 404.html (SPA fallback for GitHub/Cloudflare Pages), and site-data.js
+    const knownRootRoutes = new Set(['blog', 'posts', 'post', 'pages', 'page', 'author', 'authors', 'category', 'categories', 'about-cedar', 'about', 'links', 'rss', 'notes', 'note']);
+    publicDrafts.forEach(d => {
+      if (d && d.slug) knownRootRoutes.add(String(d.slug).toLowerCase());
+    });
+    allCategories.forEach(c => {
+      if (c) knownRootRoutes.add(encodeURIComponent(String(c).toLowerCase().replace(/\s+/g, '-')));
+    });
     const rootHtml = generateBlogHomeHtml(publishedPosts, publicProject, { canonicalPath: '' });
+    const fallback404Html = generateBlogHomeHtml(publishedPosts, publicProject, {
+      canonicalPath: '',
+      is404: true,
+      knownRootRoutes: Array.from(knownRootRoutes)
+    });
     addFile('index.html', rootHtml);
-    addFile('404.html', rootHtml);
+    addFile('404.html', fallback404Html);
+    addFile('.nojekyll', '');
 
     const siteDataPayload = {
       project: publicProject,
@@ -5553,10 +5575,18 @@ ${page.markdown || ''}`;
       if (typeof document !== 'undefined') {
         const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
         if (markerScript) {
-          const srcAttr = markerScript.getAttribute('src') || '';
-          if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
-            const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
-            if (m) subpath = m[1] || '';
+          if (markerScript.src) {
+            try {
+              const u = new URL(markerScript.src, window.location.origin);
+              const m = u.pathname.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+              if (m) subpath = m[1] || '';
+            } catch (_) {}
+          } else {
+            const srcAttr = markerScript.getAttribute('src') || '';
+            if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
+              const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+              if (m) subpath = m[1] || '';
+            }
           }
         }
       }

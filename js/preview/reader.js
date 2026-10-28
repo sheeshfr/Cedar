@@ -405,6 +405,9 @@
     if (avatarUrl && !avatarUrl.startsWith('data:') && !avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
       avatarUrl = '/' + avatarUrl;
     }
+    if (avatarUrl && typeof window.resolveAssetUrl === 'function') {
+      avatarUrl = window.resolveAssetUrl(avatarUrl);
+    }
 
     const brandSvgs = (window.Cedar?.links?.BRAND_ICONS) || {
       blog: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
@@ -437,7 +440,8 @@
         iconSrc = window.imageRegistry.get(iconSrc).dataUrl || iconSrc;
       }
       if (iconSrc && (iconSrc.startsWith('data:') || iconSrc.startsWith('http') || iconSrc.includes('.') || iconSrc.includes('/'))) {
-        iconMarkup = `<img src="${escapeHtml(iconSrc)}" alt="" onerror="this.style.display='none';">`;
+        const resolvedIconSrc = (typeof window.resolveAssetUrl === 'function') ? window.resolveAssetUrl(iconSrc) : iconSrc;
+        iconMarkup = `<img src="${escapeHtml(resolvedIconSrc)}" alt="" onerror="this.style.display='none';">`;
       } else if (brandSvgs[iconSrc]) {
         iconMarkup = brandSvgs[iconSrc];
       } else {
@@ -894,6 +898,12 @@
     if (avatar && !/^(https?:|data:|blob:|\/)/i.test(avatar)) {
       avatar = '/' + avatar;
     }
+    if (avatar && typeof window.resolveAssetUrl === 'function') {
+      avatar = window.resolveAssetUrl(avatar);
+    }
+    if (banner && typeof window.resolveAssetUrl === 'function' && !/^(https?:|data:|blob:)/i.test(banner)) {
+      banner = window.resolveAssetUrl(banner);
+    }
 
     if (!joinDate) {
       joinDate = 'Joined ' + new Date().getFullYear();
@@ -1121,7 +1131,8 @@
     if (validDomain) {
       return `https://${validDomain}/feed.xml`;
     }
-    return `${window.location.origin}/feed.xml`;
+    const prefix = (typeof window.getSiteBasePrefix === 'function') ? window.getSiteBasePrefix() : '';
+    return `${window.location.origin}${prefix}/feed.xml`;
   }
 
   function handleShareButtonClick(btn, e) {

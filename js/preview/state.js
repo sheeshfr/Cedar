@@ -1034,14 +1034,16 @@
           }
         }
 
-        if (fallbackPath) return fallbackPath;
+        const finalizePath = (p) => (p && typeof window.resolveAssetUrl === 'function') ? window.resolveAssetUrl(p) : p;
+
+        if (fallbackPath) return finalizePath(fallbackPath);
 
         if (draft && draft.slug && cleanName && !target.startsWith('/') && !target.includes('/')) {
           const baseFolder = draft.type === 'page' ? 'pages' : 'blog';
-          return `/${baseFolder}/published/${encodeURIComponent(draft.slug)}/${cleanName}`;
+          return finalizePath(`/${baseFolder}/published/${encodeURIComponent(draft.slug)}/${cleanName}`);
         }
 
-        return target;
+        return finalizePath(target);
       }
 
       async function hydratePreviewImageFromStorage(imgEl, rawNameOrSrc) {
@@ -1247,7 +1249,7 @@
         if (res && !/^(https?:|data:|blob:|\/)/i.test(res)) {
           res = '/' + res;
         }
-        return res;
+        return (res && typeof window.resolveAssetUrl === 'function') ? window.resolveAssetUrl(res) : res;
       }
 
 

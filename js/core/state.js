@@ -3547,10 +3547,18 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (typeof document !== 'undefined') {
         const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
         if (markerScript) {
-          const srcAttr = markerScript.getAttribute('src') || '';
-          if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
-            const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
-            if (m) subpath = m[1] || '';
+          if (markerScript.src) {
+            try {
+              const u = new URL(markerScript.src, window.location.origin);
+              const m = u.pathname.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+              if (m) subpath = m[1] || '';
+            } catch (_) {}
+          } else {
+            const srcAttr = markerScript.getAttribute('src') || '';
+            if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
+              const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+              if (m) subpath = m[1] || '';
+            }
           }
         }
       }
