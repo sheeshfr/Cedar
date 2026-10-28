@@ -161,7 +161,7 @@
       if (vid) return `https://img.youtube.com/vi/${vid}/hqdefault.jpg`;
     }
 
-    return `https://s0.wp.com/mshots/v1/${encodeURIComponent(targetUrl)}?w=800`;
+    return `https://api.microlink.io/?url=${encodeURIComponent(targetUrl)}&screenshot=true&meta=false&embed=screenshot.url`;
   }
 
   async function fetchLinkMetadata(rawUrl) {
@@ -172,13 +172,26 @@
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
       target = 'https://' + target;
     }
+    let parsedUrl = null;
     let domain = '';
     try {
-      domain = new URL(target).hostname.replace(/^www\./i, '');
+      parsedUrl = new URL(target);
+      domain = parsedUrl.hostname.replace(/^www\./i, '');
     } catch (e) {
       domain = target;
     }
     const cleanDomainTitle = domain.includes('.') ? (domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1)) : domain;
+    const isRootPath = !parsedUrl || !parsedUrl.pathname || parsedUrl.pathname === '/';
+
+    const cleanPageTitle = (rawT) => {
+      if (!rawT || typeof rawT !== 'string') return '';
+      let t = rawT.trim();
+      if (isRootPath) {
+        const stripped = t.replace(/^Home\s*[—–\-|:]\s*/i, '').trim();
+        if (stripped) t = stripped;
+      }
+      return t;
+    };
 
     if (window.Cedar && window.Cedar.isLocalServer) {
       try {
@@ -190,22 +203,103 @@
         if (resp.ok) {
           const data = await resp.json();
           if (data && data.success) {
-            const finalImg = data.image || computeSmartLinkFallbackImage(target, data.domain || domain);
+            const finalImg = (data.image && !data.image.includes('s0.wp.com/mshots'))
+              ? data.image
+              : computeSmartLinkFallbackImage(target, data.domain || domain);
             return {
               success: true,
               url: data.url || target,
               domain: data.domain || domain,
-              title: data.title || cleanDomainTitle,
-              subtitle: data.subtitle || domain,
+              title: cleanPageTitle(data.title) || cleanDomainTitle,
+              subtitle: (data.subtitle && data.subtitle !== domain) ? data.subtitle : '',
               image: finalImg,
               icon: data.icon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
             };
           }
         }
       } catch (e) {
-        console.warn('Backend link meta fetch failed, using fallback:', e);
+        console.warn('Backend link meta fetch failed, using client-side fetch:', e);
       }
     }
+
+    // Client-side metadata & screenshot via Microlink API (100% browser compatible)
+    try {
+      const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent(target)}&screenshot=true`;
+      const mlResp = await fetch(mlUrl);
+      if (mlResp.ok) {
+        const mlJson = await mlResp.json();
+        if (mlJson && mlJson.status === 'success' && mlJson.data) {
+          const d = mlJson.data;
+          const resolvedTitle = cleanPageTitle(d.title) || cleanDomainTitle;
+          const resolvedDesc = (d.description || '').trim();
+          const logoUrl = (d.logo && d.logo.url) ? d.logo.url : '';
+          const ogImgUrl = (d.image && d.image.url) ? d.image.url : '';
+          const shotUrl = (d.screenshot && d.screenshot.url) ? d.screenshot.url : '';
+
+          const isOgJustLogo = Boolean(
+            ogImgUrl && (
+              ogImgUrl === logoUrl ||
+              /\/(icon|favicon|apple-touch-icon|logo)\.(png|ico|svg|webp)$/i.test(ogImgUrl) ||
+              (d.image && d.image.width && d.image.height && d.image.width === d.image.height && d.image.width <= 512)
+            )
+          );
+          const bestImage = (!isOgJustLogo && ogImgUrl) ? ogImgUrl : (shotUrl || ogImgUrl || computeSmartLinkFallbackImage(target, domain));
+          const bestIcon = logoUrl || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+
+          return {
+            success: true,
+            url: d.url || target,
+            domain: domain,
+            title: resolvedTitle,
+            subtitle: resolvedDesc,
+            image: bestImage,
+            icon: bestIcon
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Microlink metadata fetch failed, trying HTML fallback:', e);
+    }
+
+    // Direct / CORS HTML parse fallback
+    try {
+      let htmlText = '';
+      try {
+        const directResp = await fetch(target, { mode: 'cors' });
+        if (directResp.ok) htmlText = await directResp.text();
+      } catch (_) {}
+      if (!htmlText) {
+        const proxyResp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`);
+        if (proxyResp.ok) htmlText = await proxyResp.text();
+      }
+      if (htmlText) {
+        const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+        const getMeta = (sel) => {
+          const el = doc.querySelector(sel);
+          return el ? (el.getAttribute('content') || '').trim() : '';
+        };
+        const rawT = getMeta('meta[property="og:title"]') || getMeta('meta[name="twitter:title"]') || (doc.querySelector('title')?.textContent || '').trim();
+        const rawDesc = getMeta('meta[property="og:description"]') || getMeta('meta[name="twitter:description"]') || getMeta('meta[name="description"]');
+        let rawImg = getMeta('meta[property="og:image"]') || getMeta('meta[name="twitter:image"]');
+        if (rawImg && !rawImg.startsWith('http')) {
+          try { rawImg = new URL(rawImg, target).href; } catch (_) {}
+        }
+        let rawIcon = '';
+        const iconEl = doc.querySelector('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
+        if (iconEl && iconEl.getAttribute('href')) {
+          try { rawIcon = new URL(iconEl.getAttribute('href'), target).href; } catch (_) {}
+        }
+        return {
+          success: true,
+          url: target,
+          domain: domain,
+          title: cleanPageTitle(rawT) || cleanDomainTitle,
+          subtitle: rawDesc || '',
+          image: rawImg || computeSmartLinkFallbackImage(target, domain),
+          icon: rawIcon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
+        };
+      }
+    } catch (e) {}
 
     const fallbackImg = computeSmartLinkFallbackImage(target, domain);
     return {
@@ -213,7 +307,7 @@
       url: target,
       domain: domain,
       title: cleanDomainTitle,
-      subtitle: domain,
+      subtitle: '',
       image: fallbackImg,
       icon: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
     };
@@ -578,40 +672,54 @@
     const title = meta.title || domain || 'Web Link';
     const subtitle = meta.subtitle || '';
     let image = meta.image || '';
+    if (image && image.includes('s0.wp.com/mshots')) {
+      image = '';
+    }
     if (!image && href && href !== '#' && (href.startsWith('http://') || href.startsWith('https://'))) {
       image = computeSmartLinkFallbackImage(href, domain);
     }
-    const icon = meta.icon || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+    const fallbackFavicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+    const icon = meta.icon || fallbackFavicon;
 
     let thumbWrapHtml = '';
     if (image) {
       thumbWrapHtml = `
         <div class="post-card-img-wrap" style="background-color: var(--bg-secondary, #18181b); aspect-ratio: 16 / 9;">
           <div class="post-card-img-ambient" style="background-image: url('${esc(image)}');"></div>
-          <img src="${esc(image)}" alt="" class="post-card-img" loading="lazy" onerror="if(!this.dataset.triedMshot && '${esc(href)}' && !this.src.includes('mshots')) { this.dataset.triedMshot='true'; this.src='https://s0.wp.com/mshots/v1/' + encodeURIComponent('${esc(href)}') + '?w=800'; if(this.previousElementSibling) this.previousElementSibling.style.backgroundImage='url(' + this.src + ')'; } else if(this.parentElement) { this.parentElement.style.display='none'; }">
+          <img src="${esc(image)}" alt="" class="post-card-img" loading="lazy" onerror="if(this.parentElement) { this.parentElement.style.display='none'; }">
         </div>
       `;
     }
 
+    const iconHtml = icon
+      ? `<img src="${esc(icon)}" alt="" class="external-card-favicon" style="width: 18px !important; height: 18px !important; min-width: 18px !important; max-width: 18px !important; border-radius: 4px !important; object-fit: contain !important; flex-shrink: 0 !important; margin: 0 !important; display: inline-block !important;" onerror="if(!this.dataset.triedGoogleFav && '${esc(fallbackFavicon)}') { this.dataset.triedGoogleFav='true'; this.src='${esc(fallbackFavicon)}'; } else { this.style.display='none'; }">`
+      : '';
+
+    const cleanSub = (subtitle || '').trim();
+    const isSubSameAsDomain = cleanSub.toLowerCase() === (domain || '').trim().toLowerCase();
+    const descText = (!cleanSub || isSubSameAsDomain) ? '' : cleanSub;
+    const descHtml = descText ? `<p class="post-card-desc">${esc(descText)}</p>` : '';
+
     const domainBar = `
-      <div class="external-card-domain-bar" style="display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-muted, #a1a1aa); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">
-        ${icon ? `<img src="${esc(icon)}" alt="" style="width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0;" onerror="this.style.display='none';">` : ''}
+      <div class="external-card-domain-bar" style="display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-muted, #a1a1aa); font-weight: 500; letter-spacing: 0.01em;">
         <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(domain)}</span>
       </div>
     `;
 
-    const descHtml = subtitle ? `<p class="post-card-desc">${esc(subtitle)}</p>` : '';
     const cardLayoutClass = layoutStyle === 'horizontal' ? 'layout-horizontal' : '';
 
     return `
       <a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="post-card external-link-card ${cardLayoutClass}">
         ${thumbWrapHtml}
         <div class="post-card-body">
+          <h4 class="post-card-title external-card-title" style="display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px !important;">
+            ${iconHtml}
+            <span class="external-card-title-text" style="overflow: hidden; text-overflow: ellipsis;">${esc(title)}</span>
+          </h4>
+          ${descHtml}
           <div class="post-card-meta">
             ${domainBar}
           </div>
-          <h4 class="post-card-title">${esc(title)}</h4>
-          ${descHtml}
         </div>
       </a>
     `;
@@ -679,14 +787,62 @@
 
     if (!linkedPost && !linkedPage && externalUrl) {
       itemType = 'external';
+      let savedImg = blockEl.getAttribute('data-image') || '';
+      const savedSub = blockEl.getAttribute('data-subtitle') || '';
+      const savedDomain = blockEl.getAttribute('data-domain') || '';
+      const savedIcon = blockEl.getAttribute('data-icon') || '';
+      const hadMshot = savedImg.includes('s0.wp.com/mshots');
+      if (hadMshot) {
+        savedImg = computeSmartLinkFallbackImage(externalUrl, savedDomain);
+        blockEl.setAttribute('data-image', savedImg);
+      }
       externalMeta = {
         url: externalUrl,
         title: blockEl.getAttribute('data-title') || '',
-        subtitle: blockEl.getAttribute('data-subtitle') || '',
-        image: blockEl.getAttribute('data-image') || '',
-        domain: blockEl.getAttribute('data-domain') || '',
-        icon: blockEl.getAttribute('data-icon') || ''
+        subtitle: savedSub,
+        image: savedImg,
+        domain: savedDomain,
+        icon: savedIcon
       };
+
+      const needsAutoHeal = hadMshot ||
+        !savedSub ||
+        (savedDomain && savedSub.trim().toLowerCase() === savedDomain.trim().toLowerCase()) ||
+        savedIcon.includes('google.com/s2/favicons');
+
+      if (needsAutoHeal && !blockEl.dataset.metaAutoHealed) {
+        blockEl.dataset.metaAutoHealed = 'true';
+        fetchLinkMetadata(externalUrl).then(fresh => {
+          if (!fresh || !fresh.success || !blockEl.isConnected) return;
+          let changed = false;
+          if (fresh.title && fresh.title !== blockEl.getAttribute('data-title')) {
+            blockEl.setAttribute('data-title', fresh.title);
+            changed = true;
+          }
+          if (fresh.subtitle && fresh.subtitle !== blockEl.getAttribute('data-subtitle')) {
+            blockEl.setAttribute('data-subtitle', fresh.subtitle);
+            changed = true;
+          }
+          if (fresh.image && fresh.image !== blockEl.getAttribute('data-image')) {
+            blockEl.setAttribute('data-image', fresh.image);
+            changed = true;
+          }
+          if (fresh.domain && fresh.domain !== blockEl.getAttribute('data-domain')) {
+            blockEl.setAttribute('data-domain', fresh.domain);
+            changed = true;
+          }
+          if (fresh.icon && fresh.icon !== blockEl.getAttribute('data-icon')) {
+            blockEl.setAttribute('data-icon', fresh.icon);
+            changed = true;
+          }
+          if (changed) {
+            hydrateSingleIndividualPostBlock(blockEl, pageDraft, options);
+            if (isEditor && typeof window.scheduleAutosave === 'function') {
+              window.scheduleAutosave();
+            }
+          }
+        }).catch(() => {});
+      }
     }
 
     const hasLinkedItem = Boolean(linkedPost || linkedPage || (externalMeta && externalMeta.url));
