@@ -114,7 +114,15 @@
     }
 
     // Auto-populate and reconcile drafts and config from connected external Vault (if any)
-    let hasExternalVault = false;
+    if (typeof window.initVault === 'function') {
+      try {
+        await window.initVault();
+      } catch (e) {
+        console.warn('[Cedar] initVault boot notice:', e);
+      }
+    }
+
+    let hasExternalVault = Boolean(window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected());
     if (window.Cedar.isLocalServer) {
       try {
         let savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
@@ -136,20 +144,10 @@
             }
           } catch (e) {}
         }
-        hasExternalVault = Boolean(savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath));
+        hasExternalVault = hasExternalVault || Boolean(savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath));
 
-      if (hasExternalVault) {
+      if (savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath)) {
         const draftsKey = window.STORAGE_KEY_DRAFTS || 'sheesh_static_writer_drafts_v2';
-        const existingDraftsRaw = localStorage.getItem(draftsKey);
-        let needsHydration = true;
-        if (existingDraftsRaw) {
-          try {
-            const parsed = JSON.parse(existingDraftsRaw);
-            if (Array.isArray(parsed) && parsed.some(d => d && (d.type === 'post' || String(d.id || '').startsWith('post_') || d.type === 'note'))) {
-              needsHydration = false;
-            }
-          } catch (e) {}
-        }
         try {
           let res = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('editor/drafts.json')}&as=json`, { cache: 'no-cache' });
           if (!res.ok) {
@@ -161,40 +159,22 @@
           if (res.ok) {
             const fileDrafts = await res.json();
             if (Array.isArray(fileDrafts) && fileDrafts.length > 0) {
-              if (needsHydration) {
-                if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
-                  window.CedarStore.hydrateFromList(fileDrafts);
-                  window.drafts = window.CedarStore.getAllDrafts();
-                } else {
-                  window.drafts = fileDrafts;
-                }
-                if (window.CedarStore && typeof window.CedarStore.persistToLocalStorage === 'function') {
-                  window.CedarStore.persistToLocalStorage(window.drafts);
-                } else {
-                  try {
-                    localStorage.setItem(draftsKey, JSON.stringify(window.drafts));
-                  } catch (qErr) {}
-                }
-                window.__vaultDraftsHydratedAtBoot = true;
-                localStorage.setItem('cedar_ftue_completed', '1');
-                try { localStorage.setItem('outpost_ftue_completed', '1'); } catch (e) {}
+              if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+                window.CedarStore.hydrateFromList(fileDrafts);
+                window.drafts = window.CedarStore.getAllDrafts();
               } else {
-                if (window.CedarStore && typeof window.CedarStore.reconcileDiskDrafts === 'function') {
-                  const recRes = window.CedarStore.reconcileDiskDrafts(fileDrafts);
-                  window.drafts = window.CedarStore.getAllDrafts();
-                  window.__vaultDraftsHydratedAtBoot = true;
-                  if (window.CedarStore && typeof window.CedarStore.persistToLocalStorage === 'function') {
-                    window.CedarStore.persistToLocalStorage(window.drafts);
-                  } else if (recRes.updated) {
-                    try {
-                      localStorage.setItem(draftsKey, JSON.stringify(window.drafts));
-                    } catch (e) {}
-                  }
-                  if (recRes.updated && typeof window.renderDashboard === 'function') {
-                    window.renderDashboard();
-                  }
-                }
+                window.drafts = fileDrafts;
               }
+              if (window.CedarStore && typeof window.CedarStore.persistToLocalStorage === 'function') {
+                window.CedarStore.persistToLocalStorage(window.drafts);
+              } else {
+                try {
+                  localStorage.setItem(draftsKey, JSON.stringify(window.drafts));
+                } catch (qErr) {}
+              }
+              window.__vaultDraftsHydratedAtBoot = true;
+              localStorage.setItem('cedar_ftue_completed', '1');
+              try { localStorage.setItem('outpost_ftue_completed', '1'); } catch (e) {}
             }
           }
         } catch (e) {}
@@ -203,12 +183,17 @@
         const existingProjRaw = localStorage.getItem(projKey);
         try {
           let editorCfg = null;
+          let cedarCfg = null;
           let writerCfg = null;
           let rootCfg = null;
           let fileMilestones = null;
           try {
             const resEditor = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('editor/config.json')}&as=json`, { cache: 'no-cache' });
             if (resEditor.ok) editorCfg = await resEditor.json();
+          } catch (e) {}
+          try {
+            const resCedar = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('cedar_config.json')}&as=json`, { cache: 'no-cache' });
+            if (resCedar.ok) cedarCfg = await resCedar.json();
           } catch (e) {}
           try {
             const resWriter = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('writer/config.json')}&as=json`, { cache: 'no-cache' });
@@ -234,10 +219,21 @@
             const p = Date.parse(v);
             return Number.isFinite(p) ? p : 0;
           };
-          const candidates = [editorCfg, writerCfg, rootCfg].filter(Boolean);
+          const candidates = [editorCfg, cedarCfg, writerCfg, rootCfg].filter(Boolean);
           if (candidates.length > 0) {
             candidates.sort((a, b) => parseTs(b.lastUpdated) - parseTs(a.lastUpdated));
             fileConfig = Object.assign({}, ...candidates.reverse());
+            const studioCfg = editorCfg || cedarCfg || writerCfg;
+            if (studioCfg && typeof studioCfg === 'object') {
+              if (Array.isArray(studioCfg.activityLog) && studioCfg.activityLog.length > 0) {
+                fileConfig.activityLog = studioCfg.activityLog;
+              }
+              if (Array.isArray(studioCfg.categories)) fileConfig.categories = studioCfg.categories;
+              if (Array.isArray(studioCfg.deletedCategories)) fileConfig.deletedCategories = studioCfg.deletedCategories;
+              if (Array.isArray(studioCfg.deletedDraftIds)) fileConfig.deletedDraftIds = studioCfg.deletedDraftIds;
+              if (Array.isArray(studioCfg.deletedSlugs)) fileConfig.deletedSlugs = studioCfg.deletedSlugs;
+              if (studioCfg.createdAt) fileConfig.createdAt = studioCfg.createdAt;
+            }
           }
 
           if (fileConfig && typeof fileConfig === 'object') {
@@ -245,20 +241,18 @@
             if (existingProjRaw) {
               try { localProj = JSON.parse(existingProjRaw) || {}; } catch (e) { localProj = {}; }
             }
-            const localIsNewer = parseTs(localProj.lastUpdated) > parseTs(fileConfig.lastUpdated);
-            const olderProj = localIsNewer ? fileConfig : localProj;
-            const newerProj = localIsNewer ? localProj : fileConfig;
+            // The user's assigned folder is always authoritative over browser cache
+            const olderProj = localProj;
+            const newerProj = fileConfig;
 
-            // Merge categories without duplicates, PRESERVING canonical casing
+            const delCatsLower = new Set((Array.isArray(fileConfig.deletedCategories) ? fileConfig.deletedCategories : []).map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
             const mergedCategories = [];
             const seenCats = new Set();
-            []
-              .concat(Array.isArray(newerProj.categories) ? newerProj.categories : [])
-              .concat(Array.isArray(olderProj.categories) ? olderProj.categories : [])
+            (Array.isArray(fileConfig.categories) ? fileConfig.categories : [])
               .forEach(c => {
                 const trimmed = String(c || '').trim();
                 const key = trimmed.toLowerCase();
-                if (trimmed && key !== 'uncategorized' && key !== 'posts' && !seenCats.has(key)) {
+                if (trimmed && key !== 'uncategorized' && key !== 'posts' && !delCatsLower.has(key) && !seenCats.has(key)) {
                   seenCats.add(key);
                   mergedCategories.push(trimmed);
                 }
@@ -297,15 +291,9 @@
 
             const mergedMilestones = [];
             const seenMilestoneIds = new Set();
-            let storedMsList = [];
-            try {
-              storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
-            } catch (e) {}
             []
               .concat(Array.isArray(fileMilestones) ? fileMilestones : [])
               .concat(Array.isArray(newerProj.milestones) ? newerProj.milestones : [])
-              .concat(Array.isArray(olderProj.milestones) ? olderProj.milestones : [])
-              .concat(Array.isArray(storedMsList) ? storedMsList : [])
               .forEach(m => {
                 if (m && m.id && m.text && !seenMilestoneIds.has(m.id)) {
                   seenMilestoneIds.add(m.id);
@@ -314,7 +302,7 @@
               });
 
             const mergedProj = Object.assign({}, olderProj, newerProj, {
-              categories: mergedCategories.length > 0 ? mergedCategories : (newerProj.categories || olderProj.categories || []),
+              categories: mergedCategories,
               milestones: mergedMilestones,
               design: mergedDesign,
               mediaPreferences: Object.assign({}, olderProj.mediaPreferences || {}, newerProj.mediaPreferences || {})
@@ -327,6 +315,18 @@
               || localStorage.getItem('cedar_theme')
               || 'basalt';
             mergedProj.editorTheme = resolvedEditorTheme;
+            if (window.projectConfig) {
+              Object.assign(window.projectConfig, mergedProj);
+            }
+
+            try {
+              localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(Array.isArray(mergedProj.deletedDraftIds) ? mergedProj.deletedDraftIds : []));
+              localStorage.setItem('cedar_deleted_slugs', JSON.stringify(Array.isArray(mergedProj.deletedSlugs) ? mergedProj.deletedSlugs : []));
+              localStorage.setItem('cedar_milestones_v1', JSON.stringify(mergedMilestones));
+              if (Array.isArray(mergedProj.activityLog)) {
+                localStorage.setItem('cedar_activity_log', JSON.stringify(mergedProj.activityLog));
+              }
+            } catch (e) {}
 
             try {
               let safeProj = mergedProj;
@@ -342,7 +342,21 @@
                   })
                 };
               }
-              localStorage.setItem(projKey, JSON.stringify(safeProj));
+              try {
+                localStorage.setItem(projKey, JSON.stringify(safeProj));
+              } catch (qErr) {
+                const slimProj = JSON.parse(JSON.stringify(safeProj));
+                delete slimProj.logo;
+                if (typeof slimProj.authorAvatar === 'string' && slimProj.authorAvatar.startsWith('data:')) delete slimProj.authorAvatar;
+                if (slimProj.design && slimProj.design.branding) {
+                  delete slimProj.design.branding.files;
+                  delete slimProj.design.branding.originalLogo;
+                  if (typeof slimProj.design.branding.generalLogo === 'string' && slimProj.design.branding.generalLogo.startsWith('data:')) {
+                    slimProj.design.branding.generalLogo = 'media/branding/logo.png';
+                  }
+                }
+                localStorage.setItem(projKey, JSON.stringify(slimProj));
+              }
               localStorage.setItem('cedar_editor_theme', resolvedEditorTheme);
               localStorage.setItem('cedar_theme', resolvedEditorTheme);
               if (mergedProj.domain) localStorage.setItem('cedar_user_domain', mergedProj.domain);

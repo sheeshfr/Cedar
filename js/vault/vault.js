@@ -468,7 +468,7 @@
       const file = await fileHandle.getFile();
       if (as === 'json') {
         const text = await file.text();
-        return JSON.parse(text);
+        return JSON.parse(text.replace(/^\uFEFF/, ''));
       } else if (as === 'blob') {
         return file;
       } else if (as === 'arrayBuffer' || as === 'arraybuffer') {
@@ -515,12 +515,55 @@
     }
   }
 
+  async function isHandleAccessible(dirHandle) {
+    if (!dirHandle) return false;
+    if (dirHandle.isServerBridge) {
+      if (!isLocalServer() || !dirHandle.path) return false;
+      try {
+        const resp = await fetch(`/api/check-folder?path=${encodeURIComponent(dirHandle.path)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          return Boolean(data && data.exists);
+        }
+      } catch (e) {}
+      return false;
+    }
+    try {
+      if (typeof dirHandle.keys === 'function') {
+        for await (const _ of dirHandle.keys()) {
+          break;
+        }
+        return true;
+      }
+      if (typeof dirHandle.entries === 'function') {
+        for await (const _ of dirHandle.entries()) {
+          break;
+        }
+        return true;
+      }
+    } catch (err) {
+      return false;
+    }
+    return false;
+  }
+
   async function isExistingCedarFolder(dirHandle) {
     if (!dirHandle) return false;
     try {
       if (dirHandle.getFileHandle) {
         try { await dirHandle.getFileHandle('config.json'); return true; } catch (e) {}
+        try { await dirHandle.getFileHandle('cedar_config.json'); return true; } catch (e) {}
         try { await dirHandle.getFileHandle('vault.json'); return true; } catch (e) {}
+        try {
+          const ed = await dirHandle.getDirectoryHandle('editor');
+          try { await ed.getFileHandle('drafts.json'); return true; } catch (e) {}
+          try { await ed.getFileHandle('config.json'); return true; } catch (e) {}
+        } catch (e) {}
+        try {
+          const wr = await dirHandle.getDirectoryHandle('writer');
+          try { await wr.getFileHandle('drafts.json'); return true; } catch (e) {}
+          try { await wr.getFileHandle('config.json'); return true; } catch (e) {}
+        } catch (e) {}
       }
       if (dirHandle.path && isLocalServer()) {
         const resp = await fetch(`/api/check-folder?path=${encodeURIComponent(dirHandle.path)}`);
@@ -932,395 +975,400 @@
     }
   }
 
+  let _isLoadingFromFolder = false;
+
   async function loadBlogFromFolder(dirHandle) {
     if (!dirHandle) return false;
+    if (!(await isHandleAccessible(dirHandle))) {
+      console.warn('[Vault] Directory handle is no longer accessible on disk (renamed or moved):', dirHandle.name);
+      return false;
+    }
 
-    // 1. Read editor/config.json, writer/config.json and config.json
+    _isLoadingFromFolder = true;
     try {
-      let editorCfg = null;
-      let writerCfg = null;
-      let rootCfg = null;
-      let fileMilestones = null;
-      try { editorCfg = await readFileFromDirHandle(dirHandle, 'editor/config.json', 'json'); } catch (e) {}
-      try { writerCfg = await readFileFromDirHandle(dirHandle, 'writer/config.json', 'json'); } catch (e) {}
-      try { rootCfg = await readFileFromDirHandle(dirHandle, 'config.json', 'json'); } catch (e) {}
-      try { fileMilestones = await readFileFromDirHandle(dirHandle, 'editor/milestones.json', 'json'); } catch (e) {}
-      if (!Array.isArray(fileMilestones)) {
-        try { fileMilestones = await readFileFromDirHandle(dirHandle, 'writer/milestones.json', 'json'); } catch (e) {}
-      }
-      if (!Array.isArray(fileMilestones)) {
-        try { fileMilestones = await readFileFromDirHandle(dirHandle, 'milestones.json', 'json'); } catch (e) {}
-      }
-
+      // 1. Read editor/config.json, cedar_config.json, writer/config.json and config.json
       let cfg = null;
-      const parseTs = (v) => {
-        if (!v) return 0;
-        const n = Number(v);
-        if (Number.isFinite(n) && n > 0) return n;
-        const p = Date.parse(v);
-        return Number.isFinite(p) ? p : 0;
-      };
-      const candidates = [editorCfg, writerCfg, rootCfg].filter(Boolean);
-      if (candidates.length > 0) {
-        candidates.sort((a, b) => parseTs(b.lastUpdated) - parseTs(a.lastUpdated));
-        cfg = Object.assign({}, ...candidates.reverse());
-        // Preserve studio-only or richer fields from editorCfg / writerCfg if rootCfg was a partial public export
-        const studioCfg = editorCfg || writerCfg;
-        if (studioCfg && typeof studioCfg === 'object') {
-          if (Array.isArray(studioCfg.activityLog) && (!Array.isArray(cfg.activityLog) || cfg.activityLog.length === 0)) {
-            cfg.activityLog = studioCfg.activityLog;
-          }
-          if (Array.isArray(studioCfg.deletedCategories)) {
-            cfg.deletedCategories = Array.from(new Set([...(Array.isArray(cfg.deletedCategories) ? cfg.deletedCategories : []), ...studioCfg.deletedCategories]));
-          }
-          if (Array.isArray(studioCfg.deletedDraftIds)) {
-            cfg.deletedDraftIds = Array.from(new Set([...(Array.isArray(cfg.deletedDraftIds) ? cfg.deletedDraftIds : []), ...studioCfg.deletedDraftIds]));
-          }
-          if (Array.isArray(studioCfg.deletedSlugs)) {
-            cfg.deletedSlugs = Array.from(new Set([...(Array.isArray(cfg.deletedSlugs) ? cfg.deletedSlugs : []), ...studioCfg.deletedSlugs]));
-          }
-          // Prefer whichever config has an author with a non-empty avatar (preferring data: URLs)
-          const allAuthorCandidates = [editorCfg, writerCfg, rootCfg].filter(c => c && Array.isArray(c.authors) && c.authors.length > 0);
-          const withDataAvatar = allAuthorCandidates.find(c => c.authors.some(a => a && typeof a.avatar === 'string' && a.avatar.startsWith('data:')));
-          const withAnyAvatar = allAuthorCandidates.find(c => c.authors.some(a => a && typeof a.avatar === 'string' && a.avatar.trim()));
-          if (withDataAvatar) {
-            cfg.authors = withDataAvatar.authors;
-          } else if (withAnyAvatar && (!Array.isArray(cfg.authors) || !cfg.authors.some(a => a && a.avatar))) {
-            cfg.authors = withAnyAvatar.authors;
-          } else if (Array.isArray(studioCfg.authors) && studioCfg.authors.length > 0 && (!Array.isArray(cfg.authors) || cfg.authors.length === 0)) {
-            cfg.authors = studioCfg.authors;
-          }
-          if (!cfg.authorAvatar && (studioCfg.authorAvatar || (rootCfg && rootCfg.authorAvatar))) {
-            cfg.authorAvatar = studioCfg.authorAvatar || rootCfg.authorAvatar;
-          }
-          if (studioCfg.githubRepo && !cfg.githubRepo) cfg.githubRepo = studioCfg.githubRepo;
-          if (studioCfg.githubBranch && !cfg.githubBranch) cfg.githubBranch = studioCfg.githubBranch;
-          if (studioCfg.githubToken && !cfg.githubToken) cfg.githubToken = studioCfg.githubToken;
+      try {
+        let editorCfg = null;
+        let cedarCfg = null;
+        let writerCfg = null;
+        let rootCfg = null;
+        let fileMilestones = null;
+        try { editorCfg = await readFileFromDirHandle(dirHandle, 'editor/config.json', 'json'); } catch (e) {}
+        try { cedarCfg = await readFileFromDirHandle(dirHandle, 'cedar_config.json', 'json'); } catch (e) {}
+        try { writerCfg = await readFileFromDirHandle(dirHandle, 'writer/config.json', 'json'); } catch (e) {}
+        try { rootCfg = await readFileFromDirHandle(dirHandle, 'config.json', 'json'); } catch (e) {}
+        try { fileMilestones = await readFileFromDirHandle(dirHandle, 'editor/milestones.json', 'json'); } catch (e) {}
+        if (!Array.isArray(fileMilestones) || fileMilestones.length === 0) {
+          try {
+            const wMs = await readFileFromDirHandle(dirHandle, 'writer/milestones.json', 'json');
+            if (Array.isArray(wMs) && wMs.length > 0) fileMilestones = wMs;
+          } catch (e) {}
         }
-      }
+        if (!Array.isArray(fileMilestones) || fileMilestones.length === 0) {
+          try {
+            const rMs = await readFileFromDirHandle(dirHandle, 'milestones.json', 'json');
+            if (Array.isArray(rMs) && rMs.length > 0) fileMilestones = rMs;
+          } catch (e) {}
+        }
 
-      if (cfg && typeof cfg === 'object') {
-        if (Array.isArray(cfg.deletedCategories) && Array.isArray(cfg.categories)) {
-          const delCatsLower = new Set(cfg.deletedCategories.map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
-          cfg.categories = cfg.categories.filter(c => !delCatsLower.has(String(c || '').trim().toLowerCase()));
-        }
-        if (Array.isArray(cfg.deletedDraftIds) && cfg.deletedDraftIds.length > 0) {
-          try {
-            const localDel = JSON.parse(localStorage.getItem('cedar_deleted_draft_ids') || '[]');
-            const mergedDel = Array.from(new Set([...(Array.isArray(localDel) ? localDel : []), ...cfg.deletedDraftIds]));
-            localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(mergedDel));
-          } catch (e) {}
-          if (window.CedarStore && typeof window.CedarStore.markIdDeleted === 'function') {
-            cfg.deletedDraftIds.forEach(id => window.CedarStore.markIdDeleted(id));
-          }
-        }
-        if (Array.isArray(cfg.deletedSlugs) && cfg.deletedSlugs.length > 0) {
-          try {
-            const localDelSlugs = JSON.parse(localStorage.getItem('cedar_deleted_slugs') || '[]');
-            const mergedDelSlugs = Array.from(new Set([...(Array.isArray(localDelSlugs) ? localDelSlugs : []), ...cfg.deletedSlugs]));
-            localStorage.setItem('cedar_deleted_slugs', JSON.stringify(mergedDelSlugs));
-          } catch (e) {}
-        }
-        if (cfg.design && window.projectConfig && window.projectConfig.design) {
-          cfg.design = Object.assign({}, window.projectConfig.design, cfg.design);
-        }
-        const mergedMilestones = [];
-        const seenMsIds = new Set();
-        let storedMsList = [];
-        try {
-          storedMsList = JSON.parse(localStorage.getItem('cedar_milestones_v1') || '[]') || [];
-        } catch (e) {}
-        const logMilestones = Array.isArray(cfg.activityLog)
-          ? cfg.activityLog.filter(a => a && a.type === 'milestone').map(a => ({
-              id: (a.data && a.data.id) || a.id,
-              text: (a.data && a.data.text) || a.text || '',
-              date: (a.data && a.data.date) || a.date || '',
-              timestamp: a.timestamp || Date.now(),
-              authorName: (a.data && a.data.authorName) || a.authorName || ''
-            }))
-          : [];
-        []
-          .concat(Array.isArray(fileMilestones) ? fileMilestones : [])
-          .concat(Array.isArray(editorCfg && editorCfg.milestones) ? editorCfg.milestones : [])
-          .concat(Array.isArray(writerCfg && writerCfg.milestones) ? writerCfg.milestones : [])
-          .concat(Array.isArray(cfg.milestones) ? cfg.milestones : [])
-          .concat(logMilestones)
-          .concat(Array.isArray(window.projectConfig && window.projectConfig.milestones) ? window.projectConfig.milestones : [])
-          .concat(Array.isArray(storedMsList) ? storedMsList : [])
-          .forEach(m => {
-            if (m && m.id && m.text && !seenMsIds.has(m.id)) {
-              seenMsIds.add(m.id);
-              mergedMilestones.push(m);
+        const parseTs = (v) => {
+          if (!v) return 0;
+          const n = Number(v);
+          if (Number.isFinite(n) && n > 0) return n;
+          const p = Date.parse(v);
+          return Number.isFinite(p) ? p : 0;
+        };
+        const candidates = [editorCfg, cedarCfg, writerCfg, rootCfg].filter(Boolean);
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => parseTs(b.lastUpdated) - parseTs(a.lastUpdated));
+          cfg = Object.assign({}, ...candidates.reverse());
+          // Always prioritize studio config (editor/config.json > cedar_config.json > writer/config.json) over public root config.json
+          const studioCfg = editorCfg || cedarCfg || writerCfg;
+          if (studioCfg && typeof studioCfg === 'object') {
+            if (Array.isArray(studioCfg.activityLog) && studioCfg.activityLog.length > 0) {
+              cfg.activityLog = studioCfg.activityLog;
             }
-          });
-        cfg.milestones = mergedMilestones;
-        try {
-          localStorage.setItem('cedar_milestones_v1', JSON.stringify(mergedMilestones));
-          if (Array.isArray(cfg.activityLog)) {
-            localStorage.setItem('cedar_activity_log', JSON.stringify(cfg.activityLog));
+            if (Array.isArray(studioCfg.categories)) {
+              cfg.categories = studioCfg.categories;
+            }
+            if (Array.isArray(studioCfg.deletedCategories)) {
+              cfg.deletedCategories = studioCfg.deletedCategories;
+            }
+            if (Array.isArray(studioCfg.deletedDraftIds)) {
+              cfg.deletedDraftIds = studioCfg.deletedDraftIds;
+            }
+            if (Array.isArray(studioCfg.deletedSlugs)) {
+              cfg.deletedSlugs = studioCfg.deletedSlugs;
+            }
+            if (studioCfg.createdAt) {
+              cfg.createdAt = studioCfg.createdAt;
+            }
+            // Prefer whichever config has an author with a non-empty avatar (preferring data: URLs)
+            const allAuthorCandidates = [editorCfg, cedarCfg, writerCfg, rootCfg].filter(c => c && Array.isArray(c.authors) && c.authors.length > 0);
+            const withDataAvatar = allAuthorCandidates.find(c => c.authors.some(a => a && typeof a.avatar === 'string' && a.avatar.startsWith('data:')));
+            const withAnyAvatar = allAuthorCandidates.find(c => c.authors.some(a => a && typeof a.avatar === 'string' && a.avatar.trim()));
+            if (withDataAvatar) {
+              cfg.authors = withDataAvatar.authors;
+            } else if (withAnyAvatar && (!Array.isArray(cfg.authors) || !cfg.authors.some(a => a && a.avatar))) {
+              cfg.authors = withAnyAvatar.authors;
+            } else if (Array.isArray(studioCfg.authors) && studioCfg.authors.length > 0 && (!Array.isArray(cfg.authors) || cfg.authors.length === 0)) {
+              cfg.authors = studioCfg.authors;
+            }
+            if (!cfg.authorAvatar && (studioCfg.authorAvatar || (rootCfg && rootCfg.authorAvatar))) {
+              cfg.authorAvatar = studioCfg.authorAvatar || rootCfg.authorAvatar;
+            }
+            if (studioCfg.githubRepo && !cfg.githubRepo) cfg.githubRepo = studioCfg.githubRepo;
+            if (studioCfg.githubBranch && !cfg.githubBranch) cfg.githubBranch = studioCfg.githubBranch;
+            if (studioCfg.githubToken && !cfg.githubToken) cfg.githubToken = studioCfg.githubToken;
           }
-        } catch (e) {}
-        Object.assign(window.projectConfig, cfg);
-
-        const resolvedEditorTheme = (cfg.design && (cfg.design.customColors || cfg.design.blogTheme || cfg.design.activeTheme))
-          || cfg.editorTheme
-          || localStorage.getItem('cedar_theme')
-          || localStorage.getItem('cedar_editor_theme')
-          || 'basalt';
-        window.projectConfig.editorTheme = resolvedEditorTheme;
-
-        try {
-          localStorage.setItem('cedar_editor_theme', resolvedEditorTheme);
-          localStorage.setItem('cedar_theme', resolvedEditorTheme);
-          if (cfg.domain) localStorage.setItem('cedar_user_domain', cfg.domain);
-          if (cfg.blogPath) localStorage.setItem('cedar_user_blog_path', cfg.blogPath);
-          if (cfg.layoutOverride !== undefined) {
-            localStorage.setItem('cedar_layout_override', cfg.layoutOverride ? 'true' : 'false');
-          }
-          if (cfg.rssEnabled !== undefined) {
-            localStorage.setItem('cedar_rss_enabled', cfg.rssEnabled ? 'true' : 'false');
-          }
-          const restoredGhRepo = (cfg.githubRepo || cfg.githubRepoUrl || '').trim();
-          if (restoredGhRepo && !localStorage.getItem('cedar_github_repo')) {
-            localStorage.setItem('cedar_github_repo', restoredGhRepo);
-          }
-          if (cfg.githubBranch && !localStorage.getItem('cedar_github_branch')) {
-            localStorage.setItem('cedar_github_branch', String(cfg.githubBranch).trim());
-          }
-          if (cfg.githubToken && !localStorage.getItem('cedar_github_token')) {
-            localStorage.setItem('cedar_github_token', String(cfg.githubToken).trim());
-          }
-          if (typeof window.initGitHubSyncUI === 'function') {
-            setTimeout(() => window.initGitHubSyncUI(), 50);
-          }
-        } catch (e) {}
-
-        if ((window.CedarFTUE || window.OutpostFTUE) && typeof (window.CedarFTUE || window.OutpostFTUE).applyLiveTheme === 'function') {
-          (window.CedarFTUE || window.OutpostFTUE).applyLiveTheme(resolvedEditorTheme, false);
         }
-        if (cfg.mediaPreferences && typeof window.applyMediaPreferences === 'function') {
-          window.applyMediaPreferences(Boolean(cfg.mediaPreferences.roundedImages));
+
+        if (cfg && typeof cfg === 'object') {
+          if (Array.isArray(cfg.deletedCategories) && Array.isArray(cfg.categories)) {
+            const delCatsLower = new Set(cfg.deletedCategories.map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
+            cfg.categories = cfg.categories.filter(c => !delCatsLower.has(String(c || '').trim().toLowerCase()));
+          }
+          // Strictly use the folder's deletedDraftIds and deletedSlugs (never union stale browser cache tombstones)
+          const folderDelIds = Array.isArray(cfg.deletedDraftIds) ? cfg.deletedDraftIds : [];
+          const folderDelSlugs = Array.isArray(cfg.deletedSlugs) ? cfg.deletedSlugs : [];
+          cfg.deletedDraftIds = folderDelIds;
+          cfg.deletedSlugs = folderDelSlugs;
+          try {
+            localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(folderDelIds));
+            localStorage.setItem('cedar_deleted_slugs', JSON.stringify(folderDelSlugs));
+          } catch (e) {}
+
+          if (cfg.design && window.projectConfig && window.projectConfig.design) {
+            cfg.design = Object.assign({}, window.projectConfig.design, cfg.design);
+          }
+          const mergedMilestones = [];
+          const seenMsIds = new Set();
+          const logMilestones = Array.isArray(cfg.activityLog)
+            ? cfg.activityLog.filter(a => a && a.type === 'milestone').map(a => ({
+                id: (a.data && a.data.id) || a.id,
+                text: (a.data && a.data.text) || a.text || '',
+                date: (a.data && a.data.date) || a.date || '',
+                timestamp: a.timestamp || Date.now(),
+                authorName: (a.data && a.data.authorName) || a.authorName || ''
+              }))
+            : [];
+          []
+            .concat(Array.isArray(fileMilestones) ? fileMilestones : [])
+            .concat(Array.isArray(editorCfg && editorCfg.milestones) ? editorCfg.milestones : [])
+            .concat(Array.isArray(cedarCfg && cedarCfg.milestones) ? cedarCfg.milestones : [])
+            .concat(Array.isArray(writerCfg && writerCfg.milestones) ? writerCfg.milestones : [])
+            .concat(Array.isArray(cfg.milestones) ? cfg.milestones : [])
+            .concat(logMilestones)
+            .forEach(m => {
+              if (m && m.id && m.text && !seenMsIds.has(m.id)) {
+                seenMsIds.add(m.id);
+                mergedMilestones.push(m);
+              }
+            });
+          cfg.milestones = mergedMilestones;
+          try {
+            localStorage.setItem('cedar_milestones_v1', JSON.stringify(mergedMilestones));
+            if (Array.isArray(cfg.activityLog)) {
+              localStorage.setItem('cedar_activity_log', JSON.stringify(cfg.activityLog));
+            }
+          } catch (e) {}
+          Object.assign(window.projectConfig, cfg);
+
+          const resolvedEditorTheme = (cfg.design && (cfg.design.customColors || cfg.design.blogTheme || cfg.design.activeTheme))
+            || cfg.editorTheme
+            || localStorage.getItem('cedar_theme')
+            || localStorage.getItem('cedar_editor_theme')
+            || 'basalt';
+          window.projectConfig.editorTheme = resolvedEditorTheme;
+
+          try {
+            localStorage.setItem('cedar_editor_theme', resolvedEditorTheme);
+            localStorage.setItem('cedar_theme', resolvedEditorTheme);
+            if (cfg.domain) localStorage.setItem('cedar_user_domain', cfg.domain);
+            if (cfg.blogPath) localStorage.setItem('cedar_user_blog_path', cfg.blogPath);
+            if (cfg.layoutOverride !== undefined) {
+              localStorage.setItem('cedar_layout_override', cfg.layoutOverride ? 'true' : 'false');
+            }
+            if (cfg.rssEnabled !== undefined) {
+              localStorage.setItem('cedar_rss_enabled', cfg.rssEnabled ? 'true' : 'false');
+            }
+            const restoredGhRepo = (cfg.githubRepo || cfg.githubRepoUrl || '').trim();
+            if (restoredGhRepo && !localStorage.getItem('cedar_github_repo')) {
+              localStorage.setItem('cedar_github_repo', restoredGhRepo);
+            }
+            if (cfg.githubBranch && !localStorage.getItem('cedar_github_branch')) {
+              localStorage.setItem('cedar_github_branch', String(cfg.githubBranch).trim());
+            }
+            if (cfg.githubToken && !localStorage.getItem('cedar_github_token')) {
+              localStorage.setItem('cedar_github_token', String(cfg.githubToken).trim());
+            }
+            if (typeof window.initGitHubSyncUI === 'function') {
+              setTimeout(() => window.initGitHubSyncUI(), 50);
+            }
+          } catch (e) {}
+
+          if ((window.CedarFTUE || window.OutpostFTUE) && typeof (window.CedarFTUE || window.OutpostFTUE).applyLiveTheme === 'function') {
+            (window.CedarFTUE || window.OutpostFTUE).applyLiveTheme(resolvedEditorTheme, false);
+          }
+          if (cfg.mediaPreferences && typeof window.applyMediaPreferences === 'function') {
+            window.applyMediaPreferences(Boolean(cfg.mediaPreferences.roundedImages));
+          }
         }
+      } catch (e) {
+        console.warn('[Vault] Could not parse config.json:', e);
       }
-    } catch (e) {
-      console.warn('[Vault] Could not parse config.json:', e);
-    }
 
-    // 2. Read editor/drafts.json (with fallback to writer/drafts.json and legacy static-writer/drafts.json)
-    let loadedDrafts = null;
-    try {
-      loadedDrafts = await readFileFromDirHandle(dirHandle, 'editor/drafts.json', 'json');
-    } catch (e) {}
-    if (!Array.isArray(loadedDrafts)) {
+      // 2. Read editor/drafts.json (with fallback to writer/drafts.json and legacy static-writer/drafts.json)
+      let loadedDrafts = null;
       try {
-        loadedDrafts = await readFileFromDirHandle(dirHandle, 'writer/drafts.json', 'json');
+        loadedDrafts = await readFileFromDirHandle(dirHandle, 'editor/drafts.json', 'json');
       } catch (e) {}
-    }
-    if (!Array.isArray(loadedDrafts)) {
-      try {
-        loadedDrafts = await readFileFromDirHandle(dirHandle, 'static-writer/drafts.json', 'json');
-      } catch (e) {}
-    }
+      if (!Array.isArray(loadedDrafts)) {
+        try {
+          loadedDrafts = await readFileFromDirHandle(dirHandle, 'writer/drafts.json', 'json');
+        } catch (e) {}
+      }
+      if (!Array.isArray(loadedDrafts)) {
+        try {
+          loadedDrafts = await readFileFromDirHandle(dirHandle, 'static-writer/drafts.json', 'json');
+        } catch (e) {}
+      }
 
-    const hadCanonicalDrafts = Array.isArray(loadedDrafts) && loadedDrafts.length > 0;
-    if (!Array.isArray(loadedDrafts)) {
-      loadedDrafts = [];
-    }
+      const hadCanonicalDrafts = Array.isArray(loadedDrafts) && loadedDrafts.length > 0;
+      if (!Array.isArray(loadedDrafts)) {
+        loadedDrafts = [];
+      }
 
-    // Build sets of deleted draft IDs, deleted slugs, and active/deleted categories
-    const deletedIdsSet = new Set(Array.isArray(window.projectConfig?.deletedDraftIds) ? window.projectConfig.deletedDraftIds : []);
-    try {
-      const localDelIds = JSON.parse(localStorage.getItem('cedar_deleted_draft_ids') || '[]');
-      if (Array.isArray(localDelIds)) localDelIds.forEach(id => deletedIdsSet.add(id));
-    } catch (e) {}
-    const deletedSlugsSet = new Set(Array.isArray(window.projectConfig?.deletedSlugs) ? window.projectConfig.deletedSlugs : []);
-    try {
-      const localDelSlugs = JSON.parse(localStorage.getItem('cedar_deleted_slugs') || '[]');
-      if (Array.isArray(localDelSlugs)) localDelSlugs.forEach(s => deletedSlugsSet.add(s));
-    } catch (e) {}
-    const deletedCatsLowerSet = new Set(
-      (Array.isArray(window.projectConfig?.deletedCategories) ? window.projectConfig.deletedCategories : [])
-        .map(c => String(c || '').trim().toLowerCase())
-        .filter(Boolean)
-    );
-    const activeCatsLowerSet = new Set(
-      (Array.isArray(window.projectConfig?.categories) ? window.projectConfig.categories : [])
-        .map(c => String(c || '').trim().toLowerCase())
-        .filter(c => Boolean(c) && !deletedCatsLowerSet.has(c))
-    );
+      // Build sets of deleted draft IDs, deleted slugs, and active/deleted categories strictly from the folder's config
+      const deletedIdsSet = new Set(Array.isArray(window.projectConfig?.deletedDraftIds) ? window.projectConfig.deletedDraftIds : []);
+      const deletedSlugsSet = new Set(Array.isArray(window.projectConfig?.deletedSlugs) ? window.projectConfig.deletedSlugs : []);
+      const deletedCatsLowerSet = new Set(
+        (Array.isArray(window.projectConfig?.deletedCategories) ? window.projectConfig.deletedCategories : [])
+          .map(c => String(c || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const activeCatsLowerSet = new Set(
+        (Array.isArray(window.projectConfig?.categories) ? window.projectConfig.categories : [])
+          .map(c => String(c || '').trim().toLowerCase())
+          .filter(c => Boolean(c) && !deletedCatsLowerSet.has(c))
+      );
 
-    // Filter loadedDrafts against deleted IDs, deleted slugs, and deleted/orphaned category aggregate pages
-    loadedDrafts = loadedDrafts.filter(d => {
-      if (!d) return false;
-      if (d.id && deletedIdsSet.has(d.id)) return false;
-      if (d.slug && deletedSlugsSet.has(d.slug)) return false;
-      if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
-        const catStr = String(d.categoryAggregate || d.title || '').trim().toLowerCase();
-        if (deletedCatsLowerSet.has(catStr) || (activeCatsLowerSet.size > 0 && !activeCatsLowerSet.has(catStr))) {
-          return false;
+      // Filter loadedDrafts against deleted IDs, deleted slugs, and deleted/orphaned category aggregate pages
+      loadedDrafts = loadedDrafts.filter(d => {
+        if (!d) return false;
+        if (d.id && deletedIdsSet.has(d.id)) return false;
+        if (d.slug && deletedSlugsSet.has(d.slug)) return false;
+        if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
+          const catStr = String(d.categoryAggregate || d.title || '').trim().toLowerCase();
+          if (deletedCatsLowerSet.has(catStr) || (activeCatsLowerSet.size > 0 && !activeCatsLowerSet.has(catStr))) {
+            return false;
+          }
         }
-      }
-      return true;
-    });
-
-    const orphanedDirsToDelete = [];
-
-    // Reconcile per-post and per-page folders (blog/{published,drafts,hidden} & pages/{published,drafts,hidden})
-    // so user-edited post/page data files are respected without resurrecting deleted drafts/categories
-    const mergeFolderDraft = (dJson, fallbackSlug, forcedType, basePath) => {
-      if (!dJson || typeof dJson !== 'object') return;
-      if (!dJson.slug && fallbackSlug) dJson.slug = fallbackSlug;
-
-      // Never resurrect an explicitly deleted draft ID or deleted slug
-      if ((dJson.id && deletedIdsSet.has(dJson.id)) || (dJson.slug && deletedSlugsSet.has(dJson.slug)) || (fallbackSlug && deletedSlugsSet.has(fallbackSlug))) {
-        if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
-        return;
-      }
-
-      const isPostId = Boolean(dJson.id && String(dJson.id).startsWith('post_'));
-      if (!isPostId && (dJson.isCategoryAggregate || forcedType === 'page' || (dJson.id && String(dJson.id).startsWith('page_')))) {
-        dJson.type = 'page';
-      } else if (isPostId || forcedType === 'post') {
-        dJson.type = 'post';
-      }
-
-      // Never resurrect an auto-generated category page whose category was deleted or is no longer in projectConfig.categories
-      if (dJson.isCategoryAggregate || String(dJson.id || '').startsWith('page_cat_')) {
-        const catStr = String(dJson.categoryAggregate || dJson.title || '').trim().toLowerCase();
-        if (deletedCatsLowerSet.has(catStr) || !activeCatsLowerSet.has(catStr)) {
-          if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
-          return;
-        }
-      }
-
-      const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
-      const explicitlyUnpublished = dJson.userUnpublished === true || (dJson.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + dJson.id) === 'true');
-      if (isFromPublishedTier && !explicitlyUnpublished) {
-        dJson.status = 'published';
-        dJson.everPublished = true;
-      }
-
-      const existingIdx = loadedDrafts.findIndex(existing => {
-        if (!existing) return false;
-        if (dJson.id && existing.id && dJson.id === existing.id) return true;
-        if (dJson.slug && existing.slug && dJson.slug === existing.slug && (existing.type || 'post') === (dJson.type || 'post')) return true;
-        return false;
+        return true;
       });
 
-      if (existingIdx !== -1) {
-        const existing = loadedDrafts[existingIdx];
-        // If this folder's slug differs from the canonical draft's current slug (e.g. an old slug before rename), clean up the old folder
-        if (fallbackSlug && existing.slug && fallbackSlug !== existing.slug && basePath) {
-          orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
-          return;
-        }
-        const existingUnpub = existing.userUnpublished === true || (existing.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + existing.id) === 'true');
-        const wasPublished = (existing.status === 'published' || dJson.status === 'published' || existing.everPublished || dJson.everPublished || Boolean(existing.publishedAt || dJson.publishedAt || existing.publishedDate || dJson.publishedDate || existing.publishedSlug || dJson.publishedSlug)) && !existingUnpub && !explicitlyUnpublished;
-        const existingTime = Number(existing.updatedAt || existing.publishedAt || existing.createdAt || 0);
-        const incomingTime = Number(dJson.updatedAt || dJson.publishedAt || dJson.createdAt || 0);
-        if (incomingTime > existingTime || (isFromPublishedTier && existing.status !== 'published')) {
-          const merged = Object.assign({}, existing, dJson);
-          if (wasPublished) {
-            merged.status = 'published';
-            merged.everPublished = true;
-          }
-          loadedDrafts[existingIdx] = merged;
-        } else if (wasPublished && existing.status !== 'published') {
-          existing.status = 'published';
-          existing.everPublished = true;
-        }
-      } else {
-        // When editor/drafts.json exists and is non-empty, it is the canonical manifest of all studio drafts.
-        // Any draft folder in blog/drafts, blog/hidden, pages/hidden, or any folder with a studio draft.json ID
-        // that is absent from editor/drafts.json is an orphaned leftover from a deleted draft and must be pruned, not resurrected!
-        if (hadCanonicalDrafts && (!isFromPublishedTier || Boolean(dJson.id))) {
+      const orphanedDirsToDelete = [];
+
+      // Reconcile per-post and per-page folders (blog/{published,drafts,hidden} & pages/{published,drafts,hidden})
+      // so user-edited post/page data files are respected without resurrecting deleted drafts/categories
+      const mergeFolderDraft = (dJson, fallbackSlug, forcedType, basePath) => {
+        if (!dJson || typeof dJson !== 'object') return;
+        if (!dJson.slug && fallbackSlug) dJson.slug = fallbackSlug;
+
+        // Never resurrect an explicitly deleted draft ID or deleted slug
+        if ((dJson.id && deletedIdsSet.has(dJson.id)) || (dJson.slug && deletedSlugsSet.has(dJson.slug)) || (fallbackSlug && deletedSlugsSet.has(fallbackSlug))) {
           if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
           return;
         }
-        if ((dJson.everPublished || dJson.publishedAt || dJson.publishedDate || dJson.publishedSlug) && !explicitlyUnpublished && dJson.status !== 'hidden') {
+
+        const isPostId = Boolean(dJson.id && String(dJson.id).startsWith('post_'));
+        if (!isPostId && (dJson.isCategoryAggregate || forcedType === 'page' || (dJson.id && String(dJson.id).startsWith('page_')))) {
+          dJson.type = 'page';
+        } else if (isPostId || forcedType === 'post') {
+          dJson.type = 'post';
+        }
+
+        // Never resurrect an auto-generated category page whose category was deleted or is no longer in projectConfig.categories
+        if (dJson.isCategoryAggregate || String(dJson.id || '').startsWith('page_cat_')) {
+          const catStr = String(dJson.categoryAggregate || dJson.title || '').trim().toLowerCase();
+          if (deletedCatsLowerSet.has(catStr) || !activeCatsLowerSet.has(catStr)) {
+            if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+            return;
+          }
+        }
+
+        const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
+        const explicitlyUnpublished = dJson.userUnpublished === true || (dJson.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + dJson.id) === 'true');
+        if (isFromPublishedTier && !explicitlyUnpublished) {
           dJson.status = 'published';
           dJson.everPublished = true;
         }
-        loadedDrafts.push(dJson);
-      }
-    };
 
-    const scanTierFolder = async (basePath, expectedType) => {
-      try {
-        const entries = await listSubfolderEntries(dirHandle, basePath);
-        if (!Array.isArray(entries) || entries.length === 0) return;
-        const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
-        await Promise.all(entries.map(async (entry) => {
-          if (entry.kind === 'directory' && !['drafts', 'published', 'hidden', 'images', 'media', 'rss'].includes(entry.name)) {
-            const slug = entry.name;
-            try {
-              const dJson = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/draft.json`, 'json');
-              if (dJson) {
-                mergeFolderDraft(dJson, slug, expectedType, basePath);
-              } else if (!loadedDrafts.some(d => d.slug === slug) && (!hadCanonicalDrafts || isFromPublishedTier)) {
-                const md = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/index.md`, 'text');
-                if (md && typeof window.importContent === 'function') {
-                  const parsed = window.importContent(md);
-                  if (parsed) {
-                    parsed.slug = slug;
-                    if (expectedType) parsed.type = expectedType;
-                    mergeFolderDraft(parsed, slug, expectedType, basePath);
+        const existingIdx = loadedDrafts.findIndex(existing => {
+          if (!existing) return false;
+          if (dJson.id && existing.id && dJson.id === existing.id) return true;
+          if (dJson.slug && existing.slug && dJson.slug === existing.slug && (existing.type || 'post') === (dJson.type || 'post')) return true;
+          return false;
+        });
+
+        if (existingIdx !== -1) {
+          const existing = loadedDrafts[existingIdx];
+          if (fallbackSlug && existing.slug && fallbackSlug !== existing.slug && basePath) {
+            orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+            return;
+          }
+          const existingUnpub = existing.userUnpublished === true || (existing.id && typeof localStorage !== 'undefined' && localStorage.getItem('cedar_user_unpublished_' + existing.id) === 'true');
+          const wasPublished = (existing.status === 'published' || dJson.status === 'published' || existing.everPublished || dJson.everPublished || Boolean(existing.publishedAt || dJson.publishedAt || existing.publishedDate || dJson.publishedDate || existing.publishedSlug || dJson.publishedSlug)) && !existingUnpub && !explicitlyUnpublished;
+          const existingTime = Number(existing.updatedAt || existing.publishedAt || existing.createdAt || 0);
+          const incomingTime = Number(dJson.updatedAt || dJson.publishedAt || dJson.createdAt || 0);
+          if (incomingTime > existingTime || (isFromPublishedTier && existing.status !== 'published')) {
+            const merged = Object.assign({}, existing, dJson);
+            if (wasPublished) {
+              merged.status = 'published';
+              merged.everPublished = true;
+            }
+            loadedDrafts[existingIdx] = merged;
+          } else if (wasPublished && existing.status !== 'published') {
+            existing.status = 'published';
+            existing.everPublished = true;
+          }
+        } else {
+          if (hadCanonicalDrafts && (!isFromPublishedTier || Boolean(dJson.id))) {
+            if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
+            return;
+          }
+          if ((dJson.everPublished || dJson.publishedAt || dJson.publishedDate || dJson.publishedSlug) && !explicitlyUnpublished && dJson.status !== 'hidden') {
+            dJson.status = 'published';
+            dJson.everPublished = true;
+          }
+          loadedDrafts.push(dJson);
+        }
+      };
+
+      const scanTierFolder = async (basePath, expectedType) => {
+        try {
+          const entries = await listSubfolderEntries(dirHandle, basePath);
+          if (!Array.isArray(entries) || entries.length === 0) return;
+          const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
+          await Promise.all(entries.map(async (entry) => {
+            if (entry.kind === 'directory' && !['drafts', 'published', 'hidden', 'images', 'media', 'rss'].includes(entry.name)) {
+              const slug = entry.name;
+              try {
+                const dJson = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/draft.json`, 'json');
+                if (dJson) {
+                  mergeFolderDraft(dJson, slug, expectedType, basePath);
+                } else if (!loadedDrafts.some(d => d.slug === slug) && (!hadCanonicalDrafts || isFromPublishedTier)) {
+                  const md = await readFileFromDirHandle(dirHandle, `${basePath}/${slug}/index.md`, 'text');
+                  if (md && typeof window.importContent === 'function') {
+                    const parsed = window.importContent(md);
+                    if (parsed) {
+                      parsed.slug = slug;
+                      if (expectedType) parsed.type = expectedType;
+                      mergeFolderDraft(parsed, slug, expectedType, basePath);
+                    }
                   }
                 }
-              }
-            } catch (err) {}
-          }
-        }));
-      } catch (err) {}
-    };
+              } catch (err) {}
+            }
+          }));
+        } catch (err) {}
+      };
 
-    // Parallelize folder scans for immediate fast load without the 4-second delay
-    await Promise.all([
-      scanTierFolder('blog/published', 'post'),
-      scanTierFolder('blog/drafts', 'post'),
-      scanTierFolder('blog/hidden', 'post'),
-      scanTierFolder('pages/published', 'page'),
-      scanTierFolder('pages/hidden', 'page'),
-      scanTierFolder('blog', null),
-      scanTierFolder('pages', 'page'),
-      scanTierFolder('drafts', null),
-      scanTierFolder('hidden', null)
-    ]);
+      await Promise.all([
+        scanTierFolder('blog/published', 'post'),
+        scanTierFolder('blog/drafts', 'post'),
+        scanTierFolder('blog/hidden', 'post'),
+        scanTierFolder('pages/published', 'page'),
+        scanTierFolder('pages/hidden', 'page'),
+        scanTierFolder('blog', null),
+        scanTierFolder('pages', 'page'),
+        scanTierFolder('drafts', null),
+        scanTierFolder('hidden', null)
+      ]);
 
-    if (orphanedDirsToDelete.length > 0) {
-      for (const orphanPath of orphanedDirsToDelete) {
-        try { await removeDirEntry(dirHandle, orphanPath); } catch (e) {}
+      if (orphanedDirsToDelete.length > 0) {
+        for (const orphanPath of orphanedDirsToDelete) {
+          try { await removeDirEntry(dirHandle, orphanPath); } catch (e) {}
+        }
       }
-    }
 
-    // Hydrate CedarStore cleanly from the loaded folder's drafts so stale in-memory items never linger
-    if (Array.isArray(loadedDrafts)) {
-      if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
-        window.CedarStore.hydrateFromList(loadedDrafts);
-        loadedDrafts = window.CedarStore.getAllDrafts();
+      // Guard: if the folder had neither config nor drafts, do not wipe existing in-memory drafts
+      if (!cfg && loadedDrafts.length === 0) {
+        return false;
       }
-      window.drafts = loadedDrafts;
-      if (!window.currentDraft && loadedDrafts.length > 0) {
-        window.currentDraft = loadedDrafts[0];
-      }
-    }
 
-    // Hydrate binary images from the connected folder into memory (imageRegistry, authors, mediaLibrary, drafts) and Virtual Storage
-    try {
-      await hydrateImagesFromFolder(dirHandle);
-    } catch (imgHydrateErr) {
-      console.warn('[Vault] Image hydration notice:', imgHydrateErr);
+      // Hydrate CedarStore cleanly from the loaded folder's drafts so stale in-memory items never linger
+      if (Array.isArray(loadedDrafts)) {
+        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+          window.CedarStore.hydrateFromList(loadedDrafts);
+          loadedDrafts = window.CedarStore.getAllDrafts();
+        }
+        window.drafts = loadedDrafts;
+        window.__vaultDraftsHydratedAtBoot = true;
+        if (!window.currentDraft && loadedDrafts.length > 0) {
+          window.currentDraft = loadedDrafts[0];
+        }
+      }
+
+      // Hydrate binary images from the connected folder into memory (imageRegistry, authors, mediaLibrary, drafts) and Virtual Storage
+      try {
+        await hydrateImagesFromFolder(dirHandle);
+      } catch (imgHydrateErr) {
+        console.warn('[Vault] Image hydration notice:', imgHydrateErr);
+      }
+    } finally {
+      _isLoadingFromFolder = false;
     }
 
     if (typeof window.saveProjectToStorage === 'function') {
       window.saveProjectToStorage();
     }
 
-    if (Array.isArray(loadedDrafts) && loadedDrafts.length > 0) {
-      const draftsKey = window.STORAGE_KEY_DRAFTS || 'sheesh_static_writer_drafts_v2';
-      try {
-        localStorage.setItem(draftsKey, JSON.stringify(loadedDrafts));
-      } catch (qErr) {}
+    if (Array.isArray(window.drafts) && window.drafts.length > 0) {
+      if (window.CedarStore && typeof window.CedarStore.persistToLocalStorage === 'function') {
+        window.CedarStore.persistToLocalStorage(window.drafts);
+      }
       if (typeof window.saveDraftsToStorage === 'function') {
         window.saveDraftsToStorage();
       }
@@ -1747,6 +1795,9 @@
   }
 
   async function writeVaultFile(path, data) {
+    if (_isLoadingFromFolder) {
+      return true;
+    }
     if (rootHandle) {
       await writeFileToDirHandle(rootHandle, path, data);
     }
@@ -1776,7 +1827,7 @@
         const file = await fileHandle.getFile();
         if (as === 'json') {
           const text = await file.text();
-          return JSON.parse(text);
+          return JSON.parse(text.replace(/^\uFEFF/, ''));
         } else if (as === 'blob') {
           return file;
         } else if (as === 'arrayBuffer' || as === 'arraybuffer') {
@@ -2038,6 +2089,7 @@
     resolvePathOnHandle,
     writeFileToDirHandle,
     readFileFromDirHandle,
+    isHandleAccessible,
     isExistingCedarFolder,
     isExistingOutpostFolder,
     copyBlogToFolder,
@@ -2074,11 +2126,15 @@
             throw new Error('Permission to access directory was denied.');
           }
 
-          rootHandle = handle;
+          const hasExistingBlog = await isExistingCedarFolder(handle);
           localStorage.removeItem('cedar_vault_disconnected'); try { localStorage.removeItem('outpost_vault_disconnected'); } catch(e){}
           if (handle && handle.name) localStorage.setItem('cedar_vault_name', handle.name);
           localStorage.setItem('cedar_vault_connected', '1');
           await saveHandleToDb(handle);
+          if (hasExistingBlog) {
+            await loadBlogFromFolder(handle);
+          }
+          rootHandle = handle;
           await ensureVaultStructure();
           this.emit('connected', { name: handle.name, info: vaultInfo });
           updateAllVaultBadges();
@@ -2112,14 +2168,29 @@
               permState = await savedHandle.queryPermission({ mode: 'readwrite' });
             } catch (e) {}
             if (permState === 'granted') {
-              rootHandle = savedHandle;
-              await ensureVaultStructure();
-              await loadBlogFromFolder(rootHandle);
-              localStorage.setItem('cedar_vault_connected', '1');
-              localStorage.setItem('cedar_vault_name', savedHandle.name);
-              this.emit('connected', { name: savedHandle.name, info: vaultInfo });
-              updateAllVaultBadges();
-              return true;
+              const accessible = await isHandleAccessible(savedHandle);
+              if (accessible) {
+                await loadBlogFromFolder(savedHandle);
+                rootHandle = savedHandle;
+                await ensureVaultStructure();
+                localStorage.setItem('cedar_vault_connected', '1');
+                localStorage.setItem('cedar_vault_name', savedHandle.name);
+                this.emit('connected', { name: savedHandle.name, info: vaultInfo });
+                updateAllVaultBadges();
+                return true;
+              } else {
+                // The folder was renamed or moved on disk — clear stale handle so we never wipe drafts
+                console.warn('[Vault] Saved handle "' + savedHandle.name + '" was renamed or moved on disk.');
+                await removeHandleFromDb();
+                window.__cedarCachedSavedHandle = null;
+                rootHandle = null;
+                updateAllVaultBadges('disconnected');
+                if (typeof window.showToast === 'function' && !isLocalServer()) {
+                  setTimeout(() => {
+                    window.showToast(`Folder "${savedHandle.name}" was renamed or moved — please re-select your blog folder.`, 5000);
+                  }, 400);
+                }
+              }
             } else {
               // Permission requires a user gesture (e.g. after browser restart); unlock automatically on first interaction
               updateAllVaultBadges('needs-permission');
@@ -2154,15 +2225,18 @@
 
         if ((isConn || savedPath) && savedPath) {
           const savedName = (localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name')) || savedPath.split(/[\\/]/).filter(Boolean).pop() || 'Vault';
-          rootHandle = createServerBridgeHandle(savedPath, savedName);
-          await ensureVaultStructure();
-          await loadBlogFromFolder(rootHandle);
-          localStorage.setItem('cedar_vault_connected', '1');
-          localStorage.setItem('cedar_vault_path', savedPath);
-          localStorage.setItem('cedar_vault_name', savedName);
-          this.emit('connected', { name: rootHandle.name, info: vaultInfo });
-          updateAllVaultBadges();
-          return true;
+          const bridgeHandle = createServerBridgeHandle(savedPath, savedName);
+          if (await isHandleAccessible(bridgeHandle)) {
+            await loadBlogFromFolder(bridgeHandle);
+            rootHandle = bridgeHandle;
+            await ensureVaultStructure();
+            localStorage.setItem('cedar_vault_connected', '1');
+            localStorage.setItem('cedar_vault_path', savedPath);
+            localStorage.setItem('cedar_vault_name', savedName);
+            this.emit('connected', { name: rootHandle.name, info: vaultInfo });
+            updateAllVaultBadges();
+            return true;
+          }
         }
       }
 
@@ -2188,24 +2262,20 @@
         }
       }
       if (savedHandle && granted) {
+        const accessible = await isHandleAccessible(savedHandle);
+        if (!accessible) {
+          await removeHandleFromDb();
+          window.__cedarCachedSavedHandle = null;
+          rootHandle = null;
+          updateAllVaultBadges('disconnected');
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Folder "${savedHandle.name}" was renamed or moved — please select your blog folder.`, 4500);
+          }
+          return false;
+        }
+        await loadBlogFromFolder(savedHandle);
         rootHandle = savedHandle;
         await ensureVaultStructure();
-        // Check if the browser's current state is newer than the disk folder (e.g. edits made while handle was awaiting permission)
-        let browserIsNewer = false;
-        try {
-          const diskCfg = await readFileFromDirHandle(rootHandle, 'editor/config.json', 'json').catch(() => null)
-            || await readFileFromDirHandle(rootHandle, 'config.json', 'json').catch(() => null);
-          const diskTs = Number((diskCfg && diskCfg.lastUpdated) || 0);
-          const memTs = Number((window.projectConfig && window.projectConfig.lastUpdated) || 0);
-          if (diskCfg && memTs > diskTs && (!diskCfg.name || !window.projectConfig?.name || diskCfg.name === window.projectConfig.name)) {
-            browserIsNewer = true;
-          }
-        } catch (e) {}
-        if (browserIsNewer) {
-          await copyBlogToFolder(rootHandle);
-        } else {
-          await loadBlogFromFolder(rootHandle);
-        }
         localStorage.setItem('cedar_vault_connected', '1');
         localStorage.setItem('cedar_vault_name', savedHandle.name);
         this.emit('connected', { name: savedHandle.name, info: vaultInfo });

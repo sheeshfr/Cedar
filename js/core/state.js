@@ -3007,9 +3007,36 @@
 
         const slimConfig = JSON.parse(JSON.stringify(safeConfig));
         delete slimConfig.logo;
+        if (typeof slimConfig.authorAvatar === 'string' && slimConfig.authorAvatar.startsWith('data:')) {
+          delete slimConfig.authorAvatar;
+        }
+        if (Array.isArray(slimConfig.authors)) {
+          slimConfig.authors = slimConfig.authors.map(a => {
+            if (a && typeof a === 'object' && typeof a.avatar === 'string' && a.avatar.startsWith('data:')) {
+              const ac = { ...a };
+              delete ac.avatar;
+              return ac;
+            }
+            return a;
+          });
+        }
+        if (Array.isArray(slimConfig.activityLog)) {
+          slimConfig.activityLog = slimConfig.activityLog.map(act => {
+            if (act && act.data && typeof act.data.authorAvatar === 'string' && act.data.authorAvatar.startsWith('data:')) {
+              return { ...act, data: { ...act.data, authorAvatar: undefined } };
+            }
+            return act;
+          });
+        }
         if (slimConfig.design && slimConfig.design.branding) {
           delete slimConfig.design.branding.files;
           delete slimConfig.design.branding.originalLogo;
+          if (typeof slimConfig.design.branding.generalLogo === 'string' && slimConfig.design.branding.generalLogo.startsWith('data:')) {
+            slimConfig.design.branding.generalLogo = 'media/branding/logo.png';
+          }
+          if (typeof slimConfig.design.branding.tabLogo === 'string' && slimConfig.design.branding.tabLogo.startsWith('data:')) {
+            slimConfig.design.branding.tabLogo = 'media/branding/icon.png';
+          }
         }
 
         localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(slimConfig));
@@ -4817,13 +4844,13 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           { draft: rssDraft, offset: 0 }
         ];
         builtInOrderOffsets.forEach(({ draft, offset }) => {
-          if (draft && (!draft.createdAt || draft.createdAt < blogCreatedTs)) {
+          if (draft && (!draft.createdAt || draft.createdAt < blogCreatedTs - 10000)) {
             const targetTs = blogCreatedTs + offset;
             draft.createdAt = targetTs;
-            if (!draft.updatedAt || draft.updatedAt < blogCreatedTs) {
+            if (!draft.updatedAt || draft.updatedAt < blogCreatedTs - 10000) {
               draft.updatedAt = targetTs;
             }
-            if (!draft.publishedAt || draft.publishedAt < blogCreatedTs) {
+            if (!draft.publishedAt || draft.publishedAt < blogCreatedTs - 10000) {
               draft.publishedAt = targetTs;
             }
             const isoDay = new Date(targetTs).toISOString().split('T')[0];
@@ -4883,6 +4910,27 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           }
         }
       }
+      // Clean any serialized non-Blob `blob` ({}) or stale `blob:` URLs from previous sessions
+      ['images', 'tempImages'].forEach(listKey => {
+        if (Array.isArray(d[listKey])) {
+          d[listKey].forEach(im => {
+            if (im && typeof im === 'object') {
+              if (im.blob && (typeof Blob === 'undefined' || !(im.blob instanceof Blob))) {
+                delete im.blob;
+                changed = true;
+              }
+              if (typeof im.objectUrl === 'string' && im.objectUrl.startsWith('blob:') && !im.blob) {
+                delete im.objectUrl;
+                changed = true;
+              }
+              if (typeof im.src === 'string' && im.src.startsWith('blob:') && !im.blob) {
+                im.src = im.dataUrl || im.relativePath || (im.filename ? `/blog/images/${im.filename}` : '');
+                changed = true;
+              }
+            }
+          });
+        }
+      });
       return changed;
     },
 
@@ -4917,6 +4965,16 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           return outTag;
         });
       };
+      const slimImageEntry = (im) => {
+        if (!im || typeof im !== 'object') return im;
+        const copy = { ...im };
+        delete copy.dataUrl;
+        delete copy.blob;
+        if (typeof copy.src === 'string' && copy.src.startsWith('data:')) {
+          copy.src = copy.relativePath || (copy.filename ? `/blog/images/${copy.filename}` : '');
+        }
+        return copy;
+      };
       try {
         localStorage.setItem(key, JSON.stringify(list));
         return true;
@@ -4933,13 +4991,13 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             const slimAll = list.map(d => {
               if (!d || typeof d !== 'object') return d;
               const slimHtml = slimProseImgs(d.proseHtml, d.images);
-              const slimImages = Array.isArray(d.images)
-                ? d.images.map(im => (im && typeof im === 'object' && im.dataUrl) ? { ...im, dataUrl: undefined, blob: undefined } : im)
-                : d.images;
-              const slimTemp = Array.isArray(d.tempImages)
-                ? d.tempImages.map(im => (im && typeof im === 'object' && im.dataUrl) ? { ...im, dataUrl: undefined, blob: undefined } : im)
-                : d.tempImages;
-              return { ...d, proseHtml: slimHtml, images: slimImages, tempImages: slimTemp };
+              const slimImages = Array.isArray(d.images) ? d.images.map(slimImageEntry) : d.images;
+              const slimTemp = Array.isArray(d.tempImages) ? d.tempImages.map(slimImageEntry) : d.tempImages;
+              const copy = { ...d, proseHtml: slimHtml, images: slimImages, tempImages: slimTemp };
+              if (typeof copy.authorAvatar === 'string' && copy.authorAvatar.startsWith('data:')) {
+                delete copy.authorAvatar;
+              }
+              return copy;
             });
             localStorage.setItem(key, JSON.stringify(slimAll));
             return true;
@@ -5896,15 +5954,29 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
                 copy.images = copy.images.map(im => {
 
-                  if (!im || !im.dataUrl) return im;
+                  if (!im || typeof im !== 'object') return im;
 
                   const imCopy = { ...im };
 
                   delete imCopy.dataUrl;
 
+                  delete imCopy.blob;
+
+                  if (typeof imCopy.src === 'string' && imCopy.src.startsWith('data:')) {
+
+                    imCopy.src = imCopy.relativePath || (imCopy.filename ? `/blog/images/${imCopy.filename}` : '');
+
+                  }
+
                   return imCopy;
 
                 });
+
+              }
+
+              if (typeof copy.authorAvatar === 'string' && copy.authorAvatar.startsWith('data:')) {
+
+                delete copy.authorAvatar;
 
               }
 

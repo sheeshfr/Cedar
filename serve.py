@@ -143,6 +143,7 @@ def find_and_open_vault(folder_name, saved_path="", do_open=True):
 
     if folder_name:
         candidates = [
+            os.path.join(drive_root, "sheesh.gg", ".UserSpace", folder_name),
             os.path.join(drive_root, folder_name),
             os.path.join(os.path.dirname(DIRECTORY), folder_name),
             os.path.join(drive_root, "Website", folder_name),
@@ -927,7 +928,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             try:
                 if as_format == 'json':
-                    with open(full_path, 'r', encoding='utf-8') as f:
+                    with open(full_path, 'r', encoding='utf-8-sig') as f:
                         resp_bytes = f.read().encode('utf-8')
                     content_type = 'application/json; charset=utf-8'
                 elif as_format in ('binary', 'blob', 'arraybuffer'):
