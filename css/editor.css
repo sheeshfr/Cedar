@@ -1356,7 +1356,7 @@
   margin: 0;
   display: inline-block;
   max-width: 100%;
-  min-width: min(200px, 100%);
+  min-width: min(246px, 100%);
   position: relative;
   transition: width 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -1364,6 +1364,7 @@
 .image-media-wrapper {
   position: relative;
   display: inline-block;
+  width: 100%;
   max-width: 100%;
   border-radius: var(--post-image-radius, 0px);
   overflow: hidden;
@@ -1384,6 +1385,7 @@
 
 .captioned-image-container img {
   display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
   border-radius: var(--post-image-radius, 0px);

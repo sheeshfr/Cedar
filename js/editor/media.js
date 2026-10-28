@@ -906,6 +906,8 @@
   // SMART IMAGE SIZING, INTEGER SCALING & +/- SCALE CONTROLS
   // =========================================================================
 
+  const MIN_IMAGE_WIDTH_PX = 246;
+
   function getEditorMarginWidth(container) {
     const proseEl = (container && container.closest)
       ? container.closest('#rich-canvas-prose, .article-prose, .canvas-prose')
@@ -913,16 +915,19 @@
     if (proseEl && proseEl.clientWidth > 200) {
       return proseEl.clientWidth;
     }
-    return 728;
+    return 820;
   }
 
   function buildImageScaleSteps(naturalWidth, marginWidth) {
-    const minAdjustablePx = Math.min(200, marginWidth);
-    const isTiny = naturalWidth > 0 && naturalWidth < 360;
+    const minAdjustablePx = Math.min(MIN_IMAGE_WIDTH_PX, marginWidth);
+    const isTiny = naturalWidth > 0 && naturalWidth < MIN_IMAGE_WIDTH_PX;
     const stepsSet = new Set();
 
+    // Always include the exact minimum size (246px / 30% of 820px) as the lowest step
+    stepsSet.add(minAdjustablePx);
+
     if (isTiny) {
-      // Integer multiples of naturalWidth (1x, 2x, 3x, 4x...) within [minAdjustablePx, marginWidth]
+      // Integer multiples of naturalWidth (2x, 3x, 4x...) that are >= minAdjustablePx and <= marginWidth
       let k = 1;
       while (k * naturalWidth <= marginWidth) {
         const px = Math.round(k * naturalWidth);
@@ -931,17 +936,15 @@
         }
         k++;
       }
-      // Ensure at least minAdjustablePx and marginWidth are reachable, plus intermediate steps if naturalWidth is ~180-359
-      stepsSet.add(Math.max(minAdjustablePx, Math.min(marginWidth, naturalWidth)));
-      if (stepsSet.size < 4) {
-        [0.35, 0.5, 0.68, 0.84, 1.0].forEach(pct => {
-          const px = Math.round(marginWidth * pct);
-          if (px >= minAdjustablePx && px <= marginWidth) stepsSet.add(px);
+      if (stepsSet.size < 5) {
+        [0.30, 0.44, 0.58, 0.72, 0.86, 1.00].forEach(pct => {
+          const px = Math.max(minAdjustablePx, Math.round(marginWidth * pct));
+          if (px <= marginWidth) stepsSet.add(px);
         });
       }
       stepsSet.add(marginWidth);
     } else {
-      // Clean percentage steps of marginWidth for normal and huge images
+      // Clean percentage steps of marginWidth starting at 30% (246px) up to 100%
       [0.30, 0.44, 0.58, 0.72, 0.86, 1.00].forEach(pct => {
         const px = Math.max(minAdjustablePx, Math.round(marginWidth * pct));
         if (px <= marginWidth) stepsSet.add(px);
@@ -952,7 +955,7 @@
     }
 
     const sorted = Array.from(stepsSet).sort((a, b) => a - b);
-    // Filter out steps that are too close (< 24px apart) except keep first and last
+    // Filter out steps that are too close (< 24px apart) except keep first (minAdjustablePx) and last (marginWidth)
     const filtered = [];
     for (let i = 0; i < sorted.length; i++) {
       if (i === 0 || i === sorted.length - 1 || sorted[i] - filtered[filtered.length - 1] >= 24) {
@@ -964,7 +967,7 @@
 
   function updateScaleButtonsState(container, renderedPx, marginWidth) {
     if (!container) return;
-    const minAdjustablePx = Math.min(200, marginWidth);
+    const minAdjustablePx = Math.min(MIN_IMAGE_WIDTH_PX, marginWidth);
     const downBtn = container.querySelector('.btn-scale-img-down');
     const upBtn = container.querySelector('.btn-scale-img-up');
     if (downBtn) {
@@ -996,8 +999,8 @@
 
     const naturalWidth = img.naturalWidth;
     const marginWidth = getEditorMarginWidth(container);
-    const minAdjustablePx = Math.min(200, marginWidth);
-    const isTiny = naturalWidth > 0 && naturalWidth < 360;
+    const minAdjustablePx = Math.min(MIN_IMAGE_WIDTH_PX, marginWidth);
+    const isTiny = naturalWidth > 0 && naturalWidth < MIN_IMAGE_WIDTH_PX;
 
     if (isTiny) {
       container.setAttribute('data-pixelated', 'true');
@@ -1010,15 +1013,11 @@
 
     if (!scaleWidth) {
       // Smart default rule of thumb:
-      // 1. Tiny pictures (< 360px): inflate via integer scaling so they showcase crisply without faking pixels
+      // 1. Pictures naturally smaller than minimum size (246px): bump up to minimum size (246px) with crisp pixel rendering
       // 2. Huge pictures (>= marginWidth): scale down to 100% of editor margins
-      // 3. Medium pictures (360px .. marginWidth): fit comfortably within margins
+      // 3. Medium pictures (246px .. marginWidth): display at natural width within margins
       if (isTiny) {
-        const minMult = Math.max(2, Math.ceil(280 / naturalWidth));
-        const maxMult = Math.max(1, Math.floor(marginWidth / naturalWidth));
-        const mult = Math.min(minMult, maxMult);
-        const targetPx = Math.min(marginWidth, Math.max(minAdjustablePx, mult * naturalWidth));
-        scaleWidth = `${targetPx}px`;
+        scaleWidth = `${minAdjustablePx}px`;
         container.setAttribute('data-scale-width', scaleWidth);
       } else if (naturalWidth >= marginWidth * 0.92) {
         scaleWidth = '100%';
@@ -1070,10 +1069,10 @@
     const img = container.querySelector('img');
     if (!figure || !wrapper || !img) return;
 
-    const naturalWidth = img.naturalWidth || 728;
+    const naturalWidth = img.naturalWidth || 820;
     const marginWidth = getEditorMarginWidth(container);
-    const minAdjustablePx = Math.min(200, marginWidth);
-    const isTiny = naturalWidth > 0 && naturalWidth < 360;
+    const minAdjustablePx = Math.min(MIN_IMAGE_WIDTH_PX, marginWidth);
+    const isTiny = naturalWidth > 0 && naturalWidth < MIN_IMAGE_WIDTH_PX;
 
     const steps = buildImageScaleSteps(naturalWidth, marginWidth);
     if (steps.length === 0) return;

@@ -2450,12 +2450,14 @@
     .captioned-image-container figure {
       margin: 0 auto;
       display: inline-block;
+      min-width: min(246px, 100%);
       max-width: 100% !important;
       box-sizing: border-box;
     }
 
     .image-media-wrapper {
       display: inline-block;
+      width: 100%;
       max-width: 100% !important;
       box-sizing: border-box;
       border-radius: ${mediaImgRadius};
@@ -2468,6 +2470,7 @@
     .captioned-image-container img,
     .article-prose img {
       display: block;
+      width: 100%;
       max-width: 100% !important;
       height: auto;
       box-sizing: border-box;

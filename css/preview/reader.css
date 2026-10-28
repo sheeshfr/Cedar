@@ -862,11 +862,13 @@
     .captioned-image-container figure {
       margin: 0 auto;
       display: inline-block;
+      min-width: min(246px, 100%);
       max-width: 100%;
     }
     .image-media-wrapper {
       position: relative;
       display: inline-block;
+      width: 100%;
       max-width: 100%;
       border-radius: var(--post-image-radius, 0px);
       overflow: hidden;
@@ -874,6 +876,7 @@
     .image-media-wrapper img {
       margin: 0 auto;
       display: block;
+      width: 100%;
       max-width: 100%;
       height: auto;
       border-radius: var(--post-image-radius, 0px);
