@@ -509,12 +509,26 @@
       projectConfig.categories.forEach(cat => {
         const name = typeof cat === 'object' ? cat.name : cat;
         if (name && name !== 'Uncategorized') {
+          const catLower = String(name).trim().toLowerCase();
+          const catDraft = draftsList.find(d => {
+            if (!d || d.type !== 'page') return false;
+            return (d.isCategoryAggregate && d.categoryAggregate && d.categoryAggregate.trim().toLowerCase() === catLower) ||
+                   (d.id && d.id.startsWith('page_cat_') && (d.title || '').trim().toLowerCase() === catLower);
+          });
+          const hasDeletedCats = Array.isArray(projectConfig.deletedCategories) && projectConfig.deletedCategories.length > 0;
+          const draftUpdated = catDraft ? (catDraft.updatedAt || catDraft.createdAt || 0) : 0;
+          const wasRenamed = Boolean(
+            (catDraft && catDraft.categoryRenamed) ||
+            (hasDeletedCats && draftUpdated > (projectConfig.createdAt || 0) + 60000)
+          );
           syntheticItems.push({
             id: 'synth-cat-' + name,
             type: 'category',
-            timestamp: projectConfig.createdAt || Date.now(),
+            timestamp: (wasRenamed && draftUpdated) ? draftUpdated : ((catDraft && catDraft.createdAt) || projectConfig.createdAt || Date.now()),
             data: {
-              action: 'added',
+              action: wasRenamed ? 'renamed' : 'added',
+              oldName: (catDraft && catDraft.oldCategoryName) || '',
+              newName: name,
               categoryName: name
             }
           });
@@ -798,7 +812,7 @@
         });
 
         // 2. Also match against category aggregate pages in drafts (if not explicitly deleted)
-        const matchCatDraft = (!matchCat && !deletedCatsSet.has(catLower)) ? allDraftsList.find(d => {
+        const matchCatDraft = !deletedCatsSet.has(catLower) ? allDraftsList.find(d => {
           if (!d || d.type !== 'page') return false;
           return (d.isCategoryAggregate && d.categoryAggregate && d.categoryAggregate.trim().toLowerCase() === catLower) ||
                  (d.id && d.id.startsWith('page_cat_') && (d.title || '').trim().toLowerCase() === catLower);
@@ -818,14 +832,41 @@
           }
         }
 
+        // Upgrade category entry to 'renamed' if its aggregate draft indicates a rename
+        if (matchCatDraft && entry.data) {
+          const draftUpdated = matchCatDraft.updatedAt || matchCatDraft.createdAt || 0;
+          const wasRenamed = Boolean(
+            matchCatDraft.categoryRenamed ||
+            (deletedCatsSet.size > 0 && draftUpdated > ((getProjectConfig() && getProjectConfig().createdAt) || 0) + 60000)
+          );
+          if (wasRenamed && entry.data.action !== 'renamed') {
+            entry.data.action = 'renamed';
+            entry.data.newName = canonicalName || catName;
+            if (matchCatDraft.oldCategoryName) entry.data.oldName = matchCatDraft.oldCategoryName;
+            if (draftUpdated) entry.timestamp = draftUpdated;
+            addedCount++;
+          } else if (wasRenamed && draftUpdated && entry.timestamp !== draftUpdated && entry.id && entry.id.startsWith('synth-cat-')) {
+            entry.timestamp = draftUpdated;
+            addedCount++;
+          }
+        }
+
         if (canonicalKey && !seenCatEntities.has(canonicalKey)) {
           seenCatEntities.set(canonicalKey, i);
         } else if (canonicalKey) {
-          // Duplicate category entry found in log!
+          // Duplicate category entry found in log! Preserve rename metadata and newer timestamp.
           const prevIdx = seenCatEntities.get(canonicalKey);
           const prevEntry = log[prevIdx];
-          if (canonicalName && prevEntry.data) {
-            prevEntry.data.categoryName = canonicalName;
+          if (prevEntry && prevEntry.data) {
+            if (canonicalName) prevEntry.data.categoryName = canonicalName;
+            if (entry.data && entry.data.action === 'renamed') {
+              prevEntry.data.action = 'renamed';
+              prevEntry.data.newName = canonicalName || entry.data.newName || prevEntry.data.categoryName;
+              if (entry.data.oldName) prevEntry.data.oldName = entry.data.oldName;
+            }
+            if ((entry.timestamp || 0) > (prevEntry.timestamp || 0) && (entry.data?.action === 'renamed' || prevEntry.data?.action === 'renamed')) {
+              prevEntry.timestamp = entry.timestamp;
+            }
           }
           log.splice(i, 1);
           i--;
@@ -2542,15 +2583,10 @@
       let text = '';
       if (cat.action === 'added') {
         text = `Created the <strong>${escapeHtml(catName || 'New')}</strong> category`;
-      } else if (cat.action === 'renamed') {
-        const oldDisplayName = String(cat.oldName || '').trim();
-        if (oldDisplayName) {
-          text = `Renamed the <strong>${escapeHtml(oldDisplayName)}</strong> category to <strong>${escapeHtml(catName)}</strong>`;
-        } else {
-          text = `Renamed the <strong>${escapeHtml(catName)}</strong> category`;
-        }
+      } else if (cat.action === 'renamed' || cat.action === 'updated') {
+        text = `Updated category name to <strong>${escapeHtml(catName)}</strong>`;
       } else {
-        text = `Edited the <strong>${escapeHtml(catName || '')}</strong> category`;
+        text = `Updated category name to <strong>${escapeHtml(catName || '')}</strong>`;
       }
 
       const card = document.createElement('article');

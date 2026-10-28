@@ -128,6 +128,8 @@
           d.categoryAggregate = newTrimmed;
           d.id = `page_cat_${newSlug}`;
           d.updatedAt = Date.now();
+          d.categoryRenamed = true;
+          d.oldCategoryName = oldTrimmed;
           if (window.CedarStore) {
             if (prevId && prevId !== d.id && typeof window.CedarStore.removePage === 'function') {
               window.CedarStore.removePage(prevId);
@@ -168,22 +170,25 @@
     }
 
     // 4. Update activityLog in projectConfig:
-    // Update all category entries and category page entries so the Feed reflects the renamed category immediately!
+    // Update all category entries and category page entries so the Feed reflects the renamed category and update date immediately!
+    const nowTs = Date.now();
+    let updatedExistingCatLog = false;
     const effectiveLog = (typeof window.getActivityLog === 'function') ? window.getActivityLog() : (projectConfig.activityLog || []);
     if (Array.isArray(effectiveLog)) {
       effectiveLog.forEach(item => {
         if (!item || !item.data) return;
         if (item.type === 'category') {
-          const cName = String(item.data.categoryName || '').trim();
-          if (cName.toLowerCase() === oldTrimmed.toLowerCase()) {
+          const cName = String(item.data.categoryName || item.data.newName || '').trim();
+          if (cName.toLowerCase() === oldTrimmed.toLowerCase() || item.id === `synth-cat-${oldTrimmed}`) {
+            item.timestamp = nowTs;
+            item.data.action = 'renamed';
+            item.data.oldName = oldTrimmed;
+            item.data.newName = newTrimmed;
             item.data.categoryName = newTrimmed;
-          }
-          const cOld = String(item.data.oldName || '').trim();
-          if (cOld.toLowerCase() === oldTrimmed.toLowerCase()) {
-            item.data.oldName = newTrimmed;
-          }
-          if (item.id === `synth-cat-${oldTrimmed}`) {
-            item.id = `synth-cat-${newTrimmed}`;
+            if (item.id === `synth-cat-${oldTrimmed}`) {
+              item.id = `synth-cat-${newTrimmed}`;
+            }
+            updatedExistingCatLog = true;
           }
         }
         if (item.type === 'page') {
@@ -196,10 +201,15 @@
           }
         }
       });
+      if (updatedExistingCatLog) {
+        effectiveLog.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        projectConfig.activityLog = effectiveLog;
+        try { localStorage.setItem('cedar_activity_log', JSON.stringify(effectiveLog)); } catch (e) {}
+      }
       saveProjectToStorage();
     }
 
-    if (typeof window.logActivity === 'function') {
+    if (!updatedExistingCatLog && typeof window.logActivity === 'function') {
       window.logActivity('category', {
         action: 'renamed',
         oldName: oldTrimmed,

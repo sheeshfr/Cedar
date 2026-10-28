@@ -472,8 +472,9 @@
             br.files['media/branding/icon.png'] = dUrl;
           }
         }
+        let pendingBrandingFilesJson = null;
         if (Object.keys(br.files).length > 0) {
-          try { localStorage.setItem('cedar_branding_files_v1', JSON.stringify(br.files)); } catch (e) {}
+          try { pendingBrandingFilesJson = JSON.stringify(br.files); } catch (e) {}
         }
 
         // Merge Milestones from milestones.json, config.milestones, and activityLog
@@ -517,16 +518,41 @@
           try { localStorage.setItem('cedar_github_pat', cfg.githubToken); } catch (e) {}
         }
 
-        const finalConfigText = JSON.stringify(cfg);
-        localStorage.setItem('sheesh_static_writer_project_v1', finalConfigText);
+        const fullConfigJson = JSON.stringify(cfg);
+        if (vStorage && typeof vStorage.writeFile === 'function') {
+          try {
+            await vStorage.writeFile('editor/config.json', fullConfigJson);
+            await vStorage.writeFile('config.json', fullConfigJson);
+            await vStorage.writeFile('editor/milestones.json', JSON.stringify(mergedMilestones));
+          } catch (e) {}
+        }
+
+        // Prepare slimmed config for localStorage (prevent 5MB QuotaExceededError from duplicate base64 logos)
+        const cfgForLocalStorage = JSON.parse(fullConfigJson);
+        delete cfgForLocalStorage.logo;
+        if (cfgForLocalStorage.design && cfgForLocalStorage.design.branding) {
+          delete cfgForLocalStorage.design.branding.files;
+        }
+        try {
+          localStorage.setItem('sheesh_static_writer_project_v1', JSON.stringify(cfgForLocalStorage));
+        } catch (quotaErr) {
+          try {
+            if (cfgForLocalStorage.design && cfgForLocalStorage.design.branding) {
+              delete cfgForLocalStorage.design.branding.originalLogo;
+            }
+            localStorage.setItem('sheesh_static_writer_project_v1', JSON.stringify(cfgForLocalStorage));
+          } catch (e2) {}
+        }
+
         if (cfg.domain) {
-          localStorage.setItem('cedar_user_domain', cfg.domain);
+          try { localStorage.setItem('cedar_user_domain', cfg.domain); } catch (e) {}
           try { localStorage.setItem('outpost_user_domain', cfg.domain); } catch (e) {}
         }
         if (typeof window.projectConfig !== 'undefined') {
           window.projectConfig = cfg;
         }
         configUpdated = true;
+        window._pendingBrandingFilesJson = pendingBrandingFilesJson;
       } catch (e) {
         console.warn('[Migration] Failed to parse config during applyImport:', e);
       }
@@ -554,7 +580,37 @@
               return true;
             });
           }
-          localStorage.setItem('sheesh_static_writer_drafts_v2', JSON.stringify(parsed));
+          const fullDraftsJson = JSON.stringify(parsed);
+          if (vStorage && typeof vStorage.writeFile === 'function') {
+            try {
+              await vStorage.writeFile('editor/drafts.json', fullDraftsJson);
+            } catch (e) {}
+          }
+          try {
+            localStorage.setItem('sheesh_static_writer_drafts_v2', fullDraftsJson);
+          } catch (quotaErr) {
+            // Fallback: strip heavy inline base64 dataUrl in localStorage if filename/relativePath is in vStorage
+            try {
+              const slimDrafts = parsed.map(d => {
+                if (!d || typeof d !== 'object') return d;
+                const copy = Object.assign({}, d);
+                if (Array.isArray(copy.images)) {
+                  copy.images = copy.images.map(img => {
+                    if (!img || typeof img !== 'object') return img;
+                    const ic = Object.assign({}, img);
+                    if ((ic.filename || ic.relativePath) && ic.dataUrl && ic.dataUrl.length > 500) {
+                      delete ic.dataUrl;
+                    }
+                    return ic;
+                  });
+                }
+                return copy;
+              });
+              localStorage.setItem('sheesh_static_writer_drafts_v2', JSON.stringify(slimDrafts));
+            } catch (e2) {
+              console.warn('[Migration] Quota fallback for drafts failed:', e2);
+            }
+          }
           importedDraftsCount = parsed.length;
           if (typeof window.drafts !== 'undefined') {
             window.drafts = parsed;
@@ -563,6 +619,11 @@
       } catch (e) {
         console.warn('[Migration] Failed to parse drafts during applyImport:', e);
       }
+    }
+
+    if (window._pendingBrandingFilesJson) {
+      try { localStorage.setItem('cedar_branding_files_v1', window._pendingBrandingFilesJson); } catch (e) {}
+      delete window._pendingBrandingFilesJson;
     }
 
     // 3. Sync to Vault if connected
