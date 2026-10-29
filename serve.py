@@ -161,7 +161,7 @@ def find_and_open_vault(folder_name, saved_path="", do_open=True):
 
     # 2. Search near parent/drive root for folder_name (excluding the Cedar app folder itself)
     if folder_name:
-        for root_dir in [os.path.dirname(DIRECTORY), os.path.join(drive_root, "Website")]:
+        for root_dir in [os.path.join(drive_root, "sheesh.gg", ".UserSpace"), os.path.dirname(DIRECTORY), os.path.join(drive_root, "Website")]:
             if os.path.isdir(root_dir):
                 for root, dirs, files in os.walk(root_dir):
                     if is_app_directory(root):

@@ -1664,19 +1664,24 @@
     updateCanvasHeaderVisibility
   };
 
-  // Flush any pending draft changes immediately upon page unload or reload
+  // Flush any pending draft changes upon page unload or reload ONLY if boot hydration completed and an active edit timer is pending
   window.addEventListener('beforeunload', () => {
     try {
+      if (!window.__cedarBootHydrationComplete) return;
       const cur = window.currentDraft;
-      if (typeof window.syncFormToDraft === 'function') {
-        window.syncFormToDraft();
-      }
-      if (cur && typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(cur)) {
-        if (typeof window.discardBlankDraft === 'function') {
-          window.discardBlankDraft(cur);
+      if (window.saveTimeout) {
+        clearTimeout(window.saveTimeout);
+        window.saveTimeout = null;
+        if (typeof window.syncFormToDraft === 'function') {
+          window.syncFormToDraft();
         }
-      } else if (typeof window.saveDraftsToStorage === 'function') {
-        window.saveDraftsToStorage();
+        if (cur && typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(cur)) {
+          if (typeof window.discardBlankDraft === 'function') {
+            window.discardBlankDraft(cur);
+          }
+        } else if (typeof window.saveDraftsToStorage === 'function') {
+          window.saveDraftsToStorage();
+        }
       }
     } catch (e) {}
   });

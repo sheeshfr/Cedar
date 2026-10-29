@@ -681,46 +681,4 @@
       });
     }
 
-    window.addEventListener('dragover', (e) => {
-      if (draggedBlock || draggedGalleryItem) {
-        if (isFalseDropZone(e)) {
-          e.preventDefault();
-          clearIndicators();
-          dropAction = null;
-          if (e.dataTransfer) {
-            try { e.dataTransfer.dropEffect = 'none'; } catch (err) {}
-          }
-        }
-      }
-    });
-
-    window.addEventListener('drop', (e) => {
-      if (draggedBlock || draggedGalleryItem) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDragTermination();
-      }
-    });
-
-    window.hideDropIndicator = handleDragTermination;
-    document.addEventListener('dragend', handleDragTermination);
-    document.addEventListener('mouseup', handleDragTermination);
-    window.addEventListener('blur', handleDragTermination);
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') handleDragTermination();
-    });
-  }
-
-  // =========================================================================
-  // GLOBAL & NAMESPACE EXPORTS
-  // =========================================================================
-
-  window.setupBlockDragAndDrop = setupBlockDragAndDrop;
-
-  const dragExports = {
-    setupBlockDragAndDrop
-  };
-
-  window.Cedar.editor = Object.assign(window.Cedar.editor || {}, dragExports);
-  window.Outpost.editor = window.Cedar.editor;
-})();
+    window.addEventList

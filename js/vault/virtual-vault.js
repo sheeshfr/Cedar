@@ -383,6 +383,73 @@
 
   let initPromise = null;
 
+  function unwrapDataUrlString(input) {
+    if (typeof input !== 'string') return '';
+    let current = input.trim();
+    let depth = 0;
+    while (depth < 10 && current.startsWith('data:')) {
+      const commaIdx = current.indexOf(',');
+      if (commaIdx === -1) break;
+      const payload = current.slice(commaIdx + 1).trim();
+      // "data:" in base64 starts with "ZGF0YT" ("ZGF0YTo")
+      if (!payload.startsWith('ZGF0YT')) break;
+      try {
+        const decoded = atob(payload.replace(/\s/g, ''));
+        if (decoded && decoded.trim().startsWith('data:')) {
+          current = decoded.trim();
+          depth++;
+          continue;
+        }
+      } catch (e) {}
+      break;
+    }
+    return current;
+  }
+
+  function dataUrlStringToBlob(dataUrl) {
+    const clean = unwrapDataUrlString(dataUrl);
+    if (!clean || !clean.startsWith('data:')) return null;
+    try {
+      const commaIdx = clean.indexOf(',');
+      if (commaIdx === -1) return null;
+      const header = clean.slice(0, commaIdx);
+      const payload = clean.slice(commaIdx + 1);
+      const mimeMatch = header.match(/^data:([^;,]+)/i);
+      const mime = (mimeMatch && mimeMatch[1]) ? mimeMatch[1] : 'image/png';
+      if (/;base64/i.test(header)) {
+        const bstr = atob(payload.replace(/\s/g, ''));
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) u8arr[n] = bstr.charCodeAt(n);
+        return new Blob([u8arr], { type: mime });
+      } else {
+        return new Blob([decodeURIComponent(payload)], { type: mime });
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function ensureBinaryImageBlob(blob) {
+    if (!blob || !(blob instanceof Blob) || blob.size < 6) return { blob, repaired: false };
+    try {
+      const headBuf = await blob.slice(0, 16).arrayBuffer();
+      const b = new Uint8Array(headBuf);
+      // Check if blob bytes start with ASCII "data:" (100, 97, 116, 97, 58)
+      if (b[0] === 100 && b[1] === 97 && b[2] === 116 && b[3] === 97 && b[4] === 58) {
+        const txt = await blob.text();
+        const repairedBlob = dataUrlStringToBlob(txt);
+        if (repairedBlob && repairedBlob.size > 0) {
+          return { blob: repairedBlob, repaired: true };
+        }
+      }
+    } catch (e) {}
+    return { blob, repaired: false };
+  }
+
+  window.unwrapCorruptedDataUrl = unwrapDataUrlString;
+  window.Cedar.unwrapCorruptedDataUrl = unwrapDataUrlString;
+
   // =========================================================================
   // PUBLIC CEDAR VIRTUAL STORAGE INTERFACE
   // =========================================================================
@@ -457,9 +524,18 @@
 
     async writeFile(path, data) {
       if (activeMode === 'uninitialized') await this.init();
-      if (activeMode === 'opfs') return await opfsWriteFile(path, data);
-      if (activeMode === 'indexeddb') return await idbWriteFile(path, data);
-      return await memWriteFile(path, data);
+      let payload = data;
+      const isImgPath = /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(path || ''));
+      if (typeof payload === 'string' && (payload.trim().startsWith('data:image/') || (isImgPath && payload.trim().startsWith('data:')))) {
+        const converted = dataUrlStringToBlob(payload);
+        if (converted) payload = converted;
+      } else if (payload instanceof Blob && isImgPath) {
+        const checked = await ensureBinaryImageBlob(payload);
+        if (checked && checked.blob) payload = checked.blob;
+      }
+      if (activeMode === 'opfs') return await opfsWriteFile(path, payload);
+      if (activeMode === 'indexeddb') return await idbWriteFile(path, payload);
+      return await memWriteFile(path, payload);
     },
 
     async writeBlob(path, blob) {
@@ -468,9 +544,24 @@
 
     async readFile(path, as = 'text') {
       if (activeMode === 'uninitialized') await this.init();
-      if (activeMode === 'opfs') return await opfsReadFile(path, as);
-      if (activeMode === 'indexeddb') return await idbReadFile(path, as);
-      return await memReadFile(path, as);
+      let res;
+      if (activeMode === 'opfs') res = await opfsReadFile(path, as);
+      else if (activeMode === 'indexeddb') res = await idbReadFile(path, as);
+      else res = await memReadFile(path, as);
+
+      if (as === 'blob' && res instanceof Blob && /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(path || ''))) {
+        const checked = await ensureBinaryImageBlob(res);
+        if (checked.repaired && checked.blob) {
+          res = checked.blob;
+          // Self-heal the file in storage so subsequent reads are already binary
+          try {
+            if (activeMode === 'opfs') await opfsWriteFile(path, res);
+            else if (activeMode === 'indexeddb') await idbWriteFile(path, res);
+            else await memWriteFile(path, res);
+          } catch (e) {}
+        }
+      }
+      return res;
     },
 
     async readBlob(path) {

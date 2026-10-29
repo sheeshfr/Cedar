@@ -1501,22 +1501,18 @@
 
 
 
-    if (draftsNeedSave && typeof saveDraftsToStorage === 'function') {
-
-      saveDraftsToStorage();
-
+    if (draftsNeedSave) {
+      if (window.__cedarBootHydrationComplete && typeof saveDraftsToStorage === 'function') {
+        saveDraftsToStorage();
+      } else if (window.CedarStore && typeof window.CedarStore.persistToLocalStorage === 'function') {
+        window.CedarStore.persistToLocalStorage(allDrafts);
+      }
     }
 
-
-
     if (changed) {
-
-      if (typeof saveProjectToStorage === 'function') {
-
+      if (window.__cedarBootHydrationComplete && typeof saveProjectToStorage === 'function') {
         saveProjectToStorage();
-
       }
-
     }
 
     return changed || draftsNeedSave;
@@ -1773,16 +1769,55 @@
 
   // =========================================================================
 
+  function slimActivityLogArray(logArr) {
+    if (!Array.isArray(logArr)) return [];
+    return logArr.filter(a => {
+      if (!a) return false;
+      if (a.id === 'synth-page-page_about_cedar' || a.id === 'act-page-page_about_cedar') return false;
+      if (a.type === 'page' && a.data && (a.data.id === 'page_about_cedar' || a.data.slug === 'about-cedar' || String(a.data.title || '').trim().toLowerCase() === 'about cedar')) return false;
+      return true;
+    }).slice(0, 60).map(a => {
+      if (!a || typeof a !== 'object') return a;
+      if (!a.data || typeof a.data !== 'object') return a;
+      const dCopy = Object.assign({}, a.data);
+      delete dCopy.images;
+      delete dCopy.tempImages;
+      delete dCopy.proseHtml;
+      delete dCopy.markdown;
+      delete dCopy.customHtml;
+      if (typeof dCopy.authorAvatar === 'string' && dCopy.authorAvatar.startsWith('data:')) delete dCopy.authorAvatar;
+      if (typeof dCopy.coverImage === 'string' && dCopy.coverImage.startsWith('data:')) delete dCopy.coverImage;
+      if (typeof dCopy.dataUrl === 'string' && dCopy.dataUrl.startsWith('data:')) delete dCopy.dataUrl;
+      return Object.assign({}, a, { data: dCopy });
+    });
+  }
+
   function loadProjectFromStorage() {
 
     try {
 
+      // Immediately free any bloated cedar_activity_log in localStorage so quota is never blocked
+      try {
+        const rawLog = localStorage.getItem('cedar_activity_log');
+        if (rawLog && rawLog.length > 40000) {
+          try {
+            const parsedLog = JSON.parse(rawLog);
+            localStorage.setItem('cedar_activity_log', JSON.stringify(slimActivityLogArray(parsedLog)));
+          } catch (_) {
+            localStorage.removeItem('cedar_activity_log');
+          }
+        }
+      } catch (_) {}
+
       const raw = localStorage.getItem(STORAGE_KEY_PROJECT);
 
-      if (raw) {
+      if (raw && !window.__vaultConfigHydratedAtBoot) {
 
         projectConfig = Object.assign(projectConfig, JSON.parse(raw));
 
+      }
+      if (projectConfig && projectConfig._vaultRecoveryDrafts) {
+        delete projectConfig._vaultRecoveryDrafts;
       }
 
       const savedTheme = (projectConfig.design && (projectConfig.design.customColors || projectConfig.design.blogTheme || projectConfig.design.activeTheme)) || projectConfig.editorTheme || localStorage.getItem('cedar_theme') || localStorage.getItem('cedar_editor_theme') || 'basalt';
@@ -2187,33 +2222,7 @@
       } catch (e) {}
 
       if (Array.isArray(projectConfig.activityLog)) {
-
-        projectConfig.activityLog = projectConfig.activityLog.filter(a => {
-
-          if (!a) return false;
-
-          if (a.id === 'synth-page-page_about_cedar' || a.id === 'act-page-page_about_cedar') return false;
-
-          if (a.type === 'page' && a.data && (a.data.id === 'page_about_cedar' || a.data.slug === 'about-cedar' || String(a.data.title || '').trim().toLowerCase() === 'about cedar')) return false;
-
-          return true;
-
-        });
-
-        projectConfig.activityLog.forEach(a => {
-
-          if (a && a.data) {
-
-            delete a.data.images;
-
-            delete a.data.tempImages;
-
-            delete a.data.proseHtml;
-
-          }
-
-        });
-
+        projectConfig.activityLog = slimActivityLogArray(projectConfig.activityLog);
       }
 
 
@@ -2336,24 +2345,106 @@
 
       }, projectConfig.design.branding || {});
 
+      const unwrapDataUrl = (val) => {
+        if (typeof window.unwrapCorruptedDataUrl === 'function') return window.unwrapCorruptedDataUrl(val);
+        if (typeof val !== 'string') return '';
+        let cur = val.trim();
+        let d = 0;
+        while (d < 10 && cur.startsWith('data:')) {
+          const ci = cur.indexOf(',');
+          if (ci === -1) break;
+          const p = cur.slice(ci + 1).trim();
+          if (!p.startsWith('ZGF0YT')) break;
+          try {
+            const dec = atob(p.replace(/\s/g, ''));
+            if (dec && dec.trim().startsWith('data:')) {
+              cur = dec.trim();
+              d++;
+              continue;
+            }
+          } catch (e) {}
+          break;
+        }
+        return cur;
+      };
+
+      if (projectConfig.logo) projectConfig.logo = unwrapDataUrl(projectConfig.logo);
+      if (projectConfig.authorAvatar) projectConfig.authorAvatar = unwrapDataUrl(projectConfig.authorAvatar);
+      if (Array.isArray(projectConfig.authors)) {
+        projectConfig.authors.forEach(a => {
+          if (a && typeof a === 'object' && a.avatar) {
+            a.avatar = unwrapDataUrl(a.avatar);
+          }
+        });
+      }
+      if (projectConfig.design.branding.generalLogo) {
+        projectConfig.design.branding.generalLogo = unwrapDataUrl(projectConfig.design.branding.generalLogo);
+      }
+      if (projectConfig.design.branding.originalLogo) {
+        projectConfig.design.branding.originalLogo = unwrapDataUrl(projectConfig.design.branding.originalLogo);
+      }
+      if (projectConfig.design.branding.tabLogo) {
+        projectConfig.design.branding.tabLogo = unwrapDataUrl(projectConfig.design.branding.tabLogo);
+      }
+      if (projectConfig.design.branding.files && typeof projectConfig.design.branding.files === 'object') {
+        Object.keys(projectConfig.design.branding.files).forEach(k => {
+          if (typeof projectConfig.design.branding.files[k] === 'string') {
+            projectConfig.design.branding.files[k] = unwrapDataUrl(projectConfig.design.branding.files[k]);
+          }
+        });
+      }
+
+      let storedLsFav = '';
+      let storedLsLogo = '';
+      try {
+        const lsFiles = JSON.parse(localStorage.getItem('cedar_branding_files_v1') || localStorage.getItem('outpost_branding_files_v1') || '{}');
+        if (lsFiles && typeof lsFiles === 'object') {
+          let lsChanged = false;
+          Object.keys(lsFiles).forEach(k => {
+            if (typeof lsFiles[k] === 'string') {
+              const unwrapped = unwrapDataUrl(lsFiles[k]);
+              if (unwrapped !== lsFiles[k]) {
+                lsFiles[k] = unwrapped;
+                lsChanged = true;
+              }
+            }
+          });
+          if (lsChanged) {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(lsFiles));
+          }
+          if (lsFiles['media/branding/icon.png'] && lsFiles['media/branding/icon.png'].startsWith('data:')) {
+            storedLsFav = lsFiles['media/branding/icon.png'];
+          }
+          if (lsFiles['media/branding/logo.png'] && lsFiles['media/branding/logo.png'].startsWith('data:')) {
+            storedLsLogo = lsFiles['media/branding/logo.png'];
+          }
+        }
+      } catch (e) {}
+
       if (
         projectConfig.design.branding.generalLogo === 'logo.png' ||
         projectConfig.design.branding.generalLogo === '/logo.png' ||
+        projectConfig.design.branding.generalLogo === 'media/branding/logo.png' ||
+        projectConfig.design.branding.generalLogo === '/media/branding/logo.png' ||
         projectConfig.design.branding.generalLogo === 'images/Lamp.png' ||
         projectConfig.design.branding.generalLogo === '/images/Lamp.png'
       ) {
-
-        projectConfig.design.branding.generalLogo = '';
-
+        if (projectConfig.design.branding.originalLogo && projectConfig.design.branding.originalLogo.startsWith('data:')) {
+          projectConfig.design.branding.generalLogo = projectConfig.design.branding.originalLogo;
+        } else if (storedLsLogo) {
+          projectConfig.design.branding.generalLogo = storedLsLogo;
+        } else {
+          projectConfig.design.branding.generalLogo = '';
+        }
       }
 
       if (
         projectConfig.design.branding.tabLogo === 'icon.png' ||
-        projectConfig.design.branding.tabLogo === '/icon.png'
+        projectConfig.design.branding.tabLogo === '/icon.png' ||
+        projectConfig.design.branding.tabLogo === 'media/branding/icon.png' ||
+        projectConfig.design.branding.tabLogo === '/media/branding/icon.png'
       ) {
-
-        projectConfig.design.branding.tabLogo = '';
-
+        projectConfig.design.branding.tabLogo = storedLsFav || '';
       }
 
       try {
@@ -2578,34 +2669,12 @@
 
 
 
+    if (effectiveConfig._vaultRecoveryDrafts) {
+      delete effectiveConfig._vaultRecoveryDrafts;
+    }
+
     if (Array.isArray(effectiveConfig.activityLog)) {
-
-      effectiveConfig.activityLog = effectiveConfig.activityLog.filter(a => {
-
-        if (!a) return false;
-
-        if (a.id === 'synth-page-page_about_cedar' || a.id === 'act-page-page_about_cedar') return false;
-
-        if (a.type === 'page' && a.data && (a.data.id === 'page_about_cedar' || a.data.slug === 'about-cedar' || String(a.data.title || '').trim().toLowerCase() === 'about cedar')) return false;
-
-        return true;
-
-      });
-
-      effectiveConfig.activityLog.forEach(a => {
-
-        if (a && a.data) {
-
-          delete a.data.images;
-
-          delete a.data.tempImages;
-
-          delete a.data.proseHtml;
-
-        }
-
-      });
-
+      effectiveConfig.activityLog = slimActivityLogArray(effectiveConfig.activityLog);
     }
 
 
@@ -2635,6 +2704,68 @@
       if (ghTokenLs) effectiveConfig.githubToken = ghTokenLs;
     } catch (e) {}
 
+    const unwrapForSave = (val) => {
+      if (typeof window.unwrapCorruptedDataUrl === 'function') return window.unwrapCorruptedDataUrl(val);
+      if (typeof val !== 'string') return '';
+      let cur = val.trim();
+      let d = 0;
+      while (d < 10 && cur.startsWith('data:')) {
+        const ci = cur.indexOf(',');
+        if (ci === -1) break;
+        const p = cur.slice(ci + 1).trim();
+        if (!p.startsWith('ZGF0YT')) break;
+        try {
+          const dec = atob(p.replace(/\s/g, ''));
+          if (dec && dec.trim().startsWith('data:')) {
+            cur = dec.trim();
+            d++;
+            continue;
+          }
+        } catch (e) {}
+        break;
+      }
+      return cur;
+    };
+
+    const dataUrlToBinaryBlob = (dataUrl) => {
+      const clean = unwrapForSave(dataUrl);
+      if (!clean || !clean.startsWith('data:')) return null;
+      try {
+        const parts = clean.split(',');
+        if (parts.length !== 2) return null;
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+        const bstr = atob(parts[1].replace(/\s/g, ''));
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) u8arr[n] = bstr.charCodeAt(n);
+        return new Blob([u8arr], { type: mime });
+      } catch (e) {
+        return null;
+      }
+    };
+
+    if (effectiveConfig.logo) effectiveConfig.logo = unwrapForSave(effectiveConfig.logo);
+    if (effectiveConfig.authorAvatar) effectiveConfig.authorAvatar = unwrapForSave(effectiveConfig.authorAvatar);
+    if (Array.isArray(effectiveConfig.authors)) {
+      effectiveConfig.authors.forEach(a => {
+        if (a && typeof a === 'object' && a.avatar) a.avatar = unwrapForSave(a.avatar);
+      });
+    }
+    if (effectiveConfig.design && effectiveConfig.design.branding && typeof effectiveConfig.design.branding === 'object') {
+      const brClean = effectiveConfig.design.branding;
+      if (brClean.generalLogo) brClean.generalLogo = unwrapForSave(brClean.generalLogo);
+      if (brClean.originalLogo) brClean.originalLogo = unwrapForSave(brClean.originalLogo);
+      if (brClean.tabLogo) brClean.tabLogo = unwrapForSave(brClean.tabLogo);
+      if (brClean.files && typeof brClean.files === 'object') {
+        Object.keys(brClean.files).forEach(k => {
+          if (typeof brClean.files[k] === 'string') {
+            brClean.files[k] = unwrapForSave(brClean.files[k]);
+          }
+        });
+      }
+    }
+
     const serializedConfig = JSON.stringify(effectiveConfig, null, 2);
     const publicRootConfigObj = Object.assign({}, effectiveConfig);
     delete publicRootConfigObj.milestones;
@@ -2662,9 +2793,9 @@
     if (effectiveConfig.design && effectiveConfig.design.branding && typeof effectiveConfig.design.branding === 'object') {
       const br = effectiveConfig.design.branding;
       const brFiles = Object.assign({}, window.brandingFiles || {}, br.files || {});
-      const logoData = (typeof br.generalLogo === 'string' && br.generalLogo.startsWith('data:image/')) ? br.generalLogo : (brFiles['media/branding/logo.png'] || '');
-      const origData = (typeof br.originalLogo === 'string' && br.originalLogo.startsWith('data:image/')) ? br.originalLogo : (brFiles['media/branding/logo-original.png'] || logoData);
-      const favData = (typeof br.tabLogo === 'string' && br.tabLogo.startsWith('data:image/')) ? br.tabLogo : (brFiles['media/branding/icon.png'] || '');
+      const logoData = unwrapForSave((typeof br.generalLogo === 'string' && br.generalLogo.startsWith('data:image/')) ? br.generalLogo : (brFiles['media/branding/logo.png'] || ''));
+      const origData = unwrapForSave((typeof br.originalLogo === 'string' && br.originalLogo.startsWith('data:image/')) ? br.originalLogo : (brFiles['media/branding/logo-original.png'] || logoData));
+      const favData = unwrapForSave((typeof br.tabLogo === 'string' && br.tabLogo.startsWith('data:image/')) ? br.tabLogo : (brFiles['media/branding/icon.png'] || ''));
       if (logoData && logoData.startsWith('data:image/')) {
         authorAvatarFilesToWrite.push({ relPath: 'media/branding/logo.png', dataUrl: logoData, filename: 'logo.png' });
       }
@@ -2678,9 +2809,11 @@
 
 
 
-    // 1. High-Capacity Virtual Vault (OPFS / IndexedDB)
+    // 1. High-Capacity Virtual Vault (OPFS / IndexedDB) — only write after boot hydration so script-load never overwrites OPFS
 
-    if ((window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function') {
+    const canWriteVaultConfig = Boolean(window.__cedarBootHydrationComplete || window.__vaultConfigHydratedAtBoot);
+
+    if (canWriteVaultConfig && (window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function') {
 
       try {
 
@@ -2700,7 +2833,10 @@
         if (authorAvatarFilesToWrite.length > 0) {
           authorAvatarFilesToWrite.forEach(af => {
             try {
-              (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile(af.relPath, af.dataUrl);
+              const blob = dataUrlToBinaryBlob(af.dataUrl);
+              if (blob) {
+                (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile(af.relPath, blob);
+              }
             } catch (e) {}
           });
         }
@@ -2719,7 +2855,7 @@
 
     const savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || (window.projectConfig && window.projectConfig.vaultPath) || '').trim();
 
-    if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
+    if (canWriteVaultConfig && window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
 
       try {
 
@@ -2739,15 +2875,8 @@
         if (authorAvatarFilesToWrite.length > 0) {
           authorAvatarFilesToWrite.forEach(af => {
             try {
-              const parts = af.dataUrl.split(',');
-              if (parts.length === 2) {
-                const mimeMatch = parts[0].match(/:(.*?);/);
-                const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-                const bstr = atob(parts[1]);
-                let n = bstr.length;
-                const u8arr = new Uint8Array(n);
-                while (n--) u8arr[n] = bstr.charCodeAt(n);
-                const blob = new Blob([u8arr], { type: mime });
+              const blob = dataUrlToBinaryBlob(af.dataUrl);
+              if (blob) {
                 window.SheeshVault.writeFile(af.relPath, blob);
               }
             } catch (e) {}
@@ -2974,7 +3103,7 @@
 
       }
 
-      if (safeConfig.design && safeConfig.design.branding && safeConfig.design.branding.files) {
+      if (safeConfig.design && safeConfig.design.branding) {
         safeConfig = {
           ...safeConfig,
           design: {
@@ -2985,8 +3114,9 @@
           }
         };
         delete safeConfig.design.branding.files;
-        if (safeConfig.design.branding.generalLogo && safeConfig.logo === safeConfig.design.branding.generalLogo) {
-          delete safeConfig.logo;
+        delete safeConfig.logo;
+        if (safeConfig.design.branding.generalLogo && safeConfig.design.branding.originalLogo) {
+          delete safeConfig.design.branding.originalLogo;
         }
       }
 
@@ -2999,10 +3129,11 @@
       } catch (quotaErr) {
 
         try {
-          localStorage.removeItem('cedar_branding_files_v1');
-          localStorage.removeItem('outpost_branding_files_v1');
+          localStorage.removeItem('cedar_activity_log');
           localStorage.removeItem('cedar_browser_backup_drafts');
           localStorage.removeItem('cedar_browser_backup_project');
+          localStorage.removeItem('outpost_browser_backup_drafts');
+          localStorage.removeItem('outpost_browser_backup_project');
         } catch (e) {}
 
         const slimConfig = JSON.parse(JSON.stringify(safeConfig));
@@ -3031,15 +3162,18 @@
         if (slimConfig.design && slimConfig.design.branding) {
           delete slimConfig.design.branding.files;
           delete slimConfig.design.branding.originalLogo;
-          if (typeof slimConfig.design.branding.generalLogo === 'string' && slimConfig.design.branding.generalLogo.startsWith('data:')) {
-            slimConfig.design.branding.generalLogo = 'media/branding/logo.png';
-          }
-          if (typeof slimConfig.design.branding.tabLogo === 'string' && slimConfig.design.branding.tabLogo.startsWith('data:')) {
-            slimConfig.design.branding.tabLogo = 'media/branding/icon.png';
-          }
         }
 
-        localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(slimConfig));
+        try {
+          localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(slimConfig));
+        } catch (quotaErr2) {
+          if (slimConfig.design && slimConfig.design.branding) {
+            if (typeof slimConfig.design.branding.generalLogo === 'string' && slimConfig.design.branding.generalLogo.startsWith('data:')) {
+              slimConfig.design.branding.generalLogo = '';
+            }
+          }
+          localStorage.setItem(STORAGE_KEY_PROJECT, JSON.stringify(slimConfig));
+        }
 
       }
 
@@ -4979,6 +5113,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         localStorage.setItem(key, JSON.stringify(list));
         return true;
       } catch (qErr1) {
+        try { localStorage.removeItem('cedar_activity_log'); } catch (_) {}
         try {
           const slimProse = list.map(d => {
             if (!d || typeof d !== 'object') return d;
@@ -5209,7 +5344,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             localItem.everPublished === true || diskItem.everPublished === true ||
             Boolean(localItem.publishedAt || diskItem.publishedAt || localItem.publishedDate || diskItem.publishedDate || localItem.publishedSlug || diskItem.publishedSlug)) && !explicitlyUnpublished;
 
-          if (diskTime >= memTime) {
+          const diskMdLen = String(diskItem.markdown || '').trim().length;
+          const memMdLen = String(localItem.markdown || '').trim().length;
+          if (diskTime >= memTime || diskMdLen > memMdLen + 20) {
             const preservedStatus = recentStatusChange ? localItem.status : (wasPublished && diskItem.status !== 'hidden' ? 'published' : diskItem.status);
             Object.assign(localItem, diskItem);
             localItem.status = preservedStatus;
@@ -5293,7 +5430,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     }
 
     if (drafts.length !== preCount && (parsedPostsCount > 0 || existingPostsCount > 0)) {
-      saveDraftsToStorage();
+      if (window.__cedarBootHydrationComplete) {
+        saveDraftsToStorage();
+      } else if (CedarStore && typeof CedarStore.persistToLocalStorage === 'function') {
+        CedarStore.persistToLocalStorage(drafts);
+      }
     }
   }
 
@@ -5884,6 +6025,8 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
         try {
 
+          localStorage.removeItem('cedar_activity_log');
+
           localStorage.removeItem('cedar_browser_backup_drafts');
 
           localStorage.removeItem('outpost_browser_backup_drafts');
@@ -6040,9 +6183,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
-    // 2. High-Capacity Virtual Vault (OPFS / IndexedDB)
+    // 2. High-Capacity Virtual Vault (OPFS / IndexedDB) — only write after boot hydration so script-load never overwrites OPFS
 
-    if ((window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function') {
+    const canWriteVaultDrafts = Boolean(window.__cedarBootHydrationComplete || window.__vaultDraftsHydratedAtBoot);
+
+    if (canWriteVaultDrafts && (window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function') {
 
       try {
 
@@ -6068,7 +6213,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     const savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
 
-    if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
+    if (canWriteVaultDrafts && window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
 
       try {
 

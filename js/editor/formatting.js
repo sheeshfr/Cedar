@@ -2965,25 +2965,4 @@
     applyInlineCode,
     applyHighlight,
     applyFontColor,
-    applyBlockIndent,
-    normalizeCustomColorNodes,
-    formatBlockStyle,
-    focusNodeCaret,
-    resetActiveInlineFormatting,
-    maintainCaretScrollBuffer,
-    swapCurrentBlock,
-    toggleQuoteBlock,
-    splitBlockToNewParagraph,
-    updateToolbarActiveStates,
-    setBtnActive,
-    clearToolbarActiveStates,
-    setupFormattingToolbar,
-    insertMarkdownAtCursor,
-    executeToolbarAction,
-    applyBlockAlignment,
-    setElementAlignment
-  };
-
-  window.Cedar.editor = Object.assign(window.Cedar.editor || {}, formattingExports);
-  window.Outpost.editor = window.Cedar.editor;
-})();
+   

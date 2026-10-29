@@ -410,6 +410,8 @@
       }
     });
 
+    window.__cedarBootHydrationComplete = true;
+
     // 2. Boot initial route
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
       const urlParams = new URLSearchParams(window.location.search || '');

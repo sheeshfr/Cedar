@@ -370,8 +370,12 @@
                   const cleanB64 = blobRes.content.replace(/\s/g, '');
                   const fname = item.path.split('/').pop();
                   const mime = mimeFromName(fname);
-                  const dataUrl = `data:${mime};base64,${cleanB64}`;
-                  const bstr = atob(cleanB64);
+                  const rawDataUrl = `data:${mime};base64,${cleanB64}`;
+                  const dataUrl = (typeof window.unwrapCorruptedDataUrl === 'function')
+                    ? window.unwrapCorruptedDataUrl(rawDataUrl)
+                    : rawDataUrl;
+                  const finalB64 = dataUrl.includes(',') ? dataUrl.split(',')[1].replace(/\s/g, '') : cleanB64;
+                  const bstr = atob(finalB64);
                   const u8 = new Uint8Array(bstr.length);
                   for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
                   const blob = new Blob([u8], { type: mime });

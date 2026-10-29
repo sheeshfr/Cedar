@@ -1706,7 +1706,26 @@
       titleInput.value = currTitle;
     }
 
-    const currentLogo = (window.projectConfig && window.projectConfig.design && window.projectConfig.design.branding && (window.projectConfig.design.branding.originalLogo || window.projectConfig.design.branding.generalLogo)) || (window.projectConfig && window.projectConfig.logo) || '';
+    const unwrapLogoUrl = (val) => {
+      if (typeof window.unwrapCorruptedDataUrl === 'function') return window.unwrapCorruptedDataUrl(val);
+      return typeof val === 'string' ? val.trim() : '';
+    };
+    const isLogoPlaceholder = (v) => {
+      if (!v || typeof v !== 'string') return false;
+      const t = v.trim();
+      return t === 'logo.png' || t === '/logo.png' || t === 'media/branding/logo.png' || t === '/media/branding/logo.png' || t === 'media/branding/logo-original.png' || t === '/media/branding/logo-original.png';
+    };
+    const dBr = (window.projectConfig && window.projectConfig.design && window.projectConfig.design.branding) || {};
+    if (dBr.originalLogo) dBr.originalLogo = unwrapLogoUrl(dBr.originalLogo);
+    if (dBr.generalLogo) dBr.generalLogo = unwrapLogoUrl(dBr.generalLogo);
+    const fallbackLogoFile = unwrapLogoUrl(
+      (dBr.files && (dBr.files['media/branding/logo-original.png'] || dBr.files['media/branding/logo.png']))
+      || (window.brandingFiles && (window.brandingFiles['media/branding/logo-original.png'] || window.brandingFiles['media/branding/logo.png']))
+      || (window.imageRegistry && ((window.imageRegistry.get('media/branding/logo-original.png') && window.imageRegistry.get('media/branding/logo-original.png').dataUrl) || (window.imageRegistry.get('media/branding/logo.png') && window.imageRegistry.get('media/branding/logo.png').dataUrl)))
+      || ''
+    );
+    const rawLogoCand = unwrapLogoUrl(dBr.originalLogo || dBr.generalLogo || (window.projectConfig && window.projectConfig.logo) || '');
+    const currentLogo = (!rawLogoCand || isLogoPlaceholder(rawLogoCand)) ? fallbackLogoFile : rawLogoCand;
     const emptyState = document.getElementById('designer-logo-empty-state');
     const previewState = document.getElementById('designer-logo-preview-state');
     const previewImg = document.getElementById('designer-logo-preview-img');
@@ -1728,6 +1747,12 @@
               previewImg.style.maxWidth = `${scalePct}%`;
             }
             if (dimsBadge) dimsBadge.textContent = `${naturalW} × ${naturalH}px (${scalePct}% width)`;
+          };
+          imgObj.onerror = () => {
+            if (previewState) previewState.style.display = 'none';
+            if (emptyState) emptyState.style.display = 'flex';
+            if (previewImg) previewImg.src = '';
+            if (dimsBadge) dimsBadge.textContent = '--';
           };
           imgObj.src = currentLogo;
         }

@@ -325,13 +325,37 @@
   // =========================================================================
   // FILE SYSTEM ACCESS WRAPPER
   // =========================================================================
+  function unwrapVaultDataUrl(input) {
+    if (typeof window.unwrapCorruptedDataUrl === 'function') return window.unwrapCorruptedDataUrl(input);
+    if (typeof input !== 'string') return '';
+    let current = input.trim();
+    let depth = 0;
+    while (depth < 10 && current.startsWith('data:')) {
+      const commaIdx = current.indexOf(',');
+      if (commaIdx === -1) break;
+      const payload = current.slice(commaIdx + 1).trim();
+      if (!payload.startsWith('ZGF0YT')) break;
+      try {
+        const decoded = atob(payload.replace(/\s/g, ''));
+        if (decoded && decoded.trim().startsWith('data:')) {
+          current = decoded.trim();
+          depth++;
+          continue;
+        }
+      } catch (e) {}
+      break;
+    }
+    return current;
+  }
+
   function dataUrlToBlob(dataUrl) {
-    if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+    const clean = unwrapVaultDataUrl(dataUrl);
+    if (!clean || !clean.startsWith('data:')) return null;
     try {
-      const parts = dataUrl.split(',');
+      const parts = clean.split(',');
       const mimeMatch = parts[0].match(/:(.*?);/);
       const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-      const bstr = atob(parts[1]);
+      const bstr = atob(parts[1].replace(/\s/g, ''));
       let n = bstr.length;
       const u8arr = new Uint8Array(n);
       while (n--) {
@@ -399,7 +423,9 @@
     return await resolvePathOnHandle(rootHandle, path, create, kind);
   }
 
-  async function writeFileToDirHandle(dirHandle, path, data) {
+  const _dirWriteLocks = new Map();
+
+  async function _writeFileToDirHandleImpl(dirHandle, path, data) {
     if (dirHandle && dirHandle.isServerBridge) {
       if (!isLocalServer()) return false;
       let content = data;
@@ -446,6 +472,20 @@
 
     await writable.close();
     return true;
+  }
+
+  async function writeFileToDirHandle(dirHandle, path, data) {
+    const lockKey = `${(dirHandle && (dirHandle.path || dirHandle.name)) || 'root'}::${String(path || '').replace(/\\/g, '/').toLowerCase()}`;
+    const prev = _dirWriteLocks.get(lockKey) || Promise.resolve();
+    const next = prev.catch(() => {}).then(() => _writeFileToDirHandleImpl(dirHandle, path, data));
+    _dirWriteLocks.set(lockKey, next);
+    try {
+      return await next;
+    } finally {
+      if (_dirWriteLocks.get(lockKey) === next) {
+        _dirWriteLocks.delete(lockKey);
+      }
+    }
   }
 
   async function readFileFromDirHandle(dirHandle, path, as = 'text') {
@@ -1107,13 +1147,50 @@
               }
             });
           cfg.milestones = mergedMilestones;
+          if (Array.isArray(cfg.activityLog)) {
+            cfg.activityLog = cfg.activityLog.slice(0, 60).map(a => {
+              if (!a || typeof a !== 'object') return a;
+              if (!a.data || typeof a.data !== 'object') return a;
+              const dCopy = Object.assign({}, a.data);
+              delete dCopy.images;
+              delete dCopy.tempImages;
+              delete dCopy.proseHtml;
+              delete dCopy.markdown;
+              delete dCopy.customHtml;
+              if (typeof dCopy.authorAvatar === 'string' && dCopy.authorAvatar.startsWith('data:')) delete dCopy.authorAvatar;
+              if (typeof dCopy.coverImage === 'string' && dCopy.coverImage.startsWith('data:')) delete dCopy.coverImage;
+              if (typeof dCopy.dataUrl === 'string' && dCopy.dataUrl.startsWith('data:')) delete dCopy.dataUrl;
+              return Object.assign({}, a, { data: dCopy });
+            });
+          }
+          if (cfg.logo) cfg.logo = unwrapVaultDataUrl(cfg.logo);
+          if (cfg.authorAvatar) cfg.authorAvatar = unwrapVaultDataUrl(cfg.authorAvatar);
+          if (Array.isArray(cfg.authors)) {
+            cfg.authors.forEach(a => {
+              if (a && typeof a === 'object' && a.avatar) a.avatar = unwrapVaultDataUrl(a.avatar);
+            });
+          }
+          if (cfg.design && cfg.design.branding && typeof cfg.design.branding === 'object') {
+            const br = cfg.design.branding;
+            if (br.generalLogo) br.generalLogo = unwrapVaultDataUrl(br.generalLogo);
+            if (br.originalLogo) br.originalLogo = unwrapVaultDataUrl(br.originalLogo);
+            if (br.tabLogo) br.tabLogo = unwrapVaultDataUrl(br.tabLogo);
+            if (br.files && typeof br.files === 'object') {
+              Object.keys(br.files).forEach(k => {
+                if (typeof br.files[k] === 'string') br.files[k] = unwrapVaultDataUrl(br.files[k]);
+              });
+            }
+          }
           try {
             localStorage.setItem('cedar_milestones_v1', JSON.stringify(mergedMilestones));
             if (Array.isArray(cfg.activityLog)) {
               localStorage.setItem('cedar_activity_log', JSON.stringify(cfg.activityLog));
             }
-          } catch (e) {}
+          } catch (e) {
+            try { localStorage.removeItem('cedar_activity_log'); } catch (_) {}
+          }
           Object.assign(window.projectConfig, cfg);
+          window.__vaultConfigHydratedAtBoot = true;
 
           const resolvedEditorTheme = (cfg.design && (cfg.design.customColors || cfg.design.blogTheme || cfg.design.activeTheme))
             || cfg.editorTheme
@@ -1399,7 +1476,10 @@
     return new Promise((resolve) => {
       if (!blob || !(blob instanceof Blob)) return resolve('');
       const reader = new FileReader();
-      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      reader.onloadend = () => {
+        const raw = typeof reader.result === 'string' ? reader.result : '';
+        resolve(unwrapVaultDataUrl(raw));
+      };
       reader.onerror = () => resolve('');
       reader.readAsDataURL(blob);
     });
@@ -1472,6 +1552,13 @@
       if (Array.isArray(cfg.authors) && cfg.authors.length > 0) {
         cfg.authors.forEach(auth => {
           if (!auth || typeof auth !== 'object') return;
+          if (auth.avatar && typeof auth.avatar === 'string' && auth.avatar.startsWith('data:')) {
+            const unwrappedAv = unwrapVaultDataUrl(auth.avatar);
+            if (unwrappedAv !== auth.avatar) {
+              auth.avatar = unwrappedAv;
+              configChanged = true;
+            }
+          }
           if (!auth.avatar || !String(auth.avatar).startsWith('data:')) {
             const found = findAuthorAvatarFromMap(auth.name || cfg.defaultAuthor, auth.avatar);
             if (found && found.dataUrl) {
@@ -1496,25 +1583,41 @@
           configChanged = true;
         }
       }
-      if (cfg.authorAvatar && typeof cfg.authorAvatar === 'string' && !cfg.authorAvatar.startsWith('data:')) {
-        const base = cfg.authorAvatar.split('/').pop().split('\\').pop();
-        const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
-        if (found && found.dataUrl) {
-          cfg.authorAvatar = found.dataUrl;
-          configChanged = true;
+      if (cfg.authorAvatar && typeof cfg.authorAvatar === 'string') {
+        if (cfg.authorAvatar.startsWith('data:')) {
+          const unwrappedAv = unwrapVaultDataUrl(cfg.authorAvatar);
+          if (unwrappedAv !== cfg.authorAvatar) {
+            cfg.authorAvatar = unwrappedAv;
+            configChanged = true;
+          }
+        } else {
+          const base = cfg.authorAvatar.split('/').pop().split('\\').pop();
+          const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+          if (found && found.dataUrl) {
+            cfg.authorAvatar = found.dataUrl;
+            configChanged = true;
+          }
         }
       }
       if (cfg.design && cfg.design.branding && typeof cfg.design.branding === 'object') {
         const b = cfg.design.branding;
         ['generalLogo', 'originalLogo', 'tabLogo'].forEach(prop => {
           const val = b[prop];
-          if (val && typeof val === 'string' && !val.startsWith('data:') && val !== 'icon.png' && val !== '/icon.png') {
-            const cleanRel = val.replace(/^\/+/, '');
-            const base = val.split('/').pop().split('\\').pop();
-            const found = hydratedMap.get(cleanRel) || hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
-            if (found && found.dataUrl) {
-              b[prop] = found.dataUrl;
-              configChanged = true;
+          if (val && typeof val === 'string') {
+            if (val.startsWith('data:')) {
+              const unwrapped = unwrapVaultDataUrl(val);
+              if (unwrapped !== val) {
+                b[prop] = unwrapped;
+                configChanged = true;
+              }
+            } else if (val !== 'icon.png' && val !== '/icon.png') {
+              const cleanRel = val.replace(/^\/+/, '');
+              const base = val.split('/').pop().split('\\').pop();
+              const found = hydratedMap.get(cleanRel) || hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+              if (found && found.dataUrl) {
+                b[prop] = unwrapVaultDataUrl(found.dataUrl);
+                configChanged = true;
+              }
             }
           }
         });
@@ -1527,35 +1630,41 @@
           || hydratedMap.get('logo.png')
           || foundOrig;
         if (foundOrig && foundOrig.dataUrl && (String(foundOrig.relPath || '').includes('media/branding') || b.generalLogo || b.originalLogo)) {
-          if (!b.originalLogo || !b.originalLogo.startsWith('data:') || foundOrig.dataUrl.length > b.originalLogo.length) {
-            b.originalLogo = foundOrig.dataUrl;
-            configChanged = true;
+          const cleanOrigData = unwrapVaultDataUrl(foundOrig.dataUrl);
+          const cleanLogoData = unwrapVaultDataUrl((foundLogo && foundLogo.dataUrl) ? foundLogo.dataUrl : cleanOrigData);
+          if (!b.originalLogo || !b.originalLogo.startsWith('data:') || cleanOrigData.length > b.originalLogo.length) {
+            if (b.originalLogo !== cleanOrigData) {
+              b.originalLogo = cleanOrigData;
+              configChanged = true;
+            }
           }
-          const targetLogoData = (foundLogo && foundLogo.dataUrl) ? foundLogo.dataUrl : foundOrig.dataUrl;
           if (!b.generalLogo || !b.generalLogo.startsWith('data:')) {
-            b.generalLogo = targetLogoData;
-            cfg.logo = targetLogoData;
+            b.generalLogo = cleanLogoData;
+            cfg.logo = cleanLogoData;
             configChanged = true;
           }
           b.files = Object.assign({}, b.files || {}, {
-            'media/branding/logo.png': targetLogoData,
-            'media/branding/logo-original.png': foundOrig.dataUrl
+            'media/branding/logo.png': cleanLogoData,
+            'media/branding/logo-original.png': cleanOrigData
           });
           window.brandingFiles = Object.assign({}, window.brandingFiles || {}, b.files);
         }
         // Restore favicon from media/branding/icon.png if present on disk and not explicitly removed
         const foundFav = hydratedMap.get('media/branding/icon.png') || hydratedMap.get('site_favicon.png');
         if (foundFav && foundFav.dataUrl && !b.faviconExplicitlyRemoved) {
+          const cleanFavData = unwrapVaultDataUrl(foundFav.dataUrl);
           if (!b.tabLogo || !b.tabLogo.startsWith('data:') || b.tabLogo === 'icon.png' || b.tabLogo === '/icon.png') {
-            b.tabLogo = foundFav.dataUrl;
-            configChanged = true;
+            if (b.tabLogo !== cleanFavData) {
+              b.tabLogo = cleanFavData;
+              configChanged = true;
+            }
           }
           b.files = Object.assign({}, b.files || {}, {
-            'media/branding/icon.png': foundFav.dataUrl
+            'media/branding/icon.png': cleanFavData
           });
           window.brandingFiles = Object.assign({}, window.brandingFiles || {}, b.files);
           try {
-            localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': foundFav.dataUrl }));
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify({ 'media/branding/icon.png': cleanFavData }));
           } catch (e) {}
         }
       }
@@ -1673,10 +1782,22 @@
 
     await Promise.all(filePathsToRead.map(async ({ name, relPath }) => {
       try {
-        const blob = await readFileFromDirHandle(dirHandle, relPath, 'blob');
+        let blob = await readFileFromDirHandle(dirHandle, relPath, 'blob');
         if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
-        const objectUrl = URL.createObjectURL(blob);
         const dataUrl = await blobToDataUrl(blob);
+        // Check if blob on disk had ASCII "data:" bytes and self-heal it into a binary blob
+        try {
+          const headBuf = await blob.slice(0, 8).arrayBuffer();
+          const b = new Uint8Array(headBuf);
+          if (b[0] === 100 && b[1] === 97 && b[2] === 116 && b[3] === 97 && b[4] === 58) {
+            const repairedBlob = dataUrlToBlob(dataUrl);
+            if (repairedBlob && repairedBlob.size > 0) {
+              blob = repairedBlob;
+              try { await writeFileToDirHandle(dirHandle, relPath, repairedBlob); } catch (e) {}
+            }
+          }
+        } catch (e) {}
+        const objectUrl = URL.createObjectURL(blob);
         const info = { filename: name, relPath, blob, objectUrl, dataUrl };
         hydratedMap.set(relPath, info);
         hydratedMap.set(relPath.toLowerCase(), info);
@@ -1704,14 +1825,202 @@
     const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
     if (!vStorage || typeof vStorage.listFiles !== 'function' || typeof vStorage.readFile !== 'function') return false;
 
+    let configRestoredFromVirtual = false;
+    let draftsRestoredFromVirtual = false;
+    let vCfg = null;
+
+    // 1. Restore config (branding, author avatars, and newer studio state) from Virtual Vault
+    try {
+      const vCfgRaw = await vStorage.readFile('editor/config.json', 'json').catch(() => null)
+        || await vStorage.readFile('cedar_config.json', 'json').catch(() => null);
+      vCfg = typeof vCfgRaw === 'string' ? JSON.parse(vCfgRaw) : vCfgRaw;
+      const cfg = window.projectConfig;
+      if (vCfg && typeof vCfg === 'object' && cfg && typeof cfg === 'object') {
+        const parseTs = (v) => {
+          if (!v) return 0;
+          const n = Number(v);
+          if (Number.isFinite(n) && n > 0) return n;
+          const p = Date.parse(v);
+          return Number.isFinite(p) ? p : 0;
+        };
+        const vTs = parseTs(vCfg.lastUpdated);
+        const cTs = parseTs(cfg.lastUpdated);
+        if (vTs > cTs && !Vault.isConnected()) {
+          const cleanVCfg = Object.assign({}, vCfg);
+          delete cleanVCfg._vaultRecoveryDrafts;
+          Object.assign(cfg, cleanVCfg);
+          window.__vaultConfigHydratedAtBoot = true;
+          configRestoredFromVirtual = true;
+        }
+
+        if (!cfg.design) cfg.design = {};
+        if (!cfg.design.branding) cfg.design.branding = {};
+        const b = cfg.design.branding;
+        const vb = vCfg.design && vCfg.design.branding;
+        if (vb) {
+          const vOrig = unwrapVaultDataUrl(vb.originalLogo || '');
+          const vGen = unwrapVaultDataUrl(vb.generalLogo || '');
+          const vTab = unwrapVaultDataUrl(vb.tabLogo || '');
+          const bOrig = unwrapVaultDataUrl(b.originalLogo || '');
+          const bGen = unwrapVaultDataUrl(b.generalLogo || '');
+          const bTab = unwrapVaultDataUrl(b.tabLogo || '');
+          if (bOrig !== (b.originalLogo || '')) { b.originalLogo = bOrig; configRestoredFromVirtual = true; }
+          if (bGen !== (b.generalLogo || '')) { b.generalLogo = bGen; configRestoredFromVirtual = true; }
+          if (bTab !== (b.tabLogo || '')) { b.tabLogo = bTab; configRestoredFromVirtual = true; }
+
+          if ((!b.originalLogo || !b.originalLogo.startsWith('data:')) && (vOrig.startsWith('data:') || vGen.startsWith('data:'))) {
+            b.originalLogo = vOrig.startsWith('data:') ? vOrig : vGen;
+            configRestoredFromVirtual = true;
+          }
+          if ((!b.generalLogo || !b.generalLogo.startsWith('data:')) && (vGen.startsWith('data:') || vOrig.startsWith('data:'))) {
+            b.generalLogo = vGen.startsWith('data:') ? vGen : vOrig;
+            cfg.logo = b.generalLogo;
+            configRestoredFromVirtual = true;
+          }
+          if ((!b.tabLogo || !b.tabLogo.startsWith('data:')) && !b.faviconExplicitlyRemoved && vTab.startsWith('data:')) {
+            b.tabLogo = vTab;
+            configRestoredFromVirtual = true;
+          }
+        }
+
+        if (Array.isArray(vCfg.authors) && vCfg.authors.length > 0) {
+          if (!Array.isArray(cfg.authors) || cfg.authors.length === 0) {
+            cfg.authors = vCfg.authors.map(a => a && typeof a === 'object' ? Object.assign({}, a, { avatar: unwrapVaultDataUrl(a.avatar || '') }) : a);
+            configRestoredFromVirtual = true;
+          } else {
+            cfg.authors.forEach(a => {
+              if (!a || typeof a !== 'object') return;
+              const curAv = unwrapVaultDataUrl(a.avatar || '');
+              if (curAv !== (a.avatar || '')) {
+                a.avatar = curAv;
+                configRestoredFromVirtual = true;
+              }
+              if (!a.avatar || !a.avatar.startsWith('data:')) {
+                const match = vCfg.authors.find(va => va && typeof va === 'object' && String(va.name || '').trim().toLowerCase() === String(a.name || '').trim().toLowerCase());
+                const vAv = unwrapVaultDataUrl((match && match.avatar) || vCfg.authorAvatar || '');
+                if (vAv && vAv.startsWith('data:')) {
+                  a.avatar = vAv;
+                  cfg.authorAvatar = vAv;
+                  configRestoredFromVirtual = true;
+                }
+              }
+            });
+          }
+        }
+        if (vCfg.authorAvatar) {
+          const vAuthAv = unwrapVaultDataUrl(vCfg.authorAvatar);
+          const cAuthAv = unwrapVaultDataUrl(cfg.authorAvatar || '');
+          if ((!cAuthAv || !cAuthAv.startsWith('data:')) && vAuthAv.startsWith('data:')) {
+            cfg.authorAvatar = vAuthAv;
+            configRestoredFromVirtual = true;
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 2. Restore drafts from editor/drafts.json (or _vaultRecoveryDrafts) in Virtual Vault if newer or fuller than localStorage
+    if (!Vault.isConnected()) {
+      try {
+        let vDraftsRaw = await vStorage.readFile('editor/drafts.json', 'json').catch(() => null)
+          || await vStorage.readFile('writer/drafts.json', 'json').catch(() => null);
+        let vDrafts = typeof vDraftsRaw === 'string' ? JSON.parse(vDraftsRaw) : vDraftsRaw;
+        const recoveryList = (vCfg && Array.isArray(vCfg._vaultRecoveryDrafts)) ? vCfg._vaultRecoveryDrafts : null;
+        if (Array.isArray(recoveryList) && recoveryList.length > 0) {
+          if (!Array.isArray(vDrafts) || vDrafts.length === 0) {
+            vDrafts = recoveryList;
+          } else {
+            const byId = new Map(vDrafts.filter(Boolean).map(d => [d.id, d]));
+            recoveryList.forEach(rd => {
+              if (!rd || !rd.id) return;
+              const ex = byId.get(rd.id);
+              if (!ex || String(rd.markdown || '').length > String(ex.markdown || '').length || Number(rd.updatedAt || 0) > Number(ex.updatedAt || 0)) {
+                byId.set(rd.id, rd);
+              }
+            });
+            vDrafts = Array.from(byId.values());
+          }
+        }
+        if (Array.isArray(vDrafts) && vDrafts.length > 0) {
+          const currentAll = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+            ? window.CedarStore.getAllDrafts()
+            : (Array.isArray(window.drafts) ? window.drafts : []);
+          const localById = new Map();
+          currentAll.forEach(d => { if (d && d.id) localById.set(d.id, d); });
+          let needsHydrate = false;
+          const mergedDrafts = [...currentAll];
+
+          vDrafts.forEach(vd => {
+            if (!vd || !vd.id) return;
+            // Register any embedded draft images with dataUrl into window.imageRegistry
+            if (Array.isArray(vd.images)) {
+              window.imageRegistry = window.imageRegistry || new Map();
+              vd.images.forEach(im => {
+                if (im && im.filename && im.dataUrl && String(im.dataUrl).startsWith('data:')) {
+                  const cleanUrl = unwrapVaultDataUrl(im.dataUrl);
+                  im.dataUrl = cleanUrl;
+                  im.src = cleanUrl;
+                  const regEntry = {
+                    filename: im.filename,
+                    relativePath: im.relativePath || `/blog/images/${im.filename}`,
+                    dataUrl: cleanUrl,
+                    src: cleanUrl
+                  };
+                  window.imageRegistry.set(im.filename, regEntry);
+                  window.imageRegistry.set(`blog/images/${im.filename}`, regEntry);
+                  window.imageRegistry.set(`/blog/images/${im.filename}`, regEntry);
+                }
+              });
+            }
+            const localItem = localById.get(vd.id);
+            if (!localItem) {
+              mergedDrafts.push(vd);
+              localById.set(vd.id, vd);
+              needsHydrate = true;
+            } else {
+              const vTime = Number(vd.updatedAt || vd.createdAt || 0);
+              const lTime = Number(localItem.updatedAt || localItem.createdAt || 0);
+              const vMdLen = String(vd.markdown || '').trim().length;
+              const lMdLen = String(localItem.markdown || '').trim().length;
+              if (vTime > lTime || (vd.type === 'post' && vMdLen > lMdLen + 20)) {
+                Object.assign(localItem, vd);
+                if (vTime < lTime) localItem.updatedAt = Date.now();
+                if (window.currentDraft && window.currentDraft.id === localItem.id) {
+                  Object.assign(window.currentDraft, localItem);
+                }
+                needsHydrate = true;
+              }
+            }
+          });
+
+          if (needsHydrate) {
+            if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+              window.CedarStore.hydrateFromList(mergedDrafts);
+              window.drafts = window.CedarStore.getAllDrafts();
+              if (typeof window.CedarStore.persistToLocalStorage === 'function') {
+                window.CedarStore.persistToLocalStorage(window.drafts);
+              }
+            } else {
+              window.drafts = mergedDrafts;
+            }
+            if (window.currentDraft && window.currentDraft.id && window.CedarStore && typeof window.CedarStore.get === 'function') {
+              const updatedCur = window.CedarStore.get(window.currentDraft.id);
+              if (updatedCur) window.currentDraft = updatedCur;
+            }
+            window.__vaultDraftsHydratedAtBoot = true;
+            draftsRestoredFromVirtual = true;
+          }
+        }
+      } catch (e) {}
+    }
+
     const isImgFile = (name) => /\.(webp|jpg|jpeg|png|gif|svg|ico|avif)$/i.test(String(name || ''));
     let allFiles = [];
     try {
       allFiles = await vStorage.listFiles('', true);
     } catch (e) {
-      return false;
+      return configRestoredFromVirtual || draftsRestoredFromVirtual;
     }
-    if (!Array.isArray(allFiles) || allFiles.length === 0) return false;
+    if (!Array.isArray(allFiles)) allFiles = [];
 
     const imgFiles = [];
     const seenRelPaths = new Set();
@@ -1727,41 +2036,64 @@
         }
       }
     }
-    if (imgFiles.length === 0) return false;
 
     const hydratedMap = new Map();
-    await Promise.all(imgFiles.map(async ({ name, relPath }) => {
-      try {
-        // Skip if already in imageRegistry with a valid dataUrl
-        if (window.imageRegistry && window.imageRegistry.has(relPath)) {
-          const existing = window.imageRegistry.get(relPath);
-          if (existing && existing.dataUrl && existing.dataUrl.startsWith('data:')) return;
-        }
-        const blob = await vStorage.readFile(relPath, 'blob');
-        if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
-        const objectUrl = URL.createObjectURL(blob);
-        const dataUrl = await blobToDataUrl(blob);
-        const info = { filename: name, relPath, blob, objectUrl, dataUrl };
-        hydratedMap.set(relPath, info);
-        hydratedMap.set(relPath.toLowerCase(), info);
-        const isPriorityMedia = relPath.startsWith('media/');
-        if (isPriorityMedia || !hydratedMap.has(name)) {
-          hydratedMap.set(name, info);
-          hydratedMap.set(name.toLowerCase(), info);
-        }
-      } catch (e) {}
-    }));
+    if (imgFiles.length > 0) {
+      await Promise.all(imgFiles.map(async ({ name, relPath }) => {
+        try {
+          if (window.imageRegistry && window.imageRegistry.has(relPath)) {
+            const existing = window.imageRegistry.get(relPath);
+            if (existing && existing.dataUrl && existing.dataUrl.startsWith('data:')) {
+              const cleanExisting = unwrapVaultDataUrl(existing.dataUrl);
+              if (cleanExisting === existing.dataUrl && existing.blob instanceof Blob) {
+                const info = { filename: name, relPath, blob: existing.blob, objectUrl: existing.objectUrl, dataUrl: cleanExisting };
+                hydratedMap.set(relPath, info);
+                hydratedMap.set(relPath.toLowerCase(), info);
+                const isPriorityMedia = relPath.startsWith('media/');
+                if (isPriorityMedia || !hydratedMap.has(name)) {
+                  hydratedMap.set(name, info);
+                  hydratedMap.set(name.toLowerCase(), info);
+                }
+                return;
+              }
+            }
+          }
+          const blob = await vStorage.readFile(relPath, 'blob');
+          if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
+          const objectUrl = URL.createObjectURL(blob);
+          const dataUrl = await blobToDataUrl(blob);
+          const info = { filename: name, relPath, blob, objectUrl, dataUrl };
+          hydratedMap.set(relPath, info);
+          hydratedMap.set(relPath.toLowerCase(), info);
+          const isPriorityMedia = relPath.startsWith('media/');
+          if (isPriorityMedia || !hydratedMap.has(name)) {
+            hydratedMap.set(name, info);
+            hydratedMap.set(name.toLowerCase(), info);
+          }
+        } catch (e) {}
+      }));
+    }
 
-    if (hydratedMap.size === 0) return false;
-    const changed = applyHydratedImageMap(hydratedMap);
+    const mapChanged = hydratedMap.size > 0 ? applyHydratedImageMap(hydratedMap) : false;
+    const changed = mapChanged || configRestoredFromVirtual || draftsRestoredFromVirtual;
+    if (configRestoredFromVirtual && !mapChanged && typeof window.saveProjectToStorage === 'function') {
+      try { window.saveProjectToStorage(); } catch (e) {}
+    }
     if (changed) {
+      if (draftsRestoredFromVirtual && typeof window.syncDraftToForm === 'function' && window.currentDraft) {
+        try { window.syncDraftToForm(); } catch (e) {}
+      }
       if (typeof window.hydrateCanvasImages === 'function') {
         const canvasProse = document.getElementById('rich-canvas-prose');
         if (canvasProse) window.hydrateCanvasImages(canvasProse, window.currentDraft);
       }
       if (typeof window.updateCoverPreview === 'function') window.updateCoverPreview();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
       if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
       if (typeof window.renderDerivedMediaLibrary === 'function') window.renderDerivedMediaLibrary();
+      if (typeof window.renderProjectSettings === 'function') window.renderProjectSettings();
+      if (typeof window.renderSettingsAuthorProfile === 'function') window.renderSettingsAuthorProfile();
+      if (typeof window.renderDesigner === 'function') window.renderDesigner();
     }
     return changed;
   }
@@ -2014,6 +2346,21 @@
   // =========================================================================
   // PUBLIC VAULT API
   // =========================================================================
+  function safeVaultSetItem(key, val) {
+    try {
+      localStorage.setItem(key, val);
+    } catch (e) {
+      try {
+        localStorage.removeItem('cedar_activity_log');
+        localStorage.removeItem('cedar_browser_backup_drafts');
+        localStorage.removeItem('cedar_browser_backup_project');
+        localStorage.removeItem('outpost_browser_backup_drafts');
+        localStorage.removeItem('outpost_browser_backup_project');
+        localStorage.setItem(key, val);
+      } catch (_) {}
+    }
+  }
+
   const Vault = {
     isSupported() {
       const hasFsa = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
@@ -2046,25 +2393,27 @@
     async setRootHandle(handle) {
       rootHandle = handle;
       if (handle) {
-        localStorage.removeItem('cedar_vault_disconnected'); try { localStorage.removeItem('outpost_vault_disconnected'); } catch(e){}
+        try { localStorage.removeItem('cedar_vault_disconnected'); } catch (e) {}
+        try { localStorage.removeItem('outpost_vault_disconnected'); } catch (e) {}
         if (handle.isServerBridge) {
-          localStorage.setItem('cedar_vault_mode', 'server_bridge');
-          localStorage.setItem('cedar_vault_path', handle.path);
-          localStorage.setItem('cedar_vault_name', handle.name);
-          localStorage.setItem('cedar_vault_connected', '1');
+          safeVaultSetItem('cedar_vault_mode', 'server_bridge');
+          safeVaultSetItem('cedar_vault_path', handle.path);
+          safeVaultSetItem('cedar_vault_name', handle.name);
+          safeVaultSetItem('cedar_vault_connected', '1');
         } else {
-          localStorage.removeItem('cedar_vault_mode'); try { localStorage.removeItem('outpost_vault_mode'); } catch(e){}
-          if (handle.name) localStorage.setItem('cedar_vault_name', handle.name);
-          localStorage.setItem('cedar_vault_connected', '1');
           await saveHandleToDb(handle);
+          try { localStorage.removeItem('cedar_vault_mode'); } catch (e) {}
+          try { localStorage.removeItem('outpost_vault_mode'); } catch (e) {}
+          if (handle.name) safeVaultSetItem('cedar_vault_name', handle.name);
+          safeVaultSetItem('cedar_vault_connected', '1');
         }
         await ensureVaultStructure();
         this.emit('connected', { name: handle.name, info: vaultInfo });
       } else {
         vaultInfo = null;
         try {
-          localStorage.setItem('cedar_vault_disconnected', '1');
-          try { localStorage.setItem('outpost_vault_disconnected', '1'); } catch(e){}
+          safeVaultSetItem('cedar_vault_disconnected', '1');
+          try { safeVaultSetItem('outpost_vault_disconnected', '1'); } catch(e){}
           localStorage.removeItem('cedar_vault_connected');
           localStorage.removeItem('cedar_vault_path');
           localStorage.removeItem('cedar_vault_name');
@@ -2094,6 +2443,7 @@
     isExistingOutpostFolder,
     copyBlogToFolder,
     loadBlogFromFolder,
+    hydrateImagesFromVirtualStorage,
     resolveVisiblePath,
     removeHandleFromDb,
 
@@ -2126,11 +2476,12 @@
             throw new Error('Permission to access directory was denied.');
           }
 
-          const hasExistingBlog = await isExistingCedarFolder(handle);
-          localStorage.removeItem('cedar_vault_disconnected'); try { localStorage.removeItem('outpost_vault_disconnected'); } catch(e){}
-          if (handle && handle.name) localStorage.setItem('cedar_vault_name', handle.name);
-          localStorage.setItem('cedar_vault_connected', '1');
           await saveHandleToDb(handle);
+          const hasExistingBlog = await isExistingCedarFolder(handle);
+          try { localStorage.removeItem('cedar_vault_disconnected'); } catch (e) {}
+          try { localStorage.removeItem('outpost_vault_disconnected'); } catch (e) {}
+          if (handle && handle.name) safeVaultSetItem('cedar_vault_name', handle.name);
+          safeVaultSetItem('cedar_vault_connected', '1');
           if (hasExistingBlog) {
             await loadBlogFromFolder(handle);
           }
@@ -2173,8 +2524,8 @@
                 await loadBlogFromFolder(savedHandle);
                 rootHandle = savedHandle;
                 await ensureVaultStructure();
-                localStorage.setItem('cedar_vault_connected', '1');
-                localStorage.setItem('cedar_vault_name', savedHandle.name);
+                safeVaultSetItem('cedar_vault_connected', '1');
+                safeVaultSetItem('cedar_vault_name', savedHandle.name);
                 this.emit('connected', { name: savedHandle.name, info: vaultInfo });
                 updateAllVaultBadges();
                 return true;
@@ -2217,7 +2568,7 @@
         let savedPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path')) || window.projectConfig?.vaultPath || '').trim();
         if (savedPath && /[\\/]website[\\/]cedar[\\/]?$/i.test(savedPath)) {
           savedPath = '';
-          localStorage.removeItem('cedar_vault_path');
+          try { localStorage.removeItem('cedar_vault_path'); } catch (e) {}
           try { localStorage.removeItem('outpost_vault_path'); } catch (e) {}
           if (window.projectConfig) delete window.projectConfig.vaultPath;
         }
@@ -2230,9 +2581,9 @@
             await loadBlogFromFolder(bridgeHandle);
             rootHandle = bridgeHandle;
             await ensureVaultStructure();
-            localStorage.setItem('cedar_vault_connected', '1');
-            localStorage.setItem('cedar_vault_path', savedPath);
-            localStorage.setItem('cedar_vault_name', savedName);
+            safeVaultSetItem('cedar_vault_connected', '1');
+            safeVaultSetItem('cedar_vault_path', savedPath);
+            safeVaultSetItem('cedar_vault_name', savedName);
             this.emit('connected', { name: rootHandle.name, info: vaultInfo });
             updateAllVaultBadges();
             return true;
@@ -2276,8 +2627,8 @@
         await loadBlogFromFolder(savedHandle);
         rootHandle = savedHandle;
         await ensureVaultStructure();
-        localStorage.setItem('cedar_vault_connected', '1');
-        localStorage.setItem('cedar_vault_name', savedHandle.name);
+        safeVaultSetItem('cedar_vault_connected', '1');
+        safeVaultSetItem('cedar_vault_name', savedHandle.name);
         this.emit('connected', { name: savedHandle.name, info: vaultInfo });
         updateAllVaultBadges();
         return true;

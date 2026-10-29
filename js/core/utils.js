@@ -464,11 +464,37 @@
   }
 
 
+  function unwrapCorruptedDataUrl(input) {
+    if (typeof input !== 'string') return '';
+    let current = input.trim();
+    let depth = 0;
+    while (depth < 10 && current.startsWith('data:')) {
+      const commaIdx = current.indexOf(',');
+      if (commaIdx === -1) break;
+      const payload = current.slice(commaIdx + 1).trim();
+      if (!payload.startsWith('ZGF0YT')) break;
+      try {
+        const decoded = atob(payload.replace(/\s/g, ''));
+        if (decoded && decoded.trim().startsWith('data:')) {
+          current = decoded.trim();
+          depth++;
+          continue;
+        }
+      } catch (e) {}
+      break;
+    }
+    return current;
+  }
+  window.unwrapCorruptedDataUrl = unwrapCorruptedDataUrl;
+
   function dataUrlToBlob(dataUrl) {
     try {
-      const parts = dataUrl.split(',');
-      const mime = parts[0].match(/:(.*?);/)[1];
-      const bstr = atob(parts[1]);
+      const clean = unwrapCorruptedDataUrl(dataUrl);
+      if (!clean || !clean.startsWith('data:')) return null;
+      const parts = clean.split(',');
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+      const bstr = atob(parts[1].replace(/\s/g, ''));
       let n = bstr.length;
       const u8arr = new Uint8Array(n);
       while (n--) {

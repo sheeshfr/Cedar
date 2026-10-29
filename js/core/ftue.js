@@ -2160,12 +2160,15 @@
   }
 
   function dataUrlToBlob(dataUrl) {
-    if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+    const clean = (typeof window.unwrapCorruptedDataUrl === 'function')
+      ? window.unwrapCorruptedDataUrl(dataUrl)
+      : (typeof dataUrl === 'string' ? dataUrl.trim() : '');
+    if (!clean || !clean.startsWith('data:')) return null;
     try {
-      const parts = dataUrl.split(',');
+      const parts = clean.split(',');
       const mimeMatch = parts[0].match(/:(.*?);/);
       const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-      const bstr = atob(parts[1]);
+      const bstr = atob(parts[1].replace(/\s/g, ''));
       let n = bstr.length;
       const u8arr = new Uint8Array(n);
       while (n--) {
@@ -2179,12 +2182,19 @@
   }
 
   async function writeBrandingAssetsToVault(assets) {
-    if (!window.SheeshVault || !window.SheeshVault.isConnected() || !assets) return;
+    if (!assets || typeof assets !== 'object') return;
+    const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+    const hasSheesh = Boolean(window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected());
     for (const [path, dataUrl] of Object.entries(assets)) {
       try {
         const blob = dataUrlToBlob(dataUrl);
         if (blob) {
-          await window.SheeshVault.writeFile(path, blob);
+          if (vStorage && typeof vStorage.writeBlob === 'function') {
+            try { await vStorage.writeBlob(path, blob); } catch (e) {}
+          }
+          if (hasSheesh) {
+            await window.SheeshVault.writeFile(path, blob);
+          }
         }
       } catch (err) {
         console.warn(`[Vault] Could not write branding file ${path}:`, err);

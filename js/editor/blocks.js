@@ -2343,85 +2343,59 @@
       canvasProse.appendChild(p);
     }
 
-    // Enforce the rule: non-text blocks at bottom get a text block, text blocks do not
-    ensureTrailingTextBlock();
-
-    // Place caret focus in the appropriate paragraph
-    let focusTarget = null;
-    if (prevSib && prevSib.parentNode === canvasProse && isTextBlock(prevSib)) {
-      focusTarget = prevSib;
-    } else if (nextSib && nextSib.parentNode === canvasProse && isTextBlock(nextSib)) {
-      focusTarget = nextSib;
-    } else {
-      focusTarget = canvasProse.querySelector('p') || canvasProse.firstElementChild;
-    }
-
-    if (focusTarget && typeof focusNodeCaret === 'function') {
-      focusNodeCaret(focusTarget, false);
-    }
-
-    if (typeof updateToolbarActiveStates === 'function') updateToolbarActiveStates();
-    if (typeof recordAction === 'function') recordAction('block-delete', true);
-    if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
-    if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
-    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-    if (typeof showToast === 'function') showToast('Block deleted.');
-  }
-
-  /**
-   * Strictly keeps the Block Type dropdown aligned with the allowed block types
-   */
-  function syncBlockTypeDropdown() {
-    const menu = document.getElementById('tb-more-menu');
-    if (!menu) return;
-    // The menu is managed statically and updated dynamically per active block in updateToolbarActiveStates
-  }
-
-  function toggleQuoteBlock() {
-    return swapCurrentBlock('quote');
-  }
-
-  // Exports
-  window.Cedar.editor.resetActiveInlineFormatting = resetActiveInlineFormatting;
-  window.Cedar.editor.maintainCaretScrollBuffer = maintainCaretScrollBufferLocal;
-  window.Cedar.editor.splitBlockToNewParagraph = splitBlockToNewParagraph;
-  window.Cedar.editor.swapCurrentBlock = swapCurrentBlock;
-  window.Cedar.editor.toggleQuoteBlock = toggleQuoteBlock;
-  window.Cedar.editor.syncBlockTypeDropdown = syncBlockTypeDropdown;
-  window.Cedar.editor.ensureTrailingTextBlock = ensureTrailingTextBlock;
-  window.Cedar.editor.cleanConsecutiveEmptyParagraphs = cleanConsecutiveEmptyParagraphs;
-  window.Cedar.editor.createShareBlockHtml = createShareBlockHtml;
-  window.Cedar.editor.createRssBlockHtml = createRssBlockHtml;
-  window.Cedar.editor.createRecentPostsBlockHtml = createRecentPostsBlockHtml;
-  window.Cedar.editor.createIndividualPostBlockHtml = createIndividualPostBlockHtml;
-  window.Cedar.editor.hydratePageBlocks = hydratePageBlocks;
-  window.Cedar.editor.hydrateSingleIndividualPostBlock = hydrateSingleIndividualPostBlock;
-  window.Cedar.editor.hydrateSingleRecentPostsBlock = hydrateSingleRecentPostsBlock;
-  window.Cedar.editor.resolvePublishedPostFromUrl = resolvePublishedPostFromUrl;
-  window.Cedar.editor.resolvePublishedPostByIdOrSlug = resolvePublishedPostByIdOrSlug;
-  window.Cedar.editor.resolveBlogItemFromUrl = resolveBlogItemFromUrl;
-  window.Cedar.editor.resolveBlogPageByIdOrSlug = resolveBlogPageByIdOrSlug;
-  window.Cedar.editor.fetchLinkMetadata = fetchLinkMetadata;
-  window.Cedar.editor.renderPageCardForBlock = renderPageCardForBlock;
-  window.Cedar.editor.renderExternalCardForBlock = renderExternalCardForBlock;
-  window.Cedar.editor.getPageTargetCategory = getPageTargetCategory;
-  window.Cedar.editor.deleteBlock = deleteBlock;
-  window.Cedar.editor.isTextBlock = isTextBlock;
-  window.Cedar.editor.isTrulyEmptyBlock = isTrulyEmptyBlock;
-  window.Cedar.editor.insertOrReplaceBlockInCanvas = insertOrReplaceBlockInCanvas;
-
-  window.resetActiveInlineFormatting = resetActiveInlineFormatting;
-  window.maintainCaretScrollBuffer = maintainCaretScrollBufferLocal;
-  window.splitBlockToNewParagraph = splitBlockToNewParagraph;
-  window.swapCurrentBlock = swapCurrentBlock;
-  window.toggleQuoteBlock = toggleQuoteBlock;
-  window.syncBlockTypeDropdown = syncBlockTypeDropdown;
-  window.ensureTrailingTextBlock = ensureTrailingTextBlock;
-  window.cleanConsecutiveEmptyParagraphs = cleanConsecutiveEmptyParagraphs;
-  window.createShareBlockHtml = createShareBlockHtml;
-  window.createRssBlockHtml = createRssBlockHtml;
-  window.createRecentPostsBlockHtml = createRecentPostsBlockHtml;
-  window.createIndividualPostBlockHtml = createIndividualPostBlockHtml;
+    // Enforce the rule: non-text blocks at bottom get a text block, text blocks do n    )  )                             üQüO†ÄÄÄÄ ø"  M0coupleçnÜoZ/verç\$Ç|Z2Å]VÉpÑ
+alerté 
+Ñ$ttacké 
+Ñ6	guardidleé 
+ÑHidleé 
+Én	nterestedé 
+Ñ 
+threatenedé 
+Ñwé/Ö0ÉÅrÅjplayeré \*_epçràWÇ	ÅNj*N$%eà Ç
+uppeté Ö@%rashingçjÉ_céeäAeateçÅÉFaé5#Ràactivitycardelementé/ádchunkobjectçÅÖ>ÑdçjÖ	Ç!éZÉ
+YK!atéèefaultaboutpageéé#llpageéé	linkspageéé0rsspageéé=
+figurehtmlé]ÉtextnodeçÅÜaingç\)É@âJÇonéìéfÅÑULá{oré(	
+ispécÖlyé]Ñ0opç\)ã/pedç\)Ç!Å#ingç\)Çgssç{w
+ãgLÅÑesçjGyç<.$Åe=ÇHÅ
+3Ç
+X
+É+ÑgÇ|3dengineçj"2Å	Å?Ñ<Ç6Ås4ÇCaisystemçj43ÖgÅÅ(
+Å5Ji3D4ÅOÇFÖ_Ç	nimationçj5á
+commonçj ÅWÖWÅmÖoengineçjÉng
+áUtityçj
+systemçj1á(Çgameçj0"*Å/ÅÑEÅL%Ç+C'ÑBL*N1%physicsçj4á?Åwscriptsystemçr
+á~
+oundsystemçj6áWystemçjÅÅ?Ö!ÅTgä4tekçv
+â@
+viewmatrixé 7yssçW)LÖ#			I	eÇ			Ç_			í/Åu
+Ñv
+
+ë(		"Å1	
+Ö
+
+(É|		Å$		trlé/àaÖ_ullingçjÅriousçv_rentçÅÉ3:ÖJchunkçÅÖp	olorç\)â=draftç\)É=lyçjÇ'é+"
+ÅksettingsauthoravataréèBstomç\É8â^ÜoZÅPêZÅ,iBÑ^
+@ÅCtsceneéZ
+(;($
+Ås5XÅ4ÅÑHtingé/ÜavarçjÅÇvdçjAÑ5ÇjÇ]]"
+Çi3d9çjÉâ|520625éçaangeré
+êhrkçÅÇ!shé%Çboardé"è(Åb53&.$Cén.Ç	Ñ{		É;ÉVptaçW)ÑVÜ("âÅ0ÅQÑgÅ0
+	.ÉlÅèuÇ Ål!urlç\)ÑqeéàZUH*ÑVÜ7ÑuséÅà-ÑnÅayçjséÇ,Å7bef0ebç\)ÜRe7fa0655356çjÜ	Ç5buggingç[)
+	clarationé
+ÅA7oderéK.ÇTÉiÅ@!ÅCa	dmposedé Å$ratearticledomwithsentencesçÅÇ?á
+ingç\)á	onçW)ÜCÅ:Eá#upleçg
+reaseé]ÉdicatedçjÇO	uplicatedéÜvraftsç\)
+]âionç\)Zeperç~ëfaultçW$Ç>É<(<áÅAÖ8à/ÅjÅCÜ4É6N{Å34p39>R7$Ç7/Ç5/ingé ÖsçÅá8
+Ñineé5
+Ç(itelyé
+?Å	ioné)
+[Å8sçjÅlayçÅÜtrigger7é_]ÇÅ,Ç$eteç\)ÉWã9ÉlÖá9.
+T-blocké]Ç
+déÅN*åb6cÅÇSÇ=ÜUÑÉpKÇ
+categoriesé
+íqEäidraftidséé>ägraftéç\Åslugséé@ähitemééh	milestoneé	Ç#sé]ÇHingç\)ã2Ü6ÉNëÇonç\)Çaèm	séÑqÖwpendingéêMDÉ]loyç\)Å.edç\)ÜLséìÅthé	Dscendantç\)áribeéX[ptionç\)ÖjRêkÅ
+veéUáy"'"1
+!.V>:3!C(?! 8'Å 2f,;nN<-*"?$-Å!6^6F4/ualPostBlockHtml = createIndividualPostBlockHtml;
   window.hydratePageBlocks = hydratePageBlocks;
   window.hydrateSingleIndividualPostBlock = hydrateSingleIndividualPostBlock;
   window.hydrateSingleRecentPostsBlock = hydrateSingleRecentPostsBlock;

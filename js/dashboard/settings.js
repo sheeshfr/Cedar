@@ -208,6 +208,84 @@
     return { name: '', bio: '', avatar: '' };
   }
 
+  function resolveStoredAuthorAvatarUrl(candidate, authorName) {
+    const unwrap = (val) => {
+      if (typeof window.unwrapCorruptedDataUrl === 'function') return window.unwrapCorruptedDataUrl(val);
+      if (typeof val !== 'string') return '';
+      let cur = val.trim();
+      let d = 0;
+      while (d < 10 && cur.startsWith('data:')) {
+        const ci = cur.indexOf(',');
+        if (ci === -1) break;
+        const p = cur.slice(ci + 1).trim();
+        if (!p.startsWith('ZGF0YT')) break;
+        try {
+          const dec = atob(p.replace(/\s/g, ''));
+          if (dec && dec.trim().startsWith('data:')) {
+            cur = dec.trim();
+            d++;
+            continue;
+          }
+        } catch (e) {}
+        break;
+      }
+      return cur;
+    };
+
+    let c = unwrap(candidate || '');
+    if (c && (c.startsWith('data:') || c.startsWith('blob:') || /^https?:\/\//i.test(c))) {
+      return c;
+    }
+
+    if (window.imageRegistry && typeof window.imageRegistry.get === 'function') {
+      const cleanRel = c.replace(/^\/+/, '');
+      const baseName = cleanRel.split('/').pop() || '';
+      const slug = (typeof window.generateSlug === 'function' && authorName)
+        ? window.generateSlug(authorName)
+        : String(authorName || 'andy').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const keysToTry = [
+        cleanRel,
+        '/' + cleanRel,
+        baseName,
+        `media/authors/${slug}_avatar.jpg`,
+        `${slug}_avatar.jpg`,
+        'media/authors/andy_avatar.jpg',
+        'andy_avatar.jpg'
+      ].filter(Boolean);
+      for (const k of keysToTry) {
+        const entry = window.imageRegistry.get(k);
+        const dUrl = unwrap((entry && (entry.dataUrl || entry.src)) || '');
+        if (dUrl && (dUrl.startsWith('data:') || dUrl.startsWith('blob:'))) {
+          return dUrl;
+        }
+      }
+      if (typeof window.imageRegistry.forEach === 'function') {
+        let fallbackFound = '';
+        window.imageRegistry.forEach((val, key) => {
+          if (fallbackFound) return;
+          if (String(key || '').includes('media/authors/') || String(key || '').endsWith('_avatar.jpg')) {
+            const dUrl = unwrap((val && (val.dataUrl || val.src)) || '');
+            if (dUrl && (dUrl.startsWith('data:') || dUrl.startsWith('blob:'))) {
+              fallbackFound = dUrl;
+            }
+          }
+        });
+        if (fallbackFound) return fallbackFound;
+      }
+    }
+
+    if (projectConfig && typeof projectConfig.authorAvatar === 'string') {
+      const pAv = unwrap(projectConfig.authorAvatar);
+      if (pAv && (pAv.startsWith('data:') || pAv.startsWith('blob:'))) return pAv;
+    }
+
+    if (window.Cedar && window.Cedar.isLocalServer && c) {
+      return c;
+    }
+    return '';
+  }
+
+  let _hydratingAuthorAvatarAsync = false;
   function updateSettingsAuthorAvatarUI() {
     const avatarImg = document.getElementById('setting-author-avatar-img');
     const placeholder = document.getElementById('setting-author-avatar-placeholder');
@@ -220,11 +298,28 @@
       || (typeof resolveSettingsPrimaryAuthor === 'function' ? resolveSettingsPrimaryAuthor().name : '')
       || '';
     const char = effectiveName ? effectiveName.charAt(0).toUpperCase() : '';
-    if (wrap) wrap.classList.toggle('has-image', Boolean(currentSettingsAuthorAvatar));
 
-    if (currentSettingsAuthorAvatar) {
+    const resolvedAvatar = authorAvatarExplicitlyRemoved
+      ? ''
+      : resolveStoredAuthorAvatarUrl(currentSettingsAuthorAvatar, effectiveName);
+    if (resolvedAvatar) {
+      currentSettingsAuthorAvatar = resolvedAvatar;
+    }
+
+    if (wrap) wrap.classList.toggle('has-image', Boolean(resolvedAvatar));
+
+    if (resolvedAvatar) {
       if (avatarImg) {
-        avatarImg.src = currentSettingsAuthorAvatar;
+        avatarImg.onerror = () => {
+          avatarImg.style.display = 'none';
+          avatarImg.removeAttribute('src');
+          if (wrap) wrap.classList.remove('has-image');
+          if (placeholder) {
+            placeholder.textContent = char;
+            placeholder.style.display = char ? 'inline-flex' : 'none';
+          }
+        };
+        avatarImg.src = resolvedAvatar;
         avatarImg.style.display = 'block';
       }
       if (placeholder) {
@@ -235,7 +330,7 @@
       }
     } else {
       if (avatarImg) {
-        avatarImg.src = '';
+        avatarImg.removeAttribute('src');
         avatarImg.style.display = 'none';
       }
       if (placeholder) {
@@ -244,6 +339,54 @@
       }
       if (removeBtn) {
         removeBtn.style.display = 'none';
+      }
+      if (!authorAvatarExplicitlyRemoved && !_hydratingAuthorAvatarAsync && (window.CedarVirtualStorage || window.OutpostVirtualStorage)) {
+        _hydratingAuthorAvatarAsync = true;
+        const vStore = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        (async () => {
+          try {
+            const slug = (typeof window.generateSlug === 'function' && effectiveName)
+              ? window.generateSlug(effectiveName)
+              : String(effectiveName || 'andy').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            let avBlobOrUrl = await vStore.readFile(`media/authors/${slug}_avatar.jpg`)
+              || await vStore.readFile('media/authors/andy_avatar.jpg');
+            let dUrl = '';
+            if (typeof avBlobOrUrl === 'string' && avBlobOrUrl.startsWith('data:')) {
+              dUrl = avBlobOrUrl;
+            } else if (avBlobOrUrl instanceof Blob && avBlobOrUrl.size > 0) {
+              dUrl = await new Promise((res) => {
+                const r = new FileReader();
+                r.onloadend = () => res(typeof r.result === 'string' ? r.result : '');
+                r.onerror = () => res('');
+                r.readAsDataURL(avBlobOrUrl);
+              });
+            }
+            if (!dUrl) {
+              const vCfg = await vStore.readFile('editor/config.json') || await vStore.readFile('cedar_config.json');
+              if (vCfg && typeof vCfg === 'object') {
+                const cand = vCfg.authorAvatar || (Array.isArray(vCfg.authors) && vCfg.authors[0] && vCfg.authors[0].avatar) || '';
+                if (typeof cand === 'string' && cand.startsWith('data:')) dUrl = cand;
+              }
+            }
+            if (dUrl && !authorAvatarExplicitlyRemoved) {
+              if (typeof window.unwrapCorruptedDataUrl === 'function') dUrl = window.unwrapCorruptedDataUrl(dUrl);
+              currentSettingsAuthorAvatar = dUrl;
+              if (projectConfig) {
+                projectConfig.authorAvatar = dUrl;
+                if (Array.isArray(projectConfig.authors) && projectConfig.authors[0] && typeof projectConfig.authors[0] === 'object') {
+                  projectConfig.authors[0].avatar = dUrl;
+                }
+              }
+              if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
+                const regEntry = { filename: `${slug}_avatar.jpg`, relativePath: `/media/authors/${slug}_avatar.jpg`, dataUrl: dUrl, src: dUrl };
+                window.imageRegistry.set(`media/authors/${slug}_avatar.jpg`, regEntry);
+                window.imageRegistry.set(`${slug}_avatar.jpg`, regEntry);
+              }
+              updateSettingsAuthorAvatarUI();
+            }
+          } catch (_) {}
+          _hydratingAuthorAvatarAsync = false;
+        })();
       }
     }
   }
@@ -282,11 +425,14 @@
     if (bioInput) {
       bioInput.value = (typeof primaryAuthor === 'object' ? primaryAuthor.bio : '') || '';
     }
-    const rawAvatar = (typeof primaryAuthor === 'object' ? (primaryAuthor.avatar || primaryAuthor.image || '') : '') || '';
+    const rawAvatar = (typeof primaryAuthor === 'object' ? (primaryAuthor.avatar || primaryAuthor.image || '') : '')
+      || (projectConfig && projectConfig.authorAvatar)
+      || '';
     authorAvatarExplicitlyRemoved = false;
-    currentSettingsAuthorAvatar = (typeof window.resolveAuthorAvatar === 'function' && primaryAuthor?.name)
+    const candidateAvatar = (typeof window.resolveAuthorAvatar === 'function' && primaryAuthor?.name)
       ? (window.resolveAuthorAvatar(primaryAuthor.name, rawAvatar) || rawAvatar)
       : rawAvatar;
+    currentSettingsAuthorAvatar = resolveStoredAuthorAvatarUrl(candidateAvatar, primaryAuthor?.name) || candidateAvatar;
     updateSettingsAuthorAvatarUI();
   }
 
@@ -587,13 +733,83 @@
     const settingsLogoFileName = document.getElementById('settings-logo-file-name');
     const settingsLogoDims = document.getElementById('settings-logo-dims-badge');
 
-    const currentLogo = (projectConfig.design && projectConfig.design.branding && (projectConfig.design.branding.originalLogo || projectConfig.design.branding.generalLogo)) || '';
+    const unwrapBrandingUrl = (val) => {
+      if (typeof window.unwrapCorruptedDataUrl === 'function') return window.unwrapCorruptedDataUrl(val);
+      if (typeof val !== 'string') return '';
+      let cur = val.trim();
+      let d = 0;
+      while (d < 10 && cur.startsWith('data:')) {
+        const ci = cur.indexOf(',');
+        if (ci === -1) break;
+        const p = cur.slice(ci + 1).trim();
+        if (!p.startsWith('ZGF0YT')) break;
+        try {
+          const dec = atob(p.replace(/\s/g, ''));
+          if (dec && dec.trim().startsWith('data:')) {
+            cur = dec.trim();
+            d++;
+            continue;
+          }
+        } catch (e) {}
+        break;
+      }
+      return cur;
+    };
+
+    const isRelativeNonDataPath = (v) => {
+      if (!v || typeof v !== 'string') return false;
+      const t = v.trim();
+      if (!t) return false;
+      if (t.startsWith('data:') || t.startsWith('blob:') || /^https?:\/\//i.test(t)) return false;
+      return !(window.Cedar && window.Cedar.isLocalServer);
+    };
+
+    const isLogoPathPlaceholder = (v) => {
+      if (!v || typeof v !== 'string') return false;
+      const t = v.trim();
+      return isRelativeNonDataPath(t) || t === 'logo.png' || t === '/logo.png' || t === 'media/branding/logo.png' || t === '/media/branding/logo.png' || t === 'media/branding/logo-original.png' || t === '/media/branding/logo-original.png';
+    };
+
+    const isFaviconPathPlaceholder = (v) => {
+      if (!v || typeof v !== 'string') return false;
+      const t = v.trim();
+      return isRelativeNonDataPath(t) || t === 'icon.png' || t === '/icon.png' || t === 'media/branding/icon.png' || t === '/media/branding/icon.png';
+    };
+
+    const brObj = (projectConfig.design && projectConfig.design.branding) || {};
+    if (brObj.originalLogo) brObj.originalLogo = unwrapBrandingUrl(brObj.originalLogo);
+    if (brObj.generalLogo) brObj.generalLogo = unwrapBrandingUrl(brObj.generalLogo);
+    if (brObj.tabLogo) brObj.tabLogo = unwrapBrandingUrl(brObj.tabLogo);
+
+    let storedLogoFile = unwrapBrandingUrl(
+      (brObj.files && (brObj.files['media/branding/logo-original.png'] || brObj.files['media/branding/logo.png']))
+      || (window.brandingFiles && (window.brandingFiles['media/branding/logo-original.png'] || window.brandingFiles['media/branding/logo.png']))
+      || (window.imageRegistry && ((window.imageRegistry.get('media/branding/logo-original.png') && window.imageRegistry.get('media/branding/logo-original.png').dataUrl) || (window.imageRegistry.get('media/branding/logo.png') && window.imageRegistry.get('media/branding/logo.png').dataUrl) || (window.imageRegistry.get('logo-original.png') && window.imageRegistry.get('logo-original.png').dataUrl) || (window.imageRegistry.get('logo.png') && window.imageRegistry.get('logo.png').dataUrl)))
+      || ''
+    );
+    if (isLogoPathPlaceholder(storedLogoFile)) storedLogoFile = '';
+
+    const rawLogoCandidate = unwrapBrandingUrl(brObj.originalLogo || brObj.generalLogo || '');
+    const currentLogo = (!rawLogoCandidate || isLogoPathPlaceholder(rawLogoCandidate))
+      ? storedLogoFile
+      : rawLogoCandidate;
 
     if (settingsLogoPreview && settingsLogoEmpty) {
       if (currentLogo) {
         settingsLogoEmpty.style.display = 'none';
         settingsLogoPreview.style.display = 'flex';
         if (settingsLogoImg) {
+          const handleLogoErr = () => {
+            if (settingsLogoPreview) settingsLogoPreview.style.display = 'none';
+            if (settingsLogoEmpty) settingsLogoEmpty.style.display = 'flex';
+            if (settingsLogoImg) {
+              settingsLogoImg.removeAttribute('src');
+              settingsLogoImg.style.width = '';
+              settingsLogoImg.style.maxWidth = '';
+            }
+            if (settingsLogoDims) settingsLogoDims.textContent = '--';
+          };
+          settingsLogoImg.onerror = handleLogoErr;
           settingsLogoImg.src = currentLogo;
           const imgObj = new Image();
           imgObj.onload = () => {
@@ -606,6 +822,7 @@
             }
             if (settingsLogoDims) settingsLogoDims.textContent = `${naturalW} × ${naturalH}px (${scalePct}% width)`;
           };
+          imgObj.onerror = handleLogoErr;
           imgObj.src = currentLogo;
         }
         if (settingsLogoFileName) {
@@ -615,7 +832,7 @@
         settingsLogoPreview.style.display = 'none';
         settingsLogoEmpty.style.display = 'flex';
         if (settingsLogoImg) {
-          settingsLogoImg.src = '';
+          settingsLogoImg.removeAttribute('src');
           settingsLogoImg.style.width = '';
           settingsLogoImg.style.maxWidth = '';
         }
@@ -630,20 +847,24 @@
     const settingsFaviconFileName = document.getElementById('settings-favicon-file-name');
     const settingsFaviconDims = document.getElementById('settings-favicon-dims-badge');
 
-    const rawFavicon = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.tabLogo) || '';
-    let storedFavFile = (projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.files && projectConfig.design.branding.files['media/branding/icon.png'])
+    const rawFavicon = unwrapBrandingUrl(brObj.tabLogo || '');
+    let storedFavFile = unwrapBrandingUrl(
+      (brObj.files && brObj.files['media/branding/icon.png'])
       || (window.brandingFiles && window.brandingFiles['media/branding/icon.png'])
-      || '';
+      || (window.imageRegistry && ((window.imageRegistry.get('media/branding/icon.png') && window.imageRegistry.get('media/branding/icon.png').dataUrl) || (window.imageRegistry.get('icon.png') && window.imageRegistry.get('icon.png').dataUrl)))
+      || ''
+    );
     if (!storedFavFile) {
       try {
         const lsFiles = JSON.parse(localStorage.getItem('cedar_branding_files_v1') || '{}');
         if (lsFiles && lsFiles['media/branding/icon.png']) {
-          storedFavFile = lsFiles['media/branding/icon.png'];
+          storedFavFile = unwrapBrandingUrl(lsFiles['media/branding/icon.png']);
         }
       } catch (e) {}
     }
-    const faviconExplicitlyRemoved = Boolean(projectConfig.design && projectConfig.design.branding && projectConfig.design.branding.faviconExplicitlyRemoved);
-    let currentFavicon = (rawFavicon === 'icon.png' || rawFavicon === '/icon.png')
+    if (isFaviconPathPlaceholder(storedFavFile)) storedFavFile = '';
+    const faviconExplicitlyRemoved = Boolean(brObj.faviconExplicitlyRemoved);
+    let currentFavicon = isFaviconPathPlaceholder(rawFavicon)
       ? storedFavFile
       : (rawFavicon || storedFavFile);
 
@@ -658,6 +879,13 @@
         settingsFaviconEmpty.style.display = 'none';
         settingsFaviconPreview.style.display = 'flex';
         if (settingsFaviconImg) {
+          const handleFavErr = () => {
+            if (settingsFaviconPreview) settingsFaviconPreview.style.display = 'none';
+            if (settingsFaviconEmpty) settingsFaviconEmpty.style.display = 'flex';
+            if (settingsFaviconImg) settingsFaviconImg.removeAttribute('src');
+            if (settingsFaviconDims) settingsFaviconDims.textContent = '--';
+          };
+          settingsFaviconImg.onerror = handleFavErr;
           settingsFaviconImg.src = currentFavicon;
           const favImgObj = new Image();
           favImgObj.onload = () => {
@@ -682,6 +910,7 @@
             const naturalH = Math.min(64, favImgObj.naturalHeight || 64);
             if (settingsFaviconDims) settingsFaviconDims.textContent = `${naturalW} × ${naturalH}px`;
           };
+          favImgObj.onerror = handleFavErr;
           favImgObj.src = currentFavicon;
         }
         if (settingsFaviconFileName) {
@@ -691,10 +920,81 @@
         settingsFaviconPreview.style.display = 'none';
         settingsFaviconEmpty.style.display = 'flex';
         if (settingsFaviconImg) {
-          settingsFaviconImg.src = '';
+          settingsFaviconImg.removeAttribute('src');
         }
         if (settingsFaviconDims) settingsFaviconDims.textContent = '--';
       }
+    }
+
+    if ((!currentLogo || !currentFavicon) && !window._hydratingBrandingSettingsAsync && (window.CedarVirtualStorage || window.OutpostVirtualStorage)) {
+      window._hydratingBrandingSettingsAsync = true;
+      const vStore = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+      (async () => {
+        try {
+          const readAsDataUrl = async (rel) => {
+            const val = await vStore.readFile(rel);
+            if (typeof val === 'string' && val.startsWith('data:')) return unwrapBrandingUrl(val);
+            if (val instanceof Blob && val.size > 0) {
+              const d = await new Promise((res) => {
+                const r = new FileReader();
+                r.onloadend = () => res(typeof r.result === 'string' ? r.result : '');
+                r.onerror = () => res('');
+                r.readAsDataURL(val);
+              });
+              return unwrapBrandingUrl(d);
+            }
+            return '';
+          };
+          let foundLogo = currentLogo || await readAsDataUrl('media/branding/logo-original.png') || await readAsDataUrl('media/branding/logo.png');
+          let foundFav = currentFavicon || (!faviconExplicitlyRemoved ? await readAsDataUrl('media/branding/icon.png') : '');
+          if (!foundLogo || !foundFav) {
+            const vCfg = await vStore.readFile('editor/config.json') || await vStore.readFile('cedar_config.json');
+            const vBr = vCfg && vCfg.design && vCfg.design.branding;
+            if (vBr) {
+              if (!foundLogo) {
+                const candL = unwrapBrandingUrl(vBr.originalLogo || vBr.generalLogo || (vBr.files && (vBr.files['media/branding/logo-original.png'] || vBr.files['media/branding/logo.png'])) || '');
+                if (candL && candL.startsWith('data:')) foundLogo = candL;
+              }
+              if (!foundFav && !faviconExplicitlyRemoved) {
+                const candF = unwrapBrandingUrl(vBr.tabLogo || (vBr.files && vBr.files['media/branding/icon.png']) || '');
+                if (candF && candF.startsWith('data:')) foundFav = candF;
+              }
+            }
+          }
+          let updatedBr = false;
+          if (!projectConfig.design) projectConfig.design = {};
+          if (!projectConfig.design.branding) projectConfig.design.branding = {};
+          if (!projectConfig.design.branding.files) projectConfig.design.branding.files = {};
+          if (!window.brandingFiles) window.brandingFiles = {};
+          if (foundLogo && !currentLogo) {
+            projectConfig.logo = foundLogo;
+            projectConfig.design.branding.generalLogo = foundLogo;
+            projectConfig.design.branding.originalLogo = foundLogo;
+            projectConfig.design.branding.files['media/branding/logo.png'] = foundLogo;
+            projectConfig.design.branding.files['media/branding/logo-original.png'] = foundLogo;
+            window.brandingFiles['media/branding/logo.png'] = foundLogo;
+            window.brandingFiles['media/branding/logo-original.png'] = foundLogo;
+            if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
+              window.imageRegistry.set('media/branding/logo.png', { filename: 'logo.png', relativePath: '/media/branding/logo.png', dataUrl: foundLogo, src: foundLogo });
+              window.imageRegistry.set('media/branding/logo-original.png', { filename: 'logo-original.png', relativePath: '/media/branding/logo-original.png', dataUrl: foundLogo, src: foundLogo });
+            }
+            updatedBr = true;
+          }
+          if (foundFav && !currentFavicon && !faviconExplicitlyRemoved) {
+            projectConfig.design.branding.tabLogo = foundFav;
+            projectConfig.design.branding.files['media/branding/icon.png'] = foundFav;
+            window.brandingFiles['media/branding/icon.png'] = foundFav;
+            if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
+              window.imageRegistry.set('media/branding/icon.png', { filename: 'icon.png', relativePath: '/media/branding/icon.png', dataUrl: foundFav, src: foundFav });
+            }
+            updatedBr = true;
+          }
+          if (updatedBr) {
+            renderProjectSettings();
+          }
+        } catch (_) {}
+        window._hydratingBrandingSettingsAsync = false;
+      })();
     }
 
     // Ensure settings brand logo & favicon dropzones strictly reflect the background selected in Design
