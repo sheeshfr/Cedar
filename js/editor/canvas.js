@@ -1328,23 +1328,28 @@
         }
       } else {
         // Forward delete on an empty block:
-        // If prevSib is editable, keep caret above the following non-text block.
-        // Otherwise, place caret in the next editable block below the following non-text block.
-        let p = prevSib;
-        while (p && isNonTextBlock(p)) {
-          p = p.previousElementSibling;
-        }
-        if (p && !isNonTextBlock(p)) {
-          targetEditable = p;
-          placeAtStart = false;
+        // If nextSib is an editable text block, pull it up into topBlock's spot and place caret at its start.
+        // If nextSib is a non-text block and prevSib is editable, keep caret above the non-text block.
+        if (nextSib && !isNonTextBlock(nextSib)) {
+          targetEditable = nextSib;
+          placeAtStart = true;
         } else {
-          let n = nextSib;
-          while (n && isNonTextBlock(n)) {
-            n = n.nextElementSibling;
+          let p = prevSib;
+          while (p && isNonTextBlock(p)) {
+            p = p.previousElementSibling;
           }
-          if (n && !isNonTextBlock(n)) {
-            targetEditable = n;
-            placeAtStart = true;
+          if (p && !isNonTextBlock(p)) {
+            targetEditable = p;
+            placeAtStart = false;
+          } else {
+            let n = nextSib;
+            while (n && isNonTextBlock(n)) {
+              n = n.nextElementSibling;
+            }
+            if (n && !isNonTextBlock(n)) {
+              targetEditable = n;
+              placeAtStart = true;
+            }
           }
         }
       }
@@ -1482,6 +1487,14 @@
                     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
                     return;
                   }
+                  // Never combine two non-empty text blocks on Backspace: keep them separate and move caret to end of prevSib
+                  e.preventDefault();
+                  placeCaretAtEndOfNode(prevSib);
+                  return;
+                }
+                if (preText.length === 0 && !hasMedia && !prevSib) {
+                  e.preventDefault();
+                  return;
                 }
                 if (preText.length === 0 && !hasMedia && isNonTextBlock(prevSib)) {
                   e.preventDefault();
@@ -1505,7 +1518,7 @@
                   return;
                 }
                 const cleanRawText = (rawText || '').replace(/[\s\u00A0]/g, '');
-                if (cleanRawText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
+                if (cleanRawText.length === 0 && !hasMedia) {
                   e.preventDefault();
                   removeEmptyEditableBlockSafely(topBlock, 'forward');
                   return;
@@ -1513,6 +1526,25 @@
                 if (postText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
                   e.preventDefault();
                   removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  return;
+                }
+                if (postText.length === 0 && !hasMedia && nextSib && !isNonTextBlock(nextSib)) {
+                  const nextRawText = (nextSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+                  const nextHasMedia = Boolean(nextSib.querySelector && nextSib.querySelector('img, video, iframe, hr, audio'));
+                  if (nextRawText.length === 0 && !nextHasMedia && nextSib.tagName === 'P') {
+                    e.preventDefault();
+                    if (window.commitCheckpoint) window.commitCheckpoint();
+                    nextSib.remove();
+                    if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+                    placeCaretAtEndOfNode(topBlock);
+                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+                    if (typeof window.updateStats === 'function') window.updateStats();
+                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+                    return;
+                  }
+                  // Never combine two non-empty text blocks on Delete: keep them separate and move caret to start of nextSib
+                  e.preventDefault();
+                  placeCaretInBlock(nextSib, true);
                   return;
                 }
                 if (postText.length === 1 && preText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
@@ -1900,7 +1932,7 @@
                   removeEmptyEditableBlockSafely(topBlock, 'backward');
                   return;
                 }
-                // Case 1B: Caret is at the very start of topBlock and previous sibling is an empty <p> -> remove that 1 empty <p> above topBlock
+                // Case 1B: Caret is at the very start of topBlock and previous sibling is a text block
                 if (preText.length === 0 && !hasMedia && prevSib && !isNonTextBlock(prevSib)) {
                   const prevRawText = (prevSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
                   const prevHasMedia = Boolean(prevSib.querySelector && prevSib.querySelector('img, video, iframe, hr, audio'));
@@ -1915,6 +1947,16 @@
                     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
                     return;
                   }
+                  // Never combine two non-empty text blocks on Backspace: keep them separate and move caret to end of prevSib
+                  e.preventDefault();
+                  e.stopPropagation();
+                  placeCaretAtEndOfNode(prevSib);
+                  return;
+                }
+                if (preText.length === 0 && !hasMedia && !prevSib) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
                 }
                 // Case 2: Caret is at the very beginning of topBlock (offset 0) and previous sibling is a non-text block
                 if (preText.length === 0 && !hasMedia && isNonTextBlock(prevSib)) {
@@ -1947,8 +1989,8 @@
                   return;
                 }
                 const cleanRawText = (rawText || '').replace(/[\s\u00A0]/g, '');
-                // Case 1: Block is completely empty (<p><br></p>) and next sibling is a non-text block
-                if (cleanRawText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
+                // Case 1: Block is completely empty (<p><br></p>) -> remove 1 single empty line cleanly
+                if (cleanRawText.length === 0 && !hasMedia) {
                   e.preventDefault();
                   e.stopPropagation();
                   removeEmptyEditableBlockSafely(topBlock, 'forward');
@@ -1959,6 +2001,28 @@
                   e.preventDefault();
                   e.stopPropagation();
                   removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  return;
+                }
+                // Case 2B: Caret is at the very end of topBlock and next sibling is a text block
+                if (postText.length === 0 && !hasMedia && nextSib && !isNonTextBlock(nextSib)) {
+                  const nextRawText = (nextSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+                  const nextHasMedia = Boolean(nextSib.querySelector && nextSib.querySelector('img, video, iframe, hr, audio'));
+                  if (nextRawText.length === 0 && !nextHasMedia && nextSib.tagName === 'P') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (window.commitCheckpoint) window.commitCheckpoint();
+                    nextSib.remove();
+                    if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+                    placeCaretAtEndOfNode(topBlock);
+                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+                    if (typeof window.updateStats === 'function') window.updateStats();
+                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+                    return;
+                  }
+                  // Never combine two non-empty text blocks on Delete: keep them separate and move caret to start of nextSib
+                  e.preventDefault();
+                  e.stopPropagation();
+                  placeCaretInBlock(nextSib, true);
                   return;
                 }
                 // Case 3: Block has 1 character after caret and 0 before, adjacent to a non-text block in front

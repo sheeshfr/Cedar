@@ -173,7 +173,7 @@
       }
 
       const hasCaption = caption.length > 0 && caption !== 'Add caption here...' && caption !== 'Add image caption here...';
-      return `\n<div class="captioned-image-container${hasCaption ? ' has-caption' : ''}" contenteditable="false" tabindex="0"><figure><div class="image-media-wrapper"><img src="${escapeHtml(displaySrc)}" data-original-src="${escapeHtml(src)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(alt)}" loading="lazy" draggable="false"><button type="button" class="image-add-caption-btn" title="Add Caption"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Add Caption</span></button></div>${hasCaption ? `<figcaption contenteditable="true" placeholder="Add caption here...">${escapeHtml(caption)}</figcaption>` : ''}</figure></div>\n`;
+      return `\n<div class="captioned-image-container${hasCaption ? ' has-caption' : ''}" contenteditable="false" draggable="true" tabindex="0"><figure><div class="image-media-wrapper"><img src="${escapeHtml(displaySrc)}" data-original-src="${escapeHtml(src)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(alt)}" loading="lazy" draggable="false"><button type="button" class="image-add-caption-btn" title="Add Caption"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Add Caption</span></button></div>${hasCaption ? `<figcaption contenteditable="true" placeholder="Add caption here...">${escapeHtml(caption)}</figcaption>` : ''}</figure></div>\n`;
     });
 
     // 4. Code Blocks: ```lang ... ```
@@ -319,27 +319,10 @@
         continue;
       }
 
-      // Empty line handling (lookahead to avoid splitting loose markdown lists)
+      // Empty line handling: flush paragraphs and lists so separate blocks stay separate
       if (!line.trim()) {
         flushParagraph();
-        if (inList) {
-          let nextNonEmptyIndex = -1;
-          for (let j = i + 1; j < lines.length; j++) {
-            if (lines[j].trim()) {
-              nextNonEmptyIndex = j;
-              break;
-            }
-          }
-          if (nextNonEmptyIndex !== -1) {
-            const nextLine = lines[nextNonEmptyIndex];
-            const isNextUl = /^[\*\-\+\u2022]\s+(.*)/.test(nextLine);
-            const isNextOl = /^\d+[\.\)]\s+(.*)/.test(nextLine);
-            if ((listType === 'ul' && isNextUl) || (listType === 'ol' && isNextOl)) {
-              continue; // Do not flush list across blank lines if list continues
-            }
-          }
-          flushList();
-        }
+        flushList();
         continue;
       }
 

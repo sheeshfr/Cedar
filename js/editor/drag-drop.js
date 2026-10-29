@@ -286,8 +286,9 @@
       if (e.dataTransfer) {
         e.dataTransfer.effectAllowed = 'move';
         try {
+          e.dataTransfer.clearData();
           e.dataTransfer.setData('text/plain', 'cedar-block');
-        try { e.dataTransfer.setData('application/x-cedar-block', 'true'); } catch (err) {}
+          try { e.dataTransfer.setData('application/x-cedar-block', 'true'); } catch (err) {}
         } catch (err) {}
       }
     });
@@ -588,6 +589,10 @@
           window._selectedImageBlock = null;
           window._lastActiveImageBlock = null;
           window._lastActiveBlock = null;
+          try {
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();
+          } catch (err) {}
           if (typeof currentDragged.blur === 'function') currentDragged.blur();
 
           if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();

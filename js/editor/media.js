@@ -1199,6 +1199,9 @@
       if (container.getAttribute('contenteditable') !== 'false') {
         container.setAttribute('contenteditable', 'false');
       }
+      if (container.getAttribute('draggable') !== 'true') {
+        container.setAttribute('draggable', 'true');
+      }
       if (!container.hasAttribute('tabindex')) {
         container.setAttribute('tabindex', '0');
       }
@@ -1315,6 +1318,15 @@
     // Also check galleries
     const galleries = root.querySelectorAll('.custom-gallery-grid');
     galleries.forEach(gal => {
+      if (gal.getAttribute('contenteditable') !== 'false') {
+        gal.setAttribute('contenteditable', 'false');
+      }
+      if (gal.getAttribute('draggable') !== 'true') {
+        gal.setAttribute('draggable', 'true');
+      }
+      if (!gal.hasAttribute('tabindex')) {
+        gal.setAttribute('tabindex', '0');
+      }
       gal.querySelectorAll('.figure-hover-actions, .image-hover-pill-bar, .image-add-photo-btn, .btn-add-multi-image, .btn-combine-adjacent-images').forEach(el => el.remove());
 
       // Check caption state
@@ -1339,7 +1351,7 @@
         if (gImg && gImg.getAttribute('draggable') !== 'false') {
           gImg.setAttribute('draggable', 'false');
         }
-        if (!item.hasAttribute('draggable')) {
+        if (item.getAttribute('draggable') !== 'true') {
           item.setAttribute('draggable', 'true');
         }
         item.dataset.index = idx.toString();

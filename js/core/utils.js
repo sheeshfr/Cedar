@@ -634,74 +634,9 @@
 
 
 
-  // --- Helper: Merge Adjacent Lists (UL/OL) & Remove Empty List Spacers ---
+  // --- Helper: Keep Adjacent Lists (UL/OL) Separate (Never Auto-Combine Separate Blocks) ---
   function mergeAdjacentLists(container) {
-    if (!container || !container.querySelectorAll) return false;
-    let modified = false;
-
-    function isEmptySpacer(el) {
-      if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
-      if (el === document.activeElement || (document.activeElement && el.contains(document.activeElement))) return false;
-      const sel = window.getSelection ? window.getSelection() : null;
-      if (sel && sel.anchorNode && (el === sel.anchorNode || el.contains(sel.anchorNode))) return false;
-      if (el.hasAttribute('data-intentional') || el.dataset?.intentional || el.dataset?.blockType) return false;
-
-      const tag = el.tagName.toLowerCase();
-      if (tag === 'p' || tag === 'div') {
-        const text = el.textContent.replace(/[\u200B-\u200D\uFEFF\s]/g, '');
-        if (!text) {
-          const nonBr = Array.from(el.children).filter(c => c.tagName.toLowerCase() !== 'br');
-          return nonBr.length === 0;
-        }
-      }
-      return false;
-    }
-
-    let continueLoop = true;
-    while (continueLoop) {
-      continueLoop = false;
-      const lists = Array.from(container.querySelectorAll('ul, ol'));
-
-      for (let i = 0; i < lists.length; i++) {
-        const list = lists[i];
-        if (!list.parentNode) continue;
-
-        const tag = list.tagName.toLowerCase();
-        let next = list.nextSibling;
-
-        const spacersToRemove = [];
-        let candidate = next;
-        while (candidate) {
-          if (candidate.nodeType === Node.TEXT_NODE && !candidate.textContent.trim()) {
-            spacersToRemove.push(candidate);
-            candidate = candidate.nextSibling;
-          } else if (candidate.nodeType === Node.ELEMENT_NODE && isEmptySpacer(candidate)) {
-            spacersToRemove.push(candidate);
-            candidate = candidate.nextSibling;
-          } else {
-            break;
-          }
-        }
-
-        if (candidate && candidate.nodeType === Node.ELEMENT_NODE && candidate.tagName.toLowerCase() === tag && candidate !== list) {
-          spacersToRemove.forEach(s => s.remove());
-          while (candidate.firstChild) {
-            const child = candidate.firstChild;
-            if (child.nodeType === Node.ELEMENT_NODE && child.tagName.toLowerCase() === 'li') {
-              if (child.hasAttribute('value')) {
-                child.removeAttribute('value');
-              }
-            }
-            list.appendChild(child);
-          }
-          candidate.remove();
-          modified = true;
-          continueLoop = true;
-          break;
-        }
-      }
-    }
-    return modified;
+    return false;
   }
 
   const MUTED_COVER_PALETTE = [

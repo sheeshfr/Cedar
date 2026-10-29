@@ -153,6 +153,7 @@
               const figContainer = doc.createElement('div');
               figContainer.className = 'captioned-image-container';
               figContainer.setAttribute('contenteditable', 'false');
+              figContainer.setAttribute('draggable', 'true');
               figContainer.setAttribute('tabindex', '0');
               const fig = doc.createElement('figure');
               const wrap = doc.createElement('div');

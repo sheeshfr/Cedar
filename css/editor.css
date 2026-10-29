@@ -1392,6 +1392,24 @@
   transition: border-radius 0.2s;
 }
 
+.canvas-prose .captioned-image-container,
+.canvas-prose .custom-gallery-item:not(.gallery-slot-placeholder) {
+  cursor: grab;
+}
+
+.canvas-prose .captioned-image-container:active,
+.canvas-prose .custom-gallery-item:not(.gallery-slot-placeholder):active {
+  cursor: grabbing;
+}
+
+/* Allow dragging image blocks and gallery items from anywhere on the image without <img draggable="false"> blocking Blink's DraggableNode walk */
+.canvas-prose .captioned-image-container img,
+.canvas-prose .custom-gallery-item img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
 .captioned-image-container[data-pixelated="true"] img,
 .captioned-image-container img[data-pixelated="true"] {
   image-rendering: pixelated;
