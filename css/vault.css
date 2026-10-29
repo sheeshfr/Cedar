@@ -1156,6 +1156,23 @@
   height: 18px;
 }
 
+@keyframes cedarBtnSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.cedar-btn-spinner {
+  display: inline-block !important;
+  width: 20px !important;
+  height: 20px !important;
+  border: 2.5px solid rgba(255, 255, 255, 0.3) !important;
+  border-top-color: #ffffff !important;
+  border-radius: 50% !important;
+  animation: cedarBtnSpin 0.65s linear infinite !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
 .publish-btn-hero:hover {
   transform: translate(-4px, -4px) !important;
   box-shadow: 5px 5px 0px 0px #312e81, 8px 16px 30px rgba(79, 70, 229, 0.45) !important;

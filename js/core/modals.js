@@ -3072,9 +3072,41 @@
     }
 
     // 13b. Unified Modal: Greater "Publish Post" Action
-    async function publishPostFromModal() {
-      if (!currentDraft) return;
+    let _isPublishingPostFromModal = false;
+    async function publishPostFromModal(e) {
+      if (!currentDraft || _isPublishingPostFromModal) return;
       if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
+
+      const modalPublishBtns = [
+        document.getElementById('btn-publish-post-footer'),
+        document.getElementById('btn-publish-post-body')
+      ].filter(Boolean);
+      const savedBtnStates = modalPublishBtns.map(btn => {
+        const rect = btn.getBoundingClientRect();
+        return {
+          btn,
+          html: btn.innerHTML,
+          minWidth: btn.style.minWidth,
+          minHeight: btn.style.minHeight,
+          width: rect.width,
+          height: rect.height
+        };
+      });
+      const setModalBtnsSpinning = (spinning) => {
+        savedBtnStates.forEach(st => {
+          if (spinning) {
+            if (st.width > 0) st.btn.style.minWidth = `${Math.round(st.width)}px`;
+            if (st.height > 0) st.btn.style.minHeight = `${Math.round(st.height)}px`;
+            st.btn.disabled = true;
+            st.btn.innerHTML = `<span class="cedar-btn-spinner" aria-label="Publishing" role="status"></span>`;
+          } else {
+            st.btn.disabled = false;
+            st.btn.style.minWidth = st.minWidth;
+            st.btn.style.minHeight = st.minHeight;
+            st.btn.innerHTML = st.html;
+          }
+        });
+      };
 
       // Ensure form inputs in modal are synced
       const titleInput = document.getElementById('setup-post-title');
@@ -3095,6 +3127,11 @@
         const slugConfirmed = await commitManualSlugChange(slugInput.value);
         if (!slugConfirmed) return;
       }
+
+      _isPublishingPostFromModal = true;
+      const modalPublishStartTs = Date.now();
+      setModalBtnsSpinning(true);
+      try {
       if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
       const inputSlugVal = slugInput ? slugInput.value.trim() : '';
       if (inputSlugVal && inputSlugVal !== 'untitled-page' && inputSlugVal !== 'untitled-post') {
@@ -3257,6 +3294,10 @@
       if (typeof saveDraftsToStorage === 'function') {
         await saveDraftsToStorage();
       }
+      const elapsedModalPub = Date.now() - modalPublishStartTs;
+      if (elapsedModalPub < 380) {
+        await new Promise(r => setTimeout(r, 380 - elapsedModalPub));
+      }
       if (typeof window.updateAllPreviewFrames === 'function') {
         window.updateAllPreviewFrames();
       }
@@ -3289,6 +3330,10 @@
         showToast(isPage ? '✓ Page updated!' : '✓ Post updated!', 'success');
       } else {
         showToast(isPage ? '🚀 Page published!' : '🚀 Post published!', 'success');
+      }
+      } finally {
+        _isPublishingPostFromModal = false;
+        setModalBtnsSpinning(false);
       }
     }
 

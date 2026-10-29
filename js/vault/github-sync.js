@@ -633,6 +633,30 @@
   /**
    * PUSH & PUBLISH: Atomic Commit using Git Trees API
    */
+  const CANONICAL_PUBLISH_BTN_HTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 9V4s3.03.55 4 2c1.08 1.62 0 5 0 5"></path></svg>
+    <span id="btn-github-push-text">Publish</span>
+  `;
+
+  function setPublishButtonLoading(isLoading) {
+    const pushBtn = document.getElementById('btn-github-push');
+    if (!pushBtn) return;
+    if (isLoading) {
+      const rect = pushBtn.getBoundingClientRect();
+      if (rect.width > 0) pushBtn.style.minWidth = `${Math.round(rect.width)}px`;
+      if (rect.height > 0) pushBtn.style.minHeight = `${Math.round(rect.height)}px`;
+      pushBtn.disabled = true;
+      pushBtn.setAttribute('aria-busy', 'true');
+      pushBtn.innerHTML = `<span class="cedar-btn-spinner" aria-label="Publishing" role="status"></span>`;
+    } else {
+      pushBtn.disabled = false;
+      pushBtn.removeAttribute('aria-busy');
+      pushBtn.style.minWidth = '';
+      pushBtn.style.minHeight = '';
+      pushBtn.innerHTML = CANONICAL_PUBLISH_BTN_HTML;
+    }
+  }
+
   let isPublishingToGitHub = false;
   async function pushToGitHub(options = {}) {
     if (isPublishingToGitHub) {
@@ -643,6 +667,8 @@
       throw new Error('GitHub sync is not configured. Please enter your repository and token in Settings.');
     }
     isPublishingToGitHub = true;
+    const publishStartTs = Date.now();
+    setPublishButtonLoading(true);
     const creds = getCredentials();
     const repo = creds.repo;
     let branch = creds.branch || 'main';
@@ -1156,7 +1182,12 @@
       }
       throw err;
     } finally {
+      const elapsed = Date.now() - publishStartTs;
+      if (elapsed < 450) {
+        await new Promise(r => setTimeout(r, 450 - elapsed));
+      }
       isPublishingToGitHub = false;
+      setPublishButtonLoading(false);
     }
   }
 
@@ -1321,6 +1352,8 @@
         .publish-log-line.log-success .log-prefix, .publish-log-line.log-success .log-text { color: #4ade80; }
         .publish-log-line.log-warn .log-prefix, .publish-log-line.log-warn .log-text { color: #facc15; }
         .publish-log-line.log-error .log-prefix, .publish-log-line.log-error .log-text { color: #f87171; }
+        @keyframes cedarBtnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .cedar-btn-spinner { display: inline-block !important; width: 20px !important; height: 20px !important; border: 2.5px solid rgba(255, 255, 255, 0.3) !important; border-top-color: #ffffff !important; border-radius: 50% !important; animation: cedarBtnSpin 0.65s linear infinite !important; flex-shrink: 0 !important; box-sizing: border-box !important; }
       `;
       document.head.appendChild(styleEl);
     }
@@ -1512,9 +1545,11 @@
       timeLabel.textContent = formatLastPublished(lastTime);
     }
 
-    const pushBtnText = document.getElementById('btn-github-push-text');
-    if (pushBtnText) {
-      pushBtnText.textContent = 'Publish';
+    if (!isPublishingToGitHub) {
+      const pushBtnText = document.getElementById('btn-github-push-text');
+      if (pushBtnText) {
+        pushBtnText.textContent = 'Publish';
+      }
     }
 
     const credsPanel = document.getElementById('github-credentials-panel');
@@ -1721,82 +1756,67 @@
     }
 
     // Push button
-    const CANONICAL_PUBLISH_BTN_HTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 9V4s3.03.55 4 2c1.08 1.62 0 5 0 5"></path></svg>
-      <span id="btn-github-push-text">Publish</span>
-    `;
+    const handlePublishPushClick = async () => {
+      if (isPublishingToGitHub) return;
+      const inRepo = document.getElementById('setting-github-repo');
+      const inToken = document.getElementById('setting-github-token');
+      const repoVal = inRepo?.value.trim() || '';
+      const tokenVal = inToken?.value.trim() || '';
+      const configured = isConfigured();
+
+      // If not configured, require credentials and show red warning like TFU
+      if (!configured && (!repoVal || !tokenVal)) {
+        const credsPanel = document.getElementById('github-credentials-panel');
+        if (credsPanel) credsPanel._userToggled = true;
+        updateCredsPanelToggle(true);
+
+        // Apply red error styling & messages
+        validateGitHubCredentials(true);
+
+        let reason = 'Cannot publish: GitHub repository and Personal Access Token are required. Click "Add Repository" below.';
+        if (!repoVal && tokenVal) {
+          reason = 'Cannot publish: GitHub repository identifier is missing (e.g. username/my-blog).';
+        } else if (repoVal && !tokenVal) {
+          reason = 'Cannot publish: GitHub Personal Access Token is missing.';
+        }
+        setPublishReadout('error', reason);
+
+        // Focus the first empty field
+        if (!repoVal && inRepo) {
+          inRepo.focus();
+        } else if (!tokenVal && inToken) {
+          inToken.focus();
+        }
+
+        if (typeof window.showToast === 'function') {
+          window.showToast(reason, 'error');
+        }
+        return;
+      }
+
+      // Frictionless auto-save if credentials are typed in the form
+      if (!configured && repoVal && tokenVal) {
+        saveCredentials(repoVal, tokenVal, 'main');
+      }
+
+      setPublishReadout(null);
+      setPublishButtonLoading(true);
+
+      try {
+        await pushToGitHub();
+        updateSyncBadges();
+        setPublishReadout('success', 'Successfully published to GitHub! Live site is updating.');
+      } catch (e) {
+        setPublishReadout('error', `Cannot publish: ${e.message}`);
+      } finally {
+        setPublishButtonLoading(false);
+      }
+    };
+
     const btnPush = document.getElementById('btn-github-push');
     if (btnPush && !btnPush._hasGhPushListener) {
       btnPush._hasGhPushListener = true;
-      btnPush.addEventListener('click', async () => {
-        if (isPublishingToGitHub) return;
-        const inRepo = document.getElementById('setting-github-repo');
-        const inToken = document.getElementById('setting-github-token');
-        const repoVal = inRepo?.value.trim() || '';
-        const tokenVal = inToken?.value.trim() || '';
-        const configured = isConfigured();
-
-        // If not configured, require credentials and show red warning like TFU
-        if (!configured && (!repoVal || !tokenVal)) {
-          const credsPanel = document.getElementById('github-credentials-panel');
-          if (credsPanel) credsPanel._userToggled = true;
-          updateCredsPanelToggle(true);
-
-          // Apply red error styling & messages
-          validateGitHubCredentials(true);
-
-          let reason = 'Cannot publish: GitHub repository and Personal Access Token are required. Click "Add Repository" below.';
-          if (!repoVal && tokenVal) {
-            reason = 'Cannot publish: GitHub repository identifier is missing (e.g. username/my-blog).';
-          } else if (repoVal && !tokenVal) {
-            reason = 'Cannot publish: GitHub Personal Access Token is missing.';
-          }
-          setPublishReadout('error', reason);
-
-          // Focus the first empty field
-          if (!repoVal && inRepo) {
-            inRepo.focus();
-          } else if (!tokenVal && inToken) {
-            inToken.focus();
-          }
-
-          if (typeof window.showToast === 'function') {
-            window.showToast(reason, 'error');
-          }
-          return;
-        }
-
-        // Frictionless auto-save if credentials are typed in the form
-        if (!configured && repoVal && tokenVal) {
-          saveCredentials(repoVal, tokenVal, 'main');
-        }
-
-        setPublishReadout(null);
-
-        const pushBtn = document.getElementById('btn-github-push');
-        if (pushBtn) {
-          pushBtn.disabled = true;
-          pushBtn.innerHTML = `
-            <svg class="vault-sync-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 0.8s linear infinite;">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-            </svg>
-            <span id="btn-github-push-text">Publishing...</span>
-          `;
-        }
-
-        try {
-          await pushToGitHub();
-          updateSyncBadges();
-          setPublishReadout('success', 'Successfully published to GitHub! Live site is updating.');
-        } catch (e) {
-          setPublishReadout('error', `Cannot publish: ${e.message}`);
-        } finally {
-          if (pushBtn) {
-            pushBtn.disabled = false;
-            pushBtn.innerHTML = CANONICAL_PUBLISH_BTN_HTML;
-          }
-        }
-      });
+      btnPush.addEventListener('click', handlePublishPushClick);
     }
 
     // Delegated sidebar publish trigger
