@@ -1864,7 +1864,7 @@ ${socialMeta.metaLines}
     }
 
     .site-header.header-hidden {
-      transform: translateY(-100%) !important;
+      transform: none !important;
     }
 
     .container {
@@ -4000,37 +4000,10 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
     const yearEl = document.getElementById('current-year');
     if (yearEl) yearEl.textContent = '${blogCreatedYear}';
 
-    // Mobile headroom scroll handler (hides header when scrolling down, reveals on scroll up)
+    // Keep site header persistently visible across all views and posts
     (function() {
-      var lastScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-      var ticking = false;
       var header = document.querySelector('.site-header');
-      if (!header) return;
-
-      window.addEventListener('scroll', function() {
-        if (!ticking) {
-          window.requestAnimationFrame(function() {
-            var currentScrollY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop || 0);
-            var scrollDelta = currentScrollY - lastScrollY;
-
-            if (window.innerWidth <= 899) {
-              if (currentScrollY <= 15) {
-                header.classList.remove('header-hidden');
-              } else if (scrollDelta > 6 && currentScrollY > 60) {
-                header.classList.add('header-hidden');
-              } else if (scrollDelta < -6) {
-                header.classList.remove('header-hidden');
-              }
-            } else {
-              header.classList.remove('header-hidden');
-            }
-
-            lastScrollY = currentScrollY;
-            ticking = false;
-          });
-          ticking = true;
-        }
-      }, { passive: true });
+      if (header) header.classList.remove('header-hidden');
     })();
   </script>
 </body>
@@ -4407,7 +4380,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '4.6.30';
+    const buildStamp = options.buildStamp || '6.6.54';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -4416,6 +4389,28 @@ ${itemsXml}
     const initialFaviconHref = rawTabLogo
       ? (/^(data:|blob:|https?:\/\/)/i.test(rawTabLogo) ? rawTabLogo : `${relRoot}${rawTabLogo.replace(/^\/+/, '')}?v=${buildStamp}`)
       : 'data:,';
+    const dCfg = cfg.design || {};
+    const mh = dCfg.masthead || {};
+    const homeBlocks = Array.isArray(dCfg.homeBlocks) ? dCfg.homeBlocks : [];
+    const mhBlock = homeBlocks.find(b => b && b.id === 'b_masthead');
+    const mhAlign = dCfg.headerAlign || (mhBlock && (mhBlock.align || (mhBlock.config && mhBlock.config.align))) || mh.align || 'center';
+    const mhH = (mhBlock && mhBlock.h) || mh.height || (mhAlign === 'center' ? 96 : 64);
+    const els = mh.elements || {};
+    const logoCfg = els.logo || { enabled: true };
+    const titleCfg = els.title || { enabled: true };
+    const brandingMode = dCfg.brandingMode || (typeof dCfg.branding === 'string' ? dCfg.branding : '');
+    const rawHeaderLogo = String(brand.originalLogo || brand.generalLogo || '').trim();
+    const cleanHeaderLogo = (rawHeaderLogo && rawHeaderLogo !== 'logo.png' && rawHeaderLogo !== '/logo.png') ? rawHeaderLogo : '';
+    const isLogoEnabled = brandingMode === 'title' ? false : (brandingMode === 'logo' || brandingMode === 'both' ? true : logoCfg.enabled !== false);
+    const hasValidLogo = Boolean(cleanHeaderLogo && isLogoEnabled);
+    const isTitleEnabled = brandingMode === 'logo' ? false : (brandingMode === 'title' || brandingMode === 'both' ? true : titleCfg.enabled !== false);
+    const logoScale = typeof logoCfg.scale === 'number' ? logoCfg.scale : (typeof dCfg.logoScale === 'number' ? dCfg.logoScale : ((brand && typeof brand.logoScale === 'number') ? brand.logoScale : 1.0));
+    const logoGrowth = Math.min(1.65, 1.0 + Math.max(0, mhH - 64) / 360);
+    const logoSize = Math.round(44 * logoScale * logoGrowth);
+    const initialLogoSrc = hasValidLogo
+      ? (/^(data:|blob:|https?:\/\/)/i.test(cleanHeaderLogo) ? cleanHeaderLogo : `${relRoot}${cleanHeaderLogo.replace(/^\/+/, '')}`)
+      : '';
+    const isSticky = Boolean(dCfg.stickyHeader);
     const rssFeedHref = siteBase ? `${siteBase}/blog/feed.xml` : `${relRoot}blog/feed.xml`;
     const baseTagScript = is404
       ? `  <script>(function(){try{var b=document.createElement('base'),h=location.hostname||'',p=location.pathname||'/';if(/\\.github\\.io$/i.test(h)){var segs=p.split('/').filter(Boolean),s0=segs[0]||'',known=${JSON.stringify(options.knownRootRoutes || ['blog','posts','post','pages','page','author','authors','category','categories','about-cedar','about','links','rss','notes','note'])};b.href=(s0&&known.indexOf(s0.toLowerCase())===-1)?('/'+s0+'/'):'/';}else{b.href='/';}document.head.appendChild(b);}catch(e){}})();</script>\n`
@@ -4444,12 +4439,12 @@ ${socialMeta.metaLines}
 <body>
 
   <!-- Site Header -->
-  <header class="site-header">
+  <header class="site-header header-align-${escapeHtml(mhAlign)}${isSticky ? ' is-sticky' : ''}">
     <div class="container nav-wrap">
       <a href="${relRoot}" class="brand-link" id="header-brand-link">
-        <img src="" alt="Logo" class="brand-logo-img" id="header-logo" style="display: none;">
-        <div class="brand-text">
-          <span class="brand-name" id="header-title">${escapeHtml(siteTitle)}</span>
+        <img src="${escapeHtml(initialLogoSrc)}" alt="Logo" class="brand-logo-img" id="header-logo" style="display: ${hasValidLogo ? 'block' : 'none'}; max-height: ${logoSize}px; width: auto; object-fit: contain;">
+        <div class="brand-text" style="display: ${isTitleEnabled ? 'flex' : 'none'};">
+          <span class="brand-name" id="header-title" style="display: ${isTitleEnabled ? 'block' : 'none'};">${escapeHtml(siteTitle)}</span>
           <span class="brand-tagline" id="header-tagline" style="display: none !important;">${escapeHtml(tagline)}</span>
         </div>
       </a>

@@ -463,6 +463,11 @@
     const r = parseRoute();
     const siteTitle = getSiteTitle();
     const tagline = getSiteTagline();
+    const header = document.querySelector('.site-header');
+    if (header) {
+      header.classList.remove('header-hidden');
+      header.style.transform = '';
+    }
 
     if (r.canonicalHash) {
       try {
@@ -490,10 +495,10 @@
         pageTitle = `${r.category} Articles — ${siteTitle}`;
       }
       updatePageTitle(pageTitle);
-      renderAllPosts(r.page || 1, r.category || null);
+      renderAllPosts(r.page || 1, r.category || null, options);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else if (r.view === 'reader') {
-      const renderedItem = renderReader(r.type || 'post', r.slug, r.page || 1);
+      const renderedItem = renderReader(r.type || 'post', r.slug, r.page || 1, options);
       const isLinks = renderedItem && (renderedItem.id === 'page_links' || renderedItem.slug === 'links' || r.slug === 'links');
       const itemTitle = isLinks
         ? ((renderedItem && renderedItem.title) || 'Links')
@@ -504,7 +509,7 @@
     } else if (r.view === 'author') {
       const pageTitle = `${r.name} — ${siteTitle}`;
       updatePageTitle(pageTitle);
-      if (typeof renderAuthorProfile === 'function') renderAuthorProfile(r.name, r.tab || 'articles');
+      if (typeof renderAuthorProfile === 'function') renderAuthorProfile(r.name, r.tab || 'articles', options);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else {
       const pageTitle = `Home — ${siteTitle}`;
@@ -546,7 +551,7 @@
       if (brandLink) brandLink.setAttribute('href', toPreviewUrl('/'));
       const footerPowered = document.getElementById('footer-powered-by');
       if (footerPowered) footerPowered.setAttribute('href', toPreviewUrl('/about-cedar/'));
-      updateBranding();
+      updateBranding({ preserveTitle: true });
     } catch (err) {
       console.error('[Preview] Error in updateBranding:', err);
     }
@@ -556,7 +561,7 @@
       console.error('[Preview] Error in route: ' + (err && (err.stack || err.message || err)));
     }
 
-    if (prevScrollY > 0) {
+    if (options && options.preserveScroll && prevScrollY > 0) {
       window.scrollTo({ top: prevScrollY, behavior: 'instant' });
       requestAnimationFrame(() => {
         window.scrollTo({ top: prevScrollY, behavior: 'instant' });
@@ -761,37 +766,11 @@
     }
   });
 
-  // Mobile headroom scroll handler (hides header when scrolling down, reveals on scroll up)
+  // Keep site header persistently visible across all views and posts
   function initMobileHeadroom() {
-    let lastScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-    let ticking = false;
     const header = document.querySelector('.site-header');
     if (!header) return;
-
-    window.addEventListener('scroll', () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const currentScrollY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop || 0);
-          const scrollDelta = currentScrollY - lastScrollY;
-
-          if (window.innerWidth <= 899) {
-            if (currentScrollY <= 15) {
-              header.classList.remove('header-hidden');
-            } else if (scrollDelta > 6 && currentScrollY > 60) {
-              header.classList.add('header-hidden');
-            } else if (scrollDelta < -6) {
-              header.classList.remove('header-hidden');
-            }
-          } else {
-            header.classList.remove('header-hidden');
-          }
-
-          lastScrollY = currentScrollY;
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }, { passive: true });
+    header.classList.remove('header-hidden');
   }
 
   // Init on DOM ready or immediate

@@ -396,7 +396,7 @@
   }
 
 
-      function updateBranding() {
+      function updateBranding(options = {}) {
         const brand = (getConfig().design && getConfig().design.branding) || {};
         const siteName = getConfig().name || getConfig().domain || brand.siteTitle || 'Cedar';
         const tagline = (brand.tagline !== undefined && brand.tagline !== null) ? brand.tagline : (getConfig().subtitle || '');
@@ -421,8 +421,12 @@
         }
         const favicon = (rawFav && rawFav !== 'icon.png' && rawFav !== '/icon.png') ? rawFav : '';
 
-        document.getElementById('page-title').textContent = `Home — ${siteName}`;
-        document.getElementById('header-title').textContent = siteName;
+        if (!options || !options.preserveTitle) {
+          const pageTitleEl = document.getElementById('page-title');
+          if (pageTitleEl) pageTitleEl.textContent = `Home — ${siteName}`;
+        }
+        const hTitleEl = document.getElementById('header-title');
+        if (hTitleEl) hTitleEl.textContent = siteName;
         const taglineEl = document.getElementById('header-tagline');
         if (taglineEl) {
           taglineEl.textContent = '';
@@ -476,6 +480,11 @@
         const headerEl = document.querySelector('.site-header');
         if (headerEl) {
           headerEl.classList.toggle('is-sticky', isSticky);
+          headerEl.classList.remove('header-hidden');
+          headerEl.style.display = '';
+          headerEl.style.visibility = '';
+          headerEl.style.opacity = '';
+          headerEl.style.transform = '';
         }
 
         // Apply Masthead Layout Configuration (driven by block alignment: left, center, right)
@@ -605,6 +614,11 @@
             };
             applyLogoDimensions();
             headerLogoEl.onload = applyLogoDimensions;
+            headerLogoEl.onerror = () => {
+              headerLogoEl.style.display = 'none';
+              if (headerTitleEl) headerTitleEl.style.display = 'block';
+              if (brandTextEl) brandTextEl.style.display = 'flex';
+            };
           }
 
           if (headerTitleEl) {
@@ -1434,6 +1448,7 @@
 
         document.body.classList.remove('is-links-page');
         document.documentElement.classList.remove('is-links-page');
+        updateBranding({ preserveTitle: true });
         if (vHome) vHome.style.display = 'block';
         const vPosts = document.getElementById('view-posts');
         if (vPosts) vPosts.style.display = 'none';
@@ -1448,7 +1463,9 @@
 
         // Only scroll to top if transitioning to home from another view
         if (!wasHomeActive && !options.preserveScroll) {
-          window.scrollTo({ top: 0, behavior: 'instant' });
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          if (document.documentElement) document.documentElement.scrollTop = 0;
+          if (document.body) document.body.scrollTop = 0;
         }
 
         updateNavLinks('home');

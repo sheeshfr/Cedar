@@ -27,6 +27,34 @@
   let currentAllPostsPage = 1;
   const POSTS_PER_PAGE = 15;
   let cachedPublishedPosts = [];
+  let lastRenderedPostsKey = '';
+  let lastRenderedReaderKey = '';
+  let lastRenderedAuthorKey = '';
+
+  function ensurePersistentHeaderVisible() {
+    if (typeof window.updateBranding === 'function') {
+      try { window.updateBranding({ preserveTitle: true }); } catch (_) {}
+    }
+    const header = document.querySelector('.site-header');
+    if (header) {
+      header.classList.remove('header-hidden');
+      header.style.display = '';
+      header.style.visibility = '';
+      header.style.opacity = '';
+      header.style.transform = '';
+    }
+  }
+
+  function resetScrollToTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    });
+  }
 
   function setupAllPostsImageObserver(gridEl) {
     if (window._allPostsImageObserver) {
@@ -144,12 +172,16 @@
     });
   }
 
-  function renderAllPosts(page = 1, category = null) {
+  function renderAllPosts(page = 1, category = null, options = {}) {
     document.body.classList.remove('is-links-page');
     document.documentElement.classList.remove('is-links-page');
+    ensurePersistentHeaderVisible();
     const vPosts = document.getElementById('view-posts');
     const wasPostsActive = Boolean(vPosts && vPosts.style.display === 'block');
     const prevScrollY = window.pageYOffset || window.scrollY || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
+    const currentPostsKey = `${String(category || 'ALL').toLowerCase()}:${page || 1}`;
+    const isSamePostsRoute = wasPostsActive && lastRenderedPostsKey === currentPostsKey;
+    lastRenderedPostsKey = currentPostsKey;
 
     document.getElementById('view-home').style.display = 'none';
     if (vPosts) vPosts.style.display = 'block';
@@ -161,10 +193,10 @@
     const vAuthor = document.getElementById('view-author');
     if (vAuthor) vAuthor.style.display = 'none';
 
-    if (!wasPostsActive) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
-    } else if (prevScrollY > 0) {
+    if (isSamePostsRoute && options && options.preserveScroll && prevScrollY > 0) {
       requestAnimationFrame(() => window.scrollTo({ top: prevScrollY, behavior: 'instant' }));
+    } else {
+      resetScrollToTop();
     }
 
     updateNavLinks((category && category !== 'ALL') ? `category:${category}` : 'posts');
@@ -483,7 +515,7 @@
 
 
       // Render Article / Page Reader View
-      function renderReader(type, slug, pageNum = 1) {
+      function renderReader(type, slug, pageNum = 1, options = {}) {
         const cleanSlug = decodeURIComponent(slug || '').trim().toLowerCase();
         const drafts = getDrafts();
         // Priority 1: Match by slug or id matching the requested type
@@ -512,13 +544,16 @@
 
         if (item.isCategoryAggregate || String(item.id || '').startsWith('page_cat_') || item.id === 'page_all' || cleanSlug === 'all') {
           const cat = (item.id === 'page_all' || cleanSlug === 'all') ? null : (item.categoryAggregate || item.title);
-          renderAllPosts(pageNum || 1, cat);
+          renderAllPosts(pageNum || 1, cat, options);
           return null;
         }
 
         const vReader = document.getElementById('view-reader');
         const wasReaderActive = Boolean(vReader && vReader.style.display === 'block');
         const prevScrollY = window.pageYOffset || window.scrollY || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
+        const currentReaderKey = `${item.id || item.slug || cleanSlug}:${pageNum || 1}`;
+        const isSameReaderItem = wasReaderActive && lastRenderedReaderKey === currentReaderKey;
+        lastRenderedReaderKey = currentReaderKey;
 
         document.getElementById('view-home').style.display = 'none';
         document.getElementById('view-posts').style.display = 'none';
@@ -530,10 +565,10 @@
         const vAuthor = document.getElementById('view-author');
         if (vAuthor) vAuthor.style.display = 'none';
 
-        if (!wasReaderActive) {
-          window.scrollTo({ top: 0, behavior: 'instant' });
-        } else if (prevScrollY > 0) {
+        if (isSameReaderItem && options && options.preserveScroll && prevScrollY > 0) {
           requestAnimationFrame(() => window.scrollTo({ top: prevScrollY, behavior: 'instant' }));
+        } else {
+          resetScrollToTop();
         }
 
         const isPage = item.type === 'page' || type === 'page';
@@ -552,6 +587,7 @@
           document.body.classList.remove('is-links-page');
           document.documentElement.classList.remove('is-links-page');
           resetLinksPageBackground();
+          ensurePersistentHeaderVisible();
         }
         if (isRss && typeof window.generateRssPageData === 'function') {
           const rssData = window.generateRssPageData(getConfig());
@@ -934,9 +970,10 @@
 
 
 
-  function renderAuthorProfile(authorName) {
+  function renderAuthorProfile(authorName, activeTab = 'articles', options = {}) {
     document.body.classList.remove('is-links-page');
     document.documentElement.classList.remove('is-links-page');
+    ensurePersistentHeaderVisible();
     const vHome = document.getElementById('view-home');
     const vPosts = document.getElementById('view-posts');
     const vReader = document.getElementById('view-reader');
@@ -944,16 +981,19 @@
 
     const wasAuthorActive = Boolean(vAuthor && vAuthor.style.display === 'block');
     const prevScrollY = window.pageYOffset || window.scrollY || (document.documentElement ? document.documentElement.scrollTop : 0) || 0;
+    const currentAuthorKey = `${String(authorName || '').toLowerCase()}:${activeTab || 'articles'}`;
+    const isSameAuthorRoute = wasAuthorActive && lastRenderedAuthorKey === currentAuthorKey;
+    lastRenderedAuthorKey = currentAuthorKey;
 
     if (vHome) vHome.style.display = 'none';
     if (vPosts) vPosts.style.display = 'none';
     if (vReader) vReader.style.display = 'none';
     if (vAuthor) vAuthor.style.display = 'block';
 
-    if (!wasAuthorActive) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
-    } else if (prevScrollY > 0) {
+    if (isSameAuthorRoute && options && options.preserveScroll && prevScrollY > 0) {
       requestAnimationFrame(() => window.scrollTo({ top: prevScrollY, behavior: 'instant' }));
+    } else {
+      resetScrollToTop();
     }
     updateNavLinks('author');
 
