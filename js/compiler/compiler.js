@@ -1030,6 +1030,232 @@
     `;
   }
 
+  function extractPlainExcerptForSocial(rawHtmlOrMd, maxLen = 180) {
+    if (!rawHtmlOrMd || typeof rawHtmlOrMd !== 'string') return '';
+    const text = rawHtmlOrMd
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<figcaption[\s\S]*?<\/figcaption>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/:::[\s\S]*?:::/g, ' ')
+      .replace(/[#>*_`~]/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#039;/gi, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return '';
+    if (text.length <= maxLen) return text;
+    const sliced = text.slice(0, maxLen);
+    const lastSpace = sliced.lastIndexOf(' ');
+    return (lastSpace > maxLen * 0.6 ? sliced.slice(0, lastSpace) : sliced).replace(/[.,;:!?-]+$/, '') + '…';
+  }
+
+  function resolveEffectiveSiteDomain(cfg, options = {}) {
+    const rawCandidates = [
+      options && options.detectedSiteUrl,
+      cfg && cfg.domain,
+      cfg && cfg.detectedDomain,
+      (typeof window !== 'undefined' && typeof window.resolveProjectDomain === 'function') ? window.resolveProjectDomain() : '',
+      (typeof window !== 'undefined' && window.projectConfig && (window.projectConfig.domain || window.projectConfig.detectedDomain)) || '',
+      (typeof localStorage !== 'undefined') ? (localStorage.getItem('cedar_user_domain') || '') : ''
+    ];
+    for (const cand of rawCandidates) {
+      const cleaned = String(cand || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      if (cleaned && cleaned !== '[your domain]' && !cleaned.includes('[') && !/^localhost(?::\d+)?$/i.test(cleaned) && !/^127\.0\.0\.1(?::\d+)?$/.test(cleaned)) {
+        return cleaned;
+      }
+    }
+    try {
+      const ghRepo = (cfg && cfg.githubRepo) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_github_repo')) || '';
+      const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '');
+      if (repoSlug.includes('.')) {
+        return repoSlug.toLowerCase();
+      }
+      const tldMatch = repoSlug.match(/^([a-z0-9-]+)-(com|org|net|io|gg|dev|pub|me|co|app|xyz|blog|art|games|tech|ai|sh|cc|tv|lol|wtf|ink|page|site|live|pro|studio|design|club|fun|space|world|zone|build|info|us|uk|ca|de|fr|jp|au|nz|nl|se|no|fi|dk|ch|at|be|es|it|pt|br|mx|in|kr|tw|hk|sg)$/i);
+      if (tldMatch) {
+        return `${tldMatch[1].toLowerCase()}.${tldMatch[2].toLowerCase()}`;
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  function resolveSocialEmbedMeta(item, config, options = {}) {
+    const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : {}) || (typeof window !== 'undefined' ? window.projectConfig : {}) || {};
+    const brand = (cfg.design && cfg.design.branding) || {};
+    const resolvedDomain = resolveEffectiveSiteDomain(cfg, options);
+    const siteBase = resolvedDomain ? `https://${resolvedDomain}` : '';
+    const ogSiteName = (brand.siteTitle || cfg.name || resolvedDomain || 'Cedar').trim();
+    const tagline = (brand.tagline !== undefined && brand.tagline !== null) ? String(brand.tagline).trim() : String(cfg.subtitle || '').trim();
+    const canonicalPath = String(options.canonicalPath || '').replace(/^\/+/, '');
+    const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
+
+    const toSocialUrl = (rawPath) => {
+      if (!rawPath || typeof rawPath !== 'string') return '';
+      const trimmed = rawPath.trim();
+      if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return '';
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      const cleanRel = trimmed.startsWith('/') ? trimmed : '/' + trimmed;
+      return siteBase ? `${siteBase}${cleanRel}` : cleanRel;
+    };
+
+    const isItem = Boolean(item && typeof item === 'object');
+    const isArticle = Boolean(isItem && (!item.type || item.type === 'post'));
+    const ogType = isArticle ? 'article' : 'website';
+
+    const cleanItemTitle = isItem ? String(item.title || 'Untitled').trim() : '';
+    const ogTitle = cleanItemTitle || String(options.ogTitle || options.pageTitle || ogSiteName).trim();
+
+    let ogDescription = '';
+    if (isItem) {
+      const isAboutCedar = item.id === 'page_about_cedar' || item.slug === 'about-cedar';
+      if (item.customDesc && String(item.customDesc).trim()) {
+        ogDescription = String(item.customDesc).trim();
+      } else if (isAboutCedar) {
+        ogDescription = 'A focused, offline-first Wizzy Wig authoring and static blog publishing tool.';
+      } else if (item.subtitle && item.showSubtitle !== false && String(item.subtitle).trim()) {
+        ogDescription = String(item.subtitle).trim();
+      } else if (item.excerpt && String(item.excerpt).trim()) {
+        ogDescription = String(item.excerpt).trim();
+      } else {
+        ogDescription = extractPlainExcerptForSocial(item.proseHtml || item.markdown || '');
+      }
+    }
+    if (!ogDescription) {
+      const cfgDesc = (cfg.description && cfg.description !== 'Cedar Studio') ? String(cfg.description).trim() : '';
+      ogDescription = String(options.metaDesc || cfgDesc || tagline || `Published on ${ogSiteName}`).trim();
+    }
+
+    let rawImage = options.overrideImage || '';
+    let isLargeHeroImage = Boolean(rawImage);
+    if (!rawImage && isItem) {
+      const slug = item.slug || (typeof generateSlug === 'function' ? generateSlug(item.title || 'post') : 'post');
+      const folder = item.type === 'page' ? `pages/published/${slug}` : `blog/published/${slug}`;
+      if (item.coverImage && !String(item.coverImage).startsWith('data:') && !String(item.coverImage).startsWith('blob:')) {
+        rawImage = String(item.coverImage).trim();
+        isLargeHeroImage = true;
+      } else if (item.featuredImage && !String(item.featuredImage).startsWith('data:') && !String(item.featuredImage).startsWith('blob:')) {
+        rawImage = String(item.featuredImage).trim();
+        isLargeHeroImage = true;
+      }
+      if (!rawImage && Array.isArray(item.images)) {
+        const firstImg = item.images.find(im => im && !im.isOriginal && (im.relativePath || im.filename));
+        if (firstImg) {
+          rawImage = firstImg.relativePath || `/${folder}/${firstImg.filename}`;
+          isLargeHeroImage = true;
+        }
+      }
+      if (!rawImage && item.proseHtml && typeof item.proseHtml === 'string') {
+        const imgMatch = item.proseHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (imgMatch && imgMatch[1] && !imgMatch[1].startsWith('data:') && !imgMatch[1].startsWith('blob:')) {
+          rawImage = imgMatch[1].trim();
+          isLargeHeroImage = true;
+        } else if (typeof extractYouTubeId === 'function') {
+          const iframeMatch = item.proseHtml.match(/<iframe[^>]+src=["']([^"']+)["']/i);
+          const ytId = iframeMatch && iframeMatch[1] ? extractYouTubeId(iframeMatch[1]) : null;
+          if (ytId) {
+            rawImage = `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`;
+            isLargeHeroImage = true;
+          }
+        }
+      }
+      if (!rawImage && item.markdown && typeof item.markdown === 'string') {
+        const mdImgMatch = item.markdown.match(/!\[[^\]]*\]\(([^)\s]+)\)/);
+        if (mdImgMatch && mdImgMatch[1] && !mdImgMatch[1].startsWith('data:') && !mdImgMatch[1].startsWith('blob:')) {
+          rawImage = mdImgMatch[1].trim();
+          isLargeHeroImage = true;
+        }
+      }
+    } else if (!rawImage && Array.isArray(options.publishedPosts) && options.publishedPosts.length > 0) {
+      const leadPost = options.publishedPosts.find(p => p && p.starred && p.coverImage && !String(p.coverImage).startsWith('data:'))
+        || options.publishedPosts.find(p => p && p.coverImage && !String(p.coverImage).startsWith('data:'));
+      if (leadPost && leadPost.coverImage) {
+        rawImage = String(leadPost.coverImage).trim();
+        isLargeHeroImage = true;
+      }
+    }
+
+    if (!rawImage) {
+      const brandLogo = (brand.generalLogo && !String(brand.generalLogo).startsWith('data:'))
+        ? String(brand.generalLogo).trim()
+        : ((brand.originalLogo || brand.generalLogo) ? '/media/branding/logo.png' : '');
+      if (brandLogo && brandLogo !== 'logo.png' && brandLogo !== '/logo.png') {
+        rawImage = brandLogo;
+        isLargeHeroImage = false;
+      }
+    }
+
+    const ogImage = toSocialUrl(rawImage);
+    const twitterCard = (ogImage && isLargeHeroImage) ? 'summary_large_image' : 'summary';
+
+    const authorName = isArticle
+      ? String(item.authorName || item.author || (Array.isArray(item.authors) && item.authors[0]) || cfg.defaultAuthor || '').trim()
+      : '';
+    const rawPubDate = isArticle ? (item.publishedAt || item.date || item.publishedDate || item.createdAt || '') : '';
+    let publishedIso = '';
+    if (rawPubDate) {
+      try {
+        const d = new Date(typeof rawPubDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawPubDate) ? `${rawPubDate}T12:00:00Z` : rawPubDate);
+        if (!isNaN(d.getTime())) publishedIso = d.toISOString();
+      } catch (e) {}
+    }
+    const articleSection = isArticle
+      ? String(item.tag || (Array.isArray(item.categories) && item.categories[0]) || '').trim()
+      : '';
+
+    const design = cfg.design || {};
+    const effThemeId = design.blogTheme || design.activeTheme || 'basalt';
+    const palettes = (typeof window !== 'undefined' && (window.CedarFTUE || window.OutpostFTUE) && (window.CedarFTUE || window.OutpostFTUE).THEME_PALETTES) || {};
+    let palette = palettes[effThemeId] || palettes.basalt || { c10: '#6366f1' };
+    if (effThemeId === 'custom' && design.customColors) palette = design.customColors;
+    const themeColor = (palette && palette.c10) ? palette.c10 : '#6366f1';
+
+    const oembedUrl = (isArticle && options.oembedPath) ? toSocialUrl(options.oembedPath) : '';
+
+    const metaLines = [
+      `  <meta name="description" id="meta-description" content="${escapeHtml(ogDescription)}">`,
+      authorName ? `  <meta name="author" content="${escapeHtml(authorName)}">` : '',
+      themeColor ? `  <meta name="theme-color" content="${escapeHtml(themeColor)}">` : '',
+      `  <meta property="og:site_name" content="${escapeHtml(ogSiteName)}">`,
+      `  <meta property="og:type" content="${escapeHtml(ogType)}">`,
+      `  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
+      `  <meta property="og:title" content="${escapeHtml(ogTitle)}">`,
+      `  <meta property="og:description" content="${escapeHtml(ogDescription)}">`,
+      ogImage ? `  <meta property="og:image" content="${escapeHtml(ogImage)}">` : '',
+      ogImage ? `  <meta property="og:image:alt" content="${escapeHtml(ogTitle)}">` : '',
+      authorName ? `  <meta property="article:author" content="${escapeHtml(authorName)}">` : '',
+      publishedIso ? `  <meta property="article:published_time" content="${escapeHtml(publishedIso)}">` : '',
+      articleSection ? `  <meta property="article:section" content="${escapeHtml(articleSection)}">` : '',
+      `  <meta name="twitter:card" content="${escapeHtml(twitterCard)}">`,
+      `  <meta name="twitter:title" content="${escapeHtml(ogTitle)}">`,
+      `  <meta name="twitter:description" content="${escapeHtml(ogDescription)}">`,
+      ogImage ? `  <meta name="twitter:image" content="${escapeHtml(ogImage)}">` : '',
+      oembedUrl ? `  <link rel="alternate" type="application/json+oembed" href="${escapeHtml(oembedUrl)}" title="${escapeHtml(ogTitle)}">` : ''
+    ].filter(Boolean).join('\n');
+
+    return {
+      resolvedDomain,
+      siteBase,
+      canonicalUrl,
+      ogSiteName,
+      ogType,
+      ogTitle,
+      ogDescription,
+      ogImage,
+      twitterCard,
+      authorName,
+      publishedIso,
+      articleSection,
+      themeColor,
+      metaLines
+    };
+  }
+
   // 1. Full Standalone HTML File for blog/<slug>/index.html
   function generateFullHtml(draft, options = {}) {
     const preferStaticPaths = Boolean(options && options.preferStaticPaths);
@@ -1538,6 +1764,13 @@
     }
 
     compiledNavItemsHtml = navItems.map(item => item.html).join('');
+    const socialMeta = resolveSocialEmbedMeta(draft, pConfig, {
+      canonicalPath,
+      metaDesc,
+      overrideImage: (coverImage && !coverImage.startsWith('data:') && !coverImage.startsWith('blob:')) ? coverImage : '',
+      oembedPath: options.oembedPath || (!isPage ? `/${canonicalPath}oembed.json` : ''),
+      detectedSiteUrl: options.detectedSiteUrl
+    });
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1545,13 +1778,9 @@
   <meta charset="UTF-8">
   ${baseHref ? `<base href="${escapeHtml(baseHref)}">\n  ` : ''}<meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} — ${escapeHtml(blogSiteName)}</title>
-  <meta name="description" content="${escapeHtml(metaDesc)}">
-  <meta property="og:title" content="${escapeHtml(title)} — ${escapeHtml(blogSiteName)}">
-  <meta property="og:description" content="${escapeHtml(metaDesc)}">
-  <meta name="twitter:title" content="${escapeHtml(title)} — ${escapeHtml(blogSiteName)}">
-  <meta name="twitter:description" content="${escapeHtml(metaDesc)}">
-  <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
-  ${isRssEnabled ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(blogSiteName)} RSS Feed" href="${siteBase ? `${siteBase}/blog/feed.xml` : '/blog/feed.xml'}">\n  ` : ''}<link rel="icon" type="image/png" href="/icon.png">
+${socialMeta.metaLines}
+  <link rel="canonical" href="${escapeHtml(socialMeta.canonicalUrl)}">
+  ${isRssEnabled ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(blogSiteName)} RSS Feed" href="${socialMeta.siteBase ? `${socialMeta.siteBase}/blog/feed.xml` : '/blog/feed.xml'}">\n  ` : ''}<link rel="icon" type="image/png" href="/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -4164,10 +4393,19 @@ ${itemsXml}
     const pageTitle = options.pageTitle || defaultTitle;
     const siteDesc = options.metaDesc || cfg.description || tagline || `Published on ${siteTitle}`;
     const isRssEnabled = Boolean(cfg.rssEnabled);
-    const resolvedDomain = (typeof window !== 'undefined' && window.resolveProjectDomain ? window.resolveProjectDomain() : (cfg.domain || '')).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const resolvedDomain = resolveEffectiveSiteDomain(cfg, options);
     const siteBase = resolvedDomain ? `https://${resolvedDomain}` : '';
     const canonicalPath = (options.canonicalPath || '/').replace(/^\/+/, '');
     const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
+    const socialMeta = resolveSocialEmbedMeta(options.post || options.page || null, cfg, {
+      canonicalPath,
+      pageTitle,
+      ogTitle: options.ogTitle,
+      metaDesc: siteDesc,
+      publishedPosts,
+      oembedPath: options.oembedPath || '',
+      detectedSiteUrl: options.detectedSiteUrl
+    });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
     const buildStamp = options.buildStamp || '4.6.30';
     const is404 = Boolean(options.is404);
@@ -4189,11 +4427,7 @@ ${itemsXml}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
-  <meta name="description" id="meta-description" content="${escapeHtml(siteDesc)}">
-  <meta property="og:title" content="${escapeHtml(pageTitle)}">
-  <meta property="og:description" content="${escapeHtml(siteDesc)}">
-  <meta name="twitter:title" content="${escapeHtml(pageTitle)}">
-  <meta name="twitter:description" content="${escapeHtml(siteDesc)}">
+${socialMeta.metaLines}
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
   <link rel="icon" type="image/png" id="site-favicon" href="${escapeHtml(initialFaviconHref)}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4843,20 +5077,40 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
       publicDrafts.push(postClone);
 
       // Markdown & archival HTML in blog/published/<slug>/
+      const siteTitle = brand.siteTitle || publicProject.name || 'Cedar';
+      const effDomain = resolveEffectiveSiteDomain(publicProject, options);
+      const effSiteBase = effDomain ? `https://${effDomain}` : '';
+      const postAuthor = String(postClone.authorName || postClone.author || (Array.isArray(postClone.authors) && postClone.authors[0]) || publicProject.defaultAuthor || '').trim();
+      const oembedJson = JSON.stringify({
+        version: '1.0',
+        type: 'link',
+        title: String(postClone.title || 'Article').trim(),
+        author_name: postAuthor || siteTitle,
+        provider_name: siteTitle,
+        provider_url: effSiteBase || '/'
+      }, null, 2);
+      addFile(`${folder}/oembed.json`, oembedJson);
+      addFile(`${cleanRouteFolder}/oembed.json`, oembedJson);
       addFile(
         `${folder}/index.md`,
         (typeof generateMarkdownWithFrontmatter === 'function') ? generateMarkdownWithFrontmatter(postClone) : (postClone.markdown || '')
       );
-      addFile(`${folder}/index.html`, generateFullHtml(postClone, { preferStaticPaths: true }));
+      addFile(`${folder}/index.html`, generateFullHtml(postClone, {
+        preferStaticPaths: true,
+        oembedPath: `/${folder}/oembed.json`,
+        detectedSiteUrl: options.detectedSiteUrl
+      }));
 
       // 1:1 Preview shell at clean route /<category>/<slug>/index.html
-      const siteTitle = brand.siteTitle || publicProject.name || 'Cedar';
       addFile(
         `${cleanRouteFolder}/index.html`,
         generateBlogHomeHtml(publishedPosts, publicProject, {
-          pageTitle: `${post.title || 'Article'} — ${siteTitle}`,
-          metaDesc: post.subtitle || post.excerpt || '',
-          canonicalPath: `${cleanRouteFolder}/`
+          pageTitle: `${postClone.title || 'Article'} — ${siteTitle}`,
+          metaDesc: postClone.subtitle || postClone.excerpt || '',
+          canonicalPath: `${cleanRouteFolder}/`,
+          post: postClone,
+          oembedPath: `/${cleanRouteFolder}/oembed.json`,
+          detectedSiteUrl: options.detectedSiteUrl
         })
       );
     }
@@ -4942,7 +5196,10 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
           `${folder}/index.md`,
           `---\ntitle: "${(page.title || '').replace(/"/g, '\\"')}"\nslug: "${slug}"\ntype: "page"\nupdatedAt: "${new Date(pageUpdatedAt).toISOString()}"\n---\n\n${page.markdown || ''}`
         );
-        addFile(`${folder}/index.html`, generateFullHtml(pageClone, { preferStaticPaths: true }));
+        addFile(`${folder}/index.html`, generateFullHtml(pageClone, {
+          preferStaticPaths: true,
+          detectedSiteUrl: options.detectedSiteUrl
+        }));
 
         if (!pageClone.isCategoryAggregate && !String(pageClone.id || '').startsWith('page_cat_') && slug !== 'all') {
           const siteTitle = brand.siteTitle || publicProject.name || 'Cedar';
@@ -4951,7 +5208,9 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
             generateBlogHomeHtml(publishedPosts, publicProject, {
               pageTitle: `${pageClone.title || 'Page'} — ${siteTitle}`,
               metaDesc: pageClone.subtitle || '',
-              canonicalPath: `${slug}/`
+              canonicalPath: `${slug}/`,
+              page: pageClone,
+              detectedSiteUrl: options.detectedSiteUrl
             })
           );
         }
@@ -4970,7 +5229,8 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
       generateBlogHomeHtml(publishedPosts, publicProject, {
         pageTitle: `About Cedar — ${siteTitle}`,
         metaDesc: 'A focused, offline-first Wizzy Wig authoring and static blog publishing tool.',
-        canonicalPath: 'about-cedar/'
+        canonicalPath: 'about-cedar/',
+        detectedSiteUrl: options.detectedSiteUrl
       })
     );
 
@@ -4980,7 +5240,8 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
       generateBlogHomeHtml(publishedPosts, publicProject, {
         pageTitle: `All Posts — ${siteTitle}`,
         metaDesc: `All articles published on ${siteTitle}.`,
-        canonicalPath: 'blog/'
+        canonicalPath: 'blog/',
+        detectedSiteUrl: options.detectedSiteUrl
       })
     );
 
@@ -5003,7 +5264,8 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
         generateBlogHomeHtml(publishedPosts, publicProject, {
           pageTitle: `${catName} Articles — ${siteTitle}`,
           metaDesc: `${catName} articles on ${siteTitle}.`,
-          canonicalPath: `${catSlug}/`
+          canonicalPath: `${catSlug}/`,
+          detectedSiteUrl: options.detectedSiteUrl
         })
       );
     }
@@ -5016,11 +5278,15 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
     allCategories.forEach(c => {
       if (c) knownRootRoutes.add(encodeURIComponent(String(c).toLowerCase().replace(/\s+/g, '-')));
     });
-    const rootHtml = generateBlogHomeHtml(publishedPosts, publicProject, { canonicalPath: '' });
+    const rootHtml = generateBlogHomeHtml(publishedPosts, publicProject, {
+      canonicalPath: '',
+      detectedSiteUrl: options.detectedSiteUrl
+    });
     const fallback404Html = generateBlogHomeHtml(publishedPosts, publicProject, {
       canonicalPath: '',
       is404: true,
-      knownRootRoutes: Array.from(knownRootRoutes)
+      knownRootRoutes: Array.from(knownRootRoutes),
+      detectedSiteUrl: options.detectedSiteUrl
     });
     addFile('index.html', rootHtml);
     addFile('404.html', fallback404Html);

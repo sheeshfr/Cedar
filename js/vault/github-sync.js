@@ -973,6 +973,29 @@
             }
           } catch (_) {}
         }
+        if (!detectedSiteUrl) {
+          try {
+            const repoSlug = (repo.split('/').pop() || '').trim().replace(/\.git$/i, '');
+            let candidateDom = '';
+            if (repoSlug.includes('.')) {
+              candidateDom = repoSlug.toLowerCase();
+            } else {
+              const tldMatch = repoSlug.match(/^([a-z0-9-]+)-(com|org|net|io|gg|dev|pub|me|co|app|xyz|blog|art|games|tech|ai|sh|cc|tv|lol|wtf|ink|page|site|live|pro|studio|design|club|fun|space|world|zone|build|info|us|uk|ca|de|fr|jp|au|nz|nl|se|no|fi|dk|ch|at|be|es|it|pt|br|mx|in|kr|tw|hk|sg)$/i);
+              if (tldMatch) {
+                candidateDom = `${tldMatch[1].toLowerCase()}.${tldMatch[2].toLowerCase()}`;
+              }
+            }
+            if (candidateDom && typeof fetch === 'function') {
+              const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+              const timer = ctrl ? setTimeout(() => ctrl.abort(), 2500) : null;
+              try {
+                await fetch(`https://${candidateDom}/site-data.js`, { mode: 'no-cors', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+                detectedSiteUrl = candidateDom;
+              } catch (_) {}
+              if (timer) clearTimeout(timer);
+            }
+          } catch (_) {}
+        }
       } catch (_) {}
       if (detectedSiteUrl) {
         appendPublishLog(`Detected live site domain: ${detectedSiteUrl}`, 'info', '>');
