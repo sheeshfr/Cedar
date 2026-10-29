@@ -48,13 +48,7 @@
     return `<div class="captioned-image-container${hasCaption ? ' has-caption' : ''}" data-size="${size}"${scaleAttr}${pixAttr} contenteditable="false" draggable="true" tabindex="0">
       <figure${figStyle}>
         <div class="image-media-wrapper"${wrapStyle}>
-          <button type="button" class="image-side-add-btn side-left" data-side="left" title="Add picture to the left">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
           <img src="${escapeHtml(imgSrc)}" data-original-src="${escapeHtml(originalSrc)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(altText)}" ${imgStyle} loading="lazy" draggable="false">
-          <button type="button" class="image-side-add-btn side-right" data-side="right" title="Add picture to the right">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
           <div class="figure-hover-actions">
             <button type="button" class="figure-action-btn btn-scale-img-down" title="Decrease Image Scale (-)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -156,27 +150,34 @@
       }
     }
 
-    let sideButtons = '';
-    if (isEditor && !hasPlaceholder) {
-      sideButtons = `
-        <button type="button" class="image-side-add-btn side-left" data-side="left" title="Add picture to the left">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </button>
-        <button type="button" class="image-side-add-btn side-right" data-side="right" title="Add picture to the right">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </button>
-      `;
-    }
-
     return `<div class="custom-gallery-grid" data-count="${countAttr}" ${hasPlaceholder ? 'data-has-placeholder="true"' : ''} ${isEditor ? 'contenteditable="false" draggable="true" tabindex="0"' : 'contenteditable="false"'}>
       ${itemsHtml}
-      ${sideButtons}
     </div>`;
   }
 
   // =========================================================================
   // GALLERY TRANSFORMATIONS & PLACEHOLDER SLOTS
   // =========================================================================
+
+  /**
+   * Returns the currently selected image or gallery block on the editor canvas, if any.
+   */
+  function getSelectedCanvasImageOrGalleryBlock(canvasProse) {
+    const root = canvasProse || document.getElementById('rich-canvas-prose');
+    if (!root) return null;
+    if (window._selectedImageBlock && root.contains(window._selectedImageBlock) &&
+        window._selectedImageBlock.classList.contains('selected') &&
+        (window._selectedImageBlock.classList.contains('captioned-image-container') || window._selectedImageBlock.classList.contains('custom-gallery-grid'))) {
+      return window._selectedImageBlock;
+    }
+    const domSel = root.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected');
+    if (domSel) return domSel;
+    if (document.activeElement && root.contains(document.activeElement) && !document.activeElement.isContentEditable) {
+      const focusedBlock = document.activeElement.closest('.captioned-image-container, .custom-gallery-grid');
+      if (focusedBlock) return focusedBlock;
+    }
+    return null;
+  }
 
   /**
    * Converts a single figure block into a 2-image gallery side-by-side.
@@ -226,16 +227,22 @@
       parent.insertBefore(pCap, newGal.nextSibling);
     }
 
-    window._selectedImageBlock = null;
-    window._lastActiveImageBlock = null;
+    document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
+    newGal.classList.add('selected');
+    window._selectedImageBlock = newGal;
+    window._lastActiveImageBlock = newGal;
+    window._lastActiveBlock = newGal;
+    try { newGal.focus({ preventScroll: true }); } catch (e) {}
     if (window.recordAction) window.recordAction('image-insert', true);
 
     if (canvasProse) {
       if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
       if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+      ensureImageCaptionElements(canvasProse);
     }
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
     if (typeof window.showToast === 'function') window.showToast('Created 2-picture side-by-side section!');
+    return newGal;
   }
 
   /**
@@ -272,16 +279,22 @@
       nextSib.remove();
     }
 
-    window._selectedImageBlock = null;
-    window._lastActiveImageBlock = null;
+    document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
+    newGal.classList.add('selected');
+    window._selectedImageBlock = newGal;
+    window._lastActiveImageBlock = newGal;
+    window._lastActiveBlock = newGal;
+    try { newGal.focus({ preventScroll: true }); } catch (e) {}
     if (window.recordAction) window.recordAction('image-insert', true);
 
     if (canvasProse) {
       if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
       if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+      ensureImageCaptionElements(canvasProse);
     }
     if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
     if (typeof window.showToast === 'function') window.showToast(`Added image to gallery (${existingImages.length} images)`);
+    return newGal;
   }
 
   /**
@@ -1222,30 +1235,8 @@
           imgEl.setAttribute('draggable', 'false');
         }
 
-        // Strip out any obsolete pill bars, extra buttons or duplicates
-        wrapper.querySelectorAll('.image-hover-pill-bar, .image-add-photo-btn, .btn-add-multi-image, .btn-combine-adjacent-images').forEach(el => el.remove());
-
-        // Ensure side '+' buttons (left and right)
-        let leftBtn = wrapper.querySelector('.image-side-add-btn.side-left');
-        if (!leftBtn) {
-          leftBtn = document.createElement('button');
-          leftBtn.type = 'button';
-          leftBtn.className = 'image-side-add-btn side-left';
-          leftBtn.dataset.side = 'left';
-          leftBtn.title = 'Add picture to the left';
-          leftBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-          wrapper.appendChild(leftBtn);
-        }
-        let rightBtn = wrapper.querySelector('.image-side-add-btn.side-right');
-        if (!rightBtn) {
-          rightBtn = document.createElement('button');
-          rightBtn.type = 'button';
-          rightBtn.className = 'image-side-add-btn side-right';
-          rightBtn.dataset.side = 'right';
-          rightBtn.title = 'Add picture to the right';
-          rightBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-          wrapper.appendChild(rightBtn);
-        }
+        // Strip out any obsolete pill bars, side '+' buttons, extra buttons or duplicates
+        wrapper.querySelectorAll('.image-side-add-btn, .image-hover-pill-bar, .image-add-photo-btn, .btn-add-multi-image, .btn-combine-adjacent-images').forEach(el => el.remove());
 
         // Ensure strictly ONE .image-add-caption-btn exists directly in wrapper
         const capBtns = Array.from(wrapper.querySelectorAll('.image-add-caption-btn'));
@@ -1385,31 +1376,8 @@
         }
       });
 
-      // Side buttons on gallery (only when not containing a placeholder)
-      if (gal.dataset.hasPlaceholder === 'true') {
-        gal.querySelectorAll('.image-side-add-btn').forEach(b => b.remove());
-      } else {
-        let leftBtn = gal.querySelector('.image-side-add-btn.side-left');
-        if (!leftBtn) {
-          leftBtn = document.createElement('button');
-          leftBtn.type = 'button';
-          leftBtn.className = 'image-side-add-btn side-left';
-          leftBtn.dataset.side = 'left';
-          leftBtn.title = 'Add picture to the left';
-          leftBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-          gal.appendChild(leftBtn);
-        }
-        let rightBtn = gal.querySelector('.image-side-add-btn.side-right');
-        if (!rightBtn) {
-          rightBtn = document.createElement('button');
-          rightBtn.type = 'button';
-          rightBtn.className = 'image-side-add-btn side-right';
-          rightBtn.dataset.side = 'right';
-          rightBtn.title = 'Add picture to the right';
-          rightBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-          gal.appendChild(rightBtn);
-        }
-      }
+      // Strip any legacy side '+' buttons on gallery
+      gal.querySelectorAll('.image-side-add-btn').forEach(b => b.remove());
     });
 
     hydrateCanvasImages(root, window.currentDraft);
@@ -1890,20 +1858,27 @@
       return;
     }
 
-    // Check if this is an "+ Add Image" action to create or expand a multi-picture section
-    if (window._activeAddMultiImageTarget && window._activeAddMultiImageTarget.parentNode) {
-      const target = window._activeAddMultiImageTarget;
+    // Check if an existing image or gallery block is selected/targeted to merge side-by-side
+    const selectedGalleryTarget = (window._activeAddMultiImageTarget && window._activeAddMultiImageTarget.parentNode)
+      ? window._activeAddMultiImageTarget
+      : ((window._activeInsertTargetBlock && (window._activeInsertTargetBlock.classList.contains('captioned-image-container') || window._activeInsertTargetBlock.classList.contains('custom-gallery-grid')))
+          ? window._activeInsertTargetBlock
+          : (!window._activeInsertTargetBlock ? getSelectedCanvasImageOrGalleryBlock(canvasProse) : null));
+    if (selectedGalleryTarget && selectedGalleryTarget.parentNode) {
       window._activeAddMultiImageTarget = null;
+      if (window._activeInsertTargetBlock === selectedGalleryTarget) {
+        window._activeInsertTargetBlock = null;
+      }
 
-      if (target.classList.contains('captioned-image-container')) {
-        convertSingleImageToGallery(target, {
+      if (selectedGalleryTarget.classList.contains('captioned-image-container')) {
+        convertSingleImageToGallery(selectedGalleryTarget, {
           dataUrl: url,
           relativePath: relPath,
           filename: cleanFn,
           alt: alt
         });
-      } else if (target.classList.contains('custom-gallery-grid')) {
-        addImageToGallery(target, {
+      } else if (selectedGalleryTarget.classList.contains('custom-gallery-grid')) {
+        addImageToGallery(selectedGalleryTarget, {
           dataUrl: url,
           relativePath: relPath,
           filename: cleanFn,
@@ -2064,6 +2039,48 @@
   function setupImageClipboardAndDrop() {
     const canvasProse = document.getElementById('rich-canvas-prose');
 
+    // 0. Central copy listener so clicking an image block and pressing Ctrl+C copies that image
+    function handleCopyEvent(e) {
+      const viewEditor = document.getElementById('view-editor');
+      if (!canvasProse) return;
+      const isEditorVisible = (viewEditor && viewEditor.style.display !== 'none') ||
+                              window.currentView === 'editor' ||
+                              window.location.hash.startsWith('#write') ||
+                              window.location.hash.startsWith('#editor') ||
+                              (canvasProse && canvasProse.offsetParent !== null);
+      if (!isEditorVisible) return;
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) return;
+
+      const selectedBlock = getSelectedCanvasImageOrGalleryBlock(canvasProse);
+      if (!selectedBlock) return;
+      const selectedGalItem = selectedBlock.classList.contains('custom-gallery-grid')
+        ? selectedBlock.querySelector('.custom-gallery-item.selected-item img')
+        : null;
+      const imgEl = selectedGalItem || selectedBlock.querySelector('img');
+      if (!imgEl) return;
+
+      const src = imgEl.getAttribute('src') || '';
+      const origSrc = imgEl.getAttribute('data-original-src') || imgEl.dataset?.originalSrc || src;
+      const imgName = imgEl.getAttribute('data-img-name') || imgEl.dataset?.imgName || '';
+      const alt = imgEl.getAttribute('alt') || 'Image';
+
+      window._copiedEditorImageObj = {
+        src: src,
+        dataUrl: src,
+        relativePath: origSrc || src,
+        filename: imgName || (origSrc ? origSrc.split('/').pop().split('?')[0] : 'image.jpg'),
+        alt: alt
+      };
+
+      const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+      if (clipboardData) {
+        e.preventDefault();
+        clipboardData.setData('text/html', `<img src="${escapeHtml(src)}" data-original-src="${escapeHtml(origSrc)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(alt)}">`);
+        clipboardData.setData('text/plain', origSrc || src);
+      }
+    }
+
     // 1. Central paste event listener (Ctrl+V with screenshot/image/file)
     async function handlePasteEvent(e) {
       if ((e._cedarImageHandled || e._outpostImageHandled)) return;
@@ -2130,6 +2147,8 @@
       const htmlText = clipboardData.getData('text/html') || '';
 
       let detectedUrl = null;
+      let detectedOrigSrc = '';
+      let detectedImgName = '';
       let detectedAlt = 'Image';
       const mdMatch = plainText.match(/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/i);
       if (mdMatch) {
@@ -2138,11 +2157,25 @@
       } else if (/^https?:\/\/[^\s]+?\.(png|jpe?g|webp|gif|svg|avif)(\?[^\s]*)?$/i.test(plainText) || /^https?:\/\/images\.unsplash\.com\/[^\s]+$/i.test(plainText)) {
         detectedUrl = plainText;
       } else if (htmlText) {
+        const imgTagMatch = htmlText.match(/<img[^>]*>/i);
         const imgMatch = htmlText.match(/<img[^>]+src=["'](https?:\/\/[^"']+|data:image\/[^"']+|blob:[^"']+|\/?blog\/images\/[^"']+)["']/i) ||
                          (!plainText ? htmlText.match(/<img[^>]+src=["']([^"']+)["']/i) : null);
         if (imgMatch && imgMatch[1]) {
           detectedUrl = imgMatch[1];
+          if (imgTagMatch) {
+            const origM = imgTagMatch[0].match(/data-original-src=["']([^"']+)["']/i);
+            const nameM = imgTagMatch[0].match(/data-img-name=["']([^"']+)["']/i);
+            const altM = imgTagMatch[0].match(/alt=["']([^"']*)["']/i);
+            if (origM && origM[1]) detectedOrigSrc = origM[1];
+            if (nameM && nameM[1]) detectedImgName = nameM[1];
+            if (altM && altM[1]) detectedAlt = altM[1];
+          }
         }
+      } else if (window._copiedEditorImageObj && plainText && (plainText === window._copiedEditorImageObj.relativePath || plainText === window._copiedEditorImageObj.src)) {
+        detectedUrl = window._copiedEditorImageObj.src;
+        detectedOrigSrc = window._copiedEditorImageObj.relativePath;
+        detectedImgName = window._copiedEditorImageObj.filename;
+        detectedAlt = window._copiedEditorImageObj.alt || 'Image';
       }
 
       if (detectedUrl) {
@@ -2150,6 +2183,19 @@
         e._outpostImageHandled = true;
         e.preventDefault();
         e.stopPropagation();
+
+        // If this is an existing internal editor image (has data-img-name or blog/images path), insert/merge directly without re-uploading
+        if (detectedImgName || /^\/?blog\/images\//i.test(detectedOrigSrc || detectedUrl)) {
+          const cleanFn = detectedImgName || String(detectedOrigSrc || detectedUrl).split('/').pop().split('?')[0] || 'image.jpg';
+          await handleImageUploadAndInsert({
+            src: detectedUrl,
+            dataUrl: detectedUrl,
+            relativePath: detectedOrigSrc || `/blog/images/${cleanFn}`,
+            filename: cleanFn,
+            alt: detectedAlt
+          });
+          return;
+        }
 
         try {
           if (detectedUrl.startsWith('data:image/')) {
@@ -2179,8 +2225,8 @@
         await handleImageUploadAndInsert({
           src: detectedUrl,
           dataUrl: detectedUrl,
-          relativePath: detectedUrl,
-          filename: 'web-image.jpg',
+          relativePath: detectedOrigSrc || detectedUrl,
+          filename: detectedImgName || 'web-image.jpg',
           alt: detectedAlt
         });
         return;
@@ -2198,9 +2244,11 @@
       }, 10);
     }
 
-    // Attach to both document and canvasProse so paste is caught regardless of focus state
+    // Attach to both document and canvasProse so copy/paste is caught regardless of focus state
+    document.addEventListener('copy', handleCopyEvent);
     document.addEventListener('paste', handlePasteEvent);
     if (canvasProse) {
+      canvasProse.addEventListener('copy', handleCopyEvent);
       canvasProse.addEventListener('paste', handlePasteEvent);
     }
 
@@ -2556,6 +2604,8 @@
     } else if (window._activeAddMultiImageTarget && window._activeAddMultiImageTarget.parentNode && canvasProse.contains(window._activeAddMultiImageTarget)) {
       targetImageBlock = window._activeAddMultiImageTarget;
       window._activeAddMultiImageTarget = null;
+    } else if (!explicitTargetBlock && !window._activeInsertTargetBlock) {
+      targetImageBlock = getSelectedCanvasImageOrGalleryBlock(canvasProse);
     }
 
     // IF TARGETING AN EXISTING IMAGE BLOCK: MERGE INTO MULTI-IMAGE GALLERY!
@@ -2601,7 +2651,9 @@
     window._activeInsertTargetBlock = null;
 
     if (!currentBlock || !currentBlock.parentNode || currentBlock.closest('#rich-canvas-prose') !== canvasProse) {
-      if (typeof window.restoreEditorSelection === 'function') window.restoreEditorSelection();
+      if (window._savedSelectionRange && typeof window.restoreEditorSelection === 'function') {
+        window.restoreEditorSelection();
+      }
       const sel = window.getSelection();
       currentBlock = null;
       if (sel && sel.rangeCount > 0) {
@@ -2613,6 +2665,9 @@
         if (node && node.parentNode === canvasProse) {
           currentBlock = node;
         }
+      }
+      if (!currentBlock && window._lastActiveBlock && window._lastActiveBlock.parentNode === canvasProse) {
+        currentBlock = window._lastActiveBlock;
       }
     }
 
@@ -2813,20 +2868,29 @@
           return;
         }
 
-        // Check if this is an "+ Add Image" action to create or expand a multi-picture section
-        if (window._activeAddMultiImageTarget && window._activeAddMultiImageTarget.parentNode) {
-          const target = window._activeAddMultiImageTarget;
-          window._activeAddMultiImageTarget = null;
+        const canvasProse = document.getElementById('rich-canvas-prose');
 
-          if (target.classList.contains('captioned-image-container')) {
-            convertSingleImageToGallery(target, {
+        // Check if an existing image or gallery block is selected/targeted to merge side-by-side
+        const selectedGalleryTarget = (window._activeAddMultiImageTarget && window._activeAddMultiImageTarget.parentNode)
+          ? window._activeAddMultiImageTarget
+          : ((window._activeInsertTargetBlock && (window._activeInsertTargetBlock.classList.contains('captioned-image-container') || window._activeInsertTargetBlock.classList.contains('custom-gallery-grid')))
+              ? window._activeInsertTargetBlock
+              : (!window._activeInsertTargetBlock ? getSelectedCanvasImageOrGalleryBlock(canvasProse) : null));
+        if (selectedGalleryTarget && selectedGalleryTarget.parentNode) {
+          window._activeAddMultiImageTarget = null;
+          if (window._activeInsertTargetBlock === selectedGalleryTarget) {
+            window._activeInsertTargetBlock = null;
+          }
+
+          if (selectedGalleryTarget.classList.contains('captioned-image-container')) {
+            convertSingleImageToGallery(selectedGalleryTarget, {
               dataUrl: url,
               relativePath: url,
               filename: 'img',
               alt: alt
             });
-          } else if (target.classList.contains('custom-gallery-grid')) {
-            addImageToGallery(target, {
+          } else if (selectedGalleryTarget.classList.contains('custom-gallery-grid')) {
+            addImageToGallery(selectedGalleryTarget, {
               dataUrl: url,
               relativePath: url,
               filename: 'img',
@@ -2838,7 +2902,6 @@
           return;
         }
 
-        const canvasProse = document.getElementById('rich-canvas-prose');
         // Check if an active block was targeted for Images
         if (window._activeInsertTargetBlock && window._activeInsertTargetBlock.parentNode) {
           const target = window._activeInsertTargetBlock;

@@ -1718,8 +1718,9 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   transform: translateY(-1px) scale(1.03);
 }
 
-/* Side '+' Buttons beside every image */
+/* Side '+' Buttons beside every image (removed in favor of click-and-paste side-by-side workflow) */
 .image-side-add-btn {
+  display: none !important;
   position: absolute;
   top: 50%;
   transform: translateY(-50%) scale(0.9);
