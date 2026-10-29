@@ -2312,8 +2312,10 @@
     window._lastActiveImageBlock = null;
     window._lastActiveBlock = null;
 
-    // If nextSib was an auto-trailing paragraph or an empty paragraph after a text block, remove nextSib to avoid leaving a stray blank line
-    if (nextIsEmptyP && ((prevSib && isTextBlock(prevSib) && nextSib.getAttribute('data-intentional-space') !== 'true') || nextSib.getAttribute('data-auto-trailing') === 'true')) {
+    // If container was a gallery with a gallery-caption sibling, remove the caption too
+    if (container.classList && container.classList.contains('custom-gallery-grid') && nextSib && nextSib.classList && nextSib.classList.contains('gallery-caption')) {
+      nextSib.remove();
+    } else if (nextIsEmptyP && ((prevSib && isTextBlock(prevSib) && nextSib.getAttribute('data-intentional-space') !== 'true') || nextSib.getAttribute('data-auto-trailing') === 'true')) {
       nextSib.remove();
     }
 

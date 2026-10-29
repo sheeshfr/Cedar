@@ -1417,6 +1417,111 @@
       if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
     }
 
+    // Merges secondBlock into the end of firstBlock, keeping the caret at the exact join point
+    function mergeTwoEditableBlocks(firstBlock, secondBlock) {
+      if (!firstBlock || !secondBlock || !firstBlock.parentNode || !secondBlock.parentNode) return;
+      const firstRaw = (firstBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+      const firstHasMedia = Boolean(firstBlock.querySelector && firstBlock.querySelector('img, video, iframe, hr, audio'));
+      const secondRaw = (secondBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+      const secondHasMedia = Boolean(secondBlock.querySelector && secondBlock.querySelector('img, video, iframe, hr, audio'));
+
+      if (firstRaw.length === 0 && !firstHasMedia) {
+        if (window.commitCheckpoint) window.commitCheckpoint();
+        firstBlock.remove();
+        if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+        placeCaretInBlock(secondBlock, true);
+        if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+        if (typeof window.updateStats === 'function') window.updateStats();
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+        return;
+      }
+
+      if (secondRaw.length === 0 && !secondHasMedia) {
+        if (!secondBlock.nextElementSibling) {
+          placeCaretAtEndOfNode(firstBlock);
+          return;
+        }
+        if (window.commitCheckpoint) window.commitCheckpoint();
+        secondBlock.remove();
+        if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+        placeCaretAtEndOfNode(firstBlock);
+        if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
+        if (typeof window.updateStats === 'function') window.updateStats();
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+        return;
+      }
+
+      if (window.commitCheckpoint) window.commitCheckpoint();
+      while (firstBlock.lastChild && firstBlock.lastChild.nodeType === Node.ELEMENT_NODE && firstBlock.lastChild.tagName === 'BR') {
+        firstBlock.removeChild(firstBlock.lastChild);
+      }
+
+      const caretMarker = document.createElement('span');
+      caretMarker.setAttribute('data-cedar-merge-caret', 'true');
+      firstBlock.appendChild(caretMarker);
+
+      if (secondBlock.tagName === 'UL' || secondBlock.tagName === 'OL') {
+        const firstLi = secondBlock.querySelector('li');
+        if (firstLi) {
+          while (firstLi.firstChild) {
+            if (firstLi.firstChild.nodeType === Node.ELEMENT_NODE && firstLi.firstChild.tagName === 'BR' && !firstLi.firstChild.nextSibling) {
+              firstLi.removeChild(firstLi.firstChild);
+              break;
+            }
+            firstBlock.appendChild(firstLi.firstChild);
+          }
+          firstLi.remove();
+        }
+        if (!secondBlock.querySelector('li')) {
+          secondBlock.remove();
+        }
+      } else if (secondBlock.tagName === 'BLOCKQUOTE') {
+        const innerP = secondBlock.querySelector('p') || secondBlock;
+        while (innerP.firstChild) {
+          if (innerP.firstChild.nodeType === Node.ELEMENT_NODE && innerP.firstChild.tagName === 'BR' && !innerP.firstChild.nextSibling) {
+            innerP.removeChild(innerP.firstChild);
+            break;
+          }
+          firstBlock.appendChild(innerP.firstChild);
+        }
+        if (innerP !== secondBlock) innerP.remove();
+        if (!secondBlock.textContent.trim()) secondBlock.remove();
+      } else {
+        while (secondBlock.firstChild) {
+          if (secondBlock.firstChild.nodeType === Node.ELEMENT_NODE && secondBlock.firstChild.tagName === 'BR' && !secondBlock.firstChild.nextSibling) {
+            secondBlock.removeChild(secondBlock.firstChild);
+            break;
+          }
+          firstBlock.appendChild(secondBlock.firstChild);
+        }
+        secondBlock.remove();
+      }
+
+      const sel = window.getSelection();
+      if (sel && caretMarker.parentNode) {
+        const r = document.createRange();
+        if (caretMarker.previousSibling && caretMarker.previousSibling.nodeType === Node.TEXT_NODE) {
+          r.setStart(caretMarker.previousSibling, caretMarker.previousSibling.nodeValue.length);
+        } else if (caretMarker.nextSibling && caretMarker.nextSibling.nodeType === Node.TEXT_NODE) {
+          r.setStart(caretMarker.nextSibling, 0);
+        } else {
+          r.setStartBefore(caretMarker);
+        }
+        r.collapse(true);
+        caretMarker.remove();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        window._savedSelectionRange = r.cloneRange();
+      } else if (caretMarker.parentNode) {
+        caretMarker.remove();
+      }
+
+      if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+      if (typeof window.recordAction === 'function') window.recordAction('delete-merge', true);
+      if (typeof window.updateStats === 'function') window.updateStats();
+      if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+    }
+
     // Beforeinput safeguard: prevent browser native merge/delete of preceding/following non-text blocks or captions
     canvasProse.addEventListener('beforeinput', (e) => {
       const inputType = e.inputType || '';
@@ -1517,21 +1622,8 @@
                   return;
                 }
                 if (preText.length === 0 && !hasMedia && prevSib && !isNonTextBlock(prevSib)) {
-                  const prevRawText = (prevSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
-                  const prevHasMedia = Boolean(prevSib.querySelector && prevSib.querySelector('img, video, iframe, hr, audio'));
-                  if (prevRawText.length === 0 && !prevHasMedia && prevSib.tagName === 'P') {
-                    e.preventDefault();
-                    if (window.commitCheckpoint) window.commitCheckpoint();
-                    prevSib.remove();
-                    placeCaretInBlock(topBlock, true);
-                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
-                    if (typeof window.updateStats === 'function') window.updateStats();
-                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-                    return;
-                  }
-                  // Never combine two non-empty text blocks on Backspace: keep them separate and move caret to end of prevSib
                   e.preventDefault();
-                  placeCaretAtEndOfNode(prevSib);
+                  mergeTwoEditableBlocks(prevSib, topBlock);
                   return;
                 }
                 if (preText.length === 0 && !hasMedia && !prevSib) {
@@ -1542,6 +1634,10 @@
                   e.preventDefault();
                   if (rawText.trim().length === 0) {
                     removeEmptyEditableBlockSafely(topBlock, 'backward');
+                  } else if (!prevSib.classList.contains('page-recent-posts-block')) {
+                    if (typeof window.deleteBlock === 'function') window.deleteBlock(prevSib);
+                    else prevSib.remove();
+                    if (topBlock.isConnected) placeCaretInBlock(topBlock, true);
                   }
                   return;
                 }
@@ -1562,31 +1658,27 @@
                 const cleanRawText = (rawText || '').replace(/[\s\u00A0]/g, '');
                 if (cleanRawText.length === 0 && !hasMedia) {
                   e.preventDefault();
-                  removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  if (nextSib && isNonTextBlock(nextSib) && !nextSib.classList.contains('page-recent-posts-block')) {
+                    if (typeof window.deleteBlock === 'function') window.deleteBlock(nextSib);
+                    else nextSib.remove();
+                    if (topBlock.isConnected) placeCaretInBlock(topBlock, true);
+                  } else {
+                    removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  }
                   return;
                 }
                 if (postText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
                   e.preventDefault();
-                  removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  if (!nextSib.classList.contains('page-recent-posts-block')) {
+                    if (typeof window.deleteBlock === 'function') window.deleteBlock(nextSib);
+                    else nextSib.remove();
+                    if (topBlock.isConnected) placeCaretAtEndOfNode(topBlock);
+                  }
                   return;
                 }
                 if (postText.length === 0 && !hasMedia && nextSib && !isNonTextBlock(nextSib)) {
-                  const nextRawText = (nextSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
-                  const nextHasMedia = Boolean(nextSib.querySelector && nextSib.querySelector('img, video, iframe, hr, audio'));
-                  if (nextRawText.length === 0 && !nextHasMedia && nextSib.tagName === 'P') {
-                    e.preventDefault();
-                    if (window.commitCheckpoint) window.commitCheckpoint();
-                    nextSib.remove();
-                    if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
-                    placeCaretAtEndOfNode(topBlock);
-                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
-                    if (typeof window.updateStats === 'function') window.updateStats();
-                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-                    return;
-                  }
-                  // Never combine two non-empty text blocks on Delete: keep them separate and move caret to start of nextSib
                   e.preventDefault();
-                  placeCaretInBlock(nextSib, true);
+                  mergeTwoEditableBlocks(topBlock, nextSib);
                   return;
                 }
                 if (postText.length === 1 && preText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
@@ -1989,23 +2081,9 @@
                 }
                 // Case 1B: Caret is at the very start of topBlock and previous sibling is a text block
                 if (preText.length === 0 && !hasMedia && prevSib && !isNonTextBlock(prevSib)) {
-                  const prevRawText = (prevSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
-                  const prevHasMedia = Boolean(prevSib.querySelector && prevSib.querySelector('img, video, iframe, hr, audio'));
-                  if (prevRawText.length === 0 && !prevHasMedia && prevSib.tagName === 'P') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (window.commitCheckpoint) window.commitCheckpoint();
-                    prevSib.remove();
-                    placeCaretInBlock(topBlock, true);
-                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
-                    if (typeof window.updateStats === 'function') window.updateStats();
-                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-                    return;
-                  }
-                  // Never combine two non-empty text blocks on Backspace: keep them separate and move caret to end of prevSib
                   e.preventDefault();
                   e.stopPropagation();
-                  placeCaretAtEndOfNode(prevSib);
+                  mergeTwoEditableBlocks(prevSib, topBlock);
                   return;
                 }
                 if (preText.length === 0 && !hasMedia && !prevSib) {
@@ -2019,6 +2097,10 @@
                   e.stopPropagation();
                   if (rawText.trim().length === 0) {
                     removeEmptyEditableBlockSafely(topBlock, 'backward');
+                  } else if (!prevSib.classList.contains('page-recent-posts-block')) {
+                    if (typeof window.deleteBlock === 'function') window.deleteBlock(prevSib);
+                    else prevSib.remove();
+                    if (topBlock.isConnected) placeCaretInBlock(topBlock, true);
                   }
                   return;
                 }
@@ -2044,40 +2126,35 @@
                   return;
                 }
                 const cleanRawText = (rawText || '').replace(/[\s\u00A0]/g, '');
-                // Case 1: Block is completely empty (<p><br></p>) -> remove 1 single empty line cleanly
+                // Case 1: Block is completely empty (<p><br></p>) -> if nextSib is media, delete media; otherwise remove empty line cleanly
                 if (cleanRawText.length === 0 && !hasMedia) {
                   e.preventDefault();
                   e.stopPropagation();
-                  removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  if (nextSib && isNonTextBlock(nextSib) && !nextSib.classList.contains('page-recent-posts-block')) {
+                    if (typeof window.deleteBlock === 'function') window.deleteBlock(nextSib);
+                    else nextSib.remove();
+                    if (topBlock.isConnected) placeCaretInBlock(topBlock, true);
+                  } else {
+                    removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  }
                   return;
                 }
-                // Case 2: Caret is at the very end of topBlock and next sibling is a non-text block
+                // Case 2: Caret is at the very end of topBlock and next sibling is a non-text/media block -> delete that media block and pull everything below up a row
                 if (postText.length === 0 && !hasMedia && isNonTextBlock(nextSib)) {
                   e.preventDefault();
                   e.stopPropagation();
-                  removeEmptyEditableBlockSafely(topBlock, 'forward');
+                  if (!nextSib.classList.contains('page-recent-posts-block')) {
+                    if (typeof window.deleteBlock === 'function') window.deleteBlock(nextSib);
+                    else nextSib.remove();
+                    if (topBlock.isConnected) placeCaretAtEndOfNode(topBlock);
+                  }
                   return;
                 }
-                // Case 2B: Caret is at the very end of topBlock and next sibling is a text block
+                // Case 2B: Caret is at the very end of topBlock and next sibling is a text block -> break nextSib and pull its words up into topBlock at the caret
                 if (postText.length === 0 && !hasMedia && nextSib && !isNonTextBlock(nextSib)) {
-                  const nextRawText = (nextSib.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
-                  const nextHasMedia = Boolean(nextSib.querySelector && nextSib.querySelector('img, video, iframe, hr, audio'));
-                  if (nextRawText.length === 0 && !nextHasMedia && nextSib.tagName === 'P') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (window.commitCheckpoint) window.commitCheckpoint();
-                    nextSib.remove();
-                    if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
-                    placeCaretAtEndOfNode(topBlock);
-                    if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
-                    if (typeof window.updateStats === 'function') window.updateStats();
-                    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-                    return;
-                  }
-                  // Never combine two non-empty text blocks on Delete: keep them separate and move caret to start of nextSib
                   e.preventDefault();
                   e.stopPropagation();
-                  placeCaretInBlock(nextSib, true);
+                  mergeTwoEditableBlocks(topBlock, nextSib);
                   return;
                 }
                 // Case 3: Block has 1 character after caret and 0 before, adjacent to a non-text block in front
