@@ -126,12 +126,57 @@
             fc.remove();
           }
         });
+        body.querySelectorAll('.captioned-image-container, .custom-gallery-grid').forEach(container => {
+          if (container.parentElement && container.parentElement !== body) {
+            let topBlock = container;
+            while (topBlock.parentElement && topBlock.parentElement !== body) {
+              topBlock = topBlock.parentElement;
+            }
+            if (topBlock && topBlock.parentElement === body) {
+              body.insertBefore(container, topBlock.nextSibling);
+              if (!topBlock.textContent.trim() && !topBlock.querySelector('img, video, iframe, hr, svg')) {
+                topBlock.remove();
+              }
+            }
+          }
+        });
         body.querySelectorAll('img').forEach(img => {
           const imgName = (img.getAttribute('data-img-name') || '').trim();
           const origSrc = (img.getAttribute('data-original-src') || '').trim();
           if (imgName && (!origSrc || origSrc.startsWith('data:'))) {
             const cleanFn = imgName.split('/').pop().split('\\').pop();
             img.setAttribute('data-original-src', `/blog/images/${cleanFn}`);
+          }
+          if (!img.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .image-sanitizing-placeholder, .gallery-split-img-box, .page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card')) {
+            const src = img.getAttribute('src') || '';
+            if (src) {
+              const figContainer = doc.createElement('div');
+              figContainer.className = 'captioned-image-container';
+              figContainer.setAttribute('contenteditable', 'false');
+              figContainer.setAttribute('tabindex', '0');
+              const fig = doc.createElement('figure');
+              const wrap = doc.createElement('div');
+              wrap.className = 'image-media-wrapper';
+              const clonedImg = img.cloneNode(true);
+              clonedImg.setAttribute('draggable', 'false');
+              wrap.appendChild(clonedImg);
+              fig.appendChild(wrap);
+              figContainer.appendChild(fig);
+              let topBlock = img;
+              while (topBlock.parentElement && topBlock.parentElement !== body) {
+                topBlock = topBlock.parentElement;
+              }
+              if (topBlock === img) {
+                body.replaceChild(figContainer, img);
+              } else if (topBlock && topBlock.parentElement === body) {
+                img.remove();
+                if (!topBlock.textContent.trim() && !topBlock.querySelector('img, video, iframe, hr, svg')) {
+                  body.replaceChild(figContainer, topBlock);
+                } else {
+                  body.insertBefore(figContainer, topBlock.nextSibling);
+                }
+              }
+            }
           }
         });
         body.querySelectorAll('code:not(pre code), span.cedar-custom-color').forEach(el => {

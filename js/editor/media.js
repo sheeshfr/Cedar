@@ -818,22 +818,44 @@
    */
   function normalizeRawImages(root) {
     if (!root) root = document.getElementById('rich-canvas-prose');
-    if (!root) return;
+    if (!root || typeof root.querySelectorAll !== 'function') return;
 
-    // Find all <img> elements not wrapped in recognized Cedar containers or page blocks
+    // 1. Ensure any .captioned-image-container or .custom-gallery-grid is a direct top-level child of root (never nested inside a <p> or inline block)
+    const nestedBlocks = Array.from(root.querySelectorAll('.captioned-image-container, .custom-gallery-grid')).filter(el => {
+      return el.parentElement && el.parentElement !== root && !el.closest('.page-recent-posts-block, .page-individual-post-block, .post-card');
+    });
+    nestedBlocks.forEach(blockEl => {
+      let topAncestor = blockEl;
+      while (topAncestor.parentElement && topAncestor.parentElement !== root) {
+        topAncestor = topAncestor.parentElement;
+      }
+      if (topAncestor && topAncestor.parentElement === root) {
+        root.insertBefore(blockEl, topAncestor.nextSibling);
+        const clone = topAncestor.cloneNode(true);
+        clone.querySelectorAll('.captioned-image-container, .custom-gallery-grid').forEach(c => c.remove());
+        if (!clone.textContent.trim() && !clone.querySelector('img, video, iframe, hr, svg, pre, blockquote, table')) {
+          topAncestor.remove();
+        }
+      }
+    });
+
+    // 2. Find all <img> elements not wrapped in recognized Cedar containers or page blocks
     const rawImgs = Array.from(root.querySelectorAll('img')).filter(img => {
       return !img.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .image-sanitizing-placeholder, .gallery-split-img-box, .page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card');
     });
 
-    if (rawImgs.length === 0) return;
+    if (rawImgs.length === 0 && nestedBlocks.length === 0) return;
 
     rawImgs.forEach(img => {
       const src = img.getAttribute('src') || img.src || '';
       if (!src) return;
-      const originalSrc = img.getAttribute('data-original-src') || img.dataset.originalSrc || src;
-      const alt = img.getAttribute('alt') || img.alt || 'Image';
       const rawName = img.getAttribute('data-img-name') || img.dataset.imgName;
-      const imgName = rawName || (src.startsWith('data:') ? ('image-' + Date.now().toString(36) + '.jpg') : (src.split('/').pop().split('?')[0] || 'image.jpg'));
+      const imgName = rawName || ((src.startsWith('data:') || src.startsWith('blob:')) ? ('image-' + Date.now().toString(36) + '.jpg') : (src.split('/').pop().split('?')[0] || 'image.jpg'));
+      const rawOrig = img.getAttribute('data-original-src') || img.dataset.originalSrc || '';
+      const originalSrc = (rawOrig && !rawOrig.startsWith('data:') && !rawOrig.startsWith('blob:'))
+        ? rawOrig
+        : `/blog/images/${imgName}`;
+      const alt = img.getAttribute('alt') || img.alt || 'Image';
 
       // Keep currentDraft images list synchronized
       if (window.currentDraft) {
@@ -991,6 +1013,7 @@
       if (!img._hasCedarSmartSizeLoad) {
         img._hasCedarSmartSizeLoad = true;
         img.addEventListener('load', () => {
+          img._hasCedarSmartSizeLoad = false;
           applySmartImageSizing(container);
         }, { once: true });
       }
@@ -1064,9 +1087,14 @@
 
   function stepImageScale(container, direction) {
     if (!container || !container.classList || !container.classList.contains('captioned-image-container')) return;
-    const figure = container.querySelector('figure');
-    const wrapper = container.querySelector('.image-media-wrapper');
+    let figure = container.querySelector('figure');
+    let wrapper = container.querySelector('.image-media-wrapper');
     const img = container.querySelector('img');
+    if (!figure || !wrapper) {
+      ensureImageCaptionElements(container);
+      figure = container.querySelector('figure');
+      wrapper = container.querySelector('.image-media-wrapper');
+    }
     if (!figure || !wrapper || !img) return;
 
     const naturalWidth = img.naturalWidth || 820;
@@ -1077,8 +1105,23 @@
     const steps = buildImageScaleSteps(naturalWidth, marginWidth);
     if (steps.length === 0) return;
 
-    const currentRectWidth = figure.getBoundingClientRect().width || img.getBoundingClientRect().width || marginWidth;
-    const currentWidth = Math.min(marginWidth, Math.max(minAdjustablePx, Math.round(currentRectWidth)));
+    let currentBasePx = 0;
+    const existingScaleAttr = (container.getAttribute('data-scale-width') || '').trim();
+    if (existingScaleAttr.endsWith('%')) {
+      const pctVal = parseFloat(existingScaleAttr);
+      if (!isNaN(pctVal) && pctVal > 0) {
+        currentBasePx = Math.round((pctVal / 100) * marginWidth);
+      }
+    } else if (existingScaleAttr.endsWith('px')) {
+      const pxVal = parseFloat(existingScaleAttr);
+      if (!isNaN(pxVal) && pxVal > 0) {
+        currentBasePx = Math.round(pxVal);
+      }
+    }
+    if (!currentBasePx) {
+      currentBasePx = figure.getBoundingClientRect().width || img.getBoundingClientRect().width || marginWidth;
+    }
+    const currentWidth = Math.min(marginWidth, Math.max(minAdjustablePx, Math.round(currentBasePx)));
 
     let nextPx = null;
     if (direction === 'up') {
@@ -1153,9 +1196,32 @@
       ? [root]
       : Array.from(root.querySelectorAll('.captioned-image-container'));
     containers.forEach(container => {
-      const figure = container.querySelector('figure');
-      if (!figure) return;
-      const wrapper = figure.querySelector('.image-media-wrapper');
+      if (container.getAttribute('contenteditable') !== 'false') {
+        container.setAttribute('contenteditable', 'false');
+      }
+      if (!container.hasAttribute('tabindex')) {
+        container.setAttribute('tabindex', '0');
+      }
+      let figure = container.querySelector('figure');
+      if (!figure) {
+        const directImg = container.querySelector('img');
+        if (!directImg) return;
+        figure = document.createElement('figure');
+        figure.appendChild(directImg);
+        const directCap = container.querySelector('figcaption');
+        if (directCap) figure.appendChild(directCap);
+        container.insertBefore(figure, container.firstChild);
+      }
+      let wrapper = figure.querySelector('.image-media-wrapper');
+      if (!wrapper) {
+        const directImg = figure.querySelector('img');
+        if (directImg) {
+          wrapper = document.createElement('div');
+          wrapper.className = 'image-media-wrapper';
+          figure.insertBefore(wrapper, directImg);
+          wrapper.appendChild(directImg);
+        }
+      }
       if (wrapper) {
         const imgEl = wrapper.querySelector('img');
         if (imgEl && imgEl.getAttribute('draggable') !== 'false') {
@@ -1446,6 +1512,8 @@
           if (!blob || !(blob instanceof Blob) || blob.size === 0) return;
           const objUrl = URL.createObjectURL(blob);
           imgEl.src = objUrl;
+          const pFigEarly = imgEl.closest ? imgEl.closest('.captioned-image-container') : null;
+          if (pFigEarly) applySmartImageSizing(pFigEarly);
 
           const reader = new FileReader();
           reader.onloadend = () => {
@@ -1454,6 +1522,8 @@
             if (dUrl && imgEl.isConnected) {
               imgEl.src = dUrl;
             }
+            const pFigDone = imgEl.closest ? imgEl.closest('.captioned-image-container') : null;
+            if (pFigDone) applySmartImageSizing(pFigDone);
             const relPath = `/blog/images/${cleanName}`;
             const regEntry = {
               filename: cleanName,
@@ -1904,6 +1974,8 @@
 
       // Only handle paste if editor view is active
       const isEditorVisible = (viewEditor && viewEditor.style.display !== 'none') ||
+                              window.currentView === 'editor' ||
+                              window.location.hash.startsWith('#write') ||
                               window.location.hash.startsWith('#editor') ||
                               (canvasProse && canvasProse.offsetParent !== null);
       if (!isEditorVisible) return;
@@ -1967,8 +2039,9 @@
       } else if (/^https?:\/\/[^\s]+?\.(png|jpe?g|webp|gif|svg|avif)(\?[^\s]*)?$/i.test(plainText) || /^https?:\/\/images\.unsplash\.com\/[^\s]+$/i.test(plainText)) {
         detectedUrl = plainText;
       } else if (htmlText) {
-        const imgMatch = htmlText.match(/<img[^>]+src=["'](https?:\/\/[^"']+|data:image\/[^"']+)["']/i);
-        if (imgMatch) {
+        const imgMatch = htmlText.match(/<img[^>]+src=["'](https?:\/\/[^"']+|data:image\/[^"']+|blob:[^"']+|\/?blog\/images\/[^"']+)["']/i) ||
+                         (!plainText ? htmlText.match(/<img[^>]+src=["']([^"']+)["']/i) : null);
+        if (imgMatch && imgMatch[1]) {
           detectedUrl = imgMatch[1];
         }
       }
@@ -2014,10 +2087,14 @@
         return;
       }
 
-      // If text/HTML was pasted, ensure any adjacent lists are cleanly merged
+      // If text/HTML was pasted, ensure any raw/inline images are normalized into standalone figure boxes and adjacent lists are merged
       setTimeout(() => {
-        if (window.mergeAdjacentLists && canvasProse) {
-          window.mergeAdjacentLists(canvasProse);
+        if (canvasProse) {
+          normalizeRawImages(canvasProse);
+          ensureImageCaptionElements(canvasProse);
+          if (window.mergeAdjacentLists) {
+            window.mergeAdjacentLists(canvasProse);
+          }
         }
       }, 10);
     }
@@ -2273,6 +2350,7 @@
         if (needsNormalize) {
           setTimeout(() => {
             normalizeRawImages(canvasProse);
+            ensureImageCaptionElements(canvasProse);
           }, 0);
         }
       });
@@ -2673,4 +2751,196 @@
           if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
             window.insertOrReplaceBlockInCanvas(target, newFigure, canvasProse);
           } else {
-            target.parentN
+            target.parentNode.insertBefore(newFigure, target.nextSibling);
+          }
+          window._lastActiveBlock = newFigure;
+          if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
+          if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+          if (typeof window.closeModal === 'function') window.closeModal('modal-insert-image');
+          if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+          if (typeof window.showToast === 'function') window.showToast('Image block inserted!');
+          return;
+        }
+
+        insertHtmlAtCursor(createFigureHtml(url, url, "img", alt, cap, "full"));
+        if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
+        if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+        if (typeof window.closeModal === 'function') window.closeModal('modal-insert-image');
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+      });
+    }
+
+    const btnConfirmYt = document.getElementById('btn-confirm-insert-youtube');
+    if (btnConfirmYt && !btnConfirmYt._hasCedarMediaListener) {
+      btnConfirmYt._hasCedarMediaListener = true;
+      btnConfirmYt.addEventListener('click', () => {
+        const val = (document.getElementById('yt-dialog-url')?.value || '').trim();
+        const ytId = (typeof window.extractYouTubeId === 'function') ? window.extractYouTubeId(val) : val;
+        if (!ytId) {
+          alert('Please enter a valid YouTube URL or 11-character video ID.');
+          return;
+        }
+        const videoHtml = `<div class="video-wrapper" contenteditable="false" data-block-type="media" draggable="true"><iframe src="https://www.youtube-nocookie.com/embed/${ytId}?rel=0&amp;autoplay=0&amp;showinfo=0&amp;enablejsapi=0" width="728" height="409" frameborder="0" allow="autoplay; fullscreen" allowfullscreen="true" loading="lazy"></iframe><div class="figure-hover-actions"><button type="button" class="figure-action-btn btn-move-block-up" title="Move Up"> </button><button type="button" class="figure-action-btn btn-move-block-down" title="Move Down"> </button><div class="figure-action-sep"></div><button type="button" class="figure-action-btn btn-delete-fig" title="Delete Media"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg><span>Delete</span></button></div></div>`;
+        const canvasProse = document.getElementById('rich-canvas-prose');
+
+        if (window._activeInsertTargetBlock && window._activeInsertTargetBlock.parentNode) {
+          const target = window._activeInsertTargetBlock;
+          window._activeInsertTargetBlock = null;
+          if (window.commitCheckpoint) window.commitCheckpoint();
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = videoHtml;
+          const newVideo = tempDiv.firstElementChild;
+          if (typeof window.insertOrReplaceBlockInCanvas === 'function') {
+            window.insertOrReplaceBlockInCanvas(target, newVideo, canvasProse);
+          } else {
+            target.parentNode.insertBefore(newVideo, target.nextSibling);
+          }
+          window._lastActiveBlock = newVideo;
+          if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
+          if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+          if (typeof window.closeModal === 'function') window.closeModal('modal-insert-youtube');
+          if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+          if (typeof window.showToast === 'function') window.showToast('Embedded media block inserted!');
+          return;
+        }
+
+        insertHtmlAtCursor(videoHtml);
+        if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
+        if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
+        if (typeof window.closeModal === 'function') window.closeModal('modal-insert-youtube');
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+      });
+    }
+
+    const btnConfirmGal = document.getElementById('btn-confirm-insert-gallery');
+    if (btnConfirmGal && !btnConfirmGal._hasCedarMediaListener) {
+      btnConfirmGal._hasCedarMediaListener = true;
+      btnConfirmGal.addEventListener('click', () => {
+        const raw = (document.getElementById('gallery-dialog-urls')?.value || '').trim();
+        const cap = (document.getElementById('gallery-dialog-caption')?.value || '').trim();
+        const urls = raw.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+        if (urls.length === 0) {
+          alert('Please provide at least one image URL.');
+          return;
+        }
+        const images = urls.map(u => ({ src: u, originalSrc: u, alt: '' }));
+        let block = createGalleryHtml(images, true);
+        if (cap) block += `<p class="gallery-caption" contenteditable="true">${escapeHtml(cap)}</p>`;
+        block += `<p><br></p>`;
+        insertHtmlAtCursor(block);
+        if (typeof window.closeModal === 'function') window.closeModal('modal-insert-gallery');
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+      });
+    }
+
+    const btnConfirmAdj = document.getElementById('btn-confirm-insert-adjacent-posts');
+    if (btnConfirmAdj && !btnConfirmAdj._hasCedarMediaListener) {
+      btnConfirmAdj._hasCedarMediaListener = true;
+      btnConfirmAdj.addEventListener('click', () => {
+        const prevTitle = (document.getElementById('dialog-nav-prev-title')?.value || '').trim();
+        const prevSlug = (document.getElementById('dialog-nav-prev-slug')?.value || '').trim();
+        const nextTitle = (document.getElementById('dialog-nav-next-title')?.value || '').trim();
+        const nextSlug = (document.getElementById('dialog-nav-next-slug')?.value || '').trim();
+
+        const hasPrev = prevTitle || prevSlug;
+        const hasNext = nextTitle || nextSlug;
+
+        let gridHtml = '<div class="post-nav-grid" contenteditable="false" style="margin: 2.5rem 0;">\n';
+        if (hasPrev || !hasNext) {
+          const pTitle = prevTitle || 'Previous Article';
+          const pSlug = prevSlug ? (prevSlug.startsWith('/') || prevSlug.startsWith('http') ? prevSlug : `/blog/${prevSlug}/`) : '#';
+          gridHtml += `  <a href="${escapeHtml(pSlug)}" class="post-nav-card" onclick="return false;">\n` +
+                      `    <span class="post-nav-dir">&larr; Older Article</span>\n` +
+                      `    <span class="post-nav-title" contenteditable="true">${escapeHtml(pTitle)}</span>\n` +
+                      `  </a>\n`;
+        }
+        if (hasNext || !hasPrev) {
+          const nTitle = nextTitle || 'Next Article';
+          const nSlug = nextSlug ? (nextSlug.startsWith('/') || nextSlug.startsWith('http') ? nextSlug : `/blog/${nextSlug}/`) : '#';
+          gridHtml += `  <a href="${escapeHtml(nSlug)}" class="post-nav-card next" onclick="return false;">\n` +
+                      `    <span class="post-nav-dir">Newer Article &rarr;</span>\n` +
+                      `    <span class="post-nav-title" contenteditable="true">${escapeHtml(nTitle)}</span>\n` +
+                      `  </a>\n`;
+        }
+        gridHtml += '</div><p><br></p>';
+
+        if (typeof window.activeMode !== 'undefined' && window.activeMode === 'markdown') {
+          if (typeof window.insertMarkdownAtCursor === 'function') {
+            window.insertMarkdownAtCursor('\n' + gridHtml + '\n');
+          }
+        } else {
+          insertHtmlAtCursor(gridHtml);
+        }
+        if (typeof window.closeModal === 'function') window.closeModal('modal-insert-adjacent-posts');
+        if (typeof window.showToast === 'function') window.showToast('Inserted Next / Previous Posts block!');
+      });
+    }
+  }
+
+  // Auto-connect modal controls on DOM ready or immediate if ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupEditorMediaModalControls);
+  } else {
+    setTimeout(setupEditorMediaModalControls, 0);
+  }
+
+  // =========================================================================
+  // GLOBAL & NAMESPACE EXPORTS
+  // =========================================================================
+
+  window.normalizeRawImages = normalizeRawImages;
+  window.createFigureHtml = createFigureHtml;
+  window.createGalleryHtml = createGalleryHtml;
+  window.convertSingleImageToGallery = convertSingleImageToGallery;
+  window.addImageToGallery = addImageToGallery;
+  window.moveGalleryImage = moveGalleryImage;
+  window.removeImageFromGallery = removeImageFromGallery;
+  window.normalizeRawImages = normalizeRawImages;
+  window.addSideBySideSlot = addSideBySideSlot;
+  window.cancelGalleryPlaceholder = cancelGalleryPlaceholder;
+  window.populateGalleryPlaceholder = populateGalleryPlaceholder;
+  window.isImageBlock = isImageBlock;
+  window.getAdjacentImageBlock = getAdjacentImageBlock;
+  window.mergeImageBlocks = mergeImageBlocks;
+  window.ensureImageCaptionElements = ensureImageCaptionElements;
+  window.applySmartImageSizing = applySmartImageSizing;
+  window.stepImageScale = stepImageScale;
+  window.hydrateCanvasImages = hydrateCanvasImages;
+  window.renderEditorMediaPopup = renderEditorMediaPopup;
+  window.insertMediaIntoPostEditor = insertMediaIntoPostEditor;
+  window.insertHtmlAtCursor = insertHtmlAtCursor;
+  window.setupImageClipboardAndDrop = setupImageClipboardAndDrop;
+  window.handleImageUploadAndInsert = handleImageUploadAndInsert;
+  window.handleImageManagerFiles = handleImageManagerFiles;
+  window.setupEditorMediaModalControls = setupEditorMediaModalControls;
+
+  const mediaExports = {
+    normalizeRawImages,
+    createFigureHtml,
+    createGalleryHtml,
+    convertSingleImageToGallery,
+    addImageToGallery,
+    moveGalleryImage,
+    removeImageFromGallery,
+    addSideBySideSlot,
+    cancelGalleryPlaceholder,
+    populateGalleryPlaceholder,
+    isImageBlock,
+    getAdjacentImageBlock,
+    mergeImageBlocks,
+    ensureImageCaptionElements,
+    applySmartImageSizing,
+    stepImageScale,
+    hydrateCanvasImages,
+    renderEditorMediaPopup,
+    insertMediaIntoPostEditor,
+    insertHtmlAtCursor,
+    setupImageClipboardAndDrop,
+    handleImageUploadAndInsert,
+    handleImageManagerFiles,
+    setupEditorMediaModalControls
+  };
+
+  window.Cedar.editor = Object.assign(window.Cedar.editor || {}, mediaExports);
+  window.Outpost.editor = window.Cedar.editor;
+})();

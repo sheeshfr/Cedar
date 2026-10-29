@@ -2842,4 +2842,110 @@
           const a = document.createElement('a');
           a.href = formattedUrl;
           a.target = '_blank';
-     
+          a.rel = 'noopener noreferrer';
+          a.textContent = pastedText;
+
+          range.insertNode(a);
+
+          const afterRange = document.createRange();
+          afterRange.setStartAfter(a);
+          afterRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(afterRange);
+
+          if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+          if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+          if (typeof window.showToast === 'function') window.showToast('Hyperlink inserted');
+          return;
+        }
+      }
+    });
+
+    // Focusout / blur handler on figcaption and gallery-caption: if empty, undoes itself!
+    canvasProse.addEventListener('focusout', (e) => {
+      if (e.target && (e.target.tagName === 'FIGCAPTION' || (e.target.classList && e.target.classList.contains('gallery-caption')))) {
+        const captionEl = e.target;
+        const isGalleryCap = captionEl.classList.contains('gallery-caption');
+        const container = isGalleryCap ? captionEl.previousElementSibling : captionEl.closest('.captioned-image-container');
+        const text = (captionEl.textContent || '').trim();
+        if (!text || text === 'Add caption here...' || text === 'Add image caption here...') {
+          captionEl.remove();
+          if (container) {
+            container.classList.remove('has-caption');
+          }
+          if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+        } else {
+          if (container) {
+            container.classList.add('has-caption');
+          }
+          if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+        }
+      }
+    });
+
+    // Ensure caret in empty figcaption / gallery-caption is centered
+    canvasProse.addEventListener('click', (e) => {
+      const cap = e.target.closest ? e.target.closest('figcaption, .gallery-caption') : null;
+      if (cap && (!cap.textContent || !cap.textContent.trim())) {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(cap);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
+
+    canvasProse.addEventListener('focusin', (e) => {
+      const cap = (e.target && (e.target.tagName === 'FIGCAPTION' || (e.target.classList && e.target.classList.contains('gallery-caption')))) ? e.target : null;
+      if (cap && (!cap.textContent || !cap.textContent.trim())) {
+        setTimeout(() => {
+          if (document.activeElement === cap && (!cap.textContent || !cap.textContent.trim())) {
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(cap);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }, 0);
+      }
+    });
+
+    // Export list helpers for testability and external access
+    window.findEnclosingListItem = findEnclosingListItem;
+    window.isCaretAtStartOfListItem = isCaretAtStartOfListItem;
+    window.isBlankListItem = isBlankListItem;
+    window.removeBlankListItemAndFocusAbove = removeBlankListItemAndFocusAbove;
+    window.convertListItemToParagraph = convertListItemToParagraph;
+    window.exitListItemToNewParagraph = exitListItemToNewParagraph;
+
+    // Ensure caption buttons and states are synchronized for existing images
+    if (typeof window.ensureImageCaptionElements === 'function') {
+      window.ensureImageCaptionElements(canvasProse);
+    }
+  }
+
+  // =========================================================================
+  // GLOBAL & NAMESPACE EXPORTS
+  // =========================================================================
+
+  window.deleteCurrentBlock = deleteCurrentBlock;
+  window.setupRichTextFormatting = setupRichTextFormatting;
+  window.applyIndividualPostUrlLink = applyIndividualPostUrlLink;
+
+  const canvasExports = {
+    deleteCurrentBlock,
+    setupRichTextFormatting,
+    applyIndividualPostUrlLink,
+    findEnclosingListItem: (...args) => (window.findEnclosingListItem ? window.findEnclosingListItem(...args) : null),
+    isCaretAtStartOfListItem: (...args) => (window.isCaretAtStartOfListItem ? window.isCaretAtStartOfListItem(...args) : false),
+    isBlankListItem: (...args) => (window.isBlankListItem ? window.isBlankListItem(...args) : false),
+    removeBlankListItemAndFocusAbove: (...args) => (window.removeBlankListItemAndFocusAbove ? window.removeBlankListItemAndFocusAbove(...args) : null),
+    convertListItemToParagraph: (...args) => (window.convertListItemToParagraph ? window.convertListItemToParagraph(...args) : null),
+    exitListItemToNewParagraph: (...args) => (window.exitListItemToNewParagraph ? window.exitListItemToNewParagraph(...args) : null)
+  };
+
+  window.Cedar.editor = Object.assign(window.Cedar.editor || {}, canvasExports);
+  window.Outpost.editor = window.Cedar.editor;
+})();

@@ -5184,7 +5184,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             ? window.cleanProseHtmlForStorage(d.proseHtml)
             : d.proseHtml;
           cleaned = cleaned.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');
-          cleaned = cleaned.replace(/(selected|selected-item)/gi, '');
+          cleaned = cleaned.replace(/\b(selected|selected-item)\b/gi, '');
           cleaned = cleaned.replace(/class=["']([^"']*)["']/gi, (match, classes) => {
             const c = classes.trim().replace(/\s+/g, ' ');
             return c ? `class="${c}"` : '';
