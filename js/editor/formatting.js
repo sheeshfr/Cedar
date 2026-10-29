@@ -52,6 +52,17 @@
       updateToolbarActiveStates();
       return;
     }
+    const canvas = document.getElementById('rich-canvas-prose');
+    if (canvas) {
+      const selectedNonText = canvas.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected');
+      if (selectedNonText) {
+        window._lastActiveBlock = selectedNonText;
+        savedSelectionRange = null;
+        window._savedSelectionRange = null;
+        updateToolbarActiveStates();
+        return;
+      }
+    }
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);

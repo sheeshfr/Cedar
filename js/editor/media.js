@@ -62,11 +62,6 @@
             <button type="button" class="figure-action-btn btn-scale-img-up" title="Increase Image Scale (+)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
-            <div class="figure-action-sep"></div>
-            <button type="button" class="figure-action-btn btn-delete-fig" title="Delete Image">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-              <span>Delete</span>
-            </button>
           </div>
           <button type="button" class="image-add-caption-btn" title="Add Caption">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -95,10 +90,6 @@
         </button>
         <button type="button" class="gallery-item-btn btn-move-item-right" data-index="${idx}" title="Move forward in rotation">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-        </button>
-        <div class="gallery-item-btn-sep"></div>
-        <button type="button" class="gallery-item-btn gallery-item-delete-btn" data-index="${idx}" title="Remove image">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <button type="button" class="image-add-caption-btn" data-index="${idx}" title="Add Caption">
@@ -1274,9 +1265,9 @@
           }
         }
 
-        // Ensure strictly ONE .figure-hover-actions with Decrease Scale (-), Increase Scale (+), and Delete button
+        // Ensure strictly ONE .figure-hover-actions with Decrease Scale (-) and Increase Scale (+) buttons only (no Delete button)
         let hoverActions = wrapper.querySelector('.figure-hover-actions');
-        const needsScaleButtonsUpgrade = hoverActions && (!hoverActions.querySelector('.btn-scale-img-down') || !hoverActions.querySelector('.btn-scale-img-up') || hoverActions.querySelector('.btn-move-block-up, .btn-move-block-down'));
+        const needsScaleButtonsUpgrade = hoverActions && (!hoverActions.querySelector('.btn-scale-img-down') || !hoverActions.querySelector('.btn-scale-img-up') || hoverActions.querySelector('.btn-move-block-up, .btn-move-block-down, .btn-delete-fig, .figure-action-sep'));
         if (!hoverActions || needsScaleButtonsUpgrade) {
           if (!hoverActions) {
             hoverActions = document.createElement('div');
@@ -1289,11 +1280,6 @@
             </button>
             <button type="button" class="figure-action-btn btn-scale-img-up" title="Increase Image Scale (+)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-            <div class="figure-action-sep"></div>
-            <button type="button" class="figure-action-btn btn-delete-fig" title="Delete Image">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-              <span>Delete</span>
             </button>
           `;
         }
@@ -1361,11 +1347,14 @@
           : item;
         if (!targetContainer) return;
 
-        // Ensure controls
+        // Ensure controls (left/right reorder arrows only; deletion is via Backspace/Delete key)
         let controls = targetContainer.querySelector('.gallery-item-controls');
-        if (!controls) {
-          controls = document.createElement('div');
-          controls.className = 'gallery-item-controls';
+        if (!controls || controls.querySelector('.gallery-item-delete-btn, .gallery-item-btn-sep')) {
+          if (!controls) {
+            controls = document.createElement('div');
+            controls.className = 'gallery-item-controls';
+            targetContainer.appendChild(controls);
+          }
           controls.innerHTML = `
             <button type="button" class="gallery-item-btn btn-move-item-left" data-index="${idx}" title="Move backward in rotation">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
@@ -1373,12 +1362,7 @@
             <button type="button" class="gallery-item-btn btn-move-item-right" data-index="${idx}" title="Move forward in rotation">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
             </button>
-            <div class="gallery-item-btn-sep"></div>
-            <button type="button" class="gallery-item-btn gallery-item-delete-btn" data-index="${idx}" title="Remove image">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
           `;
-          targetContainer.appendChild(controls);
         } else {
           controls.querySelectorAll('.gallery-item-btn').forEach(b => b.dataset.index = idx.toString());
         }

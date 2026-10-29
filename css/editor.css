@@ -1491,7 +1491,11 @@
   display: none !important;
 }
 
-/* Hide obsolete pill bars, multi-image buttons, and block-level gallery hover actions */
+/* Hide obsolete pill bars, multi-image buttons, image delete buttons, and block-level gallery hover actions */
+.captioned-image-container .btn-delete-fig,
+.captioned-image-container .figure-action-sep,
+.custom-gallery-grid .gallery-item-delete-btn,
+.custom-gallery-grid .gallery-item-btn-sep,
 .custom-gallery-grid .figure-hover-actions,
 .image-hover-pill-bar,
 .image-add-photo-btn,

@@ -196,6 +196,19 @@
       } catch (e) {}
     });
 
+    canvasProse.addEventListener('mousedown', (e) => {
+      if (!e.target || e.target === canvasProse) return;
+      const inCaption = e.target.closest ? e.target.closest('figcaption, .gallery-caption') : null;
+      const inNonText = !inCaption && e.target.closest
+        ? e.target.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider')
+        : null;
+      if (!inNonText) {
+        canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
+        window._selectedImageBlock = null;
+        window._lastActiveImageBlock = null;
+      }
+    });
+
     // Click handler for figure resize buttons, delete, move up/down, add image, and selection
     canvasProse.addEventListener('click', (e) => {
 
@@ -484,12 +497,16 @@
       // Image selection when clicking on or beside an image inside .captioned-image-container
       const imageContainer = e.target.closest('.captioned-image-container');
       if (imageContainer && !e.target.closest('figcaption, button, .image-hover-pill-bar, .figure-hover-actions')) {
-        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
         imageContainer.classList.add('selected');
         window._selectedImageBlock = imageContainer;
         window._lastActiveImageBlock = imageContainer;
         window._lastActiveBlock = imageContainer;
         window._savedSelectionRange = null;
+        try {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+        } catch (err) {}
         if (!imageContainer.hasAttribute('tabindex')) imageContainer.setAttribute('tabindex', '0');
         imageContainer.focus();
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
@@ -501,11 +518,15 @@
       if (shareBlock) {
         e.preventDefault();
         e.stopPropagation();
-        canvasProse.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block').forEach(c => c.classList.remove('selected'));
+        canvasProse.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
         shareBlock.classList.add('selected');
         window._lastActiveBlock = shareBlock;
         window._selectedImageBlock = null;
         window._savedSelectionRange = null;
+        try {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+        } catch (err) {}
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
         return;
       }
@@ -515,11 +536,15 @@
       if (rssBlock) {
         e.preventDefault();
         e.stopPropagation();
-        canvasProse.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block').forEach(c => c.classList.remove('selected'));
+        canvasProse.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
         rssBlock.classList.add('selected');
         window._lastActiveBlock = rssBlock;
         window._selectedImageBlock = null;
         window._savedSelectionRange = null;
+        try {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+        } catch (err) {}
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
         return;
       }
@@ -531,7 +556,7 @@
           if (e.target.closest('.article-share-block, .article-rss-block, .btn-share-article, .btn-copy-share-url, .btn-rss-subscribe')) {
             e.preventDefault();
           }
-          document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block').forEach(c => c.classList.remove('selected'));
+          document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
           otherContainer.classList.add('selected');
           window._lastActiveBlock = otherContainer;
           window._selectedImageBlock = otherContainer.classList.contains('custom-gallery-grid') ? otherContainer : null;
@@ -544,6 +569,10 @@
             }
           }
           window._savedSelectionRange = null;
+          try {
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();
+          } catch (err) {}
           if (typeof otherContainer.focus === 'function') otherContainer.focus();
           if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
           return;
@@ -681,11 +710,15 @@
         if (cardLink) {
           e.preventDefault();
         }
-        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
         clickedPageBlock.classList.add('selected');
         window._selectedImageBlock = null;
         window._lastActiveBlock = clickedPageBlock;
         window._savedSelectionRange = null;
+        try {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+        } catch (err) {}
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
         return;
       }
@@ -693,11 +726,15 @@
       // Click on Divider Line (HR) inside editor: select the divider block
       const clickedHr = e.target.closest('hr, .canvas-divider');
       if (clickedHr && canvasProse.contains(clickedHr)) {
-        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
         clickedHr.classList.add('selected');
         window._selectedImageBlock = null;
         window._lastActiveBlock = clickedHr;
         window._savedSelectionRange = null;
+        try {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+        } catch (err) {}
         if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
         return;
       }
@@ -715,11 +752,16 @@
         }
 
         if (clickedBesideBlock) {
-          document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider').forEach(c => c.classList.remove('selected'));
+          document.querySelectorAll('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider, .selected, .selected-item').forEach(c => c.classList.remove('selected', 'selected-item'));
           clickedBesideBlock.classList.add('selected');
           window._selectedImageBlock = clickedBesideBlock;
           window._lastActiveImageBlock = clickedBesideBlock;
           window._lastActiveBlock = clickedBesideBlock;
+          window._savedSelectionRange = null;
+          try {
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();
+          } catch (err) {}
           if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
           return;
         }
@@ -1720,29 +1762,42 @@
         return;
       }
 
-      // 2. Delete selected or focused block on backspace / delete (only if not actively typing or caret-focused in an editable text block)
+      // 2. Delete selected or focused block on backspace / delete (when not inside an input/caption)
       if (e.key === 'Backspace' || e.key === 'Delete') {
         const activeEl = document.activeElement;
-        const selCheck = window.getSelection();
-        const caretInEditableBlock = (selCheck && selCheck.rangeCount > 0)
-          ? Boolean(getTopLevelEditableBlock(selCheck.getRangeAt(0).commonAncestorContainer))
-          : false;
-        const isInEditableField = caretInEditableBlock || (activeEl && (
+        const isInCaptionOrInput = Boolean(activeEl && (
           activeEl.tagName === 'INPUT' ||
           activeEl.tagName === 'TEXTAREA' ||
           activeEl.tagName === 'FIGCAPTION' ||
           (activeEl.classList && activeEl.classList.contains('gallery-caption')) ||
           (activeEl.closest && activeEl.closest('figcaption, .gallery-caption, input, textarea'))
         ));
-        if (caretInEditableBlock) {
-          canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
-          window._selectedImageBlock = null;
-          window._lastActiveImageBlock = null;
-        }
-        if (!isInEditableField) {
+        if (!isInCaptionOrInput) {
+          const selGalleryItem = canvasProse.querySelector('.custom-gallery-item.selected-item, .custom-gallery-item.selected');
+          if (selGalleryItem && canvasProse.contains(selGalleryItem)) {
+            e._cedarBlockKeyHandled = true;
+            e.preventDefault();
+            e.stopPropagation();
+            const galleryGrid = selGalleryItem.closest('.custom-gallery-grid');
+            const idx = parseInt(selGalleryItem.dataset.index, 10);
+            if (galleryGrid && !isNaN(idx) && typeof window.removeImageFromGallery === 'function') {
+              window.removeImageFromGallery(galleryGrid, idx);
+            } else if (galleryGrid) {
+              selGalleryItem.remove();
+              if (galleryGrid.querySelectorAll('.custom-gallery-item').length === 0) {
+                if (typeof window.deleteBlock === 'function') window.deleteBlock(galleryGrid);
+                else galleryGrid.remove();
+              }
+            }
+            return;
+          }
+
           const activeBlock = (activeEl && activeEl.closest ? activeEl.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider') : null);
-          const selectedBlock = canvasProse.querySelector('.selected, .captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected') || activeBlock;
+          const selectedBlock = canvasProse.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected, .selected') ||
+            (window._selectedImageBlock && canvasProse.contains(window._selectedImageBlock) && window._selectedImageBlock.classList.contains('selected') ? window._selectedImageBlock : null) ||
+            activeBlock;
           if (selectedBlock && canvasProse.contains(selectedBlock)) {
+            e._cedarBlockKeyHandled = true;
             e.preventDefault();
             e.stopPropagation();
             if (typeof window.deleteBlock === 'function') {
@@ -2417,6 +2472,74 @@
       function handleGlobalBlockKeydown(e) {
         if (e._cedarBlockKeyHandled) return;
         const activeEl = document.activeElement;
+        const isInCaptionOrInput = Boolean(activeEl && (
+          activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'FIGCAPTION' ||
+          (activeEl.classList && activeEl.classList.contains('gallery-caption')) ||
+          (activeEl.closest && activeEl.closest('figcaption, .gallery-caption, input, textarea'))
+        ));
+
+        if (!isInCaptionOrInput) {
+          // 1. Detect if a gallery item is explicitly selected
+          const selGalleryItem = canvasProse ? canvasProse.querySelector('.custom-gallery-item.selected-item, .custom-gallery-item.selected') : null;
+          const activeGalleryItem = (activeEl && activeEl.closest) ? activeEl.closest('.custom-gallery-item') : null;
+          const targetGalleryItem = selGalleryItem || activeGalleryItem;
+
+          if (targetGalleryItem && (e.key === 'Backspace' || e.key === 'Delete')) {
+            e._cedarBlockKeyHandled = true;
+            e.preventDefault();
+            e.stopPropagation();
+            const galleryGrid = targetGalleryItem.closest('.custom-gallery-grid');
+            const idx = parseInt(targetGalleryItem.dataset.index, 10);
+            if (galleryGrid && !isNaN(idx) && typeof window.removeImageFromGallery === 'function') {
+              window.removeImageFromGallery(galleryGrid, idx);
+            } else if (galleryGrid) {
+              targetGalleryItem.remove();
+              if (galleryGrid.querySelectorAll('.custom-gallery-item').length === 0) {
+                if (typeof window.deleteBlock === 'function') window.deleteBlock(galleryGrid);
+                else galleryGrid.remove();
+              }
+            }
+            return;
+          }
+
+          // 2. Detect if an image, figure, or other non-text block is explicitly selected
+          let explicitSelectedBlock = null;
+          if (canvasProse) {
+            explicitSelectedBlock = canvasProse.querySelector('.captioned-image-container.selected, .custom-gallery-grid.selected, .video-wrapper.selected, .article-share-block.selected, .article-rss-block.selected, .page-recent-posts-block.selected, .page-individual-post-block.selected, hr.selected, .canvas-divider.selected, .selected');
+          }
+          if (!explicitSelectedBlock && window._selectedImageBlock && document.contains(window._selectedImageBlock) && window._selectedImageBlock.classList.contains('selected')) {
+            explicitSelectedBlock = window._selectedImageBlock;
+          }
+
+          if (explicitSelectedBlock) {
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+              e._cedarBlockKeyHandled = true;
+              e.preventDefault();
+              e.stopPropagation();
+              window._selectedImageBlock = null;
+              window._lastActiveImageBlock = null;
+              window._lastActiveBlock = null;
+              if (typeof window.deleteBlock === 'function') {
+                window.deleteBlock(explicitSelectedBlock);
+              } else {
+                explicitSelectedBlock.remove();
+              }
+              return;
+            }
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+              e._cedarBlockKeyHandled = true;
+              e.preventDefault();
+              e.stopPropagation();
+              if (typeof window.splitBlockToNewParagraph === 'function') {
+                window.splitBlockToNewParagraph(explicitSelectedBlock, canvasProse);
+              }
+              return;
+            }
+          }
+        }
+
         const inEditable = isCaretInEditableText(activeEl);
 
         // Protect user from browser history back navigation when pressing Backspace outside text editing
@@ -2425,29 +2548,6 @@
         }
 
         if (inEditable) return;
-
-        // 1. Detect if a gallery item is targeted
-        const selGalleryItem = canvasProse ? canvasProse.querySelector('.custom-gallery-item.selected-item, .custom-gallery-item.selected') : null;
-        const activeGalleryItem = (activeEl && activeEl.closest) ? activeEl.closest('.custom-gallery-item') : null;
-        const targetGalleryItem = selGalleryItem || activeGalleryItem;
-
-        if (targetGalleryItem && (e.key === 'Backspace' || e.key === 'Delete')) {
-          e._cedarBlockKeyHandled = true;
-          e.preventDefault();
-          e.stopPropagation();
-          const galleryGrid = targetGalleryItem.closest('.custom-gallery-grid');
-          const idx = parseInt(targetGalleryItem.dataset.index, 10);
-          if (galleryGrid && !isNaN(idx) && typeof window.removeImageFromGallery === 'function') {
-            window.removeImageFromGallery(galleryGrid, idx);
-          } else if (galleryGrid) {
-            targetGalleryItem.remove();
-            if (galleryGrid.querySelectorAll('.custom-gallery-item').length === 0) {
-              if (typeof window.deleteBlock === 'function') window.deleteBlock(galleryGrid);
-              else galleryGrid.remove();
-            }
-          }
-          return;
-        }
 
         // 2. Detect if an image, figure, or other non-text block is targeted
         let targetBlock = null;
