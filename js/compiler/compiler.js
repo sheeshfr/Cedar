@@ -4498,6 +4498,91 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
     'fonts/shantell-sans.woff2'
   ];
 
+  async function resolveReadableImageBlob(img, fname, folder) {
+    if (!img) return null;
+    if (img.blob instanceof Blob) {
+      try {
+        const ab = await img.blob.arrayBuffer();
+        if (ab && ab.byteLength > 0) {
+          const fresh = new Blob([ab], { type: img.blob.type || 'image/webp' });
+          img.blob = fresh;
+          return fresh;
+        }
+      } catch (e) {
+        img.blob = null;
+      }
+    }
+    if (img.dataUrl && String(img.dataUrl).startsWith('data:')) {
+      const b = dataUrlToBlob(img.dataUrl);
+      if (b) { img.blob = b; return b; }
+    }
+    if (img.src && String(img.src).startsWith('data:')) {
+      const b = dataUrlToBlob(img.src);
+      if (b) { img.blob = b; return b; }
+    }
+    if (fname && typeof imageRegistry !== 'undefined' && imageRegistry) {
+      const reg = imageRegistry.get(fname)
+        || (folder && imageRegistry.get(`${folder}/${fname}`))
+        || imageRegistry.get(`blog/images/${fname}`)
+        || imageRegistry.get(`/blog/images/${fname}`);
+      if (reg) {
+        if (reg.dataUrl && String(reg.dataUrl).startsWith('data:')) {
+          const b = dataUrlToBlob(reg.dataUrl);
+          if (b) { img.blob = b; reg.blob = b; return b; }
+        }
+        if (reg.blob instanceof Blob) {
+          try {
+            const ab = await reg.blob.arrayBuffer();
+            if (ab && ab.byteLength > 0) {
+              const fresh = new Blob([ab], { type: reg.blob.type || 'image/webp' });
+              img.blob = fresh;
+              reg.blob = fresh;
+              return fresh;
+            }
+          } catch (e) {
+            reg.blob = null;
+          }
+        }
+      }
+    }
+    if (fname && typeof window !== 'undefined' && window.Vault && typeof window.Vault.readFile === 'function') {
+      const candidatePaths = [];
+      if (folder) candidatePaths.push(`${folder}/${fname}`);
+      if (img.relativePath) candidatePaths.push(String(img.relativePath).replace(/^\/+/, ''));
+      candidatePaths.push(`blog/images/${fname}`);
+      candidatePaths.push(`media/${fname}`);
+      for (const p of candidatePaths) {
+        try {
+          const vBlob = await window.Vault.readFile(p, 'blob');
+          if (vBlob instanceof Blob && vBlob.size > 0) {
+            const ab = await vBlob.arrayBuffer();
+            if (ab && ab.byteLength > 0) {
+              const fresh = new Blob([ab], { type: vBlob.type || 'image/webp' });
+              img.blob = fresh;
+              return fresh;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+    if (typeof fetch === 'function') {
+      const fetchTarget = img.relativePath || (folder && fname ? `/${folder}/${fname}` : (fname ? `/blog/images/${fname}` : ''));
+      if (fetchTarget && !fetchTarget.startsWith('blob:') && !fetchTarget.startsWith('data:')) {
+        try {
+          const r = await fetch(fetchTarget.startsWith('/') ? fetchTarget : '/' + fetchTarget);
+          if (r.ok) {
+            const b = await r.blob();
+            if (b && b.size > 0) {
+              img.blob = b;
+              return b;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+    return null;
+  }
+
   async function buildProductionSiteFiles(options = {}) {
     const files = [];
     const addFile = (name, data) => {
@@ -4726,20 +4811,7 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
           if (!img || img.isOriginal) continue;
           const fname = img.filename || img.name;
           if (fname) {
-            let blob = img.blob;
-            if (!blob && img.dataUrl && img.dataUrl.startsWith('data:')) {
-              blob = dataUrlToBlob(img.dataUrl);
-            } else if (!blob && typeof imageRegistry !== 'undefined' && imageRegistry.has(fname)) {
-              const reg = imageRegistry.get(fname);
-              if (reg && reg.dataUrl && reg.dataUrl.startsWith('data:')) blob = dataUrlToBlob(reg.dataUrl);
-            }
-            if (!blob && typeof fetch === 'function') {
-              const fetchTarget = img.relativePath || `/${folder}/${fname}`;
-              try {
-                const r = await fetch(fetchTarget.startsWith('/') ? fetchTarget : '/' + fetchTarget);
-                if (r.ok) blob = await r.blob();
-              } catch (e) {}
-            }
+            const blob = await resolveReadableImageBlob(img, fname, folder);
             if (blob) {
               addFile(`${folder}/${fname}`, blob);
               addFile(`blog/images/${fname}`, blob);
@@ -4845,13 +4917,7 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
           if (!img || img.isOriginal) continue;
           const fname = img.filename || img.name;
           if (fname) {
-            let blob = img.blob;
-            if (!blob && img.dataUrl && img.dataUrl.startsWith('data:')) {
-              blob = dataUrlToBlob(img.dataUrl);
-            } else if (!blob && typeof imageRegistry !== 'undefined' && imageRegistry.has(fname)) {
-              const reg = imageRegistry.get(fname);
-              if (reg && reg.dataUrl && reg.dataUrl.startsWith('data:')) blob = dataUrlToBlob(reg.dataUrl);
-            }
+            const blob = await resolveReadableImageBlob(img, fname, folder);
             if (blob) {
               addFile(`${folder}/${fname}`, blob);
               addFile(`blog/images/${fname}`, blob);
@@ -5229,10 +5295,7 @@ ${baseTagScript}  <title id="page-title">${escapeHtml(pageTitle)}</title>
           for (const img of post.images) {
             const fname = img.filename;
             if (fname) {
-              let blob = img.blob;
-              if (!blob && img.dataUrl) {
-                blob = dataUrlToBlob(img.dataUrl);
-              }
+              const blob = await resolveReadableImageBlob(img, fname, folder);
               if (blob && !files.some(f => f.name === `${folder}/${fname}`)) {
                 files.push({
                   name: `${folder}/${fname}`,
@@ -5322,10 +5385,7 @@ ${page.markdown || ''}`;
           for (const img of page.images) {
             const fname = img.filename;
             if (fname) {
-              let blob = img.blob;
-              if (!blob && img.dataUrl) {
-                blob = dataUrlToBlob(img.dataUrl);
-              }
+              const blob = await resolveReadableImageBlob(img, fname, folder);
               if (blob && !files.some(f => f.name === `${folder}/${fname}`)) {
                 files.push({
                   name: `${folder}/${fname}`,
@@ -5451,17 +5511,7 @@ ${page.markdown || ''}`;
       for (const [fname, m] of linkMediaMap.entries()) {
         const targetPath = `media/links/${fname}`;
         if (!files.some(f => f.name === targetPath)) {
-          let blob = m.blob;
-          if (!blob && m.dataUrl && m.dataUrl.startsWith('data:')) {
-            blob = dataUrlToBlob(m.dataUrl);
-          } else if (!blob && m.src && m.src.startsWith('data:')) {
-            blob = dataUrlToBlob(m.src);
-          } else if (!blob && typeof imageRegistry !== 'undefined' && imageRegistry.has(fname)) {
-            const regItem = imageRegistry.get(fname);
-            if (regItem && regItem.dataUrl && regItem.dataUrl.startsWith('data:')) {
-              blob = dataUrlToBlob(regItem.dataUrl);
-            }
-          }
+          const blob = await resolveReadableImageBlob(m, fname, 'media/links');
           if (blob) {
             files.push({
               name: targetPath,

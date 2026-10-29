@@ -96,17 +96,19 @@
   }
 
   async function opfsWriteFile(path, data) {
+    let payload = data;
+    if (data instanceof Blob) {
+      payload = await data.arrayBuffer();
+    }
     const fileHandle = await resolveOpfsHandle(path, true, 'file');
     const writable = await fileHandle.createWritable();
     try {
-      if (typeof data === 'string') {
-        await writable.write(data);
-      } else if (data instanceof Blob) {
-        await writable.write(data);
-      } else if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
-        await writable.write(data);
+      if (typeof payload === 'string') {
+        await writable.write(payload);
+      } else if (payload instanceof ArrayBuffer || payload instanceof Uint8Array || payload instanceof Blob) {
+        await writable.write(payload);
       } else {
-        await writable.write(JSON.stringify(data, null, 2));
+        await writable.write(JSON.stringify(payload, null, 2));
       }
       await writable.close();
       return true;
@@ -119,7 +121,10 @@
   async function opfsReadFile(path, as = 'text') {
     const fileHandle = await resolveOpfsHandle(path, false, 'file');
     const file = await fileHandle.getFile();
-    if (as === 'blob') return file;
+    if (as === 'blob') {
+      const ab = await file.arrayBuffer();
+      return new Blob([ab], { type: file.type || '' });
+    }
     if (as === 'arraybuffer') return await file.arrayBuffer();
     if (as === 'json') {
       const txt = await file.text();

@@ -375,7 +375,7 @@
         const base64 = res.includes(',') ? res.split(',')[1] : res;
         resolve(base64);
       };
-      reader.onerror = reject;
+      reader.onerror = () => reject(reader.error || new Error('Failed to read blob as base64'));
       reader.readAsDataURL(blob);
     });
   }
@@ -459,15 +459,20 @@
       return true;
     }
 
+    let payload = data;
+    if (data instanceof Blob) {
+      payload = await data.arrayBuffer();
+    }
+
     const fileHandle = await resolvePathOnHandle(dirHandle, path, true, 'file');
     const writable = await fileHandle.createWritable();
 
-    if (typeof data === 'string') {
-      await writable.write(data);
-    } else if (data instanceof Blob || data instanceof ArrayBuffer || data instanceof Uint8Array) {
-      await writable.write(data);
-    } else if (typeof data === 'object') {
-      await writable.write(JSON.stringify(data, null, 2));
+    if (typeof payload === 'string') {
+      await writable.write(payload);
+    } else if (payload instanceof Blob || payload instanceof ArrayBuffer || payload instanceof Uint8Array) {
+      await writable.write(payload);
+    } else if (typeof payload === 'object') {
+      await writable.write(JSON.stringify(payload, null, 2));
     }
 
     await writable.close();
@@ -510,7 +515,8 @@
         const text = await file.text();
         return JSON.parse(text.replace(/^\uFEFF/, ''));
       } else if (as === 'blob') {
-        return file;
+        const ab = await file.arrayBuffer();
+        return new Blob([ab], { type: file.type || '' });
       } else if (as === 'arrayBuffer' || as === 'arraybuffer') {
         return await file.arrayBuffer();
       } else {
@@ -866,12 +872,36 @@
       // Related media (images within this post/page) live directly inside the post/page folder
       if (Array.isArray(draft.images)) {
         for (const img of draft.images) {
-          let blob = img.blob;
-          if (!blob && img.dataUrl) {
+          let blob = null;
+          if (img.blob instanceof Blob) {
+            try {
+              const ab = await img.blob.arrayBuffer();
+              if (ab && ab.byteLength > 0) {
+                blob = new Blob([ab], { type: img.blob.type || '' });
+                img.blob = blob;
+              }
+            } catch (e) {
+              img.blob = null;
+              blob = null;
+            }
+          }
+          if (!blob && img.dataUrl && String(img.dataUrl).startsWith('data:')) {
             blob = dataUrlToBlob(img.dataUrl);
+            if (blob) img.blob = blob;
+          }
+          if (!blob && img.filename && window.imageRegistry && window.imageRegistry.has(img.filename)) {
+            const reg = window.imageRegistry.get(img.filename);
+            if (reg && reg.dataUrl && String(reg.dataUrl).startsWith('data:')) {
+              blob = dataUrlToBlob(reg.dataUrl);
+              if (blob) img.blob = blob;
+            }
           }
           if (blob && img.filename) {
-            await writeFileToDirHandle(dirHandle, `${folder}/${img.filename}`, blob);
+            try {
+              await writeFileToDirHandle(dirHandle, `${folder}/${img.filename}`, blob);
+            } catch (writeErr) {
+              console.warn(`[Vault] Skipping unreadable image write for ${folder}/${img.filename}:`, writeErr);
+            }
           }
         }
       }
@@ -2161,7 +2191,8 @@
           const text = await file.text();
           return JSON.parse(text.replace(/^\uFEFF/, ''));
         } else if (as === 'blob') {
-          return file;
+          const ab = await file.arrayBuffer();
+          return new Blob([ab], { type: file.type || '' });
         } else if (as === 'arrayBuffer' || as === 'arraybuffer') {
           return await file.arrayBuffer();
         } else {

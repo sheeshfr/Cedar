@@ -818,16 +818,103 @@
         content: JSON.stringify(syncMeta, null, 2)
       });
 
-      const blobToBase64 = (blob) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const res = String(reader.result || '');
-          const idx = res.indexOf(',');
-          resolve(idx !== -1 ? res.slice(idx + 1) : res);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      const arrayBufferToBase64 = (buffer) => {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+      };
+
+      const dataUrlToBinaryBlob = (dataUrl) => {
+        try {
+          const str = String(dataUrl || '');
+          const commaIdx = str.indexOf(',');
+          if (commaIdx === -1) return null;
+          const header = str.slice(0, commaIdx);
+          const b64 = str.slice(commaIdx + 1).replace(/\s/g, '');
+          const mimeMatch = header.match(/data:([^;]+)/i);
+          const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+          const bin = atob(b64);
+          const u8 = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          return new Blob([u8], { type: mime });
+        } catch (e) {
+          return null;
+        }
+      };
+
+      const recoverReadableBlob = async (blob, cleanPath) => {
+        if (blob instanceof Blob) {
+          try {
+            const ab = await blob.arrayBuffer();
+            if (ab && ab.byteLength > 0) {
+              return new Blob([ab], { type: blob.type || 'application/octet-stream' });
+            }
+          } catch (e) {}
+        }
+        const fname = cleanPath.split('/').pop();
+        if (fname && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
+          const reg = window.imageRegistry.get(fname)
+            || window.imageRegistry.get(cleanPath)
+            || window.imageRegistry.get('/' + cleanPath)
+            || window.imageRegistry.get(`blog/images/${fname}`)
+            || window.imageRegistry.get(`/blog/images/${fname}`);
+          if (reg) {
+            if (reg.dataUrl && String(reg.dataUrl).startsWith('data:')) {
+              const recovered = dataUrlToBinaryBlob(reg.dataUrl);
+              if (recovered && recovered.size > 0) return recovered;
+            }
+            if (reg.blob instanceof Blob && reg.blob !== blob) {
+              try {
+                const ab = await reg.blob.arrayBuffer();
+                if (ab && ab.byteLength > 0) {
+                  return new Blob([ab], { type: reg.blob.type || 'application/octet-stream' });
+                }
+              } catch (e) {}
+            }
+          }
+        }
+        if (window.Vault && typeof window.Vault.readFile === 'function') {
+          const candidatePaths = [cleanPath];
+          if (fname) {
+            candidatePaths.push(`blog/images/${fname}`);
+            candidatePaths.push(`media/${fname}`);
+          }
+          for (const cp of candidatePaths) {
+            try {
+              const vBlob = await window.Vault.readFile(cp, 'blob');
+              if (vBlob instanceof Blob && vBlob.size > 0) {
+                const ab = await vBlob.arrayBuffer();
+                if (ab && ab.byteLength > 0) {
+                  return new Blob([ab], { type: vBlob.type || 'application/octet-stream' });
+                }
+              }
+            } catch (e) {}
+          }
+        }
+        return null;
+      };
+
+      const blobToBase64 = async (blob) => {
+        try {
+          const ab = await blob.arrayBuffer();
+          return arrayBufferToBase64(ab);
+        } catch (abErr) {
+          return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = String(reader.result || '');
+              const idx = res.indexOf(',');
+              resolve(idx !== -1 ? res.slice(idx + 1) : res);
+            };
+            reader.onerror = () => reject(reader.error || abErr || new Error('Failed to read binary blob'));
+            reader.readAsDataURL(blob);
+          });
+        }
+      };
 
       let uploadedCount = 0;
       let skippedCount = 0;
@@ -883,6 +970,20 @@
         if (!f || !f.name || f.data === undefined || f.data === null) continue;
         const cleanPath = String(f.name).replace(/^\/+/, '');
         activePaths.add(cleanPath);
+
+        if (f.data instanceof Blob) {
+          const healthyBlob = await recoverReadableBlob(f.data, cleanPath);
+          if (healthyBlob) {
+            f.data = healthyBlob;
+          } else if (remotePathToSha.has(cleanPath)) {
+            skippedCount++;
+            appendPublishLog(`[keep] ${cleanPath} (retained existing remote blob)`, 'dim', '=');
+            continue;
+          } else {
+            appendPublishLog(`[skip] ${cleanPath} (local file handle expired; skipping unreadable binary blob)`, 'warn', '!');
+            continue;
+          }
+        }
 
         const localSha = await computeGitBlobSha(f.data);
 
@@ -1038,8 +1139,9 @@
       }
       return true;
     } catch (err) {
+      const errMsg = (err && (err.message || (err.target && err.target.error && err.target.error.message) || (err.error && err.error.message))) || (typeof err === 'string' ? err : 'Unexpected error during publish');
       console.error('[GitHubSync] Push error:', err);
-      appendPublishLog(`Publish failed: ${err.message}`, 'error', '✗');
+      appendPublishLog(`Publish failed: ${errMsg}`, 'error', '✗');
       setPublishTerminalStatus('error', 'Failed');
       const credsPanel = document.getElementById('github-credentials-panel');
       if (credsPanel) {
@@ -1047,7 +1149,10 @@
         updateCredsPanelToggle(true);
       }
       if (typeof window.showToast === 'function') {
-        window.showToast(`Publish failed: ${err.message}`, 'error');
+        window.showToast(`Publish failed: ${errMsg}`, 'error');
+      }
+      if (err && typeof err === 'object' && !err.message) {
+        throw new Error(errMsg);
       }
       throw err;
     } finally {
