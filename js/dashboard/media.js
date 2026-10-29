@@ -140,6 +140,17 @@
           if (isDeleted(img.filename) || isDeleted(img.relativePath) || isDeleted(img.src)) return;
           const isLinkAsset = img.mediaCategory === 'links' || img.folder === 'links' || img.folder === 'media/links' || (Array.isArray(img.tags) && img.tags.includes('links')) || (typeof img.relativePath === 'string' && img.relativePath.startsWith('media/links')) || (img.postId === 'page_links');
           if (isLinkAsset) return;
+          const cleanLibFn = String(img.filename || '').split('/').pop().split('\\').pop().toLowerCase();
+          const isStaleSiteAsset = img.isSiteMedia
+            || img.mediaCategory === 'site'
+            || Boolean(img.siteMediaType)
+            || img.folder === 'site'
+            || img.folder === 'media/branding'
+            || img.folder === 'media/authors'
+            || /^(Author|Branding|Design):/i.test(String(img.postTitle || '').trim())
+            || /^(site_logo|site_favicon|author_avatar|logo-original|profile_avatar)\.(png|jpe?g|webp|gif|svg|ico|avif)$/i.test(cleanLibFn)
+            || /_avatar\.(png|jpe?g|webp|gif|svg|ico|avif)$/i.test(cleanLibFn);
+          if (isStaleSiteAsset) return;
           const inferredCat = img.postId
             ? (String(img.postId).startsWith('page_') ? 'page' : 'post')
             : (img.postTitle && img.postTitle !== 'Media Library' ? 'post' : 'upload');
@@ -270,139 +281,198 @@
 
     // 3. Site Media: Author Avatars & Site Branding Assets
     if (typeof projectConfig !== 'undefined' && projectConfig) {
-      // 3a. Author avatars
-      if (Array.isArray(projectConfig.authors)) {
-        projectConfig.authors.forEach(auth => {
-          if (!auth) return;
-          const authorName = (typeof auth === 'object' ? auth.name : auth) || 'Author';
-          const avatarUrl = (typeof auth === 'object' ? auth.avatar : '') || '';
-          if (!avatarUrl) return;
+      const lookupRegUrl = (candidates) => {
+        if (typeof window === 'undefined' || !window.imageRegistry || typeof window.imageRegistry.get !== 'function') return '';
+        for (const k of candidates) {
+          if (!k) continue;
+          const entry = window.imageRegistry.get(k);
+          if (entry && typeof entry === 'object') {
+            const u = entry.objectUrl || entry.dataUrl || entry.src || '';
+            if (u && (u.startsWith('data:') || u.startsWith('blob:'))) return u;
+          }
+        }
+        return '';
+      };
 
+      // 3a. Primary Author Avatar (single active author only, avoid stale duplicate 'Author' ghosts)
+      if (!projectConfig.authorAvatarExplicitlyRemoved) {
+        const defaultName = (projectConfig.defaultAuthor || '').trim();
+        let activeAuthorObj = null;
+        if (Array.isArray(projectConfig.authors) && projectConfig.authors.length > 0) {
+          if (defaultName) {
+            activeAuthorObj = projectConfig.authors.find(a => a && typeof a === 'object' && String(a.name || '').trim().toLowerCase() === defaultName.toLowerCase()) || projectConfig.authors[0];
+          } else {
+            activeAuthorObj = projectConfig.authors.find(a => a && typeof a === 'object' && a.name && String(a.name).trim().toLowerCase() !== 'author') || projectConfig.authors[0];
+          }
+        }
+        const authorName = (activeAuthorObj && typeof activeAuthorObj === 'object' ? activeAuthorObj.name : activeAuthorObj) || defaultName || 'Author';
+        const authorSlug = authorName.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'author';
+        let avatarUrl = (activeAuthorObj && typeof activeAuthorObj === 'object' ? activeAuthorObj.avatar : '') || projectConfig.authorAvatar || '';
+        if (!avatarUrl || (!avatarUrl.startsWith('data:') && !avatarUrl.startsWith('blob:'))) {
+          const resolvedAv = (typeof projectConfig.authorAvatar === 'string' && (projectConfig.authorAvatar.startsWith('data:') || projectConfig.authorAvatar.startsWith('blob:')))
+            ? projectConfig.authorAvatar
+            : lookupRegUrl([
+                avatarUrl,
+                avatarUrl ? avatarUrl.replace(/^\/+/, '') : '',
+                `media/authors/${authorSlug}_avatar.jpg`,
+                `media/authors/${authorSlug}_avatar.png`,
+                `${authorSlug}_avatar.jpg`,
+                `${authorSlug}_avatar.png`,
+                'media/authors/author_avatar.jpg',
+                'media/authors/author_avatar.png',
+                'author_avatar.jpg',
+                'author_avatar.png'
+              ]);
+          if (resolvedAv) avatarUrl = resolvedAv;
+        }
+
+        if (avatarUrl && (avatarUrl.startsWith('data:') || avatarUrl.startsWith('blob:') || (window.Cedar && window.Cedar.isLocalServer))) {
           let baseFilename = avatarUrl;
-          if (baseFilename.startsWith('data:')) {
-            baseFilename = `${authorName.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}_avatar.png`;
+          if (baseFilename.startsWith('data:') || baseFilename.startsWith('blob:')) {
+            baseFilename = `${authorSlug}_avatar.png`;
           } else if (baseFilename.includes('/')) {
             baseFilename = baseFilename.split('/').pop();
           } else if (baseFilename.includes('\\')) {
             baseFilename = baseFilename.split('\\').pop();
           }
 
-          if (isDeleted(avatarUrl) || isDeleted(baseFilename)) return;
-
-          const cleanAuthorTag = authorName.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-          const defaultAvatarTags = ['site', 'author', 'avatar', cleanAuthorTag].filter(Boolean);
-
-          const matchedKey = map.has(avatarUrl) ? avatarUrl : (map.has(baseFilename) ? baseFilename : null);
-          if (matchedKey) {
-            const existing = map.get(matchedKey);
-            existing.isSiteMedia = true;
-            existing.mediaCategory = 'site';
-            existing.siteMediaType = 'avatar';
-            existing.authorName = authorName;
-            existing.title = existing.title || `${authorName} (Author Avatar)`;
-            existing.postTitle = `Author: ${authorName}`;
-            if (!existing.src) existing.src = avatarUrl;
-            if (!existing.tags || existing.tags.length === 0) {
-              existing.tags = getImageTags(matchedKey, defaultAvatarTags);
+          if (!isDeleted(avatarUrl) && !isDeleted(baseFilename)) {
+            const cleanAuthorTag = authorName.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            const defaultAvatarTags = ['site', 'author', 'avatar', cleanAuthorTag].filter(Boolean);
+            const matchedKey = map.has(avatarUrl) ? avatarUrl : (map.has(baseFilename) ? baseFilename : null);
+            if (matchedKey) {
+              const existing = map.get(matchedKey);
+              existing.isSiteMedia = true;
+              existing.mediaCategory = 'site';
+              existing.siteMediaType = 'avatar';
+              existing.authorName = authorName;
+              existing.title = existing.title || `${authorName} (Author Avatar)`;
+              existing.postTitle = `Author: ${authorName}`;
+              existing.src = avatarUrl;
+              if (avatarUrl.startsWith('data:') || avatarUrl.startsWith('blob:')) existing.dataUrl = avatarUrl;
+              if (!existing.tags || existing.tags.length === 0) {
+                existing.tags = getImageTags(matchedKey, defaultAvatarTags);
+              }
+            } else {
+              const key = baseFilename || avatarUrl;
+              map.set(key, {
+                filename: key,
+                src: avatarUrl,
+                dataUrl: (avatarUrl.startsWith('data:') || avatarUrl.startsWith('blob:')) ? avatarUrl : undefined,
+                title: `${authorName} (Author Avatar)`,
+                postTitle: `Author: ${authorName}`,
+                isSiteMedia: true,
+                mediaCategory: 'site',
+                siteMediaType: 'avatar',
+                authorName: authorName,
+                tags: getImageTags(key, defaultAvatarTags)
+              });
             }
-          } else {
-            const key = baseFilename || avatarUrl;
-            map.set(key, {
-              filename: key,
-              src: avatarUrl,
-              title: `${authorName} (Author Avatar)`,
-              postTitle: `Author: ${authorName}`,
-              isSiteMedia: true,
-              mediaCategory: 'site',
-              siteMediaType: 'avatar',
-              authorName: authorName,
-              tags: getImageTags(key, defaultAvatarTags)
-            });
           }
-        });
+        }
       }
 
       // 3b. Branding Logos & Favicons
       const branding = projectConfig.design?.branding;
       if (branding) {
-        if (branding.generalLogo) {
-          const logoUrl = branding.generalLogo;
-          let baseFilename = logoUrl;
-          if (baseFilename.startsWith('data:')) {
-            baseFilename = 'site_logo.png';
-          } else if (baseFilename.includes('/')) {
-            baseFilename = baseFilename.split('/').pop();
-          } else if (baseFilename.includes('\\')) {
-            baseFilename = baseFilename.split('\\').pop();
+        if (branding.generalLogo && !branding.logoExplicitlyRemoved) {
+          let logoUrl = branding.generalLogo;
+          if (!logoUrl.startsWith('data:') && !logoUrl.startsWith('blob:')) {
+            const bFileLogo = (branding.files && branding.files['media/branding/logo.png']) || (typeof window !== 'undefined' && window.brandingFiles && window.brandingFiles['media/branding/logo.png']) || '';
+            const regLogo = lookupRegUrl([logoUrl, logoUrl.replace(/^\/+/, ''), 'media/branding/logo.png', 'logo.png', 'site_logo.png']);
+            if (bFileLogo && bFileLogo.startsWith('data:')) logoUrl = bFileLogo;
+            else if (regLogo) logoUrl = regLogo;
           }
+          if (logoUrl && (logoUrl.startsWith('data:') || logoUrl.startsWith('blob:') || (window.Cedar && window.Cedar.isLocalServer))) {
+            let baseFilename = logoUrl;
+            if (baseFilename.startsWith('data:') || baseFilename.startsWith('blob:')) {
+              baseFilename = 'site_logo.png';
+            } else if (baseFilename.includes('/')) {
+              baseFilename = baseFilename.split('/').pop();
+            } else if (baseFilename.includes('\\')) {
+              baseFilename = baseFilename.split('\\').pop();
+            }
 
-          if (!isDeleted(logoUrl) && !isDeleted(baseFilename)) {
-            const defaultLogoTags = ['site', 'logo', 'branding'];
-            const matchedKey = map.has(logoUrl) ? logoUrl : (map.has(baseFilename) ? baseFilename : null);
-            if (matchedKey) {
-              const existing = map.get(matchedKey);
-              existing.isSiteMedia = true;
-              existing.mediaCategory = 'site';
-              existing.siteMediaType = 'logo';
-              existing.title = existing.title || 'Site Logo';
-              existing.postTitle = 'Branding: Site Logo';
-              if (!existing.src) existing.src = logoUrl;
-              if (!existing.tags || existing.tags.length === 0) {
-                existing.tags = getImageTags(matchedKey, defaultLogoTags);
+            if (!isDeleted(logoUrl) && !isDeleted(baseFilename)) {
+              const defaultLogoTags = ['site', 'logo', 'branding'];
+              const matchedKey = map.has(logoUrl) ? logoUrl : (map.has(baseFilename) ? baseFilename : null);
+              if (matchedKey) {
+                const existing = map.get(matchedKey);
+                existing.isSiteMedia = true;
+                existing.mediaCategory = 'site';
+                existing.siteMediaType = 'logo';
+                existing.title = existing.title || 'Site Logo';
+                existing.postTitle = 'Branding: Site Logo';
+                existing.src = logoUrl;
+                if (logoUrl.startsWith('data:') || logoUrl.startsWith('blob:')) existing.dataUrl = logoUrl;
+                if (!existing.tags || existing.tags.length === 0) {
+                  existing.tags = getImageTags(matchedKey, defaultLogoTags);
+                }
+              } else {
+                const key = baseFilename || logoUrl;
+                map.set(key, {
+                  filename: key,
+                  src: logoUrl,
+                  dataUrl: (logoUrl.startsWith('data:') || logoUrl.startsWith('blob:')) ? logoUrl : undefined,
+                  title: 'Site Logo',
+                  postTitle: 'Branding: Site Logo',
+                  isSiteMedia: true,
+                  mediaCategory: 'site',
+                  siteMediaType: 'logo',
+                  tags: getImageTags(key, defaultLogoTags)
+                });
               }
-            } else {
-              const key = baseFilename || logoUrl;
-              map.set(key, {
-                filename: key,
-                src: logoUrl,
-                title: 'Site Logo',
-                postTitle: 'Branding: Site Logo',
-                isSiteMedia: true,
-                mediaCategory: 'site',
-                siteMediaType: 'logo',
-                tags: getImageTags(key, defaultLogoTags)
-              });
             }
           }
         }
 
-        if (branding.tabLogo && branding.tabLogo !== 'icon.png' && branding.tabLogo !== '/icon.png') {
-          const favUrl = branding.tabLogo;
-          let baseFavFilename = favUrl;
-          if (baseFavFilename.startsWith('data:')) {
-            baseFavFilename = 'site_favicon.png';
-          } else if (baseFavFilename.includes('/')) {
-            baseFavFilename = baseFavFilename.split('/').pop();
-          } else if (baseFavFilename.includes('\\')) {
-            baseFavFilename = baseFavFilename.split('\\').pop();
+        if (branding.tabLogo && !branding.faviconExplicitlyRemoved && branding.tabLogo !== 'icon.png' && branding.tabLogo !== '/icon.png') {
+          let favUrl = branding.tabLogo;
+          if (!favUrl.startsWith('data:') && !favUrl.startsWith('blob:')) {
+            const bFileFav = (branding.files && branding.files['media/branding/icon.png']) || (typeof window !== 'undefined' && window.brandingFiles && window.brandingFiles['media/branding/icon.png']) || '';
+            const regFav = lookupRegUrl([favUrl, favUrl.replace(/^\/+/, ''), 'media/branding/icon.png', 'icon.png', 'site_favicon.png']);
+            if (bFileFav && bFileFav.startsWith('data:')) favUrl = bFileFav;
+            else if (regFav) favUrl = regFav;
           }
+          if (favUrl && (favUrl.startsWith('data:') || favUrl.startsWith('blob:') || (window.Cedar && window.Cedar.isLocalServer))) {
+            let baseFavFilename = favUrl;
+            if (baseFavFilename.startsWith('data:') || baseFavFilename.startsWith('blob:')) {
+              baseFavFilename = 'site_favicon.png';
+            } else if (baseFavFilename.includes('/')) {
+              baseFavFilename = baseFavFilename.split('/').pop();
+            } else if (baseFavFilename.includes('\\')) {
+              baseFavFilename = baseFavFilename.split('\\').pop();
+            }
 
-          if (!isDeleted(favUrl) && !isDeleted(baseFavFilename)) {
-            const defaultFavTags = ['site', 'favicon', 'branding'];
-            const matchedFavKey = map.has(favUrl) ? favUrl : (map.has(baseFavFilename) ? baseFavFilename : null);
-            if (matchedFavKey) {
-              const existingFav = map.get(matchedFavKey);
-              existingFav.isSiteMedia = true;
-              existingFav.mediaCategory = 'site';
-              existingFav.siteMediaType = 'favicon';
-              existingFav.title = existingFav.title || 'Favicon';
-              existingFav.postTitle = 'Branding: Favicon';
-              if (!existingFav.src) existingFav.src = favUrl;
-              if (!existingFav.tags || existingFav.tags.length === 0) {
-                existingFav.tags = getImageTags(matchedFavKey, defaultFavTags);
+            if (!isDeleted(favUrl) && !isDeleted(baseFavFilename)) {
+              const defaultFavTags = ['site', 'favicon', 'branding'];
+              const matchedFavKey = map.has(favUrl) ? favUrl : (map.has(baseFavFilename) ? baseFavFilename : null);
+              if (matchedFavKey) {
+                const existingFav = map.get(matchedFavKey);
+                existingFav.isSiteMedia = true;
+                existingFav.mediaCategory = 'site';
+                existingFav.siteMediaType = 'favicon';
+                existingFav.title = existingFav.title || 'Favicon';
+                existingFav.postTitle = 'Branding: Favicon';
+                existingFav.src = favUrl;
+                if (favUrl.startsWith('data:') || favUrl.startsWith('blob:')) existingFav.dataUrl = favUrl;
+                if (!existingFav.tags || existingFav.tags.length === 0) {
+                  existingFav.tags = getImageTags(matchedFavKey, defaultFavTags);
+                }
+              } else {
+                const favKey = baseFavFilename || favUrl;
+                map.set(favKey, {
+                  filename: favKey,
+                  src: favUrl,
+                  dataUrl: (favUrl.startsWith('data:') || favUrl.startsWith('blob:')) ? favUrl : undefined,
+                  title: 'Favicon',
+                  postTitle: 'Branding: Favicon',
+                  isSiteMedia: true,
+                  mediaCategory: 'site',
+                  siteMediaType: 'favicon',
+                  tags: getImageTags(favKey, defaultFavTags)
+                });
               }
-            } else {
-              const favKey = baseFavFilename || favUrl;
-              map.set(favKey, {
-                filename: favKey,
-                src: favUrl,
-                title: 'Favicon',
-                postTitle: 'Branding: Favicon',
-                isSiteMedia: true,
-                mediaCategory: 'site',
-                siteMediaType: 'favicon',
-                tags: getImageTags(favKey, defaultFavTags)
-              });
             }
           }
         }
@@ -465,6 +535,17 @@
     if (!cleanName) return null;
     const cleanLower = cleanName.toLowerCase();
 
+    if (imgObj && typeof imgObj === 'object') {
+      if (imgObj.blob instanceof Blob && imgObj.blob.size > 0) return imgObj.blob;
+      const directData = (typeof imgObj.dataUrl === 'string' && imgObj.dataUrl.startsWith('data:'))
+        ? imgObj.dataUrl
+        : ((typeof imgObj.src === 'string' && imgObj.src.startsWith('data:')) ? imgObj.src : '');
+      if (directData && typeof dataUrlToBlob === 'function') {
+        const b = dataUrlToBlob(directData);
+        if (b && b.size > 0) return b;
+      }
+    }
+
     // 1. Check in-memory window.imageRegistry first
     if (typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
       const regCandidates = [
@@ -476,8 +557,14 @@
         `images/${cleanName}`,
         `/images/${cleanName}`,
         `media/${cleanName}`,
-        `media/authors/${cleanName}`
+        `media/authors/${cleanName}`,
+        `media/branding/${cleanName}`
       ];
+      if (cleanLower === 'site_logo.png' || (imgObj && imgObj.siteMediaType === 'logo')) {
+        regCandidates.push('media/branding/logo.png', 'logo.png', 'media/branding/logo-original.png');
+      } else if (cleanLower === 'site_favicon.png' || (imgObj && imgObj.siteMediaType === 'favicon')) {
+        regCandidates.push('media/branding/icon.png', 'icon.png');
+      }
       for (const k of regCandidates) {
         if (!k) continue;
         const reg = window.imageRegistry.get(k);

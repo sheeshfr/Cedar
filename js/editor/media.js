@@ -1595,22 +1595,98 @@
       clearBtn.style.display = searchVal ? 'flex' : 'none';
     }
     const cleanSearch = searchVal.replace(/^#+/, '').trim();
+    const normFn = (v) => String(v || '').split('/').pop().split('\\').pop().split('?')[0].trim().toLowerCase();
 
-    // 1. Collect Active Draft Images for this post
-    const draftImagesMap = new Map();
-    const curDraft = window.currentDraft;
-    if (curDraft) {
-      if (typeof window.reconcileDraftImages === 'function') {
-        window.reconcileDraftImages(curDraft);
-      }
-      if (Array.isArray(curDraft.images)) {
-        curDraft.images.forEach(img => {
-          if (img && img.filename) {
-            draftImagesMap.set(img.filename, img);
+    // Exclude site logos, favicons, author avatars, masthead logos, and link icons from post/page editor media popup
+    const cfg = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
+    const siteSpecificFilenames = new Set();
+    if (cfg && typeof cfg === 'object') {
+      const addSitePath = (p) => {
+        if (p && typeof p === 'string' && !p.startsWith('data:') && !p.startsWith('blob:')) {
+          const clean = normFn(p);
+          if (clean) siteSpecificFilenames.add(clean);
+        }
+      };
+      addSitePath(cfg.authorAvatar);
+      addSitePath(cfg.design?.branding?.generalLogo);
+      addSitePath(cfg.design?.branding?.originalLogo);
+      addSitePath(cfg.design?.branding?.tabLogo);
+      addSitePath(cfg.design?.masthead?.elements?.logo?.customImage);
+      if (Array.isArray(cfg.authors)) {
+        cfg.authors.forEach(a => {
+          if (a && typeof a === 'object') {
+            addSitePath(a.avatar);
+            addSitePath(a.avatarFile);
           }
         });
       }
     }
+
+    function isSiteOrBrandingMedia(img) {
+      if (!img) return true;
+      if (img.isSiteMedia || img.mediaCategory === 'site' || img.mediaCategory === 'links' || Boolean(img.siteMediaType)) return true;
+      const folder = String(img.folder || '').toLowerCase();
+      if (folder === 'site' || folder === 'media/site' || folder === 'media/branding' || folder === 'media/authors' || folder === 'links' || folder === 'media/links') return true;
+      const rel = String(img.relativePath || img.src || '').toLowerCase().replace(/^\/+/, '');
+      if (rel.startsWith('media/branding/') || rel.startsWith('media/authors/') || rel.startsWith('media/site/') || rel.startsWith('media/links/')) return true;
+      const pTitle = String(img.postTitle || '').trim();
+      if (/^(Author|Branding|Design):/i.test(pTitle)) return true;
+      const cleanFn = normFn(img.filename || img.relativePath || img.src);
+      if (!cleanFn) return true;
+      if (siteSpecificFilenames.has(cleanFn)) return true;
+      if (/^(site_logo|site_favicon|author_avatar|logo-original|profile_avatar|avatar|icon|logo)\.(png|jpe?g|webp|gif|svg|ico|avif)$/i.test(cleanFn)) return true;
+      if (/_avatar\.(png|jpe?g|webp|gif|svg|ico|avif)$/i.test(cleanFn)) return true;
+      return false;
+    }
+
+    // 1. Collect Active Draft Images for this post
+    const draftImagesMap = new Map();
+    const draftFilenameSet = new Set();
+    const curDraft = window.currentDraft;
+    if (curDraft) {
+      if (typeof window.reconcileDraftImages === 'function') {
+        window.reconcileDraftImages(curDraft, document.getElementById('rich-canvas-prose'));
+      }
+      if (Array.isArray(curDraft.images)) {
+        curDraft.images.forEach(img => {
+          if (img && img.filename && !isSiteOrBrandingMedia(img)) {
+            const key = normFn(img.filename);
+            if (key && !draftImagesMap.has(key)) {
+              draftImagesMap.set(key, img);
+              draftFilenameSet.add(key);
+            }
+          }
+        });
+      }
+      [curDraft.coverImage, curDraft.featuredImage].forEach(cImg => {
+        const cFn = typeof cImg === 'string' ? cImg : (cImg?.filename || cImg?.url || '');
+        if (cFn && !cFn.startsWith('data:') && !cFn.startsWith('blob:')) {
+          const key = normFn(cFn);
+          if (key) draftFilenameSet.add(key);
+        }
+      });
+    }
+
+    // 2. Collect General Media Library Images (excluding site assets and current post images)
+    const allUniqueImages = (typeof window.getAllUniqueImages === 'function') ? window.getAllUniqueImages() : [];
+    allUniqueImages.forEach(img => {
+      if (!img || isSiteOrBrandingMedia(img)) return;
+      const key = normFn(img.filename || img.relativePath || img.src);
+      if (!key) return;
+      if (draftImagesMap.has(key)) {
+        const dImg = draftImagesMap.get(key);
+        if (!dImg.objectUrl && img.objectUrl) dImg.objectUrl = img.objectUrl;
+        if (!dImg.dataUrl && img.dataUrl) dImg.dataUrl = img.dataUrl;
+        if (!dImg.blob && img.blob) dImg.blob = img.blob;
+        if (!dImg.src && img.src) dImg.src = img.src;
+        if (!dImg.title && img.title) dImg.title = img.title;
+        if ((!dImg.tags || dImg.tags.length === 0) && Array.isArray(img.tags)) dImg.tags = img.tags;
+      } else if (draftFilenameSet.has(key) || (curDraft && curDraft.id && img.postId === curDraft.id)) {
+        draftImagesMap.set(key, img);
+        draftFilenameSet.add(key);
+      }
+    });
+
     let draftImages = Array.from(draftImagesMap.values());
     if (searchVal) {
       draftImages = draftImages.filter(img =>
@@ -1620,8 +1696,17 @@
       );
     }
 
-    // 2. Collect General Media Library Images
-    let libImages = (typeof window.getAllUniqueImages === 'function') ? window.getAllUniqueImages() : [];
+    let libImages = allUniqueImages.filter(img => {
+      if (!img || isSiteOrBrandingMedia(img)) return false;
+      if (curDraft && curDraft.id && img.postId === curDraft.id) return false;
+      const kFn = normFn(img.filename);
+      const kRel = normFn(img.relativePath);
+      const kSrc = (img.src && !String(img.src).startsWith('data:') && !String(img.src).startsWith('blob:')) ? normFn(img.src) : '';
+      if ((kFn && draftFilenameSet.has(kFn)) || (kRel && draftFilenameSet.has(kRel)) || (kSrc && draftFilenameSet.has(kSrc))) {
+        return false;
+      }
+      return true;
+    });
     if (searchVal) {
       libImages = libImages.filter(img =>
         (img.filename && img.filename.toLowerCase().includes(searchVal)) ||
@@ -1635,7 +1720,25 @@
       item.className = 'editor-masonry-item';
       item.dataset.filename = img.filename;
 
-      const src = img.objectUrl || img.dataUrl || (img.filename ? `blog/images/${img.filename}` : '');
+      let src = img.objectUrl || img.dataUrl || (img.blob instanceof Blob ? URL.createObjectURL(img.blob) : '');
+      if (!src && typeof window !== 'undefined' && window.imageRegistry && typeof window.imageRegistry.get === 'function') {
+        const cleanFn = String(img.filename || '').split('/').pop().split('\\').pop();
+        const reg = window.imageRegistry.get(img.filename)
+          || window.imageRegistry.get(cleanFn)
+          || (img.relativePath && window.imageRegistry.get(img.relativePath))
+          || window.imageRegistry.get(`blog/images/${cleanFn}`)
+          || window.imageRegistry.get(`images/${cleanFn}`);
+        if (reg && typeof reg === 'object') {
+          src = reg.objectUrl || reg.dataUrl || (reg.blob instanceof Blob ? URL.createObjectURL(reg.blob) : '');
+          if (src) {
+            img.objectUrl = reg.objectUrl || src;
+            img.dataUrl = reg.dataUrl || src;
+            if (reg.blob instanceof Blob) img.blob = reg.blob;
+          }
+        }
+      }
+      if (!src && img.src) src = img.src;
+      if (!src && img.filename) src = `blog/images/${img.filename}`;
       const displayTitle = img.title || (img.postTitle && img.postTitle !== 'Media Library' ? img.postTitle : img.filename);
 
       item.innerHTML = `
@@ -1698,7 +1801,7 @@
     if (draftSec && draftGrid) {
       if (draftImages.length > 0) {
         draftSec.style.display = 'block';
-        if (separator) separator.style.display = 'flex';
+        if (separator) separator.style.display = libImages.length > 0 ? 'flex' : 'none';
         draftGrid.innerHTML = '';
         draftImages.forEach(img => {
           draftGrid.appendChild(createMediaCard(img));

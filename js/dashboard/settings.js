@@ -401,13 +401,7 @@
       if (!Array.isArray(projectConfig.authors) || projectConfig.authors.length === 0) {
         projectConfig.authors = [primaryAuthor];
       } else {
-        const hasMatch = projectConfig.authors.some(a => {
-          const aName = (typeof a === 'object' ? a?.name : a) || '';
-          return aName.trim().toLowerCase() === primaryAuthor.name.toLowerCase();
-        });
-        if (!hasMatch) {
-          projectConfig.authors.unshift(primaryAuthor);
-        }
+        projectConfig.authors = [primaryAuthor];
       }
     }
 
