@@ -4382,7 +4382,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.61';
+    const buildStamp = options.buildStamp || '6.6.62';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -4719,6 +4719,7 @@ ${socialMeta.metaLines}
   ];
 
   const PRODUCTION_ENGINE_BINARY_ASSETS = [
+    'logo.png',
     'fonts/inter.woff2',
     'fonts/plus-jakarta-sans.woff2',
     'fonts/lora.woff2',
@@ -5713,6 +5714,19 @@ ${page.markdown || ''}`;
             });
           }
         }
+      }
+
+      if (typeof fetch === 'function' && !files.some(f => f.name === 'logo.png')) {
+        try {
+          let resLogo = await fetch('logo.png', { cache: 'no-store' }).catch(() => null);
+          if (!resLogo || !resLogo.ok) resLogo = await fetch('/logo.png', { cache: 'no-store' }).catch(() => null);
+          if (resLogo && resLogo.ok) {
+            const cedarLogoBlob = await resLogo.blob();
+            if (cedarLogoBlob && cedarLogoBlob.size > 0) {
+              files.push({ name: 'logo.png', data: cedarLogoBlob });
+            }
+          }
+        } catch (e) {}
       }
 
       if (Array.isArray(projectConfig?.authors)) {
