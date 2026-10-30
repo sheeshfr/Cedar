@@ -1620,78 +1620,79 @@
   display: none !important;
 }
 
-/* Page Cards in Compact Multi-Column Grid View */
-.pages-compact-grid,
-#pane-pages .posts-horizontal-grid,
-#pane-pages .posts-subpage-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
-  gap: 0.85rem !important;
-  width: 100% !important;
+/* Page Cards in List View: compact vertical spacing so all pages fit without scrolling */
+#pane-pages .posts-horizontal-grid.is-list-view,
+#pane-pages .posts-subpage-grid.is-list-view {
+  gap: 0.6rem !important;
 }
 
-.pages-compact-grid .page-card,
+#pane-pages .is-list-view .page-card {
+  padding: 0.72rem 1.25rem !important;
+}
+
+/* Page Cards in Grid View: Clean card layout with header and actions */
 .posts-horizontal-grid:not(.is-list-view) .page-card,
 .posts-subpage-grid:not(.is-list-view) .page-card {
-  min-height: 0 !important;
+  min-height: 120px;
   display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
+  flex-direction: column !important;
   justify-content: space-between !important;
-  padding: 0.85rem 1.15rem !important;
+  padding: 1.25rem 1.4rem !important;
 }
 
-.pages-compact-grid .page-card .card-content-wrap,
 .posts-horizontal-grid:not(.is-list-view) .page-card .card-content-wrap,
 .posts-subpage-grid:not(.is-list-view) .page-card .card-content-wrap {
   display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
+  flex-direction: column !important;
   justify-content: space-between !important;
   flex: 1 1 auto !important;
   width: 100% !important;
-  min-width: 0 !important;
-  gap: 0.75rem !important;
+  gap: 1.25rem !important;
 }
 
-.pages-compact-grid .page-card .card-main-header,
 .posts-horizontal-grid:not(.is-list-view) .page-card .card-main-header,
 .posts-subpage-grid:not(.is-list-view) .page-card .card-main-header {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 0.65rem !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
   width: 100% !important;
-  min-width: 0 !important;
   order: unset !important;
 }
 
-.pages-compact-grid .page-card .card-title,
 .posts-horizontal-grid:not(.is-list-view) .page-card .card-title,
 .posts-subpage-grid:not(.is-list-view) .page-card .card-title {
-  font-size: 1.02rem !important;
+  font-size: 1.15rem !important;
   font-weight: 700 !important;
   color: #ffffff !important;
   margin: 0 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  flex: 1 !important;
   min-width: 0 !important;
-  line-height: 1.3 !important;
+  line-height: 1.35 !important;
 }
 
-.app-theme-light .pages-compact-grid .page-card .card-title,
 .app-theme-light .posts-horizontal-grid:not(.is-list-view) .page-card .card-title,
 .app-theme-light .posts-subpage-grid:not(.is-list-view) .page-card .card-title {
   color: #18181b !important;
 }
 
-.page-card-badge-wrap {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  margin-left: auto;
+.posts-horizontal-grid:not(.is-list-view) .page-card .card-list-actions,
+.posts-subpage-grid:not(.is-list-view) .page-card .card-list-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.5rem !important;
+  margin-top: auto !important;
+  padding-top: 0.75rem !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  width: 100% !important;
+  order: unset !important;
+}
+
+.app-theme-light .posts-horizontal-grid:not(.is-list-view) .page-card .card-list-actions,
+.app-theme-light .posts-subpage-grid:not(.is-list-view) .page-card .card-list-actions {
+  border-top-color: rgba(0, 0, 0, 0.06) !important;
 }
 
 /* Post Cards (non-page-card) in Grid View: preserve flex order and hide list actions */

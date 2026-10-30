@@ -702,7 +702,7 @@
       headerViewToggle.remove();
     }
 
-    // Pages are rendered in a compact multi-column grid so all pages fit without scrolling
+    // Pages are always rendered in List View
     const targetGrids = [
       'pages-cards-all',
       'pages-cards-my-pages',
@@ -713,14 +713,14 @@
     targetGrids.forEach(id => {
       const gridEl = document.getElementById(id);
       if (gridEl) {
-        gridEl.classList.remove('is-list-view');
-        gridEl.classList.add('pages-compact-grid');
+        gridEl.classList.remove('pages-compact-grid');
+        gridEl.classList.add('is-list-view');
       }
     });
 
     document.querySelectorAll('#pane-pages .posts-horizontal-grid, #pane-pages .posts-subpage-grid').forEach(el => {
-      el.classList.remove('is-list-view');
-      el.classList.add('pages-compact-grid');
+      el.classList.remove('pages-compact-grid');
+      el.classList.add('is-list-view');
     });
   }
 
@@ -1166,10 +1166,10 @@
       : `<span class="badge ${badgeClass}" title="${pageTypeTag} page">${pageTypeTag}</span>`;
 
     const redirectUrlDisplay = page.isRedirect
-      ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.73rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>`
+      ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>`
       : '';
 
-    const titleHtml = `<div class="page-card-title-block" style="display: flex; flex-direction: column; min-width: 0; flex: 1;"><h4 class="card-title" style="margin: 0;">${escapeHtml(page.title || 'Untitled Page')}</h4>${redirectUrlDisplay}</div>`;
+    const titleHtml = `<div style="display: flex; flex-direction: column;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><h4 class="card-title" style="margin: 0;">${escapeHtml(page.title || 'Untitled Page')}</h4>${typeBadge}</div>${redirectUrlDisplay}</div>`;
 
     card.innerHTML = `
       <div class="card-content-wrap">
@@ -1185,7 +1185,6 @@
             </svg>
           </span>
           ${titleHtml}
-          <div class="page-card-badge-wrap">${typeBadge}</div>
         </div>
       </div>
     `;
