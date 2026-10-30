@@ -221,16 +221,17 @@
       const isAllExplicit = rootToken === 'blog' || rootToken === 'posts' || rootToken === 'all' || activeRoute === 'posts' || activeRoute === 'blog' || activeRoute === 'all' || (activeRoute && (activeRoute === 'page:all' || activeRoute === 'page:page_all'));
       const isAllActive = !isHome && !activeCatSlug && (!activePageSlug || activePageSlug === 'all') && isAllExplicit;
       const allHref = typeof window.toPreviewUrl === 'function' ? window.toPreviewUrl('#/blog') : '/preview.html/blog';
+      const allLabel = (allPage && allPage.title ? allPage.title : ((typeof getConfig === 'function' && getConfig()?.allPageTitle) || 'All')).trim() || 'All';
       const clampedIdx = Math.max(0, Math.min(allCategoryIdx, navCatItems.length));
       navCatItems.splice(clampedIdx, 0, {
         id: 'page_all',
         slug: 'all',
-        title: 'All',
+        title: allLabel,
         type: 'all',
-        name: 'All',
+        name: allLabel,
         url: allHref,
         isActive: isAllActive,
-        html: `<li><a href="${allHref}" class="nav-link ${isAllActive ? 'active' : ''}">All</a></li>`
+        html: `<li><a href="${allHref}" class="nav-link ${isAllActive ? 'active' : ''}">${escapeHtml(allLabel)}</a></li>`
       });
     }
 
@@ -341,12 +342,13 @@
       if (!isRssHidden) {
         const isRssActive = !isHome && !activeCatSlug && (activePageSlug === 'rss' || activeRoute === 'page:rss' || activeRoute === 'rss');
         const rssHref = typeof window.toPreviewUrl === 'function' ? window.toPreviewUrl('#/rss') : '/preview.html/rss';
+        const rssLabel = (rssDraft && rssDraft.title ? rssDraft.title : 'RSS').trim() || 'RSS';
         navItems.push({
           id: 'page_rss',
           slug: 'rss',
-          title: 'RSS',
+          title: rssLabel,
           type: 'builtin',
-          html: `<li><a href="${rssHref}" class="nav-link ${isRssActive ? 'active' : ''}">RSS</a></li>`
+          html: `<li><a href="${rssHref}" class="nav-link ${isRssActive ? 'active' : ''}">${escapeHtml(rssLabel)}</a></li>`
         });
       }
     }

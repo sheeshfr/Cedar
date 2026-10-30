@@ -239,15 +239,33 @@
     const isCategoryPage = Boolean(activeAllCategoryFilter && activeAllCategoryFilter !== 'ALL');
     const effectivePageSize = POSTS_PER_PAGE;
 
+    const draftsList = (typeof getDrafts === 'function' ? getDrafts() : window.drafts) || [];
+    const matchedArchivePage = isCategoryPage
+      ? draftsList.find(d => d && d.type === 'page' && (
+          String(d.categoryAggregate || '').trim().toLowerCase() === String(activeAllCategoryFilter).trim().toLowerCase() ||
+          String(d.title || '').trim().toLowerCase() === String(activeAllCategoryFilter).trim().toLowerCase()
+        ))
+      : draftsList.find(d => d && d.type === 'page' && (d.id === 'page_all' || d.slug === 'all'));
+
     const headingEl = document.getElementById('all-posts-heading');
     if (headingEl) {
-      headingEl.textContent = isCategoryPage ? activeAllCategoryFilter : 'All Posts';
+      if (isCategoryPage) {
+        headingEl.textContent = (matchedArchivePage && matchedArchivePage.title) ? matchedArchivePage.title : activeAllCategoryFilter;
+      } else {
+        const customAllTitle = (matchedArchivePage && matchedArchivePage.title) || (getConfig() && getConfig().allPageTitle) || '';
+        headingEl.textContent = (customAllTitle && customAllTitle.toLowerCase() !== 'all') ? customAllTitle : 'All Posts';
+      }
     }
 
     const homeBlocks = (getConfig().design && getConfig().design.homeBlocks) || [];
     const feedBlock = homeBlocks.find(b => b.type === 'post_feed');
     const fCfg = (feedBlock && feedBlock.config) || {};
-    const isRowLayout = (fCfg.layoutStyle === 'horizontal' || fCfg.cols === 1);
+    const pageLayoutPref = matchedArchivePage
+      ? (matchedArchivePage.layout === 'list' || (matchedArchivePage.markdown && matchedArchivePage.markdown.includes('layout="list"')) || (matchedArchivePage.proseHtml && matchedArchivePage.proseHtml.includes('data-layout="list"')) ? 'list' : (matchedArchivePage.layout === 'grid' ? 'grid' : ''))
+      : '';
+    const isRowLayout = pageLayoutPref
+      ? (pageLayoutPref === 'list')
+      : (fCfg.layoutStyle === 'horizontal' || fCfg.cols === 1);
 
     if (isRowLayout) {
       gridEl.className = 'posts-grid posts-list-view cols-1';

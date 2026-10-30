@@ -3867,7 +3867,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       canonicalRss.type = 'page';
 
-      canonicalRss.title = 'RSS';
+      if (!canonicalRss.title) canonicalRss.title = 'RSS';
 
 
 
@@ -3955,7 +3955,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       canonicalAbout.type = 'page';
 
-      canonicalAbout.title = 'About';
+      if (!canonicalAbout.title) canonicalAbout.title = 'About';
 
 
 
@@ -4107,7 +4107,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       canonicalLinks.type = 'page';
 
-      canonicalLinks.title = 'Links';
+      if (!canonicalLinks.title) canonicalLinks.title = 'Links';
 
       delete canonicalLinks.coverImage;
 
@@ -4193,7 +4193,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       canonicalAll.type = 'page';
 
-      canonicalAll.title = 'All';
+      if (!canonicalAll.title) canonicalAll.title = (window.projectConfig && window.projectConfig.allPageTitle) || 'All';
 
 
 
@@ -4383,7 +4383,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       rssDraft.slug = 'rss';
 
-      rssDraft.title = 'RSS';
+      if (!rssDraft.title) rssDraft.title = 'RSS';
 
       const isRssOn = !rssDraft.hidden && !rssDraft.retired;
 
@@ -4564,7 +4564,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       linksDraft.slug = 'links';
 
-      linksDraft.title = 'Links';
+      if (!linksDraft.title) linksDraft.title = 'Links';
 
       linksDraft.type = 'page';
 
@@ -4860,7 +4860,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (rssDraft) {
         rssDraft.id = 'page_rss';
         rssDraft.slug = 'rss';
-        rssDraft.title = 'RSS';
+        if (!rssDraft.title) rssDraft.title = 'RSS';
         const isRssOn = !rssDraft.hidden && !rssDraft.retired;
         if (window.projectConfig) window.projectConfig.rssEnabled = isRssOn;
         try { localStorage.setItem(STORAGE_KEY_RSS_ENABLED, isRssOn ? 'true' : 'false'); } catch (e) {}
@@ -4877,7 +4877,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (aboutDraft) {
         aboutDraft.id = 'page_about';
         aboutDraft.slug = 'about';
-        aboutDraft.title = 'About';
+        if (!aboutDraft.title) aboutDraft.title = 'About';
         const md = (aboutDraft.markdown || '').trim();
         if (md.includes('Welcome to **Cedar**') || md.includes('Welcome to **Outpost**')) {
           aboutDraft.markdown = '';
@@ -4922,7 +4922,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (linksDraft) {
         linksDraft.id = 'page_links';
         linksDraft.slug = 'links';
-        linksDraft.title = 'Links';
+        if (!linksDraft.title) linksDraft.title = 'Links';
         delete linksDraft.coverImage;
         delete linksDraft.featuredImage;
         if (!linksDraft.linksData && typeof createDefaultLinksPage === 'function') {
@@ -4946,7 +4946,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (allDraft) {
         allDraft.id = 'page_all';
         allDraft.slug = 'all';
-        allDraft.title = 'All';
+        if (!allDraft.title) allDraft.title = (window.projectConfig && window.projectConfig.allPageTitle) || 'All';
         const isAllExplicitlyDisabled = (window.projectConfig && (window.projectConfig.allDisabled === true || window.projectConfig.allEnabled === false)) ||
           (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_all_disabled') === 'true');
         if (isAllExplicitlyDisabled) {
@@ -5204,11 +5204,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           if (lowSlug === 'rss' || d.id === 'page_rss') {
             d.id = 'page_rss';
             d.slug = 'rss';
-            d.title = 'RSS';
+            if (!d.title) d.title = 'RSS';
           } else if (lowSlug === 'about' || d.id === 'page_about') {
             d.id = 'page_about';
             d.slug = 'about';
-            d.title = 'About';
+            if (!d.title) d.title = 'About';
           } else if (lowSlug === 'about-cedar' || d.id === 'page_about_cedar') {
             d.id = 'page_about_cedar';
             d.slug = 'about-cedar';
@@ -5216,13 +5216,13 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           } else if (lowSlug === 'links' || d.id === 'page_links') {
             d.id = 'page_links';
             d.slug = 'links';
-            d.title = 'Links';
+            if (!d.title) d.title = 'Links';
             delete d.coverImage;
             delete d.featuredImage;
           } else if (lowSlug === 'all' || d.id === 'page_all') {
             d.id = 'page_all';
             d.slug = 'all';
-            d.title = 'All';
+            if (!d.title) d.title = (window.projectConfig && window.projectConfig.allPageTitle) || 'All';
             delete d.coverImage;
             delete d.featuredImage;
           }

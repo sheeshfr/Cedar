@@ -1648,15 +1648,16 @@
     });
 
     if (!isAllHidden) {
+      const allLabel = (allPage && allPage.title ? allPage.title : ((window.projectConfig && window.projectConfig.allPageTitle) || 'All')).trim() || 'All';
       const clampedIdx = Math.max(0, Math.min(allCategoryIdx, navCatItems.length));
       navCatItems.splice(clampedIdx, 0, {
         id: 'page_all',
         slug: 'all',
-        title: 'All',
+        title: allLabel,
         type: 'all',
-        name: 'All',
+        name: allLabel,
         href: '/blog/',
-        html: `<a href="/blog/" class="nav-item">All</a>\n        `
+        html: `<a href="/blog/" class="nav-item">${escapeHtml(allLabel)}</a>\n        `
       });
     }
 
@@ -1736,12 +1737,13 @@
     const rssDraft = allDraftsForNav.find(d => d && d.type === 'page' && (d.id === 'page_rss' || d.slug === 'rss' || (d.title || '').trim().toLowerCase() === 'rss'));
     const isRssHidden = !isRssEnabled || Boolean(rssDraft && (rssDraft.hidden || rssDraft.retired));
     if (!isRssHidden) {
+      const rssLabel = (rssDraft && rssDraft.title ? rssDraft.title : 'RSS').trim() || 'RSS';
       navItems.push({
         id: 'page_rss',
         slug: 'rss',
-        title: 'RSS',
+        title: rssLabel,
         type: 'builtin',
-        html: `<a href="/rss/" class="nav-item">RSS</a>\n        `
+        html: `<a href="/rss/" class="nav-item">${escapeHtml(rssLabel)}</a>\n        `
       });
     }
 
@@ -4380,7 +4382,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.54';
+    const buildStamp = options.buildStamp || '6.6.55';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -4945,7 +4947,7 @@ ${socialMeta.metaLines}
 
     // 3. Filter and sanitize published posts & pages
     const publishedPosts = allDrafts.filter(d => d && (d.type === 'post' || !d.type) && d.type !== 'note' && d.status === 'published' && !d.hidden && !d.retired);
-    const rawPages = allDrafts.filter(d => d && d.type === 'page' && (!d.hidden && !d.retired || d.slug === 'about-cedar' || d.id === 'page_about_cedar' || d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')));
+    const rawPages = allDrafts.filter(d => d && d.type === 'page' && (!d.hidden && !d.retired || d.slug === 'about-cedar' || d.id === 'page_about_cedar' || d.slug === 'all' || d.id === 'page_all' || d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')));
     const seenPageSlugs = new Set();
     const publishedPages = [];
     for (const p of rawPages) {

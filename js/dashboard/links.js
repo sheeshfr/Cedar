@@ -246,7 +246,7 @@
     draft.type = 'page';
     draft.id = 'page_links';
     draft.slug = 'links';
-    draft.title = 'Links';
+    if (!draft.title) draft.title = 'Links';
     delete draft.coverImage;
     delete draft.featuredImage;
 
@@ -359,7 +359,7 @@
       draft.type = 'page';
       draft.id = 'page_links';
       draft.slug = 'links';
-      draft.title = 'Links';
+      if (!draft.title) draft.title = 'Links';
       delete draft.coverImage;
       delete draft.featuredImage;
       sanitizeLinksDraft(draft);
@@ -1148,7 +1148,7 @@
     draft.type = 'page';
     draft.id = 'page_links';
     draft.slug = 'links';
-    draft.title = 'Links';
+    if (!draft.title) draft.title = 'Links';
     delete draft.coverImage;
     delete draft.featuredImage;
 

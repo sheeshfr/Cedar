@@ -796,9 +796,6 @@
       e.preventDefault();
       e.stopPropagation();
     }
-    if (!isPagesEditMode) {
-      return;
-    }
     const draggedEl = window._activeDraggedPageEl;
     const draggedId = window._activeDraggedPageId;
     if (!draggedEl || !draggedId) {
@@ -850,6 +847,276 @@
     handleUniversalPageDrop(e, container);
   }
 
+  function setPageEnabledState(page, enabled, options = {}) {
+    if (!page) return;
+    const sortKey = getPageSortKey(page);
+    if (sortKey && !sessionPinnedHiddenState.has(sortKey)) {
+      sessionPinnedHiddenState.set(sortKey, isPageHidden(page));
+    }
+    const nowTs = Date.now();
+    const isHidden = !enabled;
+    page.hidden = isHidden;
+    page.retired = isHidden;
+    if (enabled) {
+      page.status = 'published';
+    }
+    page.updatedAt = nowTs;
+
+    if (window.currentDraft && window.currentDraft.id === page.id) {
+      window.currentDraft.hidden = isHidden;
+      window.currentDraft.retired = isHidden;
+      if (enabled) window.currentDraft.status = 'published';
+      window.currentDraft.updatedAt = nowTs;
+    }
+    if (Array.isArray(window.drafts)) {
+      const d = window.drafts.find(item => item && (item.id === page.id || (page.slug && item.slug === page.slug)));
+      if (d) {
+        d.hidden = isHidden;
+        d.retired = isHidden;
+        if (enabled) d.status = 'published';
+        d.updatedAt = nowTs;
+      }
+    }
+    if (window.CedarStore && typeof window.CedarStore.getPage === 'function') {
+      const storePage = window.CedarStore.getPage(page.id) || (page.slug ? window.CedarStore.getPage(page.slug) : null);
+      if (storePage) {
+        storePage.hidden = isHidden;
+        storePage.retired = isHidden;
+        if (enabled) storePage.status = 'published';
+        storePage.updatedAt = nowTs;
+      }
+    }
+
+    const isRss = (page.id === 'page_rss' || page.slug === 'rss');
+    if (isRss) {
+      if (enabled) {
+        try {
+          localStorage.removeItem('cedar_rss_user_explicitly_disabled');
+          localStorage.setItem('cedar_rss_enabled', 'true');
+          localStorage.setItem('outpost_rss_enabled', 'true');
+        } catch (e) {}
+        if (window.projectConfig) {
+          window.projectConfig.rssEnabled = true;
+        }
+        if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+        if (typeof window.syncRssPageDraft === 'function') {
+          window.syncRssPageDraft(window.projectConfig);
+        }
+      } else {
+        try {
+          localStorage.setItem('cedar_rss_user_explicitly_disabled', 'true');
+          localStorage.setItem('cedar_rss_enabled', 'false');
+          localStorage.setItem('outpost_rss_enabled', 'false');
+        } catch (e) {}
+        if (window.projectConfig) {
+          window.projectConfig.rssEnabled = false;
+        }
+        if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+      }
+    }
+
+    const isAll = isAllPage(page);
+    if (isAll) {
+      if (enabled) {
+        try {
+          localStorage.removeItem('cedar_all_disabled');
+        } catch (e) {}
+        if (window.projectConfig) {
+          window.projectConfig.allDisabled = false;
+          window.projectConfig.allEnabled = true;
+        }
+      } else {
+        try {
+          localStorage.setItem('cedar_all_disabled', 'true');
+        } catch (e) {}
+        if (window.projectConfig) {
+          window.projectConfig.allDisabled = true;
+          window.projectConfig.allEnabled = false;
+        }
+      }
+      if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+    }
+
+    if (!options.skipSave) {
+      if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
+      if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
+        window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
+      }
+      renderStaticPages();
+      if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
+      if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+    }
+
+    if (!options.silentToast && typeof showToast === 'function') {
+      if (enabled) {
+        showToast(isRss ? 'RSS page and syndication enabled' : `Page "${page.title}" enabled on public site`);
+      } else {
+        showToast(`Page "${page.title}" disabled from public site`);
+      }
+    }
+  }
+
+  async function deletePageItemWithConfirm(page, isCat, catName) {
+    if (!page) return false;
+    const isAll = isAllPage(page);
+    const isBuiltIn = isBuiltInPage(page) && !isAll;
+    if (isBuiltIn || isAll) return false;
+
+    if (isCat) {
+      const targetCatName = catName || page.categoryAggregate || page.title || '';
+      const pubCount = Array.isArray(window.drafts)
+        ? window.drafts.filter(d => {
+            if (!d || d.type === 'page') return false;
+            const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
+            if (!isPub) return false;
+            const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
+            return pCat === targetCatName.toLowerCase();
+          }).length
+        : 0;
+      const warnMsg = pubCount > 0
+        ? `Deleting category "${targetCatName}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} and break existing links. Are you sure you want to delete it?`
+        : `Are you sure you want to delete category "${targetCatName}"?`;
+      const confirmed = (typeof window.showConfirmDialog === 'function')
+        ? await window.showConfirmDialog({
+            title: pubCount > 0 ? 'URL Link Warning' : 'Delete Category?',
+            message: warnMsg,
+            confirmText: 'Delete',
+            isDanger: true
+          })
+        : confirm(warnMsg);
+
+      if (!confirmed) return false;
+
+      const catSlug = (page && page.slug) || (typeof window.generateSlug === 'function' ? window.generateSlug(targetCatName) : targetCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+      const catPageId = (page && page.id) || `page_cat_${catSlug}`;
+      if (window.projectConfig) {
+        if (Array.isArray(window.projectConfig.categories)) {
+          window.projectConfig.categories = window.projectConfig.categories.filter(c => String(c).toLowerCase() !== targetCatName.toLowerCase());
+        }
+        if (!Array.isArray(window.projectConfig.deletedCategories)) {
+          window.projectConfig.deletedCategories = [];
+        }
+        if (!window.projectConfig.deletedCategories.some(dc => String(dc).trim().toLowerCase() === targetCatName.toLowerCase())) {
+          window.projectConfig.deletedCategories.push(targetCatName);
+        }
+        if (Array.isArray(window.projectConfig.activityLog)) {
+          window.projectConfig.activityLog = window.projectConfig.activityLog.filter(a => {
+            if (!a) return false;
+            if (a.type === 'category') {
+              const aCat = String(a.data?.categoryName || a.data?.newName || a.data?.category || '').trim().toLowerCase();
+              if (aCat === targetCatName.toLowerCase() || a.id === 'synth-cat-' + targetCatName) return false;
+            }
+            if (a.type === 'page') {
+              const aPageId = String(a.data?.pageId || a.data?.id || '').trim();
+              const aTitle = String(a.data?.title || '').trim().toLowerCase();
+              if (aPageId === catPageId || aPageId === page.id || aTitle === targetCatName.toLowerCase()) return false;
+            }
+            return true;
+          });
+          window.activityLog = window.projectConfig.activityLog;
+          try {
+            localStorage.setItem('cedar_activity_log', JSON.stringify(window.projectConfig.activityLog));
+            localStorage.setItem('outpost_activity_log', JSON.stringify(window.projectConfig.activityLog));
+          } catch (err) {}
+        }
+        if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+      }
+      if (window.CedarStore) {
+        if (typeof window.CedarStore.markIdDeleted === 'function') {
+          window.CedarStore.markIdDeleted(page.id);
+          window.CedarStore.markIdDeleted(catPageId);
+        }
+        if (typeof window.CedarStore.remove === 'function') {
+          window.CedarStore.remove(page.id);
+          window.CedarStore.remove(catPageId);
+        }
+      }
+      if (catSlug) {
+        const delPaths = [`pages/published/${catSlug}`, `pages/hidden/${catSlug}`, `pages/${catSlug}`];
+        delPaths.forEach(p => {
+          if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.deleteFile === 'function') {
+            window.CedarVirtualStorage.deleteFile(p).catch(() => {});
+            window.CedarVirtualStorage.deleteFile(`${p}/index.html`).catch(() => {});
+            window.CedarVirtualStorage.deleteFile(`${p}/draft.json`).catch(() => {});
+          }
+          if (window.SheeshVault && window.SheeshVault.isSupported && window.SheeshVault.dirHandle) {
+            window.SheeshVault.deleteFile(p).catch(() => {});
+          }
+          if (window.location.protocol !== 'file:') {
+            fetch('/api/vault-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: p, targetPath: p })
+            }).catch(() => {});
+          }
+        });
+      }
+      if (Array.isArray(window.drafts)) {
+        window.drafts = window.drafts.filter(d => d && d.id !== page.id && d.id !== catPageId);
+        window.drafts.forEach(d => {
+          if (!d || d.type === 'page') return;
+          let postChanged = false;
+          if (d.tag && d.tag.trim().toLowerCase() === targetCatName.toLowerCase()) {
+            d.tag = '';
+            postChanged = true;
+          }
+          if (Array.isArray(d.categories)) {
+            const origLen = d.categories.length;
+            d.categories = d.categories.filter(c => c && c.trim().toLowerCase() !== targetCatName.toLowerCase());
+            if (d.categories.length !== origLen) postChanged = true;
+          }
+          if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
+            d.tag = d.categories[0];
+            postChanged = true;
+          }
+          if (d.permalinkCat && d.permalinkCat.trim().toLowerCase() === targetCatName.toLowerCase()) {
+            d.permalinkCat = d.tag || 'uncategorized';
+            postChanged = true;
+          }
+          if (postChanged) d.updatedAt = Date.now();
+        });
+        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+          window.CedarStore.hydrateFromList(window.drafts);
+        }
+        if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
+      }
+      renderStaticPages();
+      if (typeof window.renderTaxonomy === 'function') window.renderTaxonomy();
+      if (typeof window.updateCategorySelectUI === 'function') window.updateCategorySelectUI();
+      if (typeof window.updatePostsCategoryFilterOptions === 'function') window.updatePostsCategoryFilterOptions();
+      if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
+      if (typeof window.renderPipelineGrid === 'function') window.renderPipelineGrid();
+      if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
+      if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
+      if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+      if (typeof window.showToast === 'function') showToast(`Deleted category "${targetCatName}"`);
+      return true;
+    } else {
+      const confirmed = (typeof window.showConfirmDialog === 'function')
+        ? await window.showConfirmDialog({
+            title: 'Delete Page?',
+            message: `Are you sure you want to delete page "${page.title || 'Untitled'}"?`,
+            confirmText: 'Delete',
+            isDanger: true
+          })
+        : confirm(`Are you sure you want to delete page "${page.title}"?`);
+
+      if (!confirmed) return false;
+
+      if (typeof window.deleteItem === 'function') {
+        await window.deleteItem(page.id, { skipConfirm: true });
+      } else if (Array.isArray(window.drafts)) {
+        window.drafts = window.drafts.filter(d => d.id !== page.id);
+        if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
+        renderStaticPages();
+        if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
+        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+        if (typeof showToast === 'function') showToast(`Page "${page.title}" deleted`);
+      }
+      return true;
+    }
+  }
+
   function createPageCardDOM(page, isHiddenCard = false) {
     const card = document.createElement('div');
     const slug = page.slug || (typeof generateSlug === 'function' ? generateSlug(page.title) : (page.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
@@ -862,65 +1129,25 @@
         .filter(Boolean)
     );
     const isCat = isCategoryPageItem(page, currentCatsLower) || isAll;
-    const isNonEditable = isCat || isAll;
     const catName = isAll ? 'All' : (page.categoryAggregate || page.title || '');
 
-    const isUserMade = !isBuiltIn && !isCat;
-
     card.className = `page-card pipeline-card ${isCat ? 'category-page-card' : ''} ${isHiddenCard ? 'is-retired is-hidden card-hidden' : ''}`;
-    card.style.cursor = isPagesEditMode ? 'grab' : 'pointer';
+    card.style.cursor = 'pointer';
     if (page.id) card.setAttribute('data-page-id', page.id);
     if (slug) card.setAttribute('data-slug', slug);
     if (isCat || isAll) {
       card.setAttribute('data-cat-name', catName);
     }
-    card.setAttribute('draggable', isPagesEditMode ? 'true' : 'false');
+    card.setAttribute('draggable', 'true');
 
     // Visibility Toggle Button on the right side: red Disabled or green Enabled
     const visibilityActionBtn = isHiddenCard
       ? `<button type="button" class="card-btn card-btn-status-disabled card-btn-disabled" data-action="enable" title="Disabled – click to enable">Disabled</button>`
       : `<button type="button" class="card-btn card-btn-status-enabled card-btn-enabled" data-action="disable" title="Enabled – click to disable">Enabled</button>`;
 
-    // Deletion: only available in Edit Mode for deletable items (not built-in, not 'All')
-    const isDeletable = !isBuiltIn && !isAll;
-    const canDelete = isPagesEditMode && isDeletable;
-
-    const deleteBtnHtml = canDelete
-      ? `<button type="button" class="card-btn card-btn-danger" data-action="${isCat ? 'delete-cat' : 'delete'}">Delete</button>`
-      : '';
-
-    const hoverDeleteBtnHtml = '';
-
-    const currentLayout = page.layout === 'list' || (page.markdown && page.markdown.includes('layout="list"')) || (page.proseHtml && page.proseHtml.includes('data-layout="list"')) ? 'list' : 'grid';
-
-    const layoutToggleHtml = (isPagesEditMode && (isCat || isAll))
-      ? `
-        <div class="posts-view-toggle cat-card-view-toggle" role="group" aria-label="Layout Mode">
-          <button type="button" class="posts-view-btn ${currentLayout === 'grid' ? 'active is-active' : ''}" data-cat-layout="grid" title="Grid Layout">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-            <span>Grid</span>
-          </button>
-          <button type="button" class="posts-view-btn ${currentLayout === 'list' ? 'active is-active' : ''}" data-cat-layout="list" title="List Layout">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-            <span>List</span>
-          </button>
-        </div>
-      `
-      : '';
-
     const actionsHtml = `
-      ${deleteBtnHtml}
       ${visibilityActionBtn}
     `;
-
-    const pendingTitleKey = isCat ? `cat_${catName}` : `page_${page.id}`;
-    const displayTitle = (isPagesEditMode && editModePendingTitles[pendingTitleKey] !== undefined)
-      ? editModePendingTitles[pendingTitleKey]
-      : (page.title || '');
-
-    // Title: Only user categories and user-made custom pages can be renamed.
-    // Built-in pages (About, Links, RSS) and the All aggregate page cannot be renamed.
-    const isTitleEditable = isPagesEditMode && ((isCat && !isAll) || isUserMade);
 
     // Page Type Tag Badge next to title: Redirect, Category, Static, Built-In
     let pageTypeTag = 'Static';
@@ -944,36 +1171,27 @@
     const typeBadge = page.isRedirect
       ? `<span class="badge ${badgeClass}" data-action="goto-redirect" title="Open ${escapeHtml(page.redirectUrl || page.url || '')} in a new tab">${pageTypeTag} ${redirectIconSvg}</span>`
       : `<span class="badge ${badgeClass}" title="${pageTypeTag} page">${pageTypeTag}</span>`;
-    const redirectGoToBtn = '';
 
-    const displayUrl = (isPagesEditMode && page.id && editModePendingUrls[page.id] !== undefined)
-      ? editModePendingUrls[page.id]
-      : (page.redirectUrl || page.url || '');
-    const redirectUrlDisplay = (isPagesEditMode && page.isRedirect)
-      ? `<input type="text" class="card-url-input" style="font-weight: 400 !important; font-size: 0.82rem; color: var(--text-secondary, #a1a1aa); margin-top: 4px;" value="${escapeHtml(displayUrl)}" placeholder="https://example.com" data-page-id="${page.id || ''}" onclick="event.stopPropagation();" oninput="if (window._onPagesUrlInput) window._onPagesUrlInput(this);">`
-      : (page.isRedirect ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>` : '');
+    const redirectUrlDisplay = page.isRedirect
+      ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>`
+      : '';
 
-    const titleHtml = isTitleEditable
-      ? `<div style="display: flex; flex-direction: column; width: 100%;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><input type="text" class="card-title-input" value="${escapeHtml(displayTitle)}" placeholder="Title" data-page-id="${page.id || ''}" data-is-cat="${isCat ? 'true' : 'false'}" data-cat-name="${isCat ? escapeHtml(catName) : ''}" data-original-title="${escapeHtml(page.title || '')}" onclick="event.stopPropagation();" oninput="if (window._onPagesTitleInput) window._onPagesTitleInput(this);">${typeBadge}${redirectGoToBtn}</div>${redirectUrlDisplay}</div>`
-      : `<div style="display: flex; flex-direction: column;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><h4 class="card-title" style="margin: 0;">${escapeHtml(page.title || 'Untitled Page')}</h4>${typeBadge}${redirectGoToBtn}</div>${redirectUrlDisplay}</div>`;
+    const titleHtml = `<div style="display: flex; flex-direction: column;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><h4 class="card-title" style="margin: 0;">${escapeHtml(page.title || 'Untitled Page')}</h4>${typeBadge}</div>${redirectUrlDisplay}</div>`;
 
     card.innerHTML = `
-      ${hoverDeleteBtnHtml}
       <div class="card-content-wrap">
         <div class="card-main-header">
-          ${isPagesEditMode ? `
-            <span class="category-drag-handle page-drag-handle" title="Drag to reorder page" aria-label="Drag to reorder page">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <circle cx="5" cy="3" r="1.5"></circle>
-                <circle cx="11" cy="3" r="1.5"></circle>
-                <circle cx="5" cy="8" r="1.5"></circle>
-                <circle cx="11" cy="8" r="1.5"></circle>
-                <circle cx="5" cy="13" r="1.5"></circle>
-                <circle cx="11" cy="13" r="1.5"></circle>
-              </svg>
-            </span>` : ''}
+          <span class="category-drag-handle page-drag-handle" title="Drag to reorder page" aria-label="Drag to reorder page">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <circle cx="5" cy="3" r="1.5"></circle>
+              <circle cx="11" cy="3" r="1.5"></circle>
+              <circle cx="5" cy="8" r="1.5"></circle>
+              <circle cx="11" cy="8" r="1.5"></circle>
+              <circle cx="5" cy="13" r="1.5"></circle>
+              <circle cx="11" cy="13" r="1.5"></circle>
+            </svg>
+          </span>
           ${titleHtml}
-          ${layoutToggleHtml}
         </div>
         <div class="card-list-actions">
           ${actionsHtml}
@@ -981,16 +1199,10 @@
       </div>
     `;
 
-    // Prevent card drag when clicking or dragging to highlight text inside inputs or buttons
+    // Prevent card drag when clicking interactive buttons
     const syncCardDraggableForTarget = (target) => {
-      if (!isPagesEditMode) {
-        card._suppressCardDrag = true;
-        card.draggable = false;
-        card.setAttribute('draggable', 'false');
-        return;
-      }
       const inInteractive = target && typeof target.closest === 'function' &&
-        target.closest('input, textarea, button, select, a, .posts-view-toggle, .card-title-input, .card-url-input, .badge-redirect');
+        target.closest('input, textarea, button, select, a, .posts-view-toggle, .badge-redirect');
       if (inInteractive) {
         card._suppressCardDrag = true;
         card.draggable = false;
@@ -1014,22 +1226,9 @@
       syncCardDraggableForTarget(e.target);
     }, { capture: true, passive: true });
 
-    card.querySelectorAll('input, textarea').forEach(inp => {
-      inp.setAttribute('draggable', 'false');
-      inp.addEventListener('dragstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-      inp.addEventListener('focus', () => {
-        card._suppressCardDrag = true;
-        card.draggable = false;
-        card.setAttribute('draggable', 'false');
-      });
-    });
-
-    // Universal Drag and Drop Events for ALL page cards in Edit Mode
+    // Universal Drag and Drop Events for ALL page cards
     card.addEventListener('dragstart', (e) => {
-      if (!isPagesEditMode || card._suppressCardDrag) {
+      if (card._suppressCardDrag) {
         e.preventDefault();
         return;
       }
@@ -1037,6 +1236,7 @@
         e.preventDefault();
         return;
       }
+      card._wasDragged = true;
       window._activeDraggedPageId = page.id || page.slug;
       window._activeDraggedPageEl = card;
       window._dragDropped = false;
@@ -1052,6 +1252,7 @@
 
     card.addEventListener('dragend', () => {
       card.classList.remove('is-dragging');
+      setTimeout(() => { card._wasDragged = false; }, 80);
       document.querySelectorAll('.page-card').forEach(c => {
         c.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-left', 'drag-over-right');
       });
@@ -1073,7 +1274,6 @@
     });
 
     card.addEventListener('dragover', (e) => {
-      if (!isPagesEditMode) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
@@ -1101,32 +1301,7 @@
     });
 
     card.addEventListener('click', async (e) => {
-      // Handle category layout toggle [Grid | List]
-      const layoutBtn = e.target.closest('[data-cat-layout]');
-      if (layoutBtn) {
-        e.stopPropagation();
-        if (!isPagesEditMode) return;
-        captureEditModeInputs();
-        const chosenLayout = layoutBtn.dataset.catLayout === 'list' ? 'list' : 'grid';
-        page.layout = chosenLayout;
-        page.markdown = `:::recent-posts layout="${chosenLayout}":::`;
-        page.proseHtml = `<div class="page-recent-posts-block" data-block-type="recent-posts" data-layout="${chosenLayout}" contenteditable="false"></div>`;
-        page.updatedAt = Date.now();
-        if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
-        if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
-          window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
-        }
-        const toggleWrap = layoutBtn.closest('.cat-card-view-toggle');
-        if (toggleWrap) {
-          toggleWrap.querySelectorAll('[data-cat-layout]').forEach(b => {
-            const active = b.dataset.catLayout === chosenLayout;
-            b.classList.toggle('active', active);
-            b.classList.toggle('is-active', active);
-          });
-        }
-        if (typeof showToast === 'function') showToast(`${page.title} layout set to ${chosenLayout}`);
-        return;
-      }
+      if (card._wasDragged) return;
 
       const btn = e.target.closest('[data-action]');
       if (btn) {
@@ -1138,412 +1313,20 @@
             window.open(targetUrl, '_blank', 'noopener,noreferrer');
           }
           return;
-        } else if (act === 'edit') {
-          if (isPagesEditMode || isNonEditable) {
-            return;
-          }
-          if (page.id === 'page_links' || page.slug === 'links' || (page.title || '').trim().toLowerCase() === 'links') {
-            window.location.hash = '#links';
-          } else {
-            openPostInEditor(page.id);
-          }
-        } else if (act === 'links') {
-          if (isPagesEditMode) return;
-          window.location.hash = '#links';
         } else if (act === 'disable' || act === 'hide') {
-          if (isPagesEditMode) {
-            captureEditModeInputs();
-          }
-          const sortKey = getPageSortKey(page);
-          if (sortKey && !sessionPinnedHiddenState.has(sortKey)) {
-            sessionPinnedHiddenState.set(sortKey, isPageHidden(page));
-          }
-          const nowTs = Date.now();
-          page.hidden = true;
-          page.retired = true;
-          page.updatedAt = nowTs;
-          if (window.currentDraft && window.currentDraft.id === page.id) {
-            window.currentDraft.hidden = true;
-            window.currentDraft.retired = true;
-            window.currentDraft.updatedAt = nowTs;
-          }
-          if (Array.isArray(window.drafts)) {
-            const d = window.drafts.find(item => item && (item.id === page.id || (page.slug && item.slug === page.slug)));
-            if (d) {
-              d.hidden = true;
-              d.retired = true;
-              d.updatedAt = nowTs;
-            }
-          }
-          if (window.CedarStore && typeof window.CedarStore.getPage === 'function') {
-            const storePage = window.CedarStore.getPage(page.id) || (page.slug ? window.CedarStore.getPage(page.slug) : null);
-            if (storePage) {
-              storePage.hidden = true;
-              storePage.retired = true;
-              storePage.updatedAt = nowTs;
-            }
-          }
-          const isRss = (page.id === 'page_rss' || page.slug === 'rss' || (page.title || '').trim().toLowerCase() === 'rss');
-          if (isRss) {
-            try {
-              localStorage.setItem('cedar_rss_user_explicitly_disabled', 'true');
-            } catch (e) {}
-            if (window.projectConfig) {
-              window.projectConfig.rssEnabled = false;
-            }
-            try {
-              localStorage.setItem('cedar_rss_enabled', 'false');
-              localStorage.setItem('outpost_rss_enabled', 'false');
-            } catch (e) {}
-            if (typeof saveProjectToStorage === 'function') {
-              saveProjectToStorage();
-            }
-          }
-          const isAll = isAllPage(page);
-          if (isAll) {
-            try {
-              localStorage.setItem('cedar_all_disabled', 'true');
-            } catch (e) {}
-            if (window.projectConfig) {
-              window.projectConfig.allDisabled = true;
-              window.projectConfig.allEnabled = false;
-            }
-            if (typeof saveProjectToStorage === 'function') {
-              saveProjectToStorage();
-            }
-          }
-          if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
-          if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
-            window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
-          }
-          renderStaticPages();
-          if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
-          if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
-          if (typeof showToast === 'function') showToast(`Page "${page.title}" disabled from public site`);
+          setPageEnabledState(page, false);
         } else if (act === 'enable' || act === 'unhide') {
-          if (isPagesEditMode) {
-            captureEditModeInputs();
-          }
-          const sortKey = getPageSortKey(page);
-          if (sortKey && !sessionPinnedHiddenState.has(sortKey)) {
-            sessionPinnedHiddenState.set(sortKey, isPageHidden(page));
-          }
-          const nowTs = Date.now();
-          page.hidden = false;
-          page.retired = false;
-          page.status = 'published';
-          page.updatedAt = nowTs;
-          if (window.currentDraft && window.currentDraft.id === page.id) {
-            window.currentDraft.hidden = false;
-            window.currentDraft.retired = false;
-            window.currentDraft.status = 'published';
-            window.currentDraft.updatedAt = nowTs;
-          }
-          if (Array.isArray(window.drafts)) {
-            const d = window.drafts.find(item => item && (item.id === page.id || (page.slug && item.slug === page.slug)));
-            if (d) {
-              d.hidden = false;
-              d.retired = false;
-              d.status = 'published';
-              d.updatedAt = nowTs;
-            }
-          }
-          if (window.CedarStore && typeof window.CedarStore.getPage === 'function') {
-            const storePage = window.CedarStore.getPage(page.id) || (page.slug ? window.CedarStore.getPage(page.slug) : null);
-            if (storePage) {
-              storePage.hidden = false;
-              storePage.retired = false;
-              storePage.status = 'published';
-              storePage.updatedAt = nowTs;
-            }
-          }
-          const isRss = (page.id === 'page_rss' || page.slug === 'rss' || (page.title || '').trim().toLowerCase() === 'rss');
-          if (isRss) {
-            try {
-              localStorage.removeItem('cedar_rss_user_explicitly_disabled');
-            } catch (e) {}
-            if (window.projectConfig) {
-              window.projectConfig.rssEnabled = true;
-            }
-            try {
-              localStorage.setItem('cedar_rss_enabled', 'true');
-              localStorage.setItem('outpost_rss_enabled', 'true');
-            } catch (e) {}
-            if (typeof saveProjectToStorage === 'function') {
-              saveProjectToStorage();
-            }
-            if (typeof window.syncRssPageDraft === 'function') {
-              window.syncRssPageDraft(window.projectConfig);
-            }
-          }
-          const isAll = isAllPage(page);
-          if (isAll) {
-            try {
-              localStorage.removeItem('cedar_all_disabled');
-            } catch (e) {}
-            if (window.projectConfig) {
-              window.projectConfig.allDisabled = false;
-              window.projectConfig.allEnabled = true;
-            }
-            if (typeof saveProjectToStorage === 'function') {
-              saveProjectToStorage();
-            }
-          }
-          if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
-          if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
-            window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
-          }
-          renderStaticPages();
-          if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
-          if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
-          if (typeof showToast === 'function') {
-            if (isRss) {
-              showToast('RSS page and syndication enabled');
-            } else {
-              showToast(`Page "${page.title}" enabled on public site`);
-            }
-          }
+          setPageEnabledState(page, true);
         } else if (act === 'delete') {
-          if (isBuiltIn || isAll) return;
-          const confirmed = (typeof window.showConfirmDialog === 'function')
-            ? await window.showConfirmDialog({
-                title: 'Delete Page?',
-                message: `Are you sure you want to delete page "${page.title || 'Untitled'}"?`,
-                confirmText: 'Delete',
-                isDanger: true
-              })
-            : confirm(`Are you sure you want to delete page "${page.title}"?`);
-
-          if (confirmed) {
-            if (editModeSnapshot && Array.isArray(editModeSnapshot.drafts)) {
-              editModeSnapshot.drafts = editModeSnapshot.drafts.filter(d => d && d.id !== page.id && (!page.slug || d.slug !== page.slug));
-            }
-            if (typeof window.deleteItem === 'function') {
-              await window.deleteItem(page.id, { skipConfirm: true });
-            } else if (Array.isArray(window.drafts)) {
-              window.drafts = window.drafts.filter(d => d.id !== page.id);
-              if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
-              renderStaticPages();
-              if (typeof updateDashboardCounts === 'function') updateDashboardCounts();
-              if (typeof showToast === 'function') showToast(`Page "${page.title}" deleted`);
-            }
-          }
+          await deletePageItemWithConfirm(page, false, catName);
         } else if (act === 'delete-cat') {
-          if (isBuiltIn || isAll) return;
-          const pubCount = Array.isArray(window.drafts)
-            ? window.drafts.filter(d => {
-                if (!d || d.type === 'page') return false;
-                const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
-                if (!isPub) return false;
-                const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
-                return pCat === catName.toLowerCase();
-              }).length
-            : 0;
-          const warnMsg = pubCount > 0
-            ? `Deleting category "${catName}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} and break existing links. Are you sure you want to delete it?`
-            : `Are you sure you want to delete category "${catName}"?`;
-          const confirmed = (typeof window.showConfirmDialog === 'function')
-            ? await window.showConfirmDialog({
-                title: pubCount > 0 ? 'URL Link Warning' : 'Delete Category?',
-                message: warnMsg,
-                confirmText: 'Delete',
-                isDanger: true
-              })
-            : confirm(warnMsg);
-
-          if (confirmed) {
-            const catSlug = (page && page.slug) || (typeof window.generateSlug === 'function' ? window.generateSlug(catName) : catName.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-            const catPageId = (page && page.id) || `page_cat_${catSlug}`;
-            if (editModeSnapshot) {
-              if (Array.isArray(editModeSnapshot.drafts)) {
-                editModeSnapshot.drafts = editModeSnapshot.drafts.filter(d => d && d.id !== page.id && d.id !== catPageId);
-              }
-              if (Array.isArray(editModeSnapshot.categories)) {
-                editModeSnapshot.categories = editModeSnapshot.categories.filter(c => String(c).toLowerCase() !== catName.toLowerCase());
-              }
-            }
-            if (window.projectConfig) {
-              if (Array.isArray(window.projectConfig.categories)) {
-                window.projectConfig.categories = window.projectConfig.categories.filter(c => String(c).toLowerCase() !== catName.toLowerCase());
-              }
-              if (!Array.isArray(window.projectConfig.deletedCategories)) {
-                window.projectConfig.deletedCategories = [];
-              }
-              if (!window.projectConfig.deletedCategories.some(dc => String(dc).trim().toLowerCase() === catName.toLowerCase())) {
-                window.projectConfig.deletedCategories.push(catName);
-              }
-              if (Array.isArray(window.projectConfig.activityLog)) {
-                window.projectConfig.activityLog = window.projectConfig.activityLog.filter(a => {
-                  if (!a) return false;
-                  if (a.type === 'category') {
-                    const aCat = String(a.data?.categoryName || a.data?.newName || a.data?.category || '').trim().toLowerCase();
-                    if (aCat === catName.toLowerCase() || a.id === 'synth-cat-' + catName) return false;
-                  }
-                  if (a.type === 'page') {
-                    const aPageId = String(a.data?.pageId || a.data?.id || '').trim();
-                    const aTitle = String(a.data?.title || '').trim().toLowerCase();
-                    if (aPageId === catPageId || aPageId === page.id || aTitle === catName.toLowerCase()) return false;
-                  }
-                  return true;
-                });
-                window.activityLog = window.projectConfig.activityLog;
-                try {
-                  localStorage.setItem('cedar_activity_log', JSON.stringify(window.projectConfig.activityLog));
-                  localStorage.setItem('outpost_activity_log', JSON.stringify(window.projectConfig.activityLog));
-                } catch (err) {}
-              }
-              if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
-            }
-            if (window.CedarStore) {
-              if (typeof window.CedarStore.markIdDeleted === 'function') {
-                window.CedarStore.markIdDeleted(page.id);
-                window.CedarStore.markIdDeleted(catPageId);
-              }
-              if (typeof window.CedarStore.remove === 'function') {
-                window.CedarStore.remove(page.id);
-                window.CedarStore.remove(catPageId);
-              }
-            }
-            if (catSlug) {
-              const delPaths = [`pages/published/${catSlug}`, `pages/hidden/${catSlug}`, `pages/${catSlug}`];
-              delPaths.forEach(p => {
-                if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.deleteFile === 'function') {
-                  window.CedarVirtualStorage.deleteFile(p).catch(() => {});
-                  window.CedarVirtualStorage.deleteFile(`${p}/index.html`).catch(() => {});
-                  window.CedarVirtualStorage.deleteFile(`${p}/draft.json`).catch(() => {});
-                }
-                if (window.SheeshVault && window.SheeshVault.isSupported && window.SheeshVault.dirHandle) {
-                  window.SheeshVault.deleteFile(p).catch(() => {});
-                }
-                if (window.location.protocol !== 'file:') {
-                  fetch('/api/vault-delete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filePath: p, targetPath: p })
-                  }).catch(() => {});
-                }
-              });
-            }
-            if (Array.isArray(window.drafts)) {
-              window.drafts = window.drafts.filter(d => d && d.id !== page.id && d.id !== catPageId);
-              window.drafts.forEach(d => {
-                if (!d || d.type === 'page') return;
-                let postChanged = false;
-                if (d.tag && d.tag.trim().toLowerCase() === catName.toLowerCase()) {
-                  d.tag = '';
-                  postChanged = true;
-                }
-                if (Array.isArray(d.categories)) {
-                  const origLen = d.categories.length;
-                  d.categories = d.categories.filter(c => c && c.trim().toLowerCase() !== catName.toLowerCase());
-                  if (d.categories.length !== origLen) postChanged = true;
-                }
-                if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
-                  d.tag = d.categories[0];
-                  postChanged = true;
-                }
-                if (d.permalinkCat && d.permalinkCat.trim().toLowerCase() === catName.toLowerCase()) {
-                  d.permalinkCat = d.tag || 'uncategorized';
-                  postChanged = true;
-                }
-                if (postChanged) d.updatedAt = Date.now();
-              });
-              if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
-                window.CedarStore.hydrateFromList(window.drafts);
-              }
-              if (typeof saveDraftsToStorage === 'function') saveDraftsToStorage();
-            }
-            renderStaticPages();
-            if (typeof window.renderTaxonomy === 'function') window.renderTaxonomy();
-            if (typeof window.updateCategorySelectUI === 'function') window.updateCategorySelectUI();
-            if (typeof window.updatePostsCategoryFilterOptions === 'function') window.updatePostsCategoryFilterOptions();
-            if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
-            if (typeof window.renderPipelineGrid === 'function') window.renderPipelineGrid();
-            if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
-            if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
-            if (typeof window.showToast === 'function') showToast(`Deleted category "${catName}"`);
-          }
+          await deletePageItemWithConfirm(page, true, catName);
         }
         return;
       }
 
-      // Card body clicks:
-      if (isPagesEditMode) {
-        return;
-      }
-
-      if (isCat || isAll) {
-        const filterCat = isAll ? '' : (catName || page.title || '').trim();
-
-        // 1. Clear posts search input
-        const postsSearchInput = document.getElementById('posts-search-input');
-        if (postsSearchInput) {
-          postsSearchInput.value = '';
-        }
-
-        // 3. Reset posts pagination
-        window._postsColumnPages = {};
-
-        // 4. Update posts category dropdown options
-        if (typeof updatePostsCategoryFilterOptions === 'function') {
-          updatePostsCategoryFilterOptions();
-        }
-
-        const catFilterSelect = document.getElementById('posts-category-filter');
-        if (catFilterSelect) {
-          if (!filterCat) {
-            catFilterSelect.value = '';
-          } else {
-            const matchedOpt = Array.from(catFilterSelect.options).find(opt => opt.value.trim().toLowerCase() === filterCat.toLowerCase());
-            if (matchedOpt) {
-              catFilterSelect.value = matchedOpt.value;
-            } else {
-              catFilterSelect.value = filterCat;
-            }
-          }
-        }
-
-        // 5. Navigate to posts tab
-        if (typeof navigateTo === 'function') {
-          navigateTo('posts');
-        } else if (typeof switchPane === 'function') {
-          switchPane('pane-posts');
-        } else {
-          window.location.hash = '#posts';
-        }
-
-        // 6. Ensure dropdown value is retained and render grid
-        if (catFilterSelect) {
-          if (!filterCat) {
-            catFilterSelect.value = '';
-          } else {
-            const matchedOpt = Array.from(catFilterSelect.options).find(opt => opt.value.trim().toLowerCase() === filterCat.toLowerCase());
-            if (matchedOpt) {
-              catFilterSelect.value = matchedOpt.value;
-            } else {
-              catFilterSelect.value = filterCat;
-            }
-          }
-        }
-
-        if (typeof renderAllPostsGrid === 'function') {
-          renderAllPostsGrid();
-        } else if (window.Cedar && window.Cedar.dashboard && typeof window.Cedar.dashboard.renderAllPostsGrid === 'function') {
-          window.Cedar.dashboard.renderAllPostsGrid();
-        }
-        return;
-      }
-
-      if (page.isRedirect) {
-        openEditRedirectModal(page);
-        return;
-      }
-
-      if (page.id === 'page_links' || page.slug === 'links' || (page.title || '').trim().toLowerCase() === 'links') {
-        window.location.hash = '#links';
-      } else {
-        openPostInEditor(page.id);
-      }
+      // Clicking any page card opens the unified Edit Page popup modal
+      openEditPageModal(page);
     });
 
     return card;
@@ -1594,7 +1377,6 @@
     if (!container._hasUniversalDragListeners) {
       container._hasUniversalDragListeners = true;
       container.addEventListener('dragover', (e) => {
-        if (!isPagesEditMode) return;
         const draggedEl = window._activeDraggedPageEl;
         if (!draggedEl) return;
         e.preventDefault();
@@ -1606,7 +1388,6 @@
         }
       });
       container.addEventListener('drop', (e) => {
-        if (!isPagesEditMode) return;
         handleUniversalPageDrop(e, container);
       });
     }
@@ -1988,18 +1769,58 @@
   }
 
   let editingRedirectPageId = null;
+  let editingPageTarget = null;
+  let editingPageLayout = 'grid';
+  let editingPageStatus = 'enabled';
+
+  function syncEditPageLayoutUI(layout) {
+    editingPageLayout = layout === 'list' ? 'list' : 'grid';
+    const layoutToggle = document.getElementById('edit-page-layout-toggle');
+    if (layoutToggle) {
+      layoutToggle.querySelectorAll('[data-edit-page-layout]').forEach(btn => {
+        const active = btn.dataset.editPageLayout === editingPageLayout;
+        btn.classList.toggle('active', active);
+        btn.classList.toggle('is-active', active);
+      });
+    }
+  }
+
+  function syncEditPageStatusUI(status) {
+    editingPageStatus = status === 'disabled' ? 'disabled' : 'enabled';
+    const statusToggle = document.getElementById('edit-page-status-toggle');
+    if (statusToggle) {
+      statusToggle.querySelectorAll('[data-edit-page-status]').forEach(btn => {
+        const isBtnEnabled = btn.dataset.editPageStatus === 'enabled';
+        const active = btn.dataset.editPageStatus === editingPageStatus;
+        btn.classList.toggle('active', active);
+        if (isBtnEnabled) {
+          btn.classList.toggle('card-btn-status-enabled', active);
+          btn.classList.toggle('card-btn-enabled', active);
+          btn.style.opacity = active ? '1' : '0.45';
+        } else {
+          btn.classList.toggle('card-btn-status-disabled', active);
+          btn.classList.toggle('card-btn-disabled', active);
+          btn.style.opacity = active ? '1' : '0.45';
+        }
+      });
+    }
+  }
 
   function openAddPageModal() {
     editingRedirectPageId = null;
+    editingPageTarget = null;
     const modal = document.getElementById('modal-add-page-choice');
     if (!modal) return;
     const stepChoice = document.getElementById('add-page-step-choice');
     const stepCategory = document.getElementById('add-page-step-category');
     const stepRedirect = document.getElementById('add-page-step-redirect');
+    const stepEdit = document.getElementById('add-page-step-edit');
     const btnCancel = document.getElementById('btn-cancel-add-page-choice');
     const btnBack = document.getElementById('btn-back-add-page-choice');
     const btnSubmit = document.getElementById('btn-submit-new-category');
     const btnSubmitRedirect = document.getElementById('btn-submit-new-redirect');
+    const btnSubmitEditPage = document.getElementById('btn-submit-edit-page');
+    const btnDeleteEditPage = document.getElementById('btn-delete-edit-page');
     const title = document.getElementById('add-page-modal-title');
     const desc = document.getElementById('add-page-modal-desc');
     const inputCat = document.getElementById('input-add-page-cat-name');
@@ -2012,6 +1833,7 @@
     if (stepChoice) stepChoice.style.display = 'flex';
     if (stepCategory) stepCategory.style.display = 'none';
     if (stepRedirect) stepRedirect.style.display = 'none';
+    if (stepEdit) stepEdit.style.display = 'none';
     if (btnCancel) btnCancel.style.display = 'inline-flex';
     if (btnBack) btnBack.style.display = 'none';
     if (btnSubmit) btnSubmit.style.display = 'none';
@@ -2019,6 +1841,8 @@
       btnSubmitRedirect.style.display = 'none';
       btnSubmitRedirect.textContent = 'Add Redirect';
     }
+    if (btnSubmitEditPage) btnSubmitEditPage.style.display = 'none';
+    if (btnDeleteEditPage) btnDeleteEditPage.style.display = 'none';
     if (iconPage) iconPage.style.display = 'inline-block';
     if (iconCat) iconCat.style.display = 'none';
     if (iconRedirect) iconRedirect.style.display = 'none';
@@ -2032,62 +1856,328 @@
     modal.classList.add('active');
   }
 
-  function openEditRedirectModal(page) {
+  function openEditPageModal(page) {
     if (!page) return;
     initAddPageModalEvents();
-    editingRedirectPageId = page.id;
+    editingPageTarget = page;
+    editingRedirectPageId = page.isRedirect ? page.id : null;
 
     const modal = document.getElementById('modal-add-page-choice');
     if (!modal) return;
     const stepChoice = document.getElementById('add-page-step-choice');
     const stepCategory = document.getElementById('add-page-step-category');
     const stepRedirect = document.getElementById('add-page-step-redirect');
+    const stepEdit = document.getElementById('add-page-step-edit');
     const btnCancel = document.getElementById('btn-cancel-add-page-choice');
     const btnBack = document.getElementById('btn-back-add-page-choice');
     const btnSubmit = document.getElementById('btn-submit-new-category');
     const btnSubmitRedirect = document.getElementById('btn-submit-new-redirect');
+    const btnSubmitEditPage = document.getElementById('btn-submit-edit-page');
+    const btnDeleteEditPage = document.getElementById('btn-delete-edit-page');
     const title = document.getElementById('add-page-modal-title');
     const desc = document.getElementById('add-page-modal-desc');
-    const inputRedirectTitle = document.getElementById('input-add-page-redirect-title');
-    const inputRedirectUrl = document.getElementById('input-add-page-redirect-url');
     const iconPage = document.getElementById('add-page-modal-icon-page');
     const iconCat = document.getElementById('add-page-modal-icon-cat');
     const iconRedirect = document.getElementById('add-page-modal-icon-redirect');
 
+    const inputEditTitle = document.getElementById('input-edit-page-title');
+    const urlGroup = document.getElementById('edit-page-url-group');
+    const inputEditUrl = document.getElementById('input-edit-page-url');
+    const layoutGroup = document.getElementById('edit-page-layout-group');
+    const statusGroup = document.getElementById('edit-page-status-group');
+    const contentGroup = document.getElementById('edit-page-content-group');
+    const btnOpenEditor = document.getElementById('btn-edit-page-open-editor');
+
+    const isAll = isAllPage(page);
+    const isBuiltIn = isBuiltInPage(page) && !isAll;
+    const currentCatsLower = new Set(
+      (window.projectConfig?.categories || [])
+        .map(c => (typeof c === 'object' ? (c.name || c.title || '') : String(c || '')).trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const isCat = isCategoryPageItem(page, currentCatsLower) || isAll;
+
     if (stepChoice) stepChoice.style.display = 'none';
     if (stepCategory) stepCategory.style.display = 'none';
-    if (stepRedirect) stepRedirect.style.display = 'flex';
+    if (stepRedirect) stepRedirect.style.display = 'none';
+    if (stepEdit) stepEdit.style.display = 'flex';
     if (btnCancel) btnCancel.style.display = 'inline-flex';
     if (btnBack) btnBack.style.display = 'none';
     if (btnSubmit) btnSubmit.style.display = 'none';
-    if (btnSubmitRedirect) {
-      btnSubmitRedirect.style.display = 'inline-flex';
-      btnSubmitRedirect.textContent = 'Save Changes';
+    if (btnSubmitRedirect) btnSubmitRedirect.style.display = 'none';
+    if (btnSubmitEditPage) btnSubmitEditPage.style.display = 'inline-flex';
+
+    // Built-in pages (RSS, About, Links) and All page cannot be deleted
+    const canDelete = !isBuiltIn && !isAll;
+    if (btnDeleteEditPage) {
+      btnDeleteEditPage.style.display = canDelete ? 'inline-flex' : 'none';
     }
-    if (iconPage) iconPage.style.display = 'none';
-    if (iconCat) iconCat.style.display = 'none';
-    if (iconRedirect) iconRedirect.style.display = 'inline-block';
-    if (title) title.textContent = 'Edit Redirect';
-    if (desc) desc.textContent = 'Update the page title and target URL for this redirect.';
-    if (inputRedirectTitle) {
-      inputRedirectTitle.value = page.title || '';
-      setTimeout(() => inputRedirectTitle.focus(), 50);
+
+    if (page.isRedirect) {
+      if (iconPage) iconPage.style.display = 'none';
+      if (iconCat) iconCat.style.display = 'none';
+      if (iconRedirect) iconRedirect.style.display = 'inline-block';
+      if (title) title.textContent = 'Edit Redirect';
+      if (desc) desc.textContent = 'Update the page name, target URL, and visibility.';
+    } else if (isCat || isAll) {
+      if (iconPage) iconPage.style.display = 'none';
+      if (iconCat) iconCat.style.display = 'inline-block';
+      if (iconRedirect) iconRedirect.style.display = 'none';
+      if (title) title.textContent = 'Edit Category Page';
+      if (desc) desc.textContent = 'Update the page name, layout mode, and visibility.';
+    } else if (isBuiltIn) {
+      if (iconPage) iconPage.style.display = 'inline-block';
+      if (iconCat) iconCat.style.display = 'none';
+      if (iconRedirect) iconRedirect.style.display = 'none';
+      if (title) title.textContent = 'Edit Built-In Page';
+      if (desc) desc.textContent = 'Update the display name and visibility for this built-in page.';
+    } else {
+      if (iconPage) iconPage.style.display = 'inline-block';
+      if (iconCat) iconCat.style.display = 'none';
+      if (iconRedirect) iconRedirect.style.display = 'none';
+      if (title) title.textContent = 'Edit Page';
+      if (desc) desc.textContent = 'Update the page name, visibility, or edit its content.';
     }
-    if (inputRedirectUrl) {
-      inputRedirectUrl.value = page.redirectUrl || page.url || '';
+
+    if (inputEditTitle) {
+      inputEditTitle.value = page.title || '';
+      setTimeout(() => inputEditTitle.focus(), 50);
+    }
+
+    if (urlGroup) {
+      urlGroup.style.display = page.isRedirect ? 'flex' : 'none';
+    }
+    if (inputEditUrl) {
+      inputEditUrl.value = page.redirectUrl || page.url || '';
+    }
+
+    if (layoutGroup) {
+      layoutGroup.style.display = (isCat || isAll) ? 'flex' : 'none';
+    }
+    const currentLayout = page.layout === 'list' || (page.markdown && page.markdown.includes('layout="list"')) || (page.proseHtml && page.proseHtml.includes('data-layout="list"')) ? 'list' : 'grid';
+    syncEditPageLayoutUI(currentLayout);
+
+    if (statusGroup) {
+      statusGroup.style.display = 'flex';
+    }
+    syncEditPageStatusUI(isPageHidden(page) ? 'disabled' : 'enabled');
+
+    const hasEditableContent = !page.isRedirect && !isCat && !isAll;
+    if (contentGroup) {
+      contentGroup.style.display = hasEditableContent ? 'flex' : 'none';
+    }
+    if (btnOpenEditor && hasEditableContent) {
+      const isLinksPage = page.id === 'page_links' || page.slug === 'links';
+      btnOpenEditor.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        <span>${isLinksPage ? 'Open Links Studio' : 'Edit Page Content'}</span>
+      `;
     }
 
     modal.style.display = 'flex';
     modal.classList.add('active');
   }
 
+  function openEditRedirectModal(page) {
+    openEditPageModal(page);
+  }
+
   function closeAddPageModal() {
     editingRedirectPageId = null;
+    editingPageTarget = null;
     const modal = document.getElementById('modal-add-page-choice');
     if (modal) {
       modal.style.display = 'none';
       modal.classList.remove('active');
     }
+  }
+
+  function saveEditPageModalChanges(options = {}) {
+    const page = editingPageTarget;
+    if (!page) return false;
+
+    const inputEditTitle = document.getElementById('input-edit-page-title');
+    const inputEditUrl = document.getElementById('input-edit-page-url');
+
+    const newTitle = (inputEditTitle?.value || '').trim();
+    if (!newTitle) {
+      if (typeof window.showToast === 'function') window.showToast('Please enter a page name.');
+      if (inputEditTitle) inputEditTitle.focus();
+      return false;
+    }
+
+    const isAll = isAllPage(page);
+    const isBuiltIn = isBuiltInPage(page) && !isAll;
+    const currentCatsLower = new Set(
+      (window.projectConfig?.categories || [])
+        .map(c => (typeof c === 'object' ? (c.name || c.title || '') : String(c || '')).trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const isCat = isCategoryPageItem(page, currentCatsLower) || isAll;
+    const oldCatName = isAll ? 'All' : (page.categoryAggregate || page.title || '');
+    const oldTitle = (page.title || '').trim();
+
+    const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+    if (!isBuiltIn && !isAll && newTitle.toLowerCase() !== oldTitle.toLowerCase() && reservedNames.has(newTitle.toLowerCase())) {
+      if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
+      if (inputEditTitle) inputEditTitle.focus();
+      return false;
+    }
+
+    let urlVal = '';
+    if (page.isRedirect) {
+      urlVal = (inputEditUrl?.value || '').trim();
+      if (!urlVal) {
+        if (typeof window.showToast === 'function') window.showToast('Please enter a bookmark / target URL.');
+        if (inputEditUrl) inputEditUrl.focus();
+        return false;
+      }
+      if (!urlVal.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//i) && !urlVal.startsWith('/') && !urlVal.startsWith('#')) {
+        urlVal = 'https://' + urlVal;
+      }
+    }
+
+    const nowTs = Date.now();
+
+    // 1. Handle Name / Category rename
+    if (isCat && !isAll) {
+      if (newTitle !== oldCatName && typeof window.renameCategory === 'function') {
+        const exists = (window.projectConfig?.categories || []).some(
+          c => String(c).trim().toLowerCase() === newTitle.toLowerCase() && String(c).trim().toLowerCase() !== oldCatName.toLowerCase()
+        );
+        if (exists) {
+          if (typeof window.showToast === 'function') window.showToast(`Category "${newTitle}" already exists.`);
+          if (inputEditTitle) inputEditTitle.focus();
+          return false;
+        }
+        window.renameCategory(oldCatName, newTitle);
+      }
+      page.title = newTitle;
+      page.categoryAggregate = newTitle;
+    } else {
+      page.title = newTitle;
+      page.updatedAt = nowTs;
+      if (isAll) {
+        page.id = 'page_all';
+        page.slug = 'all';
+        if (!window.projectConfig) window.projectConfig = {};
+        window.projectConfig.allPageTitle = newTitle;
+      } else if (isBuiltIn) {
+        // Keep canonical built-in id and slug (rss, about, links) while allowing custom title
+      } else if (typeof window.generateSlug === 'function') {
+        page.slug = window.generateSlug(newTitle, page.isRedirect ? 'redirect' : 'untitled-page', 30);
+      } else {
+        page.slug = newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      }
+
+      if (page.isRedirect) {
+        page.redirectUrl = urlVal;
+        page.url = urlVal;
+      }
+
+      if (window.currentDraft && (window.currentDraft.id === page.id || (page.slug && window.currentDraft.slug === page.slug))) {
+        window.currentDraft.title = page.title;
+        window.currentDraft.slug = page.slug;
+        if (page.isRedirect) {
+          window.currentDraft.redirectUrl = urlVal;
+          window.currentDraft.url = urlVal;
+        }
+        window.currentDraft.updatedAt = nowTs;
+      }
+
+      if (Array.isArray(window.drafts)) {
+        const d = window.drafts.find(item => item && (item.id === page.id || (page.slug && item.slug === page.slug)));
+        if (d) {
+          d.title = page.title;
+          d.slug = page.slug;
+          if (page.isRedirect) {
+            d.redirectUrl = urlVal;
+            d.url = urlVal;
+          }
+          d.updatedAt = nowTs;
+        }
+      }
+
+      if (window.CedarStore && typeof window.CedarStore.getPage === 'function') {
+        const storePage = window.CedarStore.getPage(page.id) || (page.slug ? window.CedarStore.getPage(page.slug) : null);
+        if (storePage) {
+          storePage.title = page.title;
+          storePage.slug = page.slug;
+          if (page.isRedirect) {
+            storePage.redirectUrl = urlVal;
+            storePage.url = urlVal;
+          }
+          storePage.updatedAt = nowTs;
+          if (typeof window.CedarStore.upsert === 'function') {
+            window.CedarStore.upsert(storePage);
+          }
+        }
+      }
+
+      if (oldTitle && oldTitle !== newTitle && typeof window.logActivity === 'function') {
+        window.logActivity('page', {
+          action: 'renamed',
+          id: page.id,
+          title: newTitle,
+          oldTitle: oldTitle,
+          slug: page.slug
+        });
+      }
+    }
+
+    // 2. Handle Layout (Grid / List) for Category & All pages
+    if (isCat || isAll) {
+      const chosenLayout = editingPageLayout === 'list' ? 'list' : 'grid';
+      page.layout = chosenLayout;
+      page.markdown = `:::recent-posts layout="${chosenLayout}":::`;
+      page.proseHtml = `<div class="page-recent-posts-block" data-block-type="recent-posts" data-layout="${chosenLayout}" contenteditable="false"></div>`;
+      page.updatedAt = nowTs;
+
+      if (Array.isArray(window.drafts)) {
+        const d = window.drafts.find(item => item && (item.id === page.id || (page.slug && item.slug === page.slug) || (isCat && !isAll && (item.categoryAggregate || '').toLowerCase() === newTitle.toLowerCase())));
+        if (d) {
+          d.layout = chosenLayout;
+          d.markdown = page.markdown;
+          d.proseHtml = page.proseHtml;
+          d.updatedAt = nowTs;
+        }
+      }
+      if (window.CedarStore && typeof window.CedarStore.getPage === 'function') {
+        const storePage = window.CedarStore.getPage(page.id) || (page.slug ? window.CedarStore.getPage(page.slug) : null);
+        if (storePage) {
+          storePage.layout = chosenLayout;
+          storePage.markdown = page.markdown;
+          storePage.proseHtml = page.proseHtml;
+          storePage.updatedAt = nowTs;
+        }
+      }
+    }
+
+    // 3. Handle Enabled / Disabled status
+    const shouldBeEnabled = editingPageStatus !== 'disabled';
+    setPageEnabledState(page, shouldBeEnabled, { skipSave: true, silentToast: true });
+
+    // 4. Persist & Refresh UI
+    if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
+    if (typeof window.saveProjectToStorage === 'function') window.saveProjectToStorage();
+    if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected() && typeof window.SheeshVault.copyBlogToFolder === 'function') {
+      window.SheeshVault.copyBlogToFolder(window.SheeshVault.getRootHandle()).catch(() => {});
+    }
+
+    renderStaticPages();
+    if (typeof window.renderTaxonomy === 'function') window.renderTaxonomy();
+    if (typeof window.updateCategorySelectUI === 'function') window.updateCategorySelectUI();
+    if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
+    if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
+    if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+
+    if (!options.keepModalOpen) {
+      closeAddPageModal();
+    }
+    if (!options.silentToast && typeof window.showToast === 'function') {
+      window.showToast(`Saved changes to "${newTitle}"`);
+    }
+    return true;
   }
 
   function initAddPageModalEvents() {
@@ -2100,17 +2190,25 @@
     const btnBack = document.getElementById('btn-back-add-page-choice');
     const btnSubmit = document.getElementById('btn-submit-new-category');
     const btnSubmitRedirect = document.getElementById('btn-submit-new-redirect');
+    const btnSubmitEditPage = document.getElementById('btn-submit-edit-page');
+    const btnDeleteEditPage = document.getElementById('btn-delete-edit-page');
+    const btnOpenEditor = document.getElementById('btn-edit-page-open-editor');
     const btnChoiceStatic = document.getElementById('btn-choice-static-page');
     const btnChoiceCategory = document.getElementById('btn-choice-category');
     const btnChoiceRedirect = document.getElementById('btn-choice-redirect');
     const stepChoice = document.getElementById('add-page-step-choice');
     const stepCategory = document.getElementById('add-page-step-category');
     const stepRedirect = document.getElementById('add-page-step-redirect');
+    const stepEdit = document.getElementById('add-page-step-edit');
     const title = document.getElementById('add-page-modal-title');
     const desc = document.getElementById('add-page-modal-desc');
     const inputCat = document.getElementById('input-add-page-cat-name');
     const inputRedirectTitle = document.getElementById('input-add-page-redirect-title');
     const inputRedirectUrl = document.getElementById('input-add-page-redirect-url');
+    const inputEditTitle = document.getElementById('input-edit-page-title');
+    const inputEditUrl = document.getElementById('input-edit-page-url');
+    const layoutToggle = document.getElementById('edit-page-layout-toggle');
+    const statusToggle = document.getElementById('edit-page-status-toggle');
     const iconPage = document.getElementById('add-page-modal-icon-page');
     const iconCat = document.getElementById('add-page-modal-icon-cat');
     const iconRedirect = document.getElementById('add-page-modal-icon-redirect');
@@ -2127,6 +2225,82 @@
       mouseDownOnModalBackdrop = false;
     });
 
+    if (layoutToggle) {
+      layoutToggle.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-edit-page-layout]');
+        if (!btn) return;
+        e.preventDefault();
+        syncEditPageLayoutUI(btn.dataset.editPageLayout);
+      });
+    }
+
+    if (statusToggle) {
+      statusToggle.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-edit-page-status]');
+        if (!btn) return;
+        e.preventDefault();
+        syncEditPageStatusUI(btn.dataset.editPageStatus);
+      });
+    }
+
+    if (btnSubmitEditPage) {
+      btnSubmitEditPage.addEventListener('click', () => {
+        saveEditPageModalChanges();
+      });
+    }
+
+    if (inputEditTitle) {
+      inputEditTitle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (editingPageTarget && editingPageTarget.isRedirect && inputEditUrl) {
+            inputEditUrl.focus();
+          } else {
+            saveEditPageModalChanges();
+          }
+        }
+      });
+    }
+
+    if (inputEditUrl) {
+      inputEditUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveEditPageModalChanges();
+        }
+      });
+    }
+
+    if (btnOpenEditor) {
+      btnOpenEditor.addEventListener('click', () => {
+        const targetPage = editingPageTarget;
+        if (!targetPage) return;
+        saveEditPageModalChanges({ silentToast: true });
+        if (targetPage.id === 'page_links' || targetPage.slug === 'links') {
+          window.location.hash = '#links';
+        } else if (typeof openPostInEditor === 'function') {
+          openPostInEditor(targetPage.id);
+        }
+      });
+    }
+
+    if (btnDeleteEditPage) {
+      btnDeleteEditPage.addEventListener('click', async () => {
+        const targetPage = editingPageTarget;
+        if (!targetPage) return;
+        const isAll = isAllPage(targetPage);
+        const currentCatsLower = new Set(
+          (window.projectConfig?.categories || [])
+            .map(c => (typeof c === 'object' ? (c.name || c.title || '') : String(c || '')).trim().toLowerCase())
+            .filter(Boolean)
+        );
+        const isCat = isCategoryPageItem(targetPage, currentCatsLower) || isAll;
+        const catName = isAll ? 'All' : (targetPage.categoryAggregate || targetPage.title || '');
+        closeAddPageModal();
+        await deletePageItemWithConfirm(targetPage, isCat, catName);
+      });
+    }
+
     if (btnChoiceStatic) {
       btnChoiceStatic.addEventListener('click', () => {
         closeAddPageModal();
@@ -2141,10 +2315,13 @@
         if (stepChoice) stepChoice.style.display = 'none';
         if (stepCategory) stepCategory.style.display = 'flex';
         if (stepRedirect) stepRedirect.style.display = 'none';
+        if (stepEdit) stepEdit.style.display = 'none';
         if (btnCancel) btnCancel.style.display = 'none';
         if (btnBack) btnBack.style.display = 'inline-flex';
         if (btnSubmit) btnSubmit.style.display = 'inline-flex';
         if (btnSubmitRedirect) btnSubmitRedirect.style.display = 'none';
+        if (btnSubmitEditPage) btnSubmitEditPage.style.display = 'none';
+        if (btnDeleteEditPage) btnDeleteEditPage.style.display = 'none';
         if (iconPage) iconPage.style.display = 'none';
         if (iconCat) iconCat.style.display = 'inline-block';
         if (iconRedirect) iconRedirect.style.display = 'none';
@@ -2163,6 +2340,7 @@
         if (stepChoice) stepChoice.style.display = 'none';
         if (stepCategory) stepCategory.style.display = 'none';
         if (stepRedirect) stepRedirect.style.display = 'flex';
+        if (stepEdit) stepEdit.style.display = 'none';
         if (btnCancel) btnCancel.style.display = 'none';
         if (btnBack) btnBack.style.display = 'inline-flex';
         if (btnSubmit) btnSubmit.style.display = 'none';
@@ -2170,6 +2348,8 @@
           btnSubmitRedirect.style.display = 'inline-flex';
           btnSubmitRedirect.textContent = 'Add Redirect';
         }
+        if (btnSubmitEditPage) btnSubmitEditPage.style.display = 'none';
+        if (btnDeleteEditPage) btnDeleteEditPage.style.display = 'none';
         if (iconPage) iconPage.style.display = 'none';
         if (iconCat) iconCat.style.display = 'none';
         if (iconRedirect) iconRedirect.style.display = 'inline-block';
@@ -2188,9 +2368,11 @@
     if (btnBack) {
       btnBack.addEventListener('click', () => {
         editingRedirectPageId = null;
+        editingPageTarget = null;
         if (stepChoice) stepChoice.style.display = 'flex';
         if (stepCategory) stepCategory.style.display = 'none';
         if (stepRedirect) stepRedirect.style.display = 'none';
+        if (stepEdit) stepEdit.style.display = 'none';
         if (btnCancel) btnCancel.style.display = 'inline-flex';
         if (btnBack) btnBack.style.display = 'none';
         if (btnSubmit) btnSubmit.style.display = 'none';
@@ -2198,6 +2380,8 @@
           btnSubmitRedirect.style.display = 'none';
           btnSubmitRedirect.textContent = 'Add Redirect';
         }
+        if (btnSubmitEditPage) btnSubmitEditPage.style.display = 'none';
+        if (btnDeleteEditPage) btnDeleteEditPage.style.display = 'none';
         if (iconPage) iconPage.style.display = 'inline-block';
         if (iconCat) iconCat.style.display = 'none';
         if (iconRedirect) iconRedirect.style.display = 'none';
@@ -2234,47 +2418,6 @@
       const redirectSlug = (typeof window.generateSlug === 'function')
         ? window.generateSlug(titleVal, 'redirect', 30)
         : titleVal.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-      // Check if editing an existing redirect page
-      if (editingRedirectPageId) {
-        let updated = false;
-        if (window.CedarStore && typeof window.CedarStore.getPage === 'function') {
-          const storePage = window.CedarStore.getPage(editingRedirectPageId);
-          if (storePage) {
-            storePage.title = titleVal;
-            storePage.slug = redirectSlug;
-            storePage.redirectUrl = urlVal;
-            storePage.url = urlVal;
-            storePage.updatedAt = Date.now();
-            if (typeof window.CedarStore.upsert === 'function') {
-              window.CedarStore.upsert(storePage);
-            }
-            updated = true;
-          }
-        }
-        if (Array.isArray(window.drafts)) {
-          const draftPage = window.drafts.find(d => d && d.id === editingRedirectPageId);
-          if (draftPage) {
-            draftPage.title = titleVal;
-            draftPage.slug = redirectSlug;
-            draftPage.redirectUrl = urlVal;
-            draftPage.url = urlVal;
-            draftPage.updatedAt = Date.now();
-            updated = true;
-          }
-        }
-        if (updated) {
-          if (typeof window.saveDraftsToStorage === 'function') {
-            window.saveDraftsToStorage();
-          }
-          renderStaticPages();
-          if (typeof window.updateDashboardCounts === 'function') updateDashboardCounts();
-          if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
-          closeAddPageModal();
-          if (typeof window.showToast === 'function') window.showToast(`Updated redirect page "${titleVal}"`);
-          return;
-        }
-      }
 
       const redirectId = 'page_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
@@ -2426,9 +2569,6 @@
       sortSelect.dataset.listenerBound = 'true';
       sortSelect.value = getPagesSortMode();
       sortSelect.addEventListener('change', () => {
-        if (isPagesEditMode) {
-          captureEditModeInputs();
-        }
         const chosenMode = sortSelect.value;
         if (chosenMode === 'custom') {
           if (!window.projectConfig) window.projectConfig = {};
@@ -2593,6 +2733,8 @@
   window.isCategoryPageItem = isCategoryPageItem;
   window.isBuiltInPage = isBuiltInPage;
   window.openAddPageModal = openAddPageModal;
+  window.openEditPageModal = openEditPageModal;
+  window.openEditRedirectModal = openEditRedirectModal;
   window.closeAddPageModal = closeAddPageModal;
   window.initAddPageModalEvents = initAddPageModalEvents;
 
@@ -2610,6 +2752,8 @@
     isCategoryPageItem,
     isBuiltInPage,
     openAddPageModal,
+    openEditPageModal,
+    openEditRedirectModal,
     closeAddPageModal,
     initAddPageModalEvents
   });

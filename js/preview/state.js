@@ -643,7 +643,7 @@
             keep.id = 'page_links';
             keep.slug = 'links';
             keep.type = 'page';
-            keep.title = 'Links';
+            if (!keep.title) keep.title = 'Links';
             delete keep.coverImage;
             delete keep.featuredImage;
             if (linksMatches.length > 1) {
@@ -696,7 +696,7 @@
               }
             }
           }
-          const existingAbout = drafts.find(d => d.type === 'page' && (d.slug === 'about' || (d.title || '').trim().toLowerCase() === 'about'));
+          const existingAbout = drafts.find(d => d.type === 'page' && (d.id === 'page_about' || d.slug === 'about' || (d.title || '').trim().toLowerCase() === 'about'));
           if (!existingAbout) {
             drafts.push({
               id: 'page_about',
@@ -715,7 +715,7 @@
             });
           } else {
             const md = (existingAbout.markdown || '').trim();
-            const isBoilerplateMd = !md || md.includes('Welcome to **Cedar**') || md.includes('Welcome to **Outpost**');
+            const isBoilerplateMd = md.includes('Welcome to **Cedar**') || md.includes('Welcome to **Outpost**');
             if (isBoilerplateMd) {
               existingAbout.markdown = '';
               existingAbout.proseHtml = '';

@@ -3137,7 +3137,31 @@
       const targetDrafts = Array.isArray(window.drafts) ? window.drafts : [];
       let defaultPage = null;
 
-      if (pageId === 'page_about') {
+      if (pageId === 'page_all') {
+        if (window.projectConfig) {
+          delete window.projectConfig.allPageTitle;
+        }
+        defaultPage = (typeof window.createDefaultAllPage === 'function')
+          ? window.createDefaultAllPage()
+          : {
+              id: 'page_all',
+              type: 'page',
+              status: 'published',
+              title: 'All',
+              slug: 'all',
+              subtitle: '',
+              layout: 'grid',
+              markdown: ':::recent-posts layout="grid":::',
+              proseHtml: '<div class="page-recent-posts-block" data-block-type="recent-posts" data-layout="grid" contenteditable="false"></div>',
+              isCategoryAggregate: true,
+              categoryAggregate: 'All',
+              hasHadRecentPostsInit: true,
+              hidden: false,
+              retired: false,
+              images: []
+            };
+        defaultPage.title = 'All';
+      } else if (pageId === 'page_about') {
         defaultPage = (typeof window.createDefaultAboutPage === 'function')
           ? window.createDefaultAboutPage()
           : {
@@ -3153,6 +3177,7 @@
               retired: true,
               images: []
             };
+        defaultPage.title = 'About';
       } else if (pageId === 'page_links') {
         defaultPage = (typeof window.createDefaultLinksPage === 'function')
           ? window.createDefaultLinksPage()
@@ -3170,6 +3195,7 @@
               retired: true,
               images: []
             };
+        defaultPage.title = 'Links';
         if (typeof window.generateLinksPageData === 'function' && defaultPage.linksData) {
           const generated = window.generateLinksPageData(defaultPage.linksData, window.projectConfig);
           if (generated) {
@@ -3194,6 +3220,7 @@
               retired: true,
               images: []
             };
+        defaultPage.title = 'RSS';
       }
 
       if (!defaultPage) return false;
@@ -3287,6 +3314,7 @@
         if (restoreError) restoreError.style.display = 'none';
 
         const pageLabels = {
+          page_all: 'All',
           page_about: 'About',
           page_links: 'Links',
           page_rss: 'RSS'
