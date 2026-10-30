@@ -4382,7 +4382,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.56';
+    const buildStamp = options.buildStamp || '6.6.57';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;

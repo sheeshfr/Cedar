@@ -702,7 +702,7 @@
       headerViewToggle.remove();
     }
 
-    // Pages are always rendered in List View
+    // Pages are rendered in a compact multi-column grid so all pages fit without scrolling
     const targetGrids = [
       'pages-cards-all',
       'pages-cards-my-pages',
@@ -713,12 +713,14 @@
     targetGrids.forEach(id => {
       const gridEl = document.getElementById(id);
       if (gridEl) {
-        gridEl.classList.add('is-list-view');
+        gridEl.classList.remove('is-list-view');
+        gridEl.classList.add('pages-compact-grid');
       }
     });
 
     document.querySelectorAll('#pane-pages .posts-horizontal-grid, #pane-pages .posts-subpage-grid').forEach(el => {
-      el.classList.add('is-list-view');
+      el.classList.remove('is-list-view');
+      el.classList.add('pages-compact-grid');
     });
   }
 
@@ -1140,16 +1142,7 @@
     }
     card.setAttribute('draggable', 'true');
 
-    // Visibility Toggle Button on the right side: red Disabled or green Enabled
-    const visibilityActionBtn = isHiddenCard
-      ? `<button type="button" class="card-btn card-btn-status-disabled card-btn-disabled" data-action="enable" title="Disabled – click to enable">Disabled</button>`
-      : `<button type="button" class="card-btn card-btn-status-enabled card-btn-enabled" data-action="disable" title="Enabled – click to disable">Enabled</button>`;
-
-    const actionsHtml = `
-      ${visibilityActionBtn}
-    `;
-
-    // Page Type Tag Badge next to title: Redirect, Category, Static, Built-In
+    // Page Type Tag Badge: Redirect, Category, Static, Built-In
     let pageTypeTag = 'Static';
     let badgeClass = 'badge-static';
 
@@ -1173,10 +1166,10 @@
       : `<span class="badge ${badgeClass}" title="${pageTypeTag} page">${pageTypeTag}</span>`;
 
     const redirectUrlDisplay = page.isRedirect
-      ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>`
+      ? `<span class="card-redirect-url-sub" style="display: block; font-size: 0.73rem; font-weight: 400; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;" title="${escapeHtml(page.redirectUrl || page.url || '')}">${escapeHtml(page.redirectUrl || page.url || '')}</span>`
       : '';
 
-    const titleHtml = `<div style="display: flex; flex-direction: column;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><h4 class="card-title" style="margin: 0;">${escapeHtml(page.title || 'Untitled Page')}</h4>${typeBadge}</div>${redirectUrlDisplay}</div>`;
+    const titleHtml = `<div class="page-card-title-block" style="display: flex; flex-direction: column; min-width: 0; flex: 1;"><h4 class="card-title" style="margin: 0;">${escapeHtml(page.title || 'Untitled Page')}</h4>${redirectUrlDisplay}</div>`;
 
     card.innerHTML = `
       <div class="card-content-wrap">
@@ -1192,9 +1185,7 @@
             </svg>
           </span>
           ${titleHtml}
-        </div>
-        <div class="card-list-actions">
-          ${actionsHtml}
+          <div class="page-card-badge-wrap">${typeBadge}</div>
         </div>
       </div>
     `;
