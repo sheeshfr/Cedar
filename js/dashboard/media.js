@@ -314,12 +314,16 @@
             : lookupRegUrl([
                 avatarUrl,
                 avatarUrl ? avatarUrl.replace(/^\/+/, '') : '',
+                `media/authors/${authorSlug}_avatar.gif`,
                 `media/authors/${authorSlug}_avatar.jpg`,
                 `media/authors/${authorSlug}_avatar.png`,
+                `${authorSlug}_avatar.gif`,
                 `${authorSlug}_avatar.jpg`,
                 `${authorSlug}_avatar.png`,
+                'media/authors/author_avatar.gif',
                 'media/authors/author_avatar.jpg',
                 'media/authors/author_avatar.png',
+                'author_avatar.gif',
                 'author_avatar.jpg',
                 'author_avatar.png'
               ]);
@@ -329,7 +333,8 @@
         if (avatarUrl && (avatarUrl.startsWith('data:') || avatarUrl.startsWith('blob:') || (window.Cedar && window.Cedar.isLocalServer))) {
           let baseFilename = avatarUrl;
           if (baseFilename.startsWith('data:') || baseFilename.startsWith('blob:')) {
-            baseFilename = `${authorSlug}_avatar.png`;
+            const avExt = /^data:image\/gif/i.test(baseFilename) ? 'gif' : 'png';
+            baseFilename = `${authorSlug}_avatar.${avExt}`;
           } else if (baseFilename.includes('/')) {
             baseFilename = baseFilename.split('/').pop();
           } else if (baseFilename.includes('\\')) {
@@ -2048,7 +2053,8 @@
           if (sanitized && sanitized.blob) {
             blob = sanitized.blob;
             dataUrl = sanitized.dataUrl;
-            cleanFn = cleanFn.replace(/\.[^.]+$/, '') + '.webp';
+            const ext = (blob.type === 'image/gif' || (sanitized.filename && /\.gif$/i.test(sanitized.filename))) ? '.gif' : '.webp';
+            cleanFn = cleanFn.replace(/\.[^.]+$/, '') + ext;
           }
         } catch (e) {}
       }

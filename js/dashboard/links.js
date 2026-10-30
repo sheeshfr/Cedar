@@ -1410,7 +1410,8 @@
       fileInput.addEventListener('change', async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const fn = `links_avatar_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}.webp`;
+        const ext = (file.type === 'image/gif' || /\.gif$/i.test(file.name || '')) ? 'gif' : 'webp';
+        const fn = `links_avatar_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}.${ext}`;
         if (typeof window.saveLinkMediaAsset === 'function') {
           const media = await window.saveLinkMediaAsset(fn, file, 'Links Profile Photo');
           const draft = getLinksDraft();

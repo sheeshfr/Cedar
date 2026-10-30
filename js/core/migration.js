@@ -425,10 +425,13 @@
               const avBase = auth.avatar ? String(auth.avatar).split('/').pop().split('\\').pop() : '';
               const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(auth.name || 'author') : String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
               const matched = (avBase && (importedMediaBlobs.get(avBase) || importedMediaBlobs.get(avBase.toLowerCase())))
+                || importedMediaBlobs.get(`media/authors/${authSlug}_avatar.gif`)
+                || importedMediaBlobs.get(`${authSlug}_avatar.gif`)
                 || importedMediaBlobs.get(`media/authors/${authSlug}_avatar.jpg`)
                 || importedMediaBlobs.get(`${authSlug}_avatar.jpg`)
                 || importedMediaBlobs.get(`${authSlug}_avatar.png`)
                 || importedMediaBlobs.get(`${authSlug}_avatar.webp`)
+                || importedMediaBlobs.get('author_avatar.gif')
                 || importedMediaBlobs.get('author_avatar.jpg')
                 || importedMediaBlobs.get('author_avatar.png');
               if (matched && matched.bytes) {

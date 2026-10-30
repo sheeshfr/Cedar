@@ -2457,16 +2457,23 @@
       } else if (fileOrBlob && fileOrBlob.type) {
         if (fileOrBlob.type === 'image/jpeg') ext = 'jpg';
         else if (fileOrBlob.type === 'image/webp') ext = 'webp';
+        else if (fileOrBlob.type === 'image/gif') ext = 'gif';
         else if (fileOrBlob.type === 'image/svg+xml') ext = 'svg';
         else ext = 'png';
       }
+      const isGif = Boolean(
+        ext === 'gif' ||
+        (fileOrBlob && (fileOrBlob.type === 'image/gif' || /\.gif$/i.test(fileOrBlob.name || ''))) ||
+        /^data:image\/gif/i.test(String(dataUrl || ''))
+      );
+      if (isGif) ext = 'gif';
 
-      const origFilename = `${slug}-orig-${rand}.webp`;
+      const origFilename = isGif ? `${slug}-featured-${rand}.gif` : `${slug}-orig-${rand}.webp`;
       const origRelativePath = `/blog/images/${origFilename}`;
 
       let cleanDataUrl = dataUrl;
       let isSanitized = false;
-      if (window.projectConfig?.sanitizeImages !== false) {
+      if (!isGif && window.projectConfig?.sanitizeImages !== false) {
         try {
           const c = document.createElement('canvas');
           c.width = img.naturalWidth || img.width;
@@ -2478,16 +2485,20 @@
         } catch (e) {}
       }
 
+      const resolvedOrigBlob = isGif
+        ? (fileOrBlob instanceof Blob ? fileOrBlob : (typeof window.dataUrlToBlob === 'function' ? window.dataUrlToBlob(cleanDataUrl) : null))
+        : (isSanitized ? null : fileOrBlob);
+
       const origImgObj = {
         filename: origFilename,
         relativePath: origRelativePath,
-        blob: isSanitized ? null : fileOrBlob,
+        blob: resolvedOrigBlob,
         dataUrl: cleanDataUrl,
         width: img.naturalWidth || img.width,
         height: img.naturalHeight || img.height,
-        size: (fileOrBlob && fileOrBlob.size) || 0,
-        mimeType: isSanitized ? 'image/webp' : ((fileOrBlob && fileOrBlob.type) || `image/${ext === 'jpg' ? 'jpeg' : ext}`),
-        sanitized: isSanitized,
+        size: (resolvedOrigBlob && resolvedOrigBlob.size) || (fileOrBlob && fileOrBlob.size) || 0,
+        mimeType: isGif ? 'image/gif' : (isSanitized ? 'image/webp' : ((fileOrBlob && fileOrBlob.type) || `image/${ext === 'jpg' ? 'jpeg' : ext}`)),
+        sanitized: isSanitized || isGif,
         isOriginal: true,
         createdAt: Date.now()
       };
@@ -2511,14 +2522,18 @@
       const vStorageOrig = window.CedarVirtualStorage || window.OutpostVirtualStorage;
       if (vStorageOrig && typeof vStorageOrig.writeBlob === 'function' && origImgObj.blob) {
         vStorageOrig.writeBlob(`blog/images/${origFilename}`, origImgObj.blob).catch(() => {});
+        vStorageOrig.writeBlob(`media/${origFilename}`, origImgObj.blob).catch(() => {});
+      }
+      if (window.SheeshVault && window.SheeshVault.currentDirHandle && typeof window.SheeshVault.writeFileToVault === 'function' && origImgObj.blob) {
+        window.SheeshVault.writeFileToVault(`blog/images/${origFilename}`, origImgObj.blob).catch(() => {});
       }
 
       currentDraft.coverImageOriginal = origRelativePath;
 
       const isExact1280x720 = (img.naturalWidth === 1280 && img.naturalHeight === 720);
 
-      if (isExact1280x720) {
-        // If image is already exact 1280x720, use it directly without opening the crop editor
+      if (isExact1280x720 || isGif) {
+        // If image is already exact 1280x720 or is an animated GIF, use it directly without flattening on the crop canvas
         if (currentDraft.coverImage && currentDraft.coverImage !== origRelativePath) {
           currentDraft.images = currentDraft.images.filter(im => {
             if (!im || im.relativePath !== currentDraft.coverImage) return true;
@@ -2531,7 +2546,7 @@
         updateBackgroundCodeStrings();
         if (typeof updateCoverPreview === 'function') updateCoverPreview();
         if (typeof scheduleAutosave === 'function') scheduleAutosave();
-        showToast('Featured image applied (exact 1280 × 720 standard)!');
+        showToast(isGif ? 'Animated GIF featured image applied!' : 'Featured image applied (exact 1280 × 720 standard)!');
       } else {
         // Non-1280x720: auto-open the crop modal to standardize
         openCropModalWithImage(img);

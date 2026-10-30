@@ -121,9 +121,40 @@
 
   function optimizeAuthorAvatarImage(fileOrUrl, callback) {
     if (!fileOrUrl) return callback('');
+    const isGifInput = (typeof fileOrUrl === 'string')
+      ? (/^data:image\/gif/i.test(fileOrUrl) || /\.gif(\?|#|$)/i.test(fileOrUrl))
+      : Boolean((fileOrUrl && fileOrUrl.type === 'image/gif') || (fileOrUrl && fileOrUrl.name && /\.gif$/i.test(fileOrUrl.name)));
+
+    if (isGifInput) {
+      if (typeof fileOrUrl === 'string') {
+        if (fileOrUrl.startsWith('blob:') && typeof fetch === 'function') {
+          fetch(fileOrUrl)
+            .then(r => r.blob())
+            .then(b => {
+              const reader = new FileReader();
+              reader.onload = (e) => callback((e.target && e.target.result) || fileOrUrl);
+              reader.onerror = () => callback(fileOrUrl);
+              reader.readAsDataURL(b);
+            })
+            .catch(() => callback(fileOrUrl));
+          return;
+        }
+        return callback(fileOrUrl);
+      } else if (fileOrUrl instanceof Blob || fileOrUrl instanceof File) {
+        const reader = new FileReader();
+        reader.onload = (e) => callback((e.target && e.target.result) || '');
+        reader.onerror = () => callback('');
+        reader.readAsDataURL(fileOrUrl);
+        return;
+      }
+    }
+
     const img = new Image();
     img.onload = () => {
       try {
+        if (typeof img.src === 'string' && (/^data:image\/gif/i.test(img.src) || /\.gif(\?|#|$)/i.test(img.src))) {
+          return callback(img.src);
+        }
         const maxDim = 320;
         let w = img.width || maxDim;
         let h = img.height || maxDim;
@@ -151,10 +182,33 @@
       callback(typeof fileOrUrl === 'string' ? fileOrUrl : '');
     };
     if (typeof fileOrUrl === 'string') {
-      img.src = fileOrUrl;
+      if (fileOrUrl.startsWith('blob:') && typeof fetch === 'function') {
+        fetch(fileOrUrl)
+          .then(r => r.blob())
+          .then(b => {
+            if (b && b.type === 'image/gif') {
+              const reader = new FileReader();
+              reader.onload = (e) => callback((e.target && e.target.result) || fileOrUrl);
+              reader.onerror = () => { img.src = fileOrUrl; };
+              reader.readAsDataURL(b);
+            } else {
+              img.src = fileOrUrl;
+            }
+          })
+          .catch(() => { img.src = fileOrUrl; });
+      } else {
+        img.src = fileOrUrl;
+      }
     } else if (fileOrUrl instanceof Blob || fileOrUrl instanceof File) {
       const reader = new FileReader();
-      reader.onload = (e) => { img.src = e.target.result; };
+      reader.onload = (e) => {
+        const res = e.target.result;
+        if (typeof res === 'string' && /^data:image\/gif/i.test(res)) {
+          callback(res);
+          return;
+        }
+        img.src = res;
+      };
       reader.readAsDataURL(fileOrUrl);
     }
   }
@@ -247,8 +301,12 @@
         cleanRel,
         '/' + cleanRel,
         baseName,
+        `media/authors/${slug}_avatar.gif`,
+        `${slug}_avatar.gif`,
         `media/authors/${slug}_avatar.jpg`,
         `${slug}_avatar.jpg`,
+        'media/authors/andy_avatar.gif',
+        'andy_avatar.gif',
         'media/authors/andy_avatar.jpg',
         'andy_avatar.jpg'
       ].filter(Boolean);
@@ -263,7 +321,8 @@
         let fallbackFound = '';
         window.imageRegistry.forEach((val, key) => {
           if (fallbackFound) return;
-          if (String(key || '').includes('media/authors/') || String(key || '').endsWith('_avatar.jpg')) {
+          const kStr = String(key || '');
+          if (kStr.includes('media/authors/') || kStr.endsWith('_avatar.jpg') || kStr.endsWith('_avatar.gif') || kStr.endsWith('_avatar.png') || kStr.endsWith('_avatar.webp')) {
             const dUrl = unwrap((val && (val.dataUrl || val.src)) || '');
             if (dUrl && (dUrl.startsWith('data:') || dUrl.startsWith('blob:'))) {
               fallbackFound = dUrl;
@@ -348,7 +407,9 @@
             const slug = (typeof window.generateSlug === 'function' && effectiveName)
               ? window.generateSlug(effectiveName)
               : String(effectiveName || 'andy').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            let avBlobOrUrl = await vStore.readFile(`media/authors/${slug}_avatar.jpg`)
+            let avBlobOrUrl = await vStore.readFile(`media/authors/${slug}_avatar.gif`)
+              || await vStore.readFile(`media/authors/${slug}_avatar.jpg`)
+              || await vStore.readFile('media/authors/andy_avatar.gif')
               || await vStore.readFile('media/authors/andy_avatar.jpg');
             let dUrl = '';
             if (typeof avBlobOrUrl === 'string' && avBlobOrUrl.startsWith('data:')) {
@@ -378,9 +439,10 @@
                 }
               }
               if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
-                const regEntry = { filename: `${slug}_avatar.jpg`, relativePath: `/media/authors/${slug}_avatar.jpg`, dataUrl: dUrl, src: dUrl };
-                window.imageRegistry.set(`media/authors/${slug}_avatar.jpg`, regEntry);
-                window.imageRegistry.set(`${slug}_avatar.jpg`, regEntry);
+                const ext = /^data:image\/gif/i.test(dUrl) ? 'gif' : 'jpg';
+                const regEntry = { filename: `${slug}_avatar.${ext}`, relativePath: `/media/authors/${slug}_avatar.${ext}`, dataUrl: dUrl, src: dUrl };
+                window.imageRegistry.set(`media/authors/${slug}_avatar.${ext}`, regEntry);
+                window.imageRegistry.set(`${slug}_avatar.${ext}`, regEntry);
               }
               updateSettingsAuthorAvatarUI();
             }

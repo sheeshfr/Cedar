@@ -2121,6 +2121,9 @@
   // BRANDING IMAGE RESIZING & ASSET MANAGEMENT
   // =========================================================================
   function generateResizedCanvasImage(img, maxW, maxH, forceSquarePadding = false) {
+    if (img && typeof img.src === 'string' && (/^data:image\/gif/i.test(img.src) || /\.gif(\?|#|$)/i.test(img.src))) {
+      return img.src;
+    }
     const canvas = document.createElement('canvas');
     const nw = img.naturalWidth || 1;
     const nh = img.naturalHeight || 1;

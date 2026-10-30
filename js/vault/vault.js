@@ -999,9 +999,10 @@
       for (const auth of window.projectConfig.authors) {
         if (auth && typeof auth === 'object' && auth.avatar && auth.avatar.startsWith('data:')) {
           const authSlug = String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+          const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
           const avBlob = dataUrlToBlob(auth.avatar);
           if (avBlob) {
-            await writeFileToDirHandle(dirHandle, `media/authors/${authSlug}_avatar.jpg`, avBlob);
+            await writeFileToDirHandle(dirHandle, `media/authors/${authSlug}_avatar.${avExt}`, avBlob);
           }
         }
       }
@@ -1558,12 +1559,15 @@
         }
         const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(authorName || 'author') : String(authorName || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
         const candidates = [
+          `${authSlug}_avatar.gif`,
           `${authSlug}_avatar.jpg`,
           `${authSlug}_avatar.png`,
           `${authSlug}_avatar.webp`,
           `${authSlug}_avatar.jpeg`,
+          'author_avatar.gif',
           'author_avatar.jpg',
           'author_avatar.png',
+          'avatar.gif',
           'avatar.jpg',
           'avatar.png'
         ];

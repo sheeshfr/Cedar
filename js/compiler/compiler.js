@@ -4382,7 +4382,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.58';
+    const buildStamp = options.buildStamp || '6.6.59';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -4925,7 +4925,8 @@ ${socialMeta.metaLines}
         if (!auth || typeof auth !== 'object' || !auth.avatar) continue;
         if (auth.avatar.startsWith('data:')) {
           const authSlug = String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-          const avPath = `media/authors/${authSlug}_avatar.jpg`;
+          const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
+          const avPath = `media/authors/${authSlug}_avatar.${avExt}`;
           const avBlob = dataUrlToBlob(auth.avatar);
           if (avBlob) {
             addFile(avPath, avBlob);
@@ -4964,7 +4965,8 @@ ${socialMeta.metaLines}
       if (draftClone.coverImage && draftClone.coverImage.startsWith('data:')) {
         const covBlob = dataUrlToBlob(draftClone.coverImage);
         if (covBlob) {
-          const covName = `${slug}-cover.webp`;
+          const covExt = (/^data:image\/gif/i.test(draftClone.coverImage) || covBlob.type === 'image/gif') ? 'gif' : 'webp';
+          const covName = `${slug}-cover.${covExt}`;
           addFile(`${folder}/${covName}`, covBlob);
           draftClone.coverImage = `/${folder}/${covName}`;
         }
@@ -5143,8 +5145,9 @@ ${socialMeta.metaLines}
           if (pageClone.linksData.profile && pageClone.linksData.profile.avatar && pageClone.linksData.profile.avatar.startsWith('data:')) {
             const avBlob = dataUrlToBlob(pageClone.linksData.profile.avatar);
             if (avBlob) {
-              addFile('media/links/profile_avatar.png', avBlob);
-              pageClone.linksData.profile.avatar = '/media/links/profile_avatar.png';
+              const avExt = (/^data:image\/gif/i.test(pageClone.linksData.profile.avatar) || avBlob.type === 'image/gif') ? 'gif' : 'png';
+              addFile(`media/links/profile_avatar.${avExt}`, avBlob);
+              pageClone.linksData.profile.avatar = `/media/links/profile_avatar.${avExt}`;
             }
           }
           if (Array.isArray(pageClone.linksData.items)) {
@@ -5152,7 +5155,8 @@ ${socialMeta.metaLines}
               if (it && it.icon && it.icon.startsWith('data:')) {
                 const icBlob = dataUrlToBlob(it.icon);
                 if (icBlob) {
-                  const icPath = `media/links/link_icon_${idx}.png`;
+                  const icExt = (/^data:image\/gif/i.test(it.icon) || icBlob.type === 'image/gif') ? 'gif' : 'png';
+                  const icPath = `media/links/link_icon_${idx}.${icExt}`;
                   addFile(icPath, icBlob);
                   it.icon = '/' + icPath;
                 }
@@ -5713,7 +5717,8 @@ ${page.markdown || ''}`;
         for (const auth of projectConfig.authors) {
           if (auth && typeof auth === 'object' && auth.avatar && auth.avatar.startsWith('data:')) {
             const authSlug = String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-            const avPath = `media/authors/${authSlug}_avatar.jpg`;
+            const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
+            const avPath = `media/authors/${authSlug}_avatar.${avExt}`;
             if (!files.some(f => f.name === avPath)) {
               const avBlob = dataUrlToBlob(auth.avatar);
               if (avBlob) {

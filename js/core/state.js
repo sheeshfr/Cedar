@@ -2780,12 +2780,13 @@
       effectiveConfig.authors.forEach(auth => {
         if (auth && typeof auth === 'object' && typeof auth.avatar === 'string' && auth.avatar.startsWith('data:image/')) {
           const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(auth.name || 'author') : String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
-          const relPath = `media/authors/${authSlug}_avatar.jpg`;
-          authorAvatarFilesToWrite.push({ relPath, dataUrl: auth.avatar, filename: `${authSlug}_avatar.jpg` });
+          const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
+          const relPath = `media/authors/${authSlug}_avatar.${avExt}`;
+          authorAvatarFilesToWrite.push({ relPath, dataUrl: auth.avatar, filename: `${authSlug}_avatar.${avExt}` });
           if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
-            const regObj = { filename: `${authSlug}_avatar.jpg`, relativePath: '/' + relPath, dataUrl: auth.avatar, src: auth.avatar };
+            const regObj = { filename: `${authSlug}_avatar.${avExt}`, relativePath: '/' + relPath, dataUrl: auth.avatar, src: auth.avatar };
             window.imageRegistry.set(relPath, regObj);
-            window.imageRegistry.set(`${authSlug}_avatar.jpg`, regObj);
+            window.imageRegistry.set(`${authSlug}_avatar.${avExt}`, regObj);
           }
         }
       });
