@@ -62,6 +62,11 @@
 
     projectConfig.defaultAuthor = authorNameVal;
     projectConfig.authorAvatar = authorAvatarVal;
+    if (authorAvatarExplicitlyRemoved) {
+      projectConfig.authorAvatarExplicitlyRemoved = true;
+    } else {
+      delete projectConfig.authorAvatarExplicitlyRemoved;
+    }
     projectConfig.authors = [{
       name: authorNameVal,
       bio: authorBioVal,
@@ -70,6 +75,10 @@
     try {
       localStorage.setItem('cedar_active_author', authorNameVal);
       try { localStorage.setItem('outpost_active_author', authorNameVal); } catch (e) {}
+      if (authorAvatarExplicitlyRemoved) {
+        try { localStorage.removeItem('cedar_user_avatar'); } catch (e) {}
+        try { localStorage.removeItem('outpost_user_avatar'); } catch (e) {}
+      }
     } catch (e) {}
 
     // Keep window.imageRegistry & Virtual Vault synchronized and purge stale avatar extensions
@@ -78,14 +87,16 @@
         ? window.generateSlug(authorNameVal)
         : String(authorNameVal || 'andy').toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const allExts = ['gif', 'jpg', 'jpeg', 'png', 'webp'];
-      if (window.imageRegistry && typeof window.imageRegistry.delete === 'function') {
-        for (const ext of allExts) {
-          window.imageRegistry.delete(`media/authors/${authSlug}_avatar.${ext}`);
-          window.imageRegistry.delete(`${authSlug}_avatar.${ext}`);
-          window.imageRegistry.delete(`media/authors/andy_avatar.${ext}`);
-          window.imageRegistry.delete(`andy_avatar.${ext}`);
+      if (window.imageRegistry) {
+        if (typeof window.imageRegistry.keys === 'function' && typeof window.imageRegistry.delete === 'function') {
+          for (const k of Array.from(window.imageRegistry.keys())) {
+            const ks = String(k || '');
+            if (ks.includes('media/authors/') || /_avatar\.(gif|jpe?g|png|webp)$/i.test(ks)) {
+              window.imageRegistry.delete(k);
+            }
+          }
         }
-        if (authorAvatarVal && authorAvatarVal.startsWith('data:')) {
+        if (!authorAvatarExplicitlyRemoved && authorAvatarVal && authorAvatarVal.startsWith('data:') && typeof window.imageRegistry.set === 'function') {
           const activeExt = /^data:image\/gif/i.test(authorAvatarVal)
             ? 'gif'
             : (/^data:image\/webp/i.test(authorAvatarVal) ? 'webp' : (/^data:image\/png/i.test(authorAvatarVal) ? 'png' : 'jpg'));
@@ -96,6 +107,7 @@
             src: authorAvatarVal
           };
           window.imageRegistry.set(`media/authors/${authSlug}_avatar.${activeExt}`, regObj);
+          window.imageRegistry.set(`/media/authors/${authSlug}_avatar.${activeExt}`, regObj);
           window.imageRegistry.set(`${authSlug}_avatar.${activeExt}`, regObj);
         }
       }
@@ -105,10 +117,13 @@
           for (const ext of allExts) {
             vStore.deleteFile(`media/authors/${authSlug}_avatar.${ext}`).catch(() => {});
             vStore.deleteFile(`media/authors/andy_avatar.${ext}`).catch(() => {});
+            vStore.deleteFile(`media/authors/author_avatar.${ext}`).catch(() => {});
           }
         }
       }
     } catch (e) {}
+
+    if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
 
     if (authorNameVal && Array.isArray(window.drafts)) {
       let updatedAny = false;
@@ -118,7 +133,9 @@
             d.authorName = authorNameVal;
             d.author = authorNameVal;
             d.authors = [authorNameVal];
-            if (authorAvatarVal || authorAvatarExplicitlyRemoved) {
+            if (authorAvatarExplicitlyRemoved) {
+              d.authorAvatar = '';
+            } else if (authorAvatarVal) {
               d.authorAvatar = authorAvatarVal;
             }
             updatedAny = true;
@@ -126,19 +143,22 @@
         }
       });
       if (updatedAny) {
-        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
-          window.CedarStore.hydrateFromList(window.drafts);
+        window._suppressSettingsReRender = true;
+        try {
+          if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+            window.CedarStore.hydrateFromList(window.drafts);
+          }
+          if (typeof window.saveDraftsToStorage === 'function') {
+            window.saveDraftsToStorage();
+          }
+          if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
+          if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
+        } finally {
+          window._suppressSettingsReRender = false;
         }
-        if (typeof window.saveDraftsToStorage === 'function') {
-          window.saveDraftsToStorage();
-        }
-        if (typeof window.renderDashboard === 'function') window.renderDashboard();
-        if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
-        if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
       }
     }
 
-    if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
     if (typeof syncLiveWorkspaceData === 'function') syncLiveWorkspaceData();
     if (typeof updateCedarTitle === 'function') updateCedarTitle();
     else if (typeof updateOutpostTitle === 'function') updateOutpostTitle();
@@ -506,6 +526,12 @@
     if (bioInput) {
       bioInput.value = (typeof primaryAuthor === 'object' ? primaryAuthor.bio : '') || '';
     }
+    if (projectConfig && projectConfig.authorAvatarExplicitlyRemoved) {
+      authorAvatarExplicitlyRemoved = true;
+      currentSettingsAuthorAvatar = '';
+      updateSettingsAuthorAvatarUI();
+      return;
+    }
     const rawAvatar = (typeof primaryAuthor === 'object' ? (primaryAuthor.avatar || primaryAuthor.image || '') : '')
       || (projectConfig && projectConfig.authorAvatar)
       || '';
@@ -712,6 +738,7 @@
   window.updateDesignerLogoBackground = updateSettingsLogoBackground;
 
   function renderProjectSettings() {
+    if (window._suppressSettingsReRender) return;
     stagedBrandLogo = null;
     const nameInput = document.getElementById('setting-project-name');
     const baseInput = document.getElementById('setting-base-url');

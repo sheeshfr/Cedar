@@ -1768,6 +1768,9 @@
 
     // 1. Check projectConfig.authors array first (so current author profile takes priority over stale relative paths)
     const cfg = (typeof getProjectConfig === 'function' && getProjectConfig()) || (typeof projectConfig !== 'undefined' ? projectConfig : window.projectConfig);
+    if (cfg && cfg.authorAvatarExplicitlyRemoved) {
+      return '';
+    }
     if (cfg && Array.isArray(cfg.authors)) {
       const match = cleanName
         ? cfg.authors.find(a => {
