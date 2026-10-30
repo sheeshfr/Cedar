@@ -72,6 +72,44 @@
       try { localStorage.setItem('outpost_active_author', authorNameVal); } catch (e) {}
     } catch (e) {}
 
+    // Keep window.imageRegistry & Virtual Vault synchronized and purge stale avatar extensions
+    try {
+      const authSlug = (typeof window.generateSlug === 'function' && authorNameVal)
+        ? window.generateSlug(authorNameVal)
+        : String(authorNameVal || 'andy').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const allExts = ['gif', 'jpg', 'jpeg', 'png', 'webp'];
+      if (window.imageRegistry && typeof window.imageRegistry.delete === 'function') {
+        for (const ext of allExts) {
+          window.imageRegistry.delete(`media/authors/${authSlug}_avatar.${ext}`);
+          window.imageRegistry.delete(`${authSlug}_avatar.${ext}`);
+          window.imageRegistry.delete(`media/authors/andy_avatar.${ext}`);
+          window.imageRegistry.delete(`andy_avatar.${ext}`);
+        }
+        if (authorAvatarVal && authorAvatarVal.startsWith('data:')) {
+          const activeExt = /^data:image\/gif/i.test(authorAvatarVal)
+            ? 'gif'
+            : (/^data:image\/webp/i.test(authorAvatarVal) ? 'webp' : (/^data:image\/png/i.test(authorAvatarVal) ? 'png' : 'jpg'));
+          const regObj = {
+            filename: `${authSlug}_avatar.${activeExt}`,
+            relativePath: `/media/authors/${authSlug}_avatar.${activeExt}`,
+            dataUrl: authorAvatarVal,
+            src: authorAvatarVal
+          };
+          window.imageRegistry.set(`media/authors/${authSlug}_avatar.${activeExt}`, regObj);
+          window.imageRegistry.set(`${authSlug}_avatar.${activeExt}`, regObj);
+        }
+      }
+      if (authorAvatarExplicitlyRemoved && (window.CedarVirtualStorage || window.OutpostVirtualStorage)) {
+        const vStore = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        if (typeof vStore.deleteFile === 'function') {
+          for (const ext of allExts) {
+            vStore.deleteFile(`media/authors/${authSlug}_avatar.${ext}`).catch(() => {});
+            vStore.deleteFile(`media/authors/andy_avatar.${ext}`).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {}
+
     if (authorNameVal && Array.isArray(window.drafts)) {
       let updatedAny = false;
       window.drafts.forEach(d => {
@@ -121,94 +159,81 @@
 
   function optimizeAuthorAvatarImage(fileOrUrl, callback) {
     if (!fileOrUrl) return callback('');
-    const isGifInput = (typeof fileOrUrl === 'string')
-      ? (/^data:image\/gif/i.test(fileOrUrl) || /\.gif(\?|#|$)/i.test(fileOrUrl))
-      : Boolean((fileOrUrl && fileOrUrl.type === 'image/gif') || (fileOrUrl && fileOrUrl.name && /\.gif$/i.test(fileOrUrl.name)));
 
-    if (isGifInput) {
-      if (typeof fileOrUrl === 'string') {
-        if (fileOrUrl.startsWith('blob:') && typeof fetch === 'function') {
-          fetch(fileOrUrl)
-            .then(r => r.blob())
-            .then(b => {
-              const reader = new FileReader();
-              reader.onload = (e) => callback((e.target && e.target.result) || fileOrUrl);
-              reader.onerror = () => callback(fileOrUrl);
-              reader.readAsDataURL(b);
-            })
-            .catch(() => callback(fileOrUrl));
-          return;
+    const handleResolvedDataUrl = (rawDataUrl, sourceBlobOrFile) => {
+      if (!rawDataUrl || typeof rawDataUrl !== 'string') return callback('');
+      const animInfo = (typeof window.detectAnimatedImageFromDataUrl === 'function')
+        ? window.detectAnimatedImageFromDataUrl(rawDataUrl, sourceBlobOrFile)
+        : {
+            animated: Boolean(
+              /^data:image\/gif/i.test(rawDataUrl) ||
+              /\.gif(\?|#|$)/i.test(rawDataUrl) ||
+              (sourceBlobOrFile && (sourceBlobOrFile.type === 'image/gif' || /\.gif$/i.test(sourceBlobOrFile.name || '')))
+            ),
+            ext: 'gif',
+            mime: 'image/gif'
+          };
+
+      if (animInfo && animInfo.animated) {
+        let fixedDataUrl = rawDataUrl;
+        if (fixedDataUrl.startsWith('data:') && animInfo.mime) {
+          fixedDataUrl = fixedDataUrl.replace(/^data:[^;,]+/i, `data:${animInfo.mime}`);
         }
-        return callback(fileOrUrl);
-      } else if (fileOrUrl instanceof Blob || fileOrUrl instanceof File) {
-        const reader = new FileReader();
-        reader.onload = (e) => callback((e.target && e.target.result) || '');
-        reader.onerror = () => callback('');
-        reader.readAsDataURL(fileOrUrl);
-        return;
+        return callback(fixedDataUrl);
       }
-    }
 
-    const img = new Image();
-    img.onload = () => {
-      try {
-        if (typeof img.src === 'string' && (/^data:image\/gif/i.test(img.src) || /\.gif(\?|#|$)/i.test(img.src))) {
-          return callback(img.src);
-        }
-        const maxDim = 320;
-        let w = img.width || maxDim;
-        let h = img.height || maxDim;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = Math.round((h * maxDim) / w);
-            w = maxDim;
-          } else {
-            w = Math.round((w * maxDim) / h);
-            h = maxDim;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 320;
+          let w = img.naturalWidth || img.width || maxDim;
+          let h = img.naturalHeight || img.height || maxDim;
+          if (w <= maxDim && h <= maxDim && rawDataUrl.startsWith('data:')) {
+            return callback(rawDataUrl);
           }
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const isJpeg = /^data:image\/jpe?g/i.test(rawDataUrl) || (sourceBlobOrFile && sourceBlobOrFile.type === 'image/jpeg');
+          const dataUrl = isJpeg ? canvas.toDataURL('image/jpeg', 0.92) : canvas.toDataURL('image/png');
+          callback(dataUrl);
+        } catch (e) {
+          callback(rawDataUrl);
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
-        callback(dataUrl);
-      } catch (e) {
-        callback(typeof fileOrUrl === 'string' ? fileOrUrl : '');
-      }
+      };
+      img.onerror = () => callback(rawDataUrl);
+      img.src = rawDataUrl;
     };
-    img.onerror = () => {
-      callback(typeof fileOrUrl === 'string' ? fileOrUrl : '');
-    };
+
     if (typeof fileOrUrl === 'string') {
       if (fileOrUrl.startsWith('blob:') && typeof fetch === 'function') {
         fetch(fileOrUrl)
           .then(r => r.blob())
           .then(b => {
-            if (b && b.type === 'image/gif') {
-              const reader = new FileReader();
-              reader.onload = (e) => callback((e.target && e.target.result) || fileOrUrl);
-              reader.onerror = () => { img.src = fileOrUrl; };
-              reader.readAsDataURL(b);
-            } else {
-              img.src = fileOrUrl;
-            }
+            const reader = new FileReader();
+            reader.onload = (e) => handleResolvedDataUrl((e.target && e.target.result) || fileOrUrl, b);
+            reader.onerror = () => handleResolvedDataUrl(fileOrUrl, null);
+            reader.readAsDataURL(b);
           })
-          .catch(() => { img.src = fileOrUrl; });
+          .catch(() => handleResolvedDataUrl(fileOrUrl, null));
       } else {
-        img.src = fileOrUrl;
+        handleResolvedDataUrl(fileOrUrl, null);
       }
     } else if (fileOrUrl instanceof Blob || fileOrUrl instanceof File) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const res = e.target.result;
-        if (typeof res === 'string' && /^data:image\/gif/i.test(res)) {
-          callback(res);
-          return;
-        }
-        img.src = res;
-      };
+      reader.onload = (e) => handleResolvedDataUrl((e.target && e.target.result) || '', fileOrUrl);
+      reader.onerror = () => callback('');
       reader.readAsDataURL(fileOrUrl);
     }
   }
@@ -520,40 +545,44 @@
     }
 
     if (btnPickMedia) {
-      btnPickMedia.addEventListener('click', () => {
+      btnPickMedia.addEventListener('click', async () => {
         const images = (typeof window.getAllUniqueImages === 'function') ? window.getAllUniqueImages() : [];
         if (!images || images.length === 0) {
           if (typeof showToast === 'function') showToast('No images in Media Library yet. Upload a photo directly!');
           return;
         }
+        let sel = null;
         if (images.length === 1) {
-          const first = images[0];
-          const src = first.dataUrl || first.url || (first.blob ? URL.createObjectURL(first.blob) : '');
-          if (src) {
-            optimizeAuthorAvatarImage(src, (optimized) => {
+          sel = images[0];
+        } else {
+          const names = images.map((im, i) => `${i + 1}: ${im.filename || im.url || 'Image ' + (i + 1)}`).join('\n');
+          const choice = prompt(`Choose an author photo from Media Library (1-${images.length}):\n${names}`, '1');
+          const idx = parseInt(choice, 10) - 1;
+          if (!isNaN(idx) && images[idx]) {
+            sel = images[idx];
+          }
+        }
+        if (sel) {
+          let inputForAvatar = (sel.dataUrl && sel.dataUrl.startsWith('data:')) ? sel.dataUrl : (sel.blob instanceof Blob ? sel.blob : null);
+          if (!inputForAvatar && typeof window.resolveMediaBlob === 'function' && sel.filename) {
+            try {
+              const resolvedBlob = await window.resolveMediaBlob(sel.filename, sel);
+              if (resolvedBlob instanceof Blob && resolvedBlob.size > 0) {
+                inputForAvatar = resolvedBlob;
+              }
+            } catch (e) {}
+          }
+          if (!inputForAvatar) {
+            inputForAvatar = sel.dataUrl || sel.src || sel.objectUrl || sel.url || '';
+          }
+          if (inputForAvatar) {
+            optimizeAuthorAvatarImage(inputForAvatar, (optimized) => {
               authorAvatarExplicitlyRemoved = false;
               currentSettingsAuthorAvatar = optimized;
               updateSettingsAuthorAvatarUI();
               scheduleAutoSaveSiteInfo(true);
               if (typeof showToast === 'function') showToast('Selected author photo from Media Library');
             });
-          }
-        } else {
-          const names = images.map((im, i) => `${i + 1}: ${im.filename || im.url || 'Image ' + (i + 1)}`).join('\n');
-          const choice = prompt(`Choose an author photo from Media Library (1-${images.length}):\n${names}`, '1');
-          const idx = parseInt(choice, 10) - 1;
-          if (!isNaN(idx) && images[idx]) {
-            const sel = images[idx];
-            const src = sel.dataUrl || sel.url || (sel.blob ? URL.createObjectURL(sel.blob) : '');
-            if (src) {
-              optimizeAuthorAvatarImage(src, (optimized) => {
-                authorAvatarExplicitlyRemoved = false;
-                currentSettingsAuthorAvatar = optimized;
-                updateSettingsAuthorAvatarUI();
-                scheduleAutoSaveSiteInfo(true);
-                if (typeof showToast === 'function') showToast('Selected author photo from Media Library');
-              });
-            }
           }
         }
       });

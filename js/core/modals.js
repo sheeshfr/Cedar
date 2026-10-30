@@ -2461,17 +2461,28 @@
         else if (fileOrBlob.type === 'image/svg+xml') ext = 'svg';
         else ext = 'png';
       }
-      const isGif = Boolean(
-        ext === 'gif' ||
-        (fileOrBlob && (fileOrBlob.type === 'image/gif' || /\.gif$/i.test(fileOrBlob.name || ''))) ||
-        /^data:image\/gif/i.test(String(dataUrl || ''))
-      );
-      if (isGif) ext = 'gif';
+      const animInfo = (typeof window.detectAnimatedImageFromDataUrl === 'function')
+        ? window.detectAnimatedImageFromDataUrl(dataUrl, fileOrBlob)
+        : {
+            animated: Boolean(
+              ext === 'gif' ||
+              (fileOrBlob && (fileOrBlob.type === 'image/gif' || /\.gif$/i.test(fileOrBlob.name || ''))) ||
+              /^data:image\/gif/i.test(String(dataUrl || ''))
+            ),
+            ext: 'gif',
+            mime: 'image/gif'
+          };
+      const isGif = Boolean(animInfo && animInfo.animated);
+      if (isGif && animInfo.ext) ext = animInfo.ext;
 
-      const origFilename = isGif ? `${slug}-featured-${rand}.gif` : `${slug}-orig-${rand}.webp`;
+      const isExact1280x720 = (img.naturalWidth === 1280 && img.naturalHeight === 720);
+      const origFilename = isGif ? `${slug}-featured-${rand}.${ext}` : `${slug}-orig-${rand}.webp`;
       const origRelativePath = `/blog/images/${origFilename}`;
 
       let cleanDataUrl = dataUrl;
+      if (isGif && typeof cleanDataUrl === 'string' && cleanDataUrl.startsWith('data:') && animInfo.mime) {
+        cleanDataUrl = cleanDataUrl.replace(/^data:[^;,]+/i, `data:${animInfo.mime}`);
+      }
       let isSanitized = false;
       if (!isGif && window.projectConfig?.sanitizeImages !== false) {
         try {
@@ -2497,9 +2508,9 @@
         width: img.naturalWidth || img.width,
         height: img.naturalHeight || img.height,
         size: (resolvedOrigBlob && resolvedOrigBlob.size) || (fileOrBlob && fileOrBlob.size) || 0,
-        mimeType: isGif ? 'image/gif' : (isSanitized ? 'image/webp' : ((fileOrBlob && fileOrBlob.type) || `image/${ext === 'jpg' ? 'jpeg' : ext}`)),
+        mimeType: isGif ? (animInfo.mime || 'image/gif') : (isSanitized ? 'image/webp' : ((fileOrBlob && fileOrBlob.type) || `image/${ext === 'jpg' ? 'jpeg' : ext}`)),
         sanitized: isSanitized || isGif,
-        isOriginal: true,
+        isOriginal: !(isExact1280x720 || isGif),
         createdAt: Date.now()
       };
 
@@ -2529,8 +2540,6 @@
       }
 
       currentDraft.coverImageOriginal = origRelativePath;
-
-      const isExact1280x720 = (img.naturalWidth === 1280 && img.naturalHeight === 720);
 
       if (isExact1280x720 || isGif) {
         // If image is already exact 1280x720 or is an animated GIF, use it directly without flattening on the crop canvas

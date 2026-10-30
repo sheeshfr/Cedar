@@ -4382,7 +4382,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.59';
+    const buildStamp = options.buildStamp || '6.6.60';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -4925,7 +4925,9 @@ ${socialMeta.metaLines}
         if (!auth || typeof auth !== 'object' || !auth.avatar) continue;
         if (auth.avatar.startsWith('data:')) {
           const authSlug = String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-          const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
+          const avExt = /^data:image\/gif/i.test(auth.avatar)
+            ? 'gif'
+            : (/^data:image\/webp/i.test(auth.avatar) ? 'webp' : (/^data:image\/png/i.test(auth.avatar) ? 'png' : 'jpg'));
           const avPath = `media/authors/${authSlug}_avatar.${avExt}`;
           const avBlob = dataUrlToBlob(auth.avatar);
           if (avBlob) {
@@ -5717,7 +5719,9 @@ ${page.markdown || ''}`;
         for (const auth of projectConfig.authors) {
           if (auth && typeof auth === 'object' && auth.avatar && auth.avatar.startsWith('data:')) {
             const authSlug = String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-            const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
+            const avExt = /^data:image\/gif/i.test(auth.avatar)
+              ? 'gif'
+              : (/^data:image\/webp/i.test(auth.avatar) ? 'webp' : (/^data:image\/png/i.test(auth.avatar) ? 'png' : 'jpg'));
             const avPath = `media/authors/${authSlug}_avatar.${avExt}`;
             if (!files.some(f => f.name === avPath)) {
               const avBlob = dataUrlToBlob(auth.avatar);

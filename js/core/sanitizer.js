@@ -12,6 +12,59 @@
   // =========================================================================
   
   /**
+   * Detects whether a dataURL or File/Blob is an animated image (GIF, animated WebP, or APNG)
+   * by checking MIME type, filename extension, and binary magic bytes.
+   */
+  function detectAnimatedImageFromDataUrl(rawDataUrl, fileOrBlob) {
+    const str = typeof rawDataUrl === 'string' ? rawDataUrl.trim() : '';
+    const mime = (fileOrBlob && fileOrBlob.type) ? String(fileOrBlob.type).toLowerCase() : '';
+    const name = (fileOrBlob && fileOrBlob.name) ? String(fileOrBlob.name).toLowerCase() : '';
+
+    // 1. Check explicit GIF MIME / extension / data URL prefix
+    if (mime === 'image/gif' || /\.gif(\?|#|$)/i.test(name) || /^data:image\/gif/i.test(str) || /\.gif(\?|#|$)/i.test(str)) {
+      return { animated: true, ext: 'gif', mime: 'image/gif' };
+    }
+    if (mime === 'image/apng' || /\.apng(\?|#|$)/i.test(name) || /^data:image\/apng/i.test(str)) {
+      return { animated: true, ext: 'png', mime: 'image/png' };
+    }
+
+    // 2. Inspect binary header bytes from base64 payload
+    if (str.startsWith('data:')) {
+      const commaIdx = str.indexOf(',');
+      if (commaIdx !== -1) {
+        const b64Head = str.slice(commaIdx + 1, commaIdx + 512).replace(/\s/g, '');
+        // "GIF87a" / "GIF89a" in base64 always starts with "R0lGOD"
+        if (b64Head.startsWith('R0lGOD')) {
+          return { animated: true, ext: 'gif', mime: 'image/gif' };
+        }
+        try {
+          const safeLen = Math.floor(b64Head.length / 4) * 4;
+          if (safeLen >= 24) {
+            const bin = atob(b64Head.slice(0, safeLen));
+            // GIF magic bytes: "GIF8"
+            if (bin.slice(0, 4) === 'GIF8') {
+              return { animated: true, ext: 'gif', mime: 'image/gif' };
+            }
+            // WebP magic bytes: "RIFF" .... "WEBP"
+            if (bin.slice(0, 4) === 'RIFF' && bin.slice(8, 12) === 'WEBP') {
+              const chunk = bin.slice(12, 16);
+              if ((chunk === 'VP8X' && bin.length > 20 && (bin.charCodeAt(20) & 0x02) !== 0) || bin.includes('ANIM') || bin.includes('ANMF')) {
+                return { animated: true, ext: 'webp', mime: 'image/webp' };
+              }
+            }
+            // APNG: PNG signature + "acTL" animation control chunk
+            if (bin.charCodeAt(0) === 0x89 && bin.slice(1, 4) === 'PNG' && bin.includes('acTL')) {
+              return { animated: true, ext: 'png', mime: 'image/png' };
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    return { animated: false, ext: '', mime: '' };
+  }
+
+  /**
    * Sanitizes an image file or blob on the client-side.
    * Strips all non-pixel metadata (EXIF, GPS, camera model, date/time, IPTC, XMP).
    * Re-encodes cleanly into WebP (or PNG for transparency).
@@ -20,23 +73,23 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = function (e) {
-        const rawDataUrl = e.target.result;
-        const isGif = Boolean(
-          (fileOrBlob && (fileOrBlob.type === 'image/gif' || /\.gif$/i.test(fileOrBlob.name || ''))) ||
-          /^data:image\/gif/i.test(String(rawDataUrl || ''))
-        );
+        let rawDataUrl = e.target.result;
+        const animInfo = detectAnimatedImageFromDataUrl(rawDataUrl, fileOrBlob);
+        if (animInfo.animated && typeof rawDataUrl === 'string' && rawDataUrl.startsWith('data:') && animInfo.mime) {
+          rawDataUrl = rawDataUrl.replace(/^data:[^;,]+/i, `data:${animInfo.mime}`);
+        }
         const img = new Image();
         img.onload = function () {
           try {
             const natW = img.naturalWidth || img.width;
             const natH = img.naturalHeight || img.height;
 
-            // Preserve animated GIFs directly without passing through <canvas> (which would flatten animation frames)
-            if (isGif) {
-              const gifBlob = (fileOrBlob instanceof Blob)
-                ? (fileOrBlob.type === 'image/gif' ? fileOrBlob : new Blob([fileOrBlob], { type: 'image/gif' }))
+            // Preserve animated images (GIF, animated WebP, APNG) directly without passing through <canvas>
+            if (animInfo.animated) {
+              const animBlob = (fileOrBlob instanceof Blob)
+                ? (fileOrBlob.type === animInfo.mime ? fileOrBlob : new Blob([fileOrBlob], { type: animInfo.mime }))
                 : (typeof window.dataUrlToBlob === 'function' ? window.dataUrlToBlob(rawDataUrl) : null);
-              finalizeImage(gifBlob, 'gif', rawDataUrl, natW, natH);
+              finalizeImage(animBlob, animInfo.ext, rawDataUrl, natW, natH);
               return;
             }
 
@@ -114,8 +167,10 @@
 
 
   window.sanitizeImage = sanitizeImage;
+  window.detectAnimatedImageFromDataUrl = detectAnimatedImageFromDataUrl;
   window.Cedar.sanitizer = {
-    sanitizeImage
+    sanitizeImage,
+    detectAnimatedImageFromDataUrl
   };
   window.Outpost.sanitizer = window.Cedar.sanitizer;
 })();

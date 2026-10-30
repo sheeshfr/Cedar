@@ -2780,10 +2780,18 @@
       effectiveConfig.authors.forEach(auth => {
         if (auth && typeof auth === 'object' && typeof auth.avatar === 'string' && auth.avatar.startsWith('data:image/')) {
           const authSlug = (typeof window.generateSlug === 'function' ? window.generateSlug(auth.name || 'author') : String(auth.name || 'author').toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'author';
-          const avExt = /^data:image\/gif/i.test(auth.avatar) ? 'gif' : 'jpg';
+          const avExt = /^data:image\/gif/i.test(auth.avatar)
+            ? 'gif'
+            : (/^data:image\/webp/i.test(auth.avatar) ? 'webp' : (/^data:image\/png/i.test(auth.avatar) ? 'png' : 'jpg'));
           const relPath = `media/authors/${authSlug}_avatar.${avExt}`;
-          authorAvatarFilesToWrite.push({ relPath, dataUrl: auth.avatar, filename: `${authSlug}_avatar.${avExt}` });
+          authorAvatarFilesToWrite.push({ relPath, dataUrl: auth.avatar, filename: `${authSlug}_avatar.${avExt}`, authSlug, activeExt: avExt });
           if (window.imageRegistry && typeof window.imageRegistry.set === 'function') {
+            ['gif', 'jpg', 'jpeg', 'png', 'webp'].forEach(ext => {
+              if (ext !== avExt && typeof window.imageRegistry.delete === 'function') {
+                window.imageRegistry.delete(`media/authors/${authSlug}_avatar.${ext}`);
+                window.imageRegistry.delete(`${authSlug}_avatar.${ext}`);
+              }
+            });
             const regObj = { filename: `${authSlug}_avatar.${avExt}`, relativePath: '/' + relPath, dataUrl: auth.avatar, src: auth.avatar };
             window.imageRegistry.set(relPath, regObj);
             window.imageRegistry.set(`${authSlug}_avatar.${avExt}`, regObj);
@@ -2832,11 +2840,19 @@
         } catch (e) {}
 
         if (authorAvatarFilesToWrite.length > 0) {
+          const vStoreRef = window.CedarVirtualStorage || window.OutpostVirtualStorage;
           authorAvatarFilesToWrite.forEach(af => {
             try {
+              if (af.authSlug && af.activeExt && typeof vStoreRef.deleteFile === 'function') {
+                ['gif', 'jpg', 'jpeg', 'png', 'webp'].forEach(ext => {
+                  if (ext !== af.activeExt) {
+                    vStoreRef.deleteFile(`media/authors/${af.authSlug}_avatar.${ext}`).catch(() => {});
+                  }
+                });
+              }
               const blob = dataUrlToBinaryBlob(af.dataUrl);
               if (blob) {
-                (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile(af.relPath, blob);
+                vStoreRef.writeFile(af.relPath, blob);
               }
             } catch (e) {}
           });
