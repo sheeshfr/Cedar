@@ -162,9 +162,28 @@
     }
     window.findCategoryBySlug = findCategoryBySlug;
 
+    function isAllPostsDisabled() {
+      const cfg = (typeof getConfig === 'function') ? getConfig() : (window.projectConfig || {});
+      if (cfg && (cfg.allDisabled === true || cfg.allEnabled === false)) return true;
+      try {
+        if (localStorage.getItem('cedar_all_disabled') === 'true') return true;
+      } catch (_) {}
+      const draftsList = (typeof getDrafts === 'function' ? getDrafts() : window.drafts) || [];
+      const allPage = draftsList.find(d => d && (d.id === 'page_all' || d.slug === 'all' || String(d.title || '').trim().toLowerCase() === 'all'));
+      if (allPage) {
+        if (typeof window.isPageHidden === 'function' && window.isPageHidden(allPage)) return true;
+        if (allPage.hidden === true || allPage.retired === true || allPage.status === 'draft') return true;
+      }
+      return false;
+    }
+    window.isAllPostsDisabled = isAllPostsDisabled;
+
     function buildCategoryUrl(category, page = 1) {
       const prefix = getSiteBasePrefix();
-      if (!category || category === 'ALL') return (prefix || '') + '/blog';
+      if (!category || category === 'ALL') {
+        if (isAllPostsDisabled()) return (prefix || '') + '/';
+        return (prefix || '') + '/blog';
+      }
       const catSlug = encodeURIComponent(category.toLowerCase().trim().replace(/\s+/g, '-'));
       if (page > 1) {
         return `${prefix}/${catSlug}/${page}`;
@@ -264,12 +283,19 @@
           const canonical = page > 1 ? `#/${catSlug}/${page}` : `#/${catSlug}`;
           return { view: 'posts', page: page, category: matchedCat, canonicalHash: canonical };
         }
+        if (isAllPostsDisabled()) {
+          return { view: 'home', canonicalHash: '#/' };
+        }
         let canonical = page > 1 ? `#/blog?page=${page}` : '#/blog';
         return { view: 'posts', page: page, category: null, canonicalHash: canonical };
       }
       if (segments[1] === 'page' && segments[2]) {
         const page = parseInt(segments[2], 10) || 1;
-        return { view: 'posts', page: page, category: query.category || query.cat || null, canonicalHash: page > 1 ? `#/blog?page=${page}` : '#/blog' };
+        const cat = query.category || query.cat || null;
+        if (!cat && isAllPostsDisabled()) {
+          return { view: 'home', canonicalHash: '#/' };
+        }
+        return { view: 'posts', page: page, category: cat, canonicalHash: page > 1 ? `#/blog?page=${page}` : '#/blog' };
       }
       const slug = segments.slice(1).join('/');
       const draft = getDrafts().find(d => d.slug === slug || d.id === slug);
@@ -282,6 +308,9 @@
       let page = 1;
       if (query.page) page = parseInt(query.page, 10) || 1;
       const category = query.category || query.cat || null;
+      if (!category && isAllPostsDisabled()) {
+        return { view: 'home', canonicalHash: '#/' };
+      }
       let canonical = '#/blog';
       const qParts = [];
       if (category) qParts.push(`category=${encodeURIComponent(category)}`);
@@ -291,7 +320,11 @@
     }
     if ((rootToken === 'posts' || rootToken === 'all') && segments[1] === 'page' && segments[2]) {
       const page = parseInt(segments[2], 10) || 1;
-      return { view: 'posts', page: page, category: query.category || query.cat || null, canonicalHash: page > 1 ? `#/blog?page=${page}` : '#/blog' };
+      const cat = query.category || query.cat || null;
+      if (!cat && isAllPostsDisabled()) {
+        return { view: 'home', canonicalHash: '#/' };
+      }
+      return { view: 'posts', page: page, category: cat, canonicalHash: page > 1 ? `#/blog?page=${page}` : '#/blog' };
     }
 
     // 3. Single Post Reader: /p/:slug (and legacy /posts/:slug or /post/:slug)
@@ -304,6 +337,9 @@
     if ((rootToken === 'pages' || rootToken === 'page') && segments.length >= 2) {
       const slug = segments.slice(1).join('/');
       if (slug.toLowerCase() === 'posts' || slug.toLowerCase() === 'blog' || slug.toLowerCase() === 'all') {
+        if (isAllPostsDisabled()) {
+          return { view: 'home', canonicalHash: '#/' };
+        }
         return { view: 'posts', page: 1, canonicalHash: '#/blog' };
       }
       const directDraft = getDrafts().find(d => d.slug === slug || d.id === slug);
@@ -455,6 +491,69 @@
     return true;
   }
 
+  function rememberNonPostRoute(canonicalHash) {
+    if (!canonicalHash) return;
+    const norm = String(canonicalHash).trim();
+    if (!norm || norm.startsWith('#/p/') || norm.startsWith('#/post/') || norm.startsWith('#/posts/')) return;
+    if ((norm === '#/blog' || norm === '#/posts' || norm === '#/all') && isAllPostsDisabled()) return;
+    window.__lastPreviewListRoute = norm;
+    try {
+      sessionStorage.setItem('cedar_last_list_route', norm);
+    } catch (_) {}
+  }
+
+  function sanitizeBackRoute(candidate) {
+    if (!candidate) return '';
+    let c = String(candidate).trim();
+    if (!c) return '';
+    if (!c.startsWith('#') && !c.startsWith('/')) c = '#/' + c;
+    const norm = c.replace(/^#\/?/, '').replace(/^\/+|\/+$/g, '').toLowerCase();
+    if (norm.startsWith('p/') || norm.startsWith('post/')) return '';
+    if ((norm === 'blog' || norm === 'posts' || norm === 'all' || norm.startsWith('blog?') || norm.startsWith('posts?') || norm.startsWith('all?')) && isAllPostsDisabled()) {
+      return '#/';
+    }
+    return c.startsWith('#') ? c : ('#/' + c.replace(/^\/+/, ''));
+  }
+
+  function getReaderBackTarget() {
+    const fromMem = sanitizeBackRoute(window.__lastPreviewListRoute);
+    if (fromMem) return fromMem;
+    try {
+      const fromSession = sanitizeBackRoute(sessionStorage.getItem('cedar_last_list_route'));
+      if (fromSession) return fromSession;
+    } catch (_) {}
+    try {
+      if (document.referrer) {
+        const refUrl = new URL(document.referrer, window.location.origin);
+        if (refUrl.origin === window.location.origin) {
+          const refHash = (refUrl.hash || '').trim();
+          if (refHash && refHash !== '#') {
+            const cleanRefHash = sanitizeBackRoute(refHash);
+            if (cleanRefHash) return cleanRefHash;
+          }
+          let refPath = refUrl.pathname.replace(/\/preview\.html(?:\/|$)/i, '/').replace(/\/index\.html(?:\/|$)/i, '/');
+          const prodPrefix = (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) ? getProductionBasePrefix() : '';
+          if (prodPrefix && (refPath === prodPrefix || refPath.startsWith(prodPrefix + '/'))) {
+            refPath = refPath.slice(prodPrefix.length) || '/';
+          }
+          const cleanRefPath = sanitizeBackRoute(refPath === '/' ? '#/' : ('#/' + refPath.replace(/^\/+/, '')));
+          if (cleanRefPath) return cleanRefPath;
+        }
+      }
+    } catch (_) {}
+    return isAllPostsDisabled() ? '#/' : '#/blog';
+  }
+  window.getReaderBackTarget = getReaderBackTarget;
+
+  function navigateBackFromReader() {
+    if (window.__hasInAppNavigated && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    navigateTo(getReaderBackTarget());
+  }
+  window.navigateBackFromReader = navigateBackFromReader;
+
   function route(options = {}) {
     const r = parseRoute();
     const siteTitle = getSiteTitle();
@@ -468,7 +567,10 @@
     if (r.canonicalHash) {
       try {
         let cleanUrl = toPreviewUrl(r.canonicalHash);
-        if (window.location.pathname + window.location.search !== cleanUrl) {
+        const currentUrl = cleanUrl.includes('#')
+          ? (window.location.pathname + window.location.search + window.location.hash)
+          : (window.location.pathname + window.location.search);
+        if (currentUrl !== cleanUrl) {
           const rawPath = window.location.pathname.replace(/\/preview\.html(?:\/|$)/i, '/').replace(/^\/+|\/+$/g, '');
           const rawHash = (window.location.hash || '').replace(/^#\/?/, '').trim();
           const hasRequestedSubroute = Boolean(rawPath || rawHash);
@@ -486,6 +588,7 @@
     }
 
     if (r.view === 'posts') {
+      rememberNonPostRoute(r.canonicalHash);
       let pageTitle = `All Posts — ${siteTitle}`;
       if (r.category && r.category !== 'ALL') {
         pageTitle = `${r.category} Articles — ${siteTitle}`;
@@ -494,6 +597,9 @@
       renderAllPosts(r.page || 1, r.category || null, options);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else if (r.view === 'reader') {
+      if (r.type === 'page') {
+        rememberNonPostRoute(r.canonicalHash);
+      }
       const renderedItem = renderReader(r.type || 'post', r.slug, r.page || 1, options);
       const isLinks = renderedItem && (renderedItem.id === 'page_links' || renderedItem.slug === 'links' || r.slug === 'links');
       const itemTitle = isLinks
@@ -503,11 +609,13 @@
       updatePageTitle(pageTitle);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else if (r.view === 'author') {
+      rememberNonPostRoute(r.canonicalHash);
       const pageTitle = `${r.name} — ${siteTitle}`;
       updatePageTitle(pageTitle);
       if (typeof renderAuthorProfile === 'function') renderAuthorProfile(r.name, r.tab || 'articles', options);
       notifyParentNavigated(r.canonicalHash, pageTitle, r);
     } else {
+      rememberNonPostRoute(r.canonicalHash || '#/');
       const pageTitle = `Home — ${siteTitle}`;
       updatePageTitle(pageTitle);
       renderHome(options);
@@ -585,16 +693,8 @@
   if (btnBack) {
     btnBack.addEventListener('click', (e) => {
       e.preventDefault();
-      if (window.__hasInAppNavigated && window.history.length > 1) {
-        window.history.back();
-      } else {
-        const hash = window.location.hash || '';
-        if (hash.startsWith('#/pages/')) {
-          navigateTo('/');
-        } else {
-          navigateTo('blog');
-        }
-      }
+      e.stopPropagation();
+      navigateBackFromReader();
     });
   }
 
@@ -602,7 +702,8 @@
   if (btnBottomBack) {
     btnBottomBack.addEventListener('click', (e) => {
       e.preventDefault();
-      navigateTo('blog');
+      e.stopPropagation();
+      navigateBackFromReader();
     });
   }
 
@@ -610,6 +711,7 @@
   if (btnPostsBack) {
     btnPostsBack.addEventListener('click', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       navigateTo('/');
     });
   }
@@ -711,8 +813,12 @@
 
   // Intercept navigation links for smooth client-side routing
   document.addEventListener('click', (e) => {
+    if (e.defaultPrevented) return;
     const link = e.target.closest('a');
     if (!link) return;
+    if (link.id === 'btn-reader-back' || link.id === 'btn-reader-bottom-back' || link.id === 'btn-posts-back-home') {
+      return;
+    }
     const href = link.getAttribute('href');
     if (!href) return;
 

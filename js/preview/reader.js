@@ -173,6 +173,12 @@
   }
 
   function renderAllPosts(page = 1, category = null, options = {}) {
+    const isAllCat = Boolean(!category || category.toUpperCase() === 'ALL' || category.trim().toLowerCase() === 'all posts' || category.trim().toLowerCase() === 'all-posts' || category === 'page_all');
+    if (isAllCat && typeof window.isAllPostsDisabled === 'function' && window.isAllPostsDisabled()) {
+      renderHome(options);
+      return;
+    }
+
     document.body.classList.remove('is-links-page');
     document.documentElement.classList.remove('is-links-page');
     ensurePersistentHeaderVisible();
@@ -201,7 +207,6 @@
 
     updateNavLinks((category && category !== 'ALL') ? `category:${category}` : 'posts');
 
-    const isAllCat = Boolean(!category || category.toUpperCase() === 'ALL' || category.trim().toLowerCase() === 'all posts' || category.trim().toLowerCase() === 'all-posts' || category === 'page_all');
     const isHiddenCatPage = Boolean(category && !isAllCat && typeof window.isCategoryPageHidden === 'function' && window.isCategoryPageHidden(category));
     activeAllCategoryFilter = (category && !isAllCat && !isHiddenCatPage) ? category : 'ALL';
 
@@ -561,7 +566,12 @@
         }
 
         if (item.isCategoryAggregate || String(item.id || '').startsWith('page_cat_') || item.id === 'page_all' || cleanSlug === 'all') {
-          const cat = (item.id === 'page_all' || cleanSlug === 'all') ? null : (item.categoryAggregate || item.title);
+          const isAllItem = (item.id === 'page_all' || cleanSlug === 'all');
+          if (isAllItem && typeof window.isAllPostsDisabled === 'function' && window.isAllPostsDisabled()) {
+            renderHome(options);
+            return null;
+          }
+          const cat = isAllItem ? null : (item.categoryAggregate || item.title);
           renderAllPosts(pageNum || 1, cat, options);
           return null;
         }
@@ -637,10 +647,21 @@
         if (readerTopBar) {
           readerTopBar.style.display = isPage ? 'none' : 'flex';
         }
+        const backTargetHash = (typeof window.getReaderBackTarget === 'function')
+          ? window.getReaderBackTarget()
+          : ((typeof window.isAllPostsDisabled === 'function' && window.isAllPostsDisabled()) ? '#/' : '#/blog');
+        const backTargetHref = (typeof window.toPreviewUrl === 'function')
+          ? window.toPreviewUrl(backTargetHash)
+          : backTargetHash;
+        const topBackBtn = document.getElementById('btn-reader-back');
+        if (topBackBtn) {
+          topBackBtn.setAttribute('href', backTargetHref);
+        }
         const bottomBackBtn = document.getElementById('btn-reader-bottom-back');
         if (bottomBackBtn && bottomBackBtn.parentElement) {
           bottomBackBtn.parentElement.style.display = isPage ? 'none' : '';
           bottomBackBtn.innerHTML = '&larr; See More Posts';
+          bottomBackBtn.setAttribute('href', backTargetHref);
         }
 
         const isAboutCedar = (item.slug === 'about-cedar' || item.id === 'page_about_cedar');

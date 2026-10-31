@@ -3969,7 +3969,7 @@ ${proseHtml}
       
       <!-- Top Navigation Breadcrumb -->
       <div class="article-top-nav">
-        <a href="${blogHomeHref}" class="back-link">&larr; Back to all articles</a>
+        <a href="${blogHomeHref}" class="back-link" onclick="if(window.history.length>1&&document.referrer&&document.referrer.indexOf(location.host)!==-1){event.preventDefault();history.back();}">&larr; Back to Posts</a>
       </div>
 
       <!-- Article Header -->
