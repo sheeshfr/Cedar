@@ -1348,7 +1348,7 @@
       }
     }, { passive: false });
 
-    // Drag-to-pan when magnified
+    // Click to toggle big zoom in/out, or drag-to-pan when magnified
     popoutImgEl.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
@@ -1360,25 +1360,54 @@
       popoutDragStartY = e.clientY;
       popoutDragOriginX = popoutPanX;
       popoutDragOriginY = popoutPanY;
-      popoutImgEl.classList.add('is-dragging');
+    });
+
+    popoutImgEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (popoutDidDrag) {
+        popoutDidDrag = false;
+        return;
+      }
+      if (popoutZoomIndex <= 0) {
+        // One big 2x integer zoom in toward clicked point
+        const targetZoomIdx = POPOUT_ZOOM_STEPS.indexOf(2) !== -1 ? POPOUT_ZOOM_STEPS.indexOf(2) : 3;
+        const targetZoom = POPOUT_ZOOM_STEPS[targetZoomIdx] || 2;
+        const rect = popoutImgEl.getBoundingClientRect();
+        if (rect && rect.width > 0 && rect.height > 0) {
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          popoutPanX = -(e.clientX - cx) * (targetZoom - 1);
+          popoutPanY = -(e.clientY - cy) * (targetZoom - 1);
+        }
+        popoutZoomIndex = targetZoomIdx;
+        applyPopoutTransform();
+      } else {
+        // Clicking again while magnified zooms back out to 1x
+        resetPopoutZoomAndPosition();
+      }
     });
 
     window.addEventListener('mousemove', (e) => {
       if (!popoutIsDragging) return;
       const dx = e.clientX - popoutDragStartX;
       const dy = e.clientY - popoutDragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
         popoutDidDrag = true;
+        if (popoutImgEl) popoutImgEl.classList.add('is-dragging');
       }
-      popoutPanX = popoutDragOriginX + dx;
-      popoutPanY = popoutDragOriginY + dy;
-      applyPopoutTransform();
+      if (popoutDidDrag) {
+        popoutPanX = popoutDragOriginX + dx;
+        popoutPanY = popoutDragOriginY + dy;
+        applyPopoutTransform();
+      }
     });
 
     window.addEventListener('mouseup', () => {
       if (!popoutIsDragging) return;
       popoutIsDragging = false;
       if (popoutImgEl) popoutImgEl.classList.remove('is-dragging');
+      applyPopoutTransform();
     });
 
     return overlay;
@@ -1537,7 +1566,7 @@
     popoutPanX = Math.max(-maxPanX, Math.min(maxPanX, popoutPanX));
     popoutPanY = Math.max(-maxPanY, Math.min(maxPanY, popoutPanY));
 
-    popoutImgEl.style.cursor = popoutIsDragging ? 'grabbing' : 'grab';
+    popoutImgEl.style.cursor = (popoutIsDragging && popoutDidDrag) ? 'grabbing' : 'zoom-out';
     popoutImgEl.style.transform = `translate3d(${Math.round(popoutPanX)}px, ${Math.round(popoutPanY)}px, 0px) scale(${zoom})`;
   }
 
