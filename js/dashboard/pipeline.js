@@ -28,7 +28,7 @@
     const cardsDrafts = document.getElementById('cards-drafts');
     const cardsPub = document.getElementById('cards-published');
     if (cardsDrafts || cardsPub) {
-      const activePosts = posts.filter(d => d.type !== 'note' && d.status !== 'idea');
+      const activePosts = posts.filter(d => d && d.type !== 'note' && d.status !== 'idea' && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
       const draftsList = activePosts.filter(p => !p.status || p.status === 'draft');
       const published = activePosts.filter(p => p.status === 'published');
       if (cardsDrafts) renderPipelineColumn('cards-drafts', draftsList, 'draft');
@@ -519,7 +519,7 @@
       ? window.CedarStore.getPosts()
       : (Array.isArray(window.drafts) ? window.drafts.filter(d => (!d.type || d.type === 'post') && d.type !== 'page') : []);
 
-    posts = posts.filter(d => d && d.type !== 'note' && d.status !== 'idea');
+    posts = posts.filter(d => d && d.type !== 'note' && d.status !== 'idea' && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
     posts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
     // Deduplicate posts strictly by ID or non-empty slug so duplicates never appear

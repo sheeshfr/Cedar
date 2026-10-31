@@ -4754,7 +4754,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     },
 
     getPosts() {
-      return Array.from(this._posts.values());
+      return Array.from(this._posts.values()).filter(p => !(typeof isDraftActuallyBlank === 'function' && isDraftActuallyBlank(p)));
     },
 
     getPages() {
@@ -5256,6 +5256,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             d.status = 'published';
             d.everPublished = true;
           }
+          if (d.status !== 'published' && typeof isDraftActuallyBlank === 'function' && isDraftActuallyBlank(d)) {
+            continue;
+          }
           if (!d.createdAt) d.createdAt = d.updatedAt || Date.now();
           if (!d.updatedAt) d.updatedAt = Date.now();
           if (!d.images) d.images = [];
@@ -5310,14 +5313,14 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       for (const [id, pageItem] of Array.from(this._pages.entries())) {
         if (this.healDraftItem(pageItem)) anyUpdated = true;
-        if (deletedIds.has(String(id)) || this.isPurgedTestPage(pageItem)) {
+        if (deletedIds.has(String(id)) || this.isPurgedTestPage(pageItem) || (typeof isDraftActuallyBlank === 'function' && isDraftActuallyBlank(pageItem))) {
           this._pages.delete(id);
           anyUpdated = true;
         }
       }
       for (const [id, postItem] of Array.from(this._posts.entries())) {
         if (this.healDraftItem(postItem)) anyUpdated = true;
-        if (deletedIds.has(String(id)) || this.isPurgedTestPage(postItem)) {
+        if (deletedIds.has(String(id)) || this.isPurgedTestPage(postItem) || (typeof isDraftActuallyBlank === 'function' && isDraftActuallyBlank(postItem))) {
           this._posts.delete(id);
           anyUpdated = true;
         }
@@ -5328,6 +5331,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         if (deletedIds.has(String(diskItem.id))) continue;
         this.healDraftItem(diskItem);
         if (this.isPurgedTestPage(diskItem)) continue;
+        if (typeof isDraftActuallyBlank === 'function' && isDraftActuallyBlank(diskItem)) continue;
         const isPage = this.isPageItem(diskItem);
         const targetMap = isPage ? this._pages : this._posts;
 
@@ -5457,62 +5461,70 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
   // =========================================================================
 
-  // BLANK PAGE SANITIZATION & DISCARD
+  // BLANK DRAFT (POST & PAGE) SANITIZATION & DISCARD
 
   // =========================================================================
 
-  function isPageActuallyBlank(draft) {
+  function isDraftActuallyBlank(draft) {
 
     if (!draft) return false;
 
     const isPageType = draft.type === 'page' || String(draft.id || '').startsWith('page_');
 
-    if (!isPageType) return false;
-
-
-
-    // Never consider built-in pages blank (About, RSS, Links, All, etc.)
-
-    const id = (draft.id || '').trim().toLowerCase();
-
-    const slug = (draft.slug || '').trim().toLowerCase();
-
     const rawTitle = (draft.title || '').trim();
 
     const titleLower = rawTitle.toLowerCase();
 
-    if (
+    if (isPageType) {
 
-      id === 'page_rss' || id === 'page_about' || id === 'page_links' || id === 'page_all' || id === 'page_about_cedar' ||
+      // Never consider built-in pages blank (About, RSS, Links, All, etc.)
 
-      slug === 'rss' || slug === 'about' || slug === 'links' || slug === 'all' || slug === 'about-cedar' ||
+      const id = (draft.id || '').trim().toLowerCase();
 
-      titleLower === 'rss' || titleLower === 'about' || titleLower === 'links' || titleLower === 'all' || titleLower === 'about cedar' ||
+      const slug = (draft.slug || '').trim().toLowerCase();
 
-      draft.isBuiltIn
+      if (
 
-    ) {
+        id === 'page_rss' || id === 'page_about' || id === 'page_links' || id === 'page_all' || id === 'page_about_cedar' ||
 
-      return false;
+        slug === 'rss' || slug === 'about' || slug === 'links' || slug === 'all' || slug === 'about-cedar' ||
 
-    }
+        titleLower === 'rss' || titleLower === 'about' || titleLower === 'links' || titleLower === 'all' || titleLower === 'about cedar' ||
 
+        draft.isBuiltIn
 
+      ) {
 
-    // Never consider redirect pages blank
-    if (draft.isRedirect || draft.redirectUrl) return false;
+        return false;
 
-    // Never consider category aggregate pages blank
+      }
 
-    if (draft.isCategoryAggregate || String(draft.id || '').startsWith('page_cat_')) return false;
+      // Never consider redirect pages blank
+      if (draft.isRedirect || draft.redirectUrl) return false;
 
-    const proj = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
+      // Never consider category aggregate pages blank
 
-    if (proj && Array.isArray(proj.categories)) {
+      if (draft.isCategoryAggregate || String(draft.id || '').startsWith('page_cat_')) return false;
 
-      const catSet = new Set(proj.categories.map(c => String(c).trim().toLowerCase()));
+      const proj = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
 
-      if (catSet.has(titleLower) || catSet.has(slug)) return false;
+      if (proj && Array.isArray(proj.categories)) {
+
+        const catSet = new Set(proj.categories.map(c => String(c).trim().toLowerCase()));
+
+        if (catSet.has(titleLower) || catSet.has(slug)) return false;
+
+      }
+
+    } else {
+
+      // Never consider published posts, notes, or quick ideas as blank drafts
+
+      if (draft.type === 'note' || draft.status === 'idea' || draft.status === 'published') {
+
+        return false;
+
+      }
 
     }
 
@@ -5520,7 +5532,25 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     // Check title: if user provided a meaningful title (not empty, not default placeholder)
 
-    if (rawTitle && titleLower !== 'untitled page' && titleLower !== 'untitled' && titleLower !== 'new page') {
+    if (
+
+      rawTitle &&
+
+      titleLower !== 'untitled page' &&
+
+      titleLower !== 'untitled post' &&
+
+      titleLower !== 'untitled draft' &&
+
+      titleLower !== 'untitled article' &&
+
+      titleLower !== 'untitled' &&
+
+      titleLower !== 'new page' &&
+
+      titleLower !== 'new post'
+
+    ) {
 
       return false;
 
@@ -5534,9 +5564,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
-    // Check cover image
+    // Check cover image / featured image
 
     if ((draft.coverImage || '').trim().length > 0) return false;
+
+    if ((draft.featuredImage || '').trim().length > 0) return false;
 
 
 
@@ -5584,7 +5616,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       }
 
-      if (/\b(page-recent-posts-block|page-individual-post-block|custom-gallery-grid|article-share-block)\b/i.test(html)) {
+      if (/\b(page-recent-posts-block|page-individual-post-block|custom-gallery-grid|article-share-block|rss-feed-showcase-card)\b/i.test(html)) {
 
         return false;
 
@@ -5606,69 +5638,89 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
-    // Check live DOM elements if currently in editor for this draft
+    // Check live DOM elements if currently in editor and bound to this draft
 
-    if (typeof document !== 'undefined' && typeof window !== 'undefined' && window.currentDraft && window.currentDraft.id === draft.id) {
+    if (typeof document !== 'undefined' && typeof window !== 'undefined' && window.currentView === 'editor' && window.currentDraft && window.currentDraft.id === draft.id) {
 
       const canvasTitle = document.getElementById('rich-canvas-title');
 
-      if (canvasTitle) {
+      const isDomBound = canvasTitle && canvasTitle.dataset.loadedDraftId === draft.id;
+
+      if (isDomBound) {
 
         const ct = (canvasTitle.textContent || '').trim();
 
         const ctl = ct.toLowerCase();
 
-        if (ct && ctl !== 'untitled page' && ctl !== 'untitled' && ctl !== 'new page') {
+        if (
+
+          ct &&
+
+          ctl !== 'untitled page' &&
+
+          ctl !== 'untitled post' &&
+
+          ctl !== 'untitled draft' &&
+
+          ctl !== 'untitled article' &&
+
+          ctl !== 'untitled' &&
+
+          ctl !== 'new page' &&
+
+          ctl !== 'new post'
+
+        ) {
 
           return false;
 
         }
 
-      }
+        const canvasSub = document.getElementById('rich-canvas-subtitle');
 
-      const canvasSub = document.getElementById('rich-canvas-subtitle');
-
-      if (canvasSub && (canvasSub.textContent || '').trim().length > 0) {
-
-        return false;
-
-      }
-
-      const canvasProse = document.getElementById('rich-canvas-prose');
-
-      if (canvasProse) {
-
-        if (canvasProse.querySelector('img, figure, iframe, hr, table, pre, blockquote, video, audio, .page-recent-posts-block, .page-individual-post-block, .custom-gallery-grid, .article-share-block')) {
+        if (canvasSub && (canvasSub.textContent || '').trim().length > 0) {
 
           return false;
 
         }
 
-        const pt = (canvasProse.textContent || '')
+        const canvasProse = document.getElementById('rich-canvas-prose');
 
-          .replace(/&nbsp;/gi, '')
+        if (canvasProse) {
 
-          .replace(/[\s\u200B\u00A0\uFEFF]/g, '')
+          if (canvasProse.querySelector('img, figure, iframe, hr, table, pre, blockquote, video, audio, .page-recent-posts-block, .page-individual-post-block, .custom-gallery-grid, .article-share-block, .rss-feed-showcase-card')) {
 
-          .trim();
+            return false;
 
-        if (pt.length > 0) return false;
+          }
 
-      }
+          const pt = (canvasProse.textContent || '')
 
-      const mdInput = document.getElementById('markdown-input');
+            .replace(/&nbsp;/gi, '')
 
-      if (mdInput) {
+            .replace(/[\s\u200B\u00A0\uFEFF]/g, '')
 
-        const mt = (mdInput.value || '')
+            .trim();
 
-          .replace(/&nbsp;/gi, '')
+          if (pt.length > 0) return false;
 
-          .replace(/[\s\u200B\u00A0\uFEFF]/g, '')
+        }
 
-          .trim();
+        const mdInput = document.getElementById('markdown-input');
 
-        if (mt.length > 0) return false;
+        if (mdInput) {
+
+          const mt = (mdInput.value || '')
+
+            .replace(/&nbsp;/gi, '')
+
+            .replace(/[\s\u200B\u00A0\uFEFF]/g, '')
+
+            .trim();
+
+          if (mt.length > 0) return false;
+
+        }
 
       }
 
@@ -5678,6 +5730,10 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     return true;
 
+  }
+
+  function isPageActuallyBlank(draft) {
+    return isDraftActuallyBlank(draft);
   }
 
 
@@ -5773,6 +5829,10 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
 
+      if (typeof window.renderAllPostsGrid === 'function') window.renderAllPostsGrid();
+
+      if (typeof window.renderPostsPipeline === 'function') window.renderPostsPipeline();
+
       if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
 
       if (typeof window.renderHomeActivityStream === 'function') window.renderHomeActivityStream();
@@ -5782,6 +5842,8 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
   }
 
 
+
+  window.isDraftActuallyBlank = isDraftActuallyBlank;
 
   window.isPageActuallyBlank = isPageActuallyBlank;
 
@@ -5807,6 +5869,10 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (Array.isArray(window.drafts)) {
         window.drafts.forEach(d => {
           if (d && d.id) {
+            if (isDraftActuallyBlank(d)) {
+              window.CedarStore.remove(d.id);
+              return;
+            }
             const existing = window.CedarStore.get(d.id);
             if (!existing) {
               window.CedarStore.upsert(d);
@@ -5845,8 +5911,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     const inEditor = typeof window !== 'undefined' && window.currentView === 'editor';
 
     if (inEditor && cur && Array.isArray(drafts)) {
-      if (cur.type === 'page' && isPageActuallyBlank(cur) && !inEditor) {
+      if (isDraftActuallyBlank(cur)) {
         drafts = drafts.filter(d => d && d.id !== cur.id);
+        if (window.CedarStore && typeof window.CedarStore.remove === 'function') {
+          window.CedarStore.remove(cur.id);
+        }
       } else {
         cur.updatedAt = Date.now();
         const idx = drafts.findIndex(d => d && d.id === cur.id);
@@ -5888,17 +5957,17 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     if (Array.isArray(drafts)) {
 
-      // Purge any blank pages if not currently active in editor
+      // Purge any blank drafts (posts or pages) before persisting
 
       drafts = drafts.filter(d => {
 
         if (!d) return false;
 
-        if (d.type === 'page' && isPageActuallyBlank(d)) {
+        if (isDraftActuallyBlank(d)) {
 
-          if (inEditor && cur && cur.id === d.id) {
+          if (window.CedarStore && typeof window.CedarStore.remove === 'function') {
 
-            return true;
+            window.CedarStore.remove(d.id);
 
           }
 
@@ -7071,6 +7140,8 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
   window.deleteItem = deleteItem;
 
+  window.isDraftActuallyBlank = isDraftActuallyBlank;
+
   window.isPageActuallyBlank = isPageActuallyBlank;
 
   window.discardBlankDraft = discardBlankDraft;
@@ -7189,6 +7260,8 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     deleteItem,
 
+    isDraftActuallyBlank,
+
     isPageActuallyBlank,
 
     discardBlankDraft
@@ -7224,6 +7297,8 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     duplicateItem,
 
     deleteItem,
+
+    isDraftActuallyBlank,
 
     isPageActuallyBlank,
 

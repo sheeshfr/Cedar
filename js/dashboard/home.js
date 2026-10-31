@@ -341,6 +341,7 @@
             const postSlug = postData.slug;
             const liveDraft = currentDrafts.find(d => d && (d.id === postId || (postSlug && d.slug === postSlug)));
             if (!liveDraft || liveDraft.type === 'page' || liveDraft.type === 'note') return false;
+            if (typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(liveDraft)) return false;
           }
           if (item.type === 'page') {
             const pageData = item.data || {};
@@ -386,7 +387,7 @@
       if (entry.type === 'post') {
         const postId = entry.data?.id || entry.id;
         const postSlug = entry.data?.slug;
-        const exists = currentLiveDrafts.some(d => d && (d.id === postId || (postSlug && d.slug === postSlug)) && d.type !== 'page');
+        const exists = currentLiveDrafts.some(d => d && (d.id === postId || (postSlug && d.slug === postSlug)) && d.type !== 'page' && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
         if (!exists) {
           log.splice(i, 1);
           continue;
@@ -421,8 +422,11 @@
     if (draftsList.length > 0) {
       // Existing Posts (exclude pages, notes, and links)
       draftsList.filter(d => d.type !== 'page' && d.type !== 'note' && !isLinks(d)).forEach(post => {
-        // Skip entirely blank posts without title or content
-        if ((!post.title || post.title === 'Untitled Post') && (!post.markdown || !post.markdown.trim()) && (!post.images || post.images.length === 0)) {
+        // Skip entirely blank posts without title, subtitle, or content
+        if (typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(post)) {
+          return;
+        }
+        if ((!post.title || post.title === 'Untitled Post') && (!post.subtitle || !post.subtitle.trim()) && (!post.markdown || !post.markdown.trim()) && (!post.images || post.images.length === 0)) {
           return;
         }
         let postTimestamp = post.publishedAt || post.createdAt || post.updatedAt || Date.now();

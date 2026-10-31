@@ -28,13 +28,13 @@
       : (d => Boolean(d && (d.id === 'page_links' || d.slug === 'links' || (d.title || '').trim().toLowerCase() === 'links' || d.linksData)));
 
     if (window.CedarStore && typeof window.CedarStore.getPosts === 'function') {
-      allPosts = window.CedarStore.getPosts().filter(p => !p.hidden && !p.retired && p.status !== 'idea' && p.type !== 'note');
+      allPosts = window.CedarStore.getPosts().filter(p => !p.hidden && !p.retired && p.status !== 'idea' && p.type !== 'note' && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(p)));
       const allPages = window.CedarStore.getPages().filter(p => p.id !== 'page_about_cedar' && p.slug !== 'about-cedar');
       totalPages = allPages.length;
     } else {
       const draftsList = Array.isArray(window.drafts) ? window.drafts : (typeof drafts !== 'undefined' && Array.isArray(drafts) ? drafts : []);
 
-      allPosts = draftsList.filter(d => (!d.type || d.type === 'post') && d.type !== 'page' && d.status !== 'idea' && !isLinks(d));
+      allPosts = draftsList.filter(d => (!d.type || d.type === 'post') && d.type !== 'page' && d.status !== 'idea' && !isLinks(d) && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
       totalPages = draftsList.filter(d => (d.type === 'page' || isLinks(d)) && d.id !== 'page_about_cedar' && d.slug !== 'about-cedar').length;
     }
 

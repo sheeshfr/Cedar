@@ -625,11 +625,9 @@
     if (btnCreateDraft) {
       btnCreateDraft.addEventListener('click', () => {
         const newDraft = createNewDraftModel('', 'blank', 'post', 'draft');
-        drafts.unshift(newDraft);
         currentDraft = newDraft;
-        saveDraftsToStorage();
+        window.currentDraft = newDraft;
         openPostInEditor(newDraft);
-        showToast('Created new draft!');
       });
     }
 
@@ -1645,7 +1643,9 @@
 
       window.currentDraft = targetDraft;
       currentDraft = targetDraft;
-      saveDraftsToStorage();
+      if (typeof window.isDraftActuallyBlank !== 'function' || !window.isDraftActuallyBlank(targetDraft)) {
+        saveDraftsToStorage();
+      }
 
       // Canonicalize address bar if legacy format was used or slug available
       const canonicalHash = buildCanonicalUrl(route, currentDraft);

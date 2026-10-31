@@ -405,6 +405,9 @@
     if (isExportOpen && setupTitle && setupTitle.value !== undefined) {
       curDraft.title = setupTitle.value.trim();
       if (canvasTitle && isCanvasTitleBound) canvasTitle.textContent = curDraft.title;
+    } else if (canvasTitle && canvasTitle.dataset.loadedDraftId === curDraft.id) {
+      curDraft.title = (canvasTitle.textContent || '').trim();
+      if (setupTitle) setupTitle.value = curDraft.title;
     } else if (isCanvasTitleBound && canvasTitle && canvasTitle.textContent.trim()) {
       curDraft.title = (canvasTitle.textContent || '').trim();
       if (setupTitle) setupTitle.value = curDraft.title;
@@ -443,6 +446,9 @@
     if (isExportOpen && setupSubtitle && setupSubtitle.value !== undefined) {
       curDraft.subtitle = setupSubtitle.value.trim();
       if (canvasSubtitle && isCanvasSubBound) canvasSubtitle.textContent = curDraft.subtitle;
+    } else if (canvasSubtitle && canvasSubtitle.dataset.loadedDraftId === curDraft.id) {
+      curDraft.subtitle = (canvasSubtitle.textContent || '').trim();
+      if (setupSubtitle) setupSubtitle.value = curDraft.subtitle;
     } else if (isCanvasSubBound && canvasSubtitle && canvasSubtitle.textContent.trim()) {
       curDraft.subtitle = (canvasSubtitle.textContent || '').trim();
       if (setupSubtitle) setupSubtitle.value = curDraft.subtitle;
@@ -759,7 +765,7 @@
 
   function updateDraftsCount() {
     const el = document.getElementById('drafts-count');
-    const draftsList = window.drafts || [];
+    const draftsList = (window.drafts || []).filter(d => d && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
     if (el) el.textContent = draftsList.length;
   }
 
@@ -1351,13 +1357,12 @@
   function handleNewPost() {
     if (typeof window.createNewDraftModel !== 'function') return;
     const newPost = window.createNewDraftModel('', 'blank', 'post', 'draft');
-    if (window.drafts) window.drafts.unshift(newPost);
     window.currentDraft = newPost;
-    if (typeof window.saveDraftsToStorage === 'function') window.saveDraftsToStorage();
+    // Note: Do not save to persistent storage or log activity yet while the post is blank.
+    // If the user leaves the post blank and presses back, it will be discarded rather than shown as an Untitled Post draft.
     if (typeof window.openPostInEditor === 'function') {
       window.openPostInEditor(newPost);
     }
-    if (typeof window.showToast === 'function') window.showToast('Created new blank post!');
   }
 
   function createNewStaticPage() {

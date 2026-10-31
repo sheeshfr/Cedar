@@ -3346,7 +3346,9 @@
     if (!listContainer) return;
     listContainer.innerHTML = '';
 
-    if (drafts.length === 0) {
+    const visibleDrafts = drafts.filter(d => d && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
+
+    if (visibleDrafts.length === 0) {
       listContainer.innerHTML = `
         <div style="text-align: center; padding: 2rem; color: var(--text-muted, #888); font-size: 0.9rem;">
           No drafts created yet.
@@ -3355,7 +3357,7 @@
       return;
     }
 
-    drafts.forEach(d => {
+    visibleDrafts.forEach(d => {
       const item = document.createElement('div');
       item.className = `draft-item-card ${currentDraft && d.id === currentDraft.id ? 'active' : ''}`;
       
