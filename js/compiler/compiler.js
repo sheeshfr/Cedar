@@ -2387,7 +2387,17 @@ ${socialMeta.metaLines}
       max-width: 100%;
     }
 
-    .article-prose h1, .article-prose h2 {
+    .article-prose h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+
+    .article-prose h2 {
       font-size: 1.7rem;
       font-weight: 700;
       color: var(--text-primary);

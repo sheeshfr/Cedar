@@ -1392,14 +1392,17 @@
         case 'hr':
           rep = `\n---\n\n`;
           break;
+        case 'h1':
+          rep = `# ${cleanLine || 'Header 1'}`;
+          break;
         case 'h2':
-          rep = `## ${cleanLine || 'Heading 2'}`;
+          rep = `## ${cleanLine || 'Header 2'}`;
           break;
         case 'h3':
-          rep = `### ${cleanLine || 'Heading 3'}`;
+          rep = `### ${cleanLine || 'Header 3'}`;
           break;
         case 'h4':
-          rep = `#### ${cleanLine || 'Heading 4'}`;
+          rep = `#### ${cleanLine || 'Header 4'}`;
           break;
         case 'quote':
         case 'blockquote':
@@ -1658,19 +1661,24 @@
         newEl.appendChild(quoteP);
         break;
 
+      case 'h1':
+        newEl = document.createElement('h1');
+        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : '<br>';
+        break;
+
       case 'h2':
         newEl = document.createElement('h2');
-        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : 'Heading 2';
+        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : '<br>';
         break;
 
       case 'h3':
         newEl = document.createElement('h3');
-        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : 'Heading 3';
+        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : '<br>';
         break;
 
       case 'h4':
         newEl = document.createElement('h4');
-        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : 'Heading 4';
+        newEl.innerHTML = rawText ? (window.escapeHtml ? window.escapeHtml(rawText) : rawText) : '<br>';
         break;
 
       case 'codeblock':
@@ -1954,20 +1962,19 @@
     else if (currentBlock === 'individual-post') blockTypeTitle = 'URL';
     else if (currentBlock === 'divider') blockTypeTitle = 'Divider Line';
 
-    // Update Style Dropdown label & lock state
+    // Update Style Dropdown label, menu active state & lock state
     if (styleLabel) {
       const nameMap = {
-        'h2': 'Heading 2',
-        'h3': 'Heading 3',
-        'h4': 'Heading 4',
-        'quote': 'Blockquote',
-        'codeblock': 'Code Block',
-        'p': 'Style'
+        'h1': 'Header 1',
+        'h2': 'Header 2',
+        'h3': 'Header 3',
+        'h4': 'Header 4',
+        'p': 'Body'
       };
       if (['images', 'media', 'share', 'rss', 'recent-posts', 'individual-post', 'divider'].includes(currentBlock)) {
-        styleLabel.textContent = 'Style';
+        styleLabel.textContent = 'Body';
       } else {
-        styleLabel.textContent = nameMap[currentBlock] || 'Style';
+        styleLabel.textContent = nameMap[currentBlock] || 'Body';
       }
     }
     if (styleBtn) {
@@ -1978,12 +1985,19 @@
       } else {
         styleBtn.classList.remove('locked');
         styleBtn.title = 'Text Style';
-        if (currentBlock !== 'p') {
+        if (['h1', 'h2', 'h3', 'h4'].includes(currentBlock)) {
           styleBtn.classList.add('active');
         } else {
           styleBtn.classList.remove('active');
         }
       }
+    }
+    const styleMenu = document.getElementById('tb-style-menu');
+    if (styleMenu) {
+      const activeAction = ['h1', 'h2', 'h3', 'h4'].includes(currentBlock) ? `format-${currentBlock}` : 'format-p';
+      styleMenu.querySelectorAll('.toolbar-menu-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.action === activeAction);
+      });
     }
 
     // Update Type Dropdown label: keep static as 'Type'
@@ -2072,10 +2086,16 @@
     setBtnActive('highlight', false);
     const styleLabel = document.getElementById('tb-current-style-label');
     const styleBtn = document.getElementById('tb-btn-style-dropdown');
-    if (styleLabel) styleLabel.textContent = 'Style';
+    if (styleLabel) styleLabel.textContent = 'Body';
     if (styleBtn) {
       styleBtn.classList.remove('locked');
       styleBtn.title = 'Text Style';
+    }
+    const styleMenu = document.getElementById('tb-style-menu');
+    if (styleMenu) {
+      styleMenu.querySelectorAll('.toolbar-menu-item').forEach(b => {
+        b.classList.toggle('active', b.dataset.action === 'format-p');
+      });
     }
     const blockTypeLabel = document.getElementById('tb-current-block-type-label');
     if (blockTypeLabel) blockTypeLabel.textContent = 'Type';
@@ -2405,6 +2425,7 @@
 
       if (e.altKey) {
         const key = e.key;
+        if (key === '1') { e.preventDefault(); formatBlockStyle('h1'); return; }
         if (key === '2') { e.preventDefault(); formatBlockStyle('h2'); return; }
         if (key === '3') { e.preventDefault(); formatBlockStyle('h3'); return; }
         if (key === '4') { e.preventDefault(); formatBlockStyle('h4'); return; }
@@ -2595,6 +2616,9 @@
           }
           break;
         }
+        case 'format-h1':
+          swapCurrentBlock('h1');
+          break;
         case 'format-h2':
           swapCurrentBlock('h2');
           break;
@@ -2862,6 +2886,9 @@
         break;
       case 'delete-current-block':
         if (typeof window.deleteCurrentBlock === 'function') window.deleteCurrentBlock();
+        break;
+      case 'format-h1':
+        swapCurrentBlock('h1');
         break;
       case 'format-h2':
         swapCurrentBlock('h2');

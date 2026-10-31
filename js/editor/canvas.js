@@ -2251,8 +2251,9 @@
           if (topBlock) {
             if (topBlock.parentNode === canvasProse) {
               const raw = (topBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
-              if ((topBlock.tagName === 'P' || topBlock.tagName === 'DIV') && /^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
+              if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(topBlock.tagName) && /^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
                 e.preventDefault();
+                topBlock.innerHTML = '<br>';
                 window._lastActiveBlock = topBlock;
                 if (typeof window.swapCurrentBlock === 'function') {
                   window.swapCurrentBlock('divider');
@@ -2334,9 +2335,10 @@
           while (block && block.parentNode !== canvasProse && block !== canvasProse && block !== document.body) {
             block = block.parentNode;
           }
-          if (block && block.parentNode === canvasProse && (block.tagName === 'P' || block.tagName === 'DIV')) {
+        if (block && block.parentNode === canvasProse && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(block.tagName)) {
             let fullPreText = '';
-            let preRange = null;
+          if (/^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
+            block.innerHTML = '<br>';
             try {
               preRange = document.createRange();
               preRange.setStart(block, 0);
@@ -2796,9 +2798,10 @@
         while (block && block.parentNode !== canvasProse && block !== canvasProse && block !== document.body) {
           block = block.parentNode;
         }
-        if (block && block.parentNode === canvasProse && (block.tagName === 'P' || block.tagName === 'DIV')) {
+        if (block && block.parentNode === canvasProse && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(block.tagName)) {
           const raw = (block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
           if (/^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
+            block.innerHTML = '<br>';
             window._lastActiveBlock = block;
             if (typeof window.swapCurrentBlock === 'function') {
               window.swapCurrentBlock('divider');

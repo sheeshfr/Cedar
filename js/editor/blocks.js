@@ -1690,6 +1690,18 @@
         case 'p':
           rep = cleanLine;
           break;
+        case 'h1':
+          rep = `# ${cleanLine || 'Header 1'}`;
+          break;
+        case 'h2':
+          rep = `## ${cleanLine || 'Header 2'}`;
+          break;
+        case 'h3':
+          rep = `### ${cleanLine || 'Header 3'}`;
+          break;
+        case 'h4':
+          rep = `#### ${cleanLine || 'Header 4'}`;
+          break;
         case 'quote':
         case 'blockquote':
           if (/^>\s?/.test(curLine.trim())) {
@@ -2003,6 +2015,7 @@
           const newP = document.createElement('p');
           if (block.style && block.style.textAlign) newP.style.textAlign = block.style.textAlign;
           if (block.getAttribute('align')) newP.setAttribute('align', block.getAttribute('align'));
+          if (block.getAttribute('data-indent')) newP.setAttribute('data-indent', block.getAttribute('data-indent'));
           if (/^H[1-6]$/.test(block.tagName)) {
             newP.innerHTML = block.innerHTML.trim() ? block.innerHTML : '<br>';
           } else {
@@ -2010,10 +2023,13 @@
           }
           block.parentNode.replaceChild(newP, block);
           if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
+        } else {
+          if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(block);
         }
         break;
       }
 
+      case 'h1':
       case 'h2':
       case 'h3':
       case 'h4': {
@@ -2031,6 +2047,7 @@
           const newP = document.createElement('p');
           if (block.style && block.style.textAlign) newP.style.textAlign = block.style.textAlign;
           if (block.getAttribute('align')) newP.setAttribute('align', block.getAttribute('align'));
+          if (block.getAttribute('data-indent')) newP.setAttribute('data-indent', block.getAttribute('data-indent'));
           newP.innerHTML = block.innerHTML.trim() ? block.innerHTML : '<br>';
           block.parentNode.replaceChild(newP, block);
           if (typeof focusNodeCaretLocal === 'function') focusNodeCaretLocal(newP);
@@ -2039,6 +2056,7 @@
         const headingEl = document.createElement(targetType);
         if (block.style && block.style.textAlign) headingEl.style.textAlign = block.style.textAlign;
         if (block.getAttribute('align')) headingEl.setAttribute('align', block.getAttribute('align'));
+        if (block.getAttribute('data-indent')) headingEl.setAttribute('data-indent', block.getAttribute('data-indent'));
         if (block.tagName === 'P' || /^H[1-6]$/.test(block.tagName)) {
           headingEl.innerHTML = block.innerHTML.trim() ? block.innerHTML : '<br>';
         } else {
@@ -2247,7 +2265,13 @@
         hr.className = 'canvas-divider';
         hr.setAttribute('contenteditable', 'false');
         hr.setAttribute('draggable', 'true');
-        insertOrReplaceBlockInCanvas(block, hr, canvas);
+        const dashOnlyBlock = block && block.parentNode === canvas && isTextBlock(block) &&
+          /^(\-{3,}|\*{3,}|\_{3,})$/.test((block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim());
+        if (dashOnlyBlock) {
+          block.parentNode.replaceChild(hr, block);
+        } else {
+          insertOrReplaceBlockInCanvas(block, hr, canvas);
+        }
         canvas.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
         let nextP = hr.nextElementSibling;
         if (!nextP || !isTextBlock(nextP)) {

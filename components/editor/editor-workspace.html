@@ -79,7 +79,23 @@
 
       <div class="toolbar-divider"></div>
 
-<!-- Group: Inline Formatting -->
+      <!-- Group: Text Style Dropdown -->
+      <div class="toolbar-dropdown-wrap" id="tb-dropdown-style-wrap">
+        <button type="button" tabindex="-1" unselectable="on" class="toolbar-dropdown-btn" id="tb-btn-style-dropdown" title="Text Style">
+          <span id="tb-current-style-label">Body</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="toolbar-dropdown-menu" id="tb-style-menu" style="min-width: 145px;">
+          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="format-h1">Header 1</button>
+          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="format-h2">Header 2</button>
+          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="format-h3">Header 3</button>
+          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item active" data-action="format-p">Body</button>
+        </div>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Group: Inline Formatting -->
       <div class="toolbar-group">
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-btn" data-action="bold" title="Bold (Ctrl+B)">
           <span style="font-weight: 800; font-family: serif; font-size: 0.95rem;">B</span>
@@ -183,24 +199,7 @@
         </button>
       </div>
 
-      <div class="toolbar-divider"></div>
-
-      <!-- Group: Type Dropdown -->
-      <div class="toolbar-dropdown-wrap" id="tb-dropdown-more-wrap">
-        <button type="button" tabindex="-1" unselectable="on" class="toolbar-dropdown-btn" id="tb-btn-more-dropdown" title="Type">
-          <span id="tb-current-block-type-label">Type</span>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="toolbar-dropdown-menu" id="tb-more-menu" style="min-width: 175px;">
-          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="swap-block-text">Text</button>
-          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="swap-block-images">Images</button>
-          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="swap-block-media">Embedded Media</button>
-          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="swap-block-quote">Quote</button>
-          <button type="button" tabindex="-1" unselectable="on" class="toolbar-menu-item" data-action="swap-block-divider">Divider Line</button>
-        </div>
-      </div>
-
-      <!-- Group: Insert Dropdown (sits to the right of Type bar) -->
+      <!-- Group: Insert Dropdown -->
       <div class="toolbar-divider" id="tb-divider-page-blocks"></div>
       <div class="toolbar-dropdown-wrap" id="tb-dropdown-page-blocks-wrap">
         <button type="button" tabindex="-1" unselectable="on" class="toolbar-dropdown-btn" id="tb-btn-page-blocks-dropdown" title="Insert">
