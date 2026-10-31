@@ -627,88 +627,11 @@
     updateAuthorSelectedTriggerText();
   }
 
-  let pendingCategoryWarning = null;
-
   function promptCategoryChangeWarning() {
     // Post URLs use /p/<slug>/ (Substack-style) and never change when categories are modified.
     return false;
   }
   window.promptCategoryChangeWarning = promptCategoryChangeWarning;
-
-  function setupCategoryWarningModalHandlers() {
-    const modal = document.getElementById('modal-category-warning');
-    if (!modal || modal.dataset.catWarnAttached) return;
-    modal.dataset.catWarnAttached = 'true';
-
-    const btnCancel = document.getElementById('btn-cat-warn-cancel');
-    const btnClose = document.getElementById('btn-close-cat-warn-modal');
-    const btnKeep = document.getElementById('btn-cat-warn-keep');
-    const btnChange = document.getElementById('btn-cat-warn-change');
-
-    function closeCatWarn() {
-      if (modal) {
-        modal.style.display = 'none';
-        modal.classList.remove('active');
-      }
-    }
-
-    function doCancel() {
-      const pending = pendingCategoryWarning;
-      pendingCategoryWarning = null;
-      closeCatWarn();
-      if (pending && typeof pending.onCancel === 'function') {
-        pending.onCancel();
-      }
-    }
-
-    function doKeepUrl() {
-      const pending = pendingCategoryWarning;
-      pendingCategoryWarning = null;
-      closeCatWarn();
-      if (pending) {
-        // Keep old category in permalinkCat so existing links don't break!
-        pending.draft.permalinkCat = pending.oldCat;
-        if (typeof pending.onProceed === 'function') {
-          pending.onProceed({ keepUrl: true, oldCat: pending.oldCat });
-        }
-        if (typeof showToast === 'function') {
-          showToast('✓ Category updated · Existing URL preserved');
-        }
-      }
-    }
-
-    function doChangeUrl() {
-      const pending = pendingCategoryWarning;
-      pendingCategoryWarning = null;
-      closeCatWarn();
-      if (pending) {
-        // Update permalinkCat with new category so new URL is generated!
-        pending.draft.permalinkCat = pending.newCat;
-        if (typeof pending.onProceed === 'function') {
-          pending.onProceed({ keepUrl: false, newCat: pending.newCat });
-        }
-        if (typeof showToast === 'function') {
-          showToast('✓ Category & URL updated');
-        }
-      }
-    }
-
-    if (btnCancel) btnCancel.addEventListener('click', doCancel);
-    if (btnClose) btnClose.addEventListener('click', doCancel);
-    if (btnKeep) btnKeep.addEventListener('click', doKeepUrl);
-    if (btnChange) btnChange.addEventListener('click', doChangeUrl);
-
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) doCancel();
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modal.style.display !== 'none' && modal.style.display) {
-        doCancel();
-      }
-    });
-  }
-  window.setupCategoryWarningModalHandlers = setupCategoryWarningModalHandlers;
 
   function updateCategorySelectedTriggerText() {
     const selectedTextEl = document.getElementById('setup-category-selected-text');
@@ -902,29 +825,7 @@
           }
         };
 
-        const warned = promptCategoryChangeWarning({
-          draft: activeDraft,
-          newCategories: nextCategories,
-          newTag: nextTag,
-          onProceed: () => {
-            applyCheckboxChange();
-          },
-          onCancel: () => {
-            cb.checked = !cb.checked;
-            if (cb.checked) {
-              label.classList.add('selected');
-            } else {
-              label.classList.remove('selected');
-            }
-            activeDraft.categories = prevCategories;
-            activeDraft.tag = prevTag;
-            updateCategorySelectedTriggerText();
-          }
-        });
-
-        if (!warned) {
-          applyCheckboxChange();
-        }
+        applyCheckboxChange();
       });
 
       label.appendChild(cb);
@@ -1733,8 +1634,6 @@
   }
 
   function setupExportHub() {
-    setupCategoryWarningModalHandlers();
-
     const btnOpenExport = document.getElementById('btn-open-export');
     if (btnOpenExport) {
       btnOpenExport.addEventListener('click', () => {
@@ -2322,25 +2221,7 @@
       if (typeof showToast === 'function') showToast(`Added category "${val}"`);
 
       if (currentDraft) {
-        const prevCats = Array.isArray(currentDraft.categories) ? [...currentDraft.categories] : [];
-        const nextCats = prevCats.some(c => c.toLowerCase() === val.toLowerCase()) ? prevCats : [...prevCats, val];
-        const nextTag = nextCats[0] || val;
-        const warned = promptCategoryChangeWarning({
-          draft: currentDraft,
-          newCategories: nextCats,
-          newTag: nextTag,
-          onProceed: () => applyCatToDraft(),
-          onCancel: () => {
-            renderSetupCategoryChips();
-            if (typeof window.updateCategorySelectUI === 'function') window.updateCategorySelectUI();
-            if (typeof window.syncCategoryPages === 'function') window.syncCategoryPages();
-            if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
-            if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
-          }
-        });
-        if (!warned) {
-          applyCatToDraft();
-        }
+        applyCatToDraft();
       }
     };
 
