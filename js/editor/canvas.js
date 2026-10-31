@@ -2253,7 +2253,6 @@
               const raw = (topBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
               if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(topBlock.tagName) && /^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
                 e.preventDefault();
-                topBlock.innerHTML = '<br>';
                 window._lastActiveBlock = topBlock;
                 if (typeof window.swapCurrentBlock === 'function') {
                   window.swapCurrentBlock('divider');
@@ -2335,10 +2334,9 @@
           while (block && block.parentNode !== canvasProse && block !== canvasProse && block !== document.body) {
             block = block.parentNode;
           }
-        if (block && block.parentNode === canvasProse && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(block.tagName)) {
+          if (block && block.parentNode === canvasProse && (block.tagName === 'P' || block.tagName === 'DIV')) {
             let fullPreText = '';
-          if (/^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
-            block.innerHTML = '<br>';
+            let preRange = null;
             try {
               preRange = document.createRange();
               preRange.setStart(block, 0);
@@ -2801,7 +2799,6 @@
         if (block && block.parentNode === canvasProse && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(block.tagName)) {
           const raw = (block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
           if (/^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
-            block.innerHTML = '<br>';
             window._lastActiveBlock = block;
             if (typeof window.swapCurrentBlock === 'function') {
               window.swapCurrentBlock('divider');
