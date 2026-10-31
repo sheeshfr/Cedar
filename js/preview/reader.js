@@ -1259,6 +1259,375 @@
     showPreviewToast('Copied RSS feed URL to clipboard');
   }
 
+  // =========================================================================
+  // Blog Image Pop-Out & Multi-Image Row Viewer
+  // =========================================================================
+  const POPOUT_ZOOM_STEPS = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5];
+  let popoutOverlayEl = null;
+  let popoutStageEl = null;
+  let popoutImgEl = null;
+  let popoutPrevBtn = null;
+  let popoutNextBtn = null;
+  let popoutCounterEl = null;
+
+  let popoutGroupImgs = [];
+  let popoutCurrentIndex = 0;
+  let popoutIsGalleryRow = false;
+  let popoutBaseW = 640;
+  let popoutBaseH = 480;
+  let popoutLockedArrowSpanW = 640;
+  let popoutZoomIndex = 0;
+  let popoutPanX = 0;
+  let popoutPanY = 0;
+  let popoutIsDragging = false;
+  let popoutDragStartX = 0;
+  let popoutDragStartY = 0;
+  let popoutDragOriginX = 0;
+  let popoutDragOriginY = 0;
+  let popoutDidDrag = false;
+
+  function ensureImagePopoutDom() {
+    if (popoutOverlayEl && document.body.contains(popoutOverlayEl)) {
+      return popoutOverlayEl;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'cedar-image-popout-overlay';
+    overlay.id = 'cedar-image-popout-overlay';
+    overlay.innerHTML = `
+      <button type="button" class="cedar-popout-arrow cedar-popout-arrow-prev" aria-label="Previous image" style="display: none;">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div class="cedar-image-popout-stage">
+        <img class="cedar-image-popout-img" src="" alt="" draggable="false">
+      </div>
+      <button type="button" class="cedar-popout-arrow cedar-popout-arrow-next" aria-label="Next image" style="display: none;">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+      <div class="cedar-popout-counter" style="display: none;"></div>
+    `;
+    document.body.appendChild(overlay);
+
+    popoutOverlayEl = overlay;
+    popoutStageEl = overlay.querySelector('.cedar-image-popout-stage');
+    popoutImgEl = overlay.querySelector('.cedar-image-popout-img');
+    popoutPrevBtn = overlay.querySelector('.cedar-popout-arrow-prev');
+    popoutNextBtn = overlay.querySelector('.cedar-popout-arrow-next');
+    popoutCounterEl = overlay.querySelector('.cedar-popout-counter');
+
+    // Click away from image (and arrows) instantly resets/closes the pop-out
+    overlay.addEventListener('mousedown', (e) => {
+      if (e.target === popoutImgEl || e.target.closest('.cedar-popout-arrow')) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      closeBlogImagePopout();
+    });
+
+    popoutPrevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stepPopoutImage(-1);
+    });
+
+    popoutNextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stepPopoutImage(1);
+    });
+
+    // Mouse wheel magnification (does not move Left/Right arrows)
+    overlay.addEventListener('wheel', (e) => {
+      if (!overlay.classList.contains('is-open')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.deltaY < 0) {
+        stepPopoutZoom(1);
+      } else if (e.deltaY > 0) {
+        stepPopoutZoom(-1);
+      }
+    }, { passive: false });
+
+    // Drag-to-pan when magnified
+    popoutImgEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      popoutDidDrag = false;
+      if (popoutZoomIndex <= 0) return;
+      popoutIsDragging = true;
+      popoutDragStartX = e.clientX;
+      popoutDragStartY = e.clientY;
+      popoutDragOriginX = popoutPanX;
+      popoutDragOriginY = popoutPanY;
+      popoutImgEl.classList.add('is-dragging');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!popoutIsDragging) return;
+      const dx = e.clientX - popoutDragStartX;
+      const dy = e.clientY - popoutDragStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        popoutDidDrag = true;
+      }
+      popoutPanX = popoutDragOriginX + dx;
+      popoutPanY = popoutDragOriginY + dy;
+      applyPopoutTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!popoutIsDragging) return;
+      popoutIsDragging = false;
+      if (popoutImgEl) popoutImgEl.classList.remove('is-dragging');
+    });
+
+    return overlay;
+  }
+
+  function getPopoutSafeMaxBounds() {
+    const vw = window.innerWidth || 1280;
+    const vh = window.innerHeight || 800;
+    // Reserve ample room on left/right so arrows sit off to the side and image never fullscreens on 1st click
+    const sideReserve = vw < 640 ? 64 : 116;
+    const maxW = Math.max(200, Math.min(vw - sideReserve * 2, Math.floor(vw * 0.70), 1080));
+    const maxH = Math.max(180, Math.min(vh - 140, Math.floor(vh * 0.72), 800));
+    return { vw, vh, sideReserve, maxW, maxH };
+  }
+
+  function computeSingleImageBaseDimensions(sourceImgEl, loadedImgEl, isGalleryRow) {
+    const { maxW, maxH } = getPopoutSafeMaxBounds();
+
+    // Measure inline rendered size on the page (fallback to first visible item in gallery if hidden 5+ item)
+    let rect = (sourceImgEl && sourceImgEl.getBoundingClientRect) ? sourceImgEl.getBoundingClientRect() : null;
+    if ((!rect || rect.width < 20) && sourceImgEl) {
+      const gal = sourceImgEl.closest('.custom-gallery-grid, .notes-timeline-media-grid');
+      if (gal) {
+        const firstVis = gal.querySelector('.custom-gallery-item:not(.gallery-item-hidden) img');
+        if (firstVis) rect = firstVis.getBoundingClientRect();
+      }
+    }
+
+    const inlineW = (rect && rect.width > 20) ? Math.round(rect.width) : (isGalleryRow ? 360 : 620);
+    const inlineH = (rect && rect.height > 20) ? Math.round(rect.height) : Math.round(inlineW * 0.66);
+
+    const natW = (loadedImgEl && loadedImgEl.naturalWidth) || (sourceImgEl && sourceImgEl.naturalWidth) || inlineW;
+    const natH = (loadedImgEl && loadedImgEl.naturalHeight) || (sourceImgEl && sourceImgEl.naturalHeight) || inlineH;
+    const aspect = (natW > 0 && natH > 0) ? (natW / natH) : (inlineW / Math.max(1, inlineH));
+
+    let baseW = 0;
+    let baseH = 0;
+
+    // 1. Prefer exact integer multiples of natural resolution when natural dimensions fit within maxW x maxH
+    if (natW > 0 && natH > 0 && natW <= maxW && natH <= maxH) {
+      let bestK = 1;
+      const minDesiredW = Math.min(maxW, Math.round(inlineW * (isGalleryRow ? 1.5 : 1.25)));
+      for (let k = 1; k <= 6; k++) {
+        if (natW * k <= maxW && natH * k <= maxH) {
+          bestK = k;
+          if (natW * k >= minDesiredW) {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      baseW = Math.round(natW * bestK);
+      baseH = Math.round(natH * bestK);
+    }
+
+    // 2. For gallery row items, prefer exact 2x integer multiple of inline tile width if it fits maxW x maxH
+    if (!baseW && isGalleryRow) {
+      const w2 = inlineW * 2;
+      const h2 = Math.round(w2 / aspect);
+      if (w2 <= maxW && h2 <= maxH && w2 >= 320) {
+        baseW = w2;
+        baseH = h2;
+      }
+    }
+
+    // 3. Check clean integer divisors of natural resolution (1/2, 1/3, 1/4) that step up from inlineW
+    if (!baseW && natW > maxW) {
+      const minTargetW = Math.min(maxW, Math.round(inlineW * 1.2));
+      for (const div of [2, 3, 4]) {
+        const dw = Math.round(natW / div);
+        const dh = Math.round(natH / div);
+        if (dw <= maxW && dh <= maxH && dw >= minTargetW) {
+          baseW = dw;
+          baseH = dh;
+          break;
+        }
+      }
+    }
+
+    // 4. Fallback: fit cleanly within maxW x maxH at exact integer pixel dimensions
+    if (!baseW || !baseH) {
+      let targetW = isGalleryRow
+        ? Math.min(maxW, Math.max(inlineW * 2, Math.round(maxW * 0.88)))
+        : Math.min(maxW, Math.max(Math.round(inlineW * 1.35), Math.round(maxW * 0.92)));
+      let targetH = Math.round(targetW / aspect);
+      if (targetH > maxH) {
+        targetH = maxH;
+        targetW = Math.round(targetH * aspect);
+      }
+      if (targetW > maxW) {
+        targetW = maxW;
+        targetH = Math.round(targetW / aspect);
+      }
+      baseW = Math.max(120, Math.round(targetW));
+      baseH = Math.max(90, Math.round(targetH));
+    }
+
+    const isExplicitPixelated = Boolean(
+      sourceImgEl && (
+        sourceImgEl.getAttribute('data-pixelated') === 'true' ||
+        sourceImgEl.closest('[data-pixelated="true"]')
+      )
+    );
+    const isIntegerUpscaledSmallImg = Boolean(natW > 0 && natW <= 640 && baseW >= natW * 2 && (baseW % natW === 0));
+
+    return {
+      baseW,
+      baseH,
+      pixelated: isExplicitPixelated || isIntegerUpscaledSmallImg
+    };
+  }
+
+  function positionPopoutSideArrows(spanW) {
+    if (!popoutPrevBtn || !popoutNextBtn) return;
+    if (!popoutGroupImgs || popoutGroupImgs.length <= 1) {
+      popoutPrevBtn.style.display = 'none';
+      popoutNextBtn.style.display = 'none';
+      if (popoutCounterEl) popoutCounterEl.style.display = 'none';
+      return;
+    }
+
+    const vw = window.innerWidth || 1280;
+    const arrowBtnW = vw < 640 ? 40 : 48;
+    const arrowGap = vw < 640 ? 12 : 24;
+    const halfSpan = Math.round((spanW || popoutBaseW) / 2);
+    const sideOffset = Math.max(12, Math.round(vw / 2 - halfSpan - arrowGap - arrowBtnW));
+
+    popoutPrevBtn.style.left = `${sideOffset}px`;
+    popoutPrevBtn.style.right = 'auto';
+    popoutPrevBtn.style.display = 'inline-flex';
+
+    popoutNextBtn.style.right = `${sideOffset}px`;
+    popoutNextBtn.style.left = 'auto';
+    popoutNextBtn.style.display = 'inline-flex';
+
+    if (popoutCounterEl) {
+      popoutCounterEl.textContent = `${popoutCurrentIndex + 1} / ${popoutGroupImgs.length}`;
+      popoutCounterEl.style.display = 'block';
+    }
+  }
+
+  function applyPopoutTransform() {
+    if (!popoutImgEl) return;
+    const zoom = POPOUT_ZOOM_STEPS[popoutZoomIndex] || 1;
+    if (zoom <= 1) {
+      popoutPanX = 0;
+      popoutPanY = 0;
+      popoutImgEl.style.cursor = 'zoom-in';
+      popoutImgEl.style.transform = 'translate3d(0px, 0px, 0px) scale(1)';
+      return;
+    }
+
+    const maxPanX = Math.max(0, Math.round((popoutBaseW * zoom - popoutBaseW) / 2));
+    const maxPanY = Math.max(0, Math.round((popoutBaseH * zoom - popoutBaseH) / 2));
+    popoutPanX = Math.max(-maxPanX, Math.min(maxPanX, popoutPanX));
+    popoutPanY = Math.max(-maxPanY, Math.min(maxPanY, popoutPanY));
+
+    popoutImgEl.style.cursor = popoutIsDragging ? 'grabbing' : 'grab';
+    popoutImgEl.style.transform = `translate3d(${Math.round(popoutPanX)}px, ${Math.round(popoutPanY)}px, 0px) scale(${zoom})`;
+  }
+
+  function resetPopoutZoomAndPosition() {
+    popoutZoomIndex = 0;
+    popoutPanX = 0;
+    popoutPanY = 0;
+    popoutIsDragging = false;
+    if (popoutImgEl) popoutImgEl.classList.remove('is-dragging');
+    applyPopoutTransform();
+  }
+
+  function stepPopoutZoom(delta) {
+    const nextIdx = Math.max(0, Math.min(POPOUT_ZOOM_STEPS.length - 1, popoutZoomIndex + delta));
+    if (nextIdx === popoutZoomIndex) return;
+    popoutZoomIndex = nextIdx;
+    if (popoutZoomIndex === 0) {
+      popoutPanX = 0;
+      popoutPanY = 0;
+    }
+    applyPopoutTransform();
+  }
+
+  function showPopoutImageAtIndex(index, updateArrowPositions = false) {
+    if (!popoutGroupImgs || popoutGroupImgs.length === 0) return;
+    const total = popoutGroupImgs.length;
+    popoutCurrentIndex = ((index % total) + total) % total;
+
+    // Reset magnification and pan position whenever scrolling through images
+    resetPopoutZoomAndPosition();
+
+    const sourceImg = popoutGroupImgs[popoutCurrentIndex];
+    if (!sourceImg) return;
+    const src = sourceImg.currentSrc || sourceImg.src || sourceImg.getAttribute('src') || '';
+    if (!src) return;
+
+    ensureImagePopoutDom();
+    popoutImgEl.src = src;
+    popoutImgEl.alt = sourceImg.alt || '';
+
+    const applySizing = () => {
+      const dims = computeSingleImageBaseDimensions(sourceImg, popoutImgEl, popoutIsGalleryRow);
+      popoutBaseW = dims.baseW;
+      popoutBaseH = dims.baseH;
+      popoutImgEl.style.width = `${popoutBaseW}px`;
+      popoutImgEl.style.height = `${popoutBaseH}px`;
+      popoutImgEl.classList.toggle('is-pixelated', dims.pixelated);
+      applyPopoutTransform();
+
+      if (updateArrowPositions) {
+        let maxSpanW = popoutBaseW;
+        if (popoutGroupImgs.length > 1) {
+          popoutGroupImgs.forEach(img => {
+            const d = computeSingleImageBaseDimensions(img, img, true);
+            if (d.baseW > maxSpanW) maxSpanW = d.baseW;
+          });
+        }
+        popoutLockedArrowSpanW = maxSpanW;
+      }
+      positionPopoutSideArrows(popoutLockedArrowSpanW);
+    };
+
+    if (popoutImgEl.complete && popoutImgEl.naturalWidth > 0) {
+      applySizing();
+    } else {
+      applySizing();
+      popoutImgEl.onload = applySizing;
+    }
+  }
+
+  function stepPopoutImage(direction) {
+    if (!popoutGroupImgs || popoutGroupImgs.length <= 1) return;
+    showPopoutImageAtIndex(popoutCurrentIndex + direction, false);
+  }
+
+  function openBlogImagePopout(groupImgs, startIndex = 0, isGalleryRow = false) {
+    if (!Array.isArray(groupImgs) || groupImgs.length === 0) return;
+    ensureImagePopoutDom();
+    popoutGroupImgs = groupImgs;
+    popoutIsGalleryRow = Boolean(isGalleryRow || groupImgs.length > 1);
+    popoutOverlayEl.classList.add('is-open');
+    showPopoutImageAtIndex(startIndex, true);
+  }
+
+  function closeBlogImagePopout() {
+    if (!popoutOverlayEl) return;
+    popoutOverlayEl.classList.remove('is-open');
+    resetPopoutZoomAndPosition();
+  }
+
   if (!document._hasCedarPreviewProseButtonsBound) {
     document._hasCedarPreviewProseButtonsBound = true;
     document.addEventListener('click', (e) => {
@@ -1270,10 +1639,83 @@
       const rssBtn = e.target.closest('.btn-rss-subscribe');
       if (rssBtn) {
         handleRssButtonClick(rssBtn, e);
+        return;
+      }
+
+      // Multi-image gallery "+N" badge click
+      const badgeEl = e.target.closest('.gallery-split-badge[data-action="view-more"]');
+      if (badgeEl && badgeEl.closest('#reader-prose, .article-prose')) {
+        const galleryGrid = badgeEl.closest('.custom-gallery-grid');
+        if (galleryGrid) {
+          const imgs = Array.from(galleryGrid.querySelectorAll('.custom-gallery-item img')).filter(im => im && (im.currentSrc || im.src || im.getAttribute('src')));
+          if (imgs.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            openBlogImagePopout(imgs, Math.min(4, imgs.length - 1), true);
+            return;
+          }
+        }
+      }
+
+      // Click on any blog image inside reader prose / gallery row
+      const clickedImg = e.target.closest('#reader-prose img, .article-prose img, .notes-timeline-media-grid img');
+      if (clickedImg) {
+        // Ignore images inside link cards, post cards, author pills, or favicons
+        if (clickedImg.closest('a, .post-card, .external-link-card, .page-embed-card, .author-pill') || clickedImg.classList.contains('external-card-favicon')) {
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rowContainer = clickedImg.closest('.custom-gallery-grid, .notes-timeline-media-grid, .image-row');
+        if (rowContainer) {
+          const imgs = Array.from(rowContainer.querySelectorAll('img')).filter(im => im && (im.currentSrc || im.src || im.getAttribute('src')));
+          const idx = Math.max(0, imgs.indexOf(clickedImg));
+          openBlogImagePopout(imgs.length > 0 ? imgs : [clickedImg], idx, imgs.length > 1);
+        } else {
+          openBlogImagePopout([clickedImg], 0, false);
+        }
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (!popoutOverlayEl || !popoutOverlayEl.classList.contains('is-open')) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeBlogImagePopout();
+      } else if (e.key === 'ArrowLeft') {
+        if (popoutGroupImgs.length > 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          stepPopoutImage(-1);
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (popoutGroupImgs.length > 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          stepPopoutImage(1);
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        stepPopoutZoom(1);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        stepPopoutZoom(-1);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (popoutOverlayEl && popoutOverlayEl.classList.contains('is-open')) {
+        showPopoutImageAtIndex(popoutCurrentIndex, true);
       }
     });
   }
 
+  window.openBlogImagePopout = openBlogImagePopout;
+  window.closeBlogImagePopout = closeBlogImagePopout;
   window.showPreviewToast = showPreviewToast;
   window.resolvePermanentRssFeedUrl = resolvePermanentRssFeedUrl;
   window.CedarPreview.showPreviewToast = showPreviewToast;

@@ -193,4 +193,147 @@
       border-color: rgba(0, 0, 0, 0.12) !important;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06) !important;
     }
-    .app-theme-light .hero-beacon-title,
+    .app-theme-light .hero-beacon-title {
+      color: #0f172a !important;
+    }
+
+    /* =========================================================================
+       Blog Image Pop-Out & Multi-Image Row Viewer
+       ========================================================================= */
+    .article-prose .captioned-image-container img,
+    .article-prose .image-media-wrapper img,
+    .article-prose .custom-gallery-item img,
+    .article-prose .gallery-split-half img,
+    .article-prose .gallery-split-badge,
+    .article-prose > p > img,
+    .article-prose > img,
+    #reader-prose .captioned-image-container img,
+    #reader-prose .image-media-wrapper img,
+    #reader-prose .custom-gallery-item img,
+    #reader-prose .gallery-split-half img,
+    #reader-prose .gallery-split-badge {
+      cursor: pointer;
+    }
+
+    .cedar-image-popout-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100050;
+      background: rgba(0, 0, 0, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    .cedar-image-popout-overlay.is-open {
+      display: flex;
+    }
+
+    .cedar-image-popout-stage {
+      position: relative;
+      z-index: 100052;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .cedar-image-popout-img {
+      display: block;
+      max-width: none;
+      max-height: none;
+      border-radius: var(--post-image-radius, 6px);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.14);
+      transform-origin: center center;
+      will-change: transform, width, height;
+      pointer-events: auto;
+      user-select: none;
+      -webkit-user-drag: none;
+      cursor: grab;
+      background: #09090b;
+    }
+
+    .cedar-image-popout-img.is-dragging {
+      cursor: grabbing;
+    }
+
+    .cedar-image-popout-img.is-pixelated {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .cedar-popout-arrow {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 100060;
+      width: 48px;
+      height: 48px;
+      border-radius: 9999px;
+      background: rgba(24, 24, 27, 0.92);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      outline: none;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+      pointer-events: auto;
+    }
+
+    .cedar-popout-arrow:hover {
+      background: rgba(39, 39, 42, 0.98);
+      border-color: rgba(255, 255, 255, 0.45);
+      transform: translateY(-50%) scale(1.06);
+    }
+
+    .cedar-popout-arrow:active {
+      transform: translateY(-50%) scale(0.96);
+    }
+
+    .cedar-popout-arrow svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      fill: none;
+      pointer-events: none;
+      display: block;
+    }
+
+    .cedar-popout-counter {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100060;
+      background: rgba(24, 24, 27, 0.88);
+      color: #e4e4e7;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      pointer-events: none;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    }
+
+    @media (max-width: 640px) {
+      .cedar-popout-arrow {
+        width: 40px;
+        height: 40px;
+      }
+      .cedar-popout-arrow svg {
+        width: 18px;
+        height: 18px;
+      }
+    }
+

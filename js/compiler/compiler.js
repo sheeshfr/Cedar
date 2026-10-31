@@ -1796,6 +1796,7 @@ ${socialMeta.metaLines}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/preview/gallery.css">
   <style>
     /* ==========================================================================
        Cedar — Base Article Stylesheet (1:1 with Writer View)
@@ -4028,6 +4029,7 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
       if (header) header.classList.remove('header-hidden');
     })();
   </script>
+  <script src="/js/preview/reader.js"></script>
 </body>
 </html>
 `;
