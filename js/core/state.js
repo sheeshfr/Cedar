@@ -6242,112 +6242,63 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
-    // 2. High-Capacity Virtual Vault (OPFS / IndexedDB) — only write after boot hydration so script-load never overwrites OPFS
-
+    // 2 & 3. High-Capacity Virtual Vault (OPFS / IndexedDB) & Physical Vault — coalesced background flush so UI never stalls
     const canWriteVaultDrafts = Boolean(window.__cedarBootHydrationComplete || window.__vaultDraftsHydratedAtBoot);
-    let sharedSerializedDrafts = null;
-    const getSerializedVaultDrafts = () => {
-      if (sharedSerializedDrafts === null) {
-        sharedSerializedDrafts = JSON.stringify(drafts);
-      }
-      return sharedSerializedDrafts;
-    };
-
-    if (canWriteVaultDrafts && (window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function') {
-
-      try {
-        const payloadStr = getSerializedVaultDrafts();
-
-        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('editor/drafts.json', payloadStr);
-
-        try { await (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/drafts.json', payloadStr); } catch (e) {}
-
-        savedInVirtual = true;
-
-      } catch (vErr) {
-
-        console.warn('[CedarStorage] Virtual Vault drafts sync warning:', vErr);
-
-      }
-
-    }
-
-
-
-    // 3. Physical Vault or Server Bridge (if connected)
+    const hasVirtualVault = Boolean(canWriteVaultDrafts && (window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function');
+    const isSheeshVaultConnected = Boolean(canWriteVaultDrafts && window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected());
+    const savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
+    const hasBridgeVault = Boolean(canWriteVaultDrafts && !isSheeshVaultConnected && savedVaultPath && (window.Cedar && window.Cedar.isLocalServer));
 
     let savedInVault = false;
+    if (hasVirtualVault) savedInVirtual = true;
+    if (isSheeshVaultConnected || hasBridgeVault) savedInVault = true;
 
-    const savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
-
-    if (canWriteVaultDrafts && window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
-
-      try {
-        const payloadStr = getSerializedVaultDrafts();
-
-        await window.SheeshVault.writeFile('editor/drafts.json', payloadStr);
-
-        try { await window.SheeshVault.writeFile('writer/drafts.json', payloadStr); } catch (e) {}
-
-        savedInVault = true;
-
-      } catch (vErr) {
-
-        console.warn('[Cedar] Could not auto-sync to vault:', vErr);
-
+    if (canWriteVaultDrafts && (hasVirtualVault || isSheeshVaultConnected || hasBridgeVault)) {
+      if (window.__cedarVaultFlushTimer) {
+        clearTimeout(window.__cedarVaultFlushTimer);
       }
-
-    } else if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
-
-      try {
-        const serializedVaultDrafts = getSerializedVaultDrafts();
-
-        const res = await fetch('/api/vault-write', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            folderPath: savedVaultPath,
-            filePath: 'editor/drafts.json',
-            content: serializedVaultDrafts,
-            encoding: 'utf-8'
-          })
-        });
-        if (res.ok) savedInVault = true;
+      window.__cedarVaultFlushTimer = setTimeout(async () => {
+        window.__cedarVaultFlushTimer = null;
         try {
-          await fetch('/api/vault-write', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              folderPath: savedVaultPath,
-              filePath: 'writer/drafts.json',
-              content: serializedVaultDrafts,
-              encoding: 'utf-8'
-            })
-          });
-        } catch (wErr) {}
+          const latestDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+            ? window.CedarStore.getAllDrafts()
+            : (Array.isArray(window.drafts) ? window.drafts : drafts);
+          const payloadStr = JSON.stringify(latestDrafts);
 
-      } catch (bridgeErr) {
-
-        console.warn('[Cedar] Could not auto-sync to server bridge vault:', bridgeErr);
-
-      }
-
+          if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
+            // SheeshVault.writeFile writes to physical disk AND mirrors to CedarVirtualStorage automatically
+            await window.SheeshVault.writeFile('editor/drafts.json', payloadStr);
+          } else {
+            const vStore = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+            if (vStore && typeof vStore.writeFile === 'function') {
+              await vStore.writeFile('editor/drafts.json', payloadStr);
+            }
+            if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
+              await fetch('/api/vault-write', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  folderPath: savedVaultPath,
+                  filePath: 'editor/drafts.json',
+                  content: payloadStr,
+                  encoding: 'utf-8'
+                })
+              }).catch(() => {});
+            }
+          }
+        } catch (vErr) {
+          console.warn('[CedarStorage] Background vault drafts sync warning:', vErr);
+        }
+      }, 180);
     }
 
-
-
     // 4. Live Server Sync (for live preview & server backup)
-
     if (typeof window.syncLiveWorkspaceData === 'function') {
-
       window.syncLiveWorkspaceData();
-
     }
 
     if (typeof window.updateAllPreviewFrames === 'function') {
-
       window.updateAllPreviewFrames();
-
     }
 
 

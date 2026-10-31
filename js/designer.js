@@ -402,13 +402,9 @@
       document.getElementById('designer-preview-site-frame'),
       document.getElementById('preview-site-frame'),
       document.getElementById('live-preview-iframe')
-    ].filter(Boolean);
+    ].filter(f => f && f.offsetParent !== null);
 
     if (frames.length === 0) return;
-    if (window.currentView === 'editor') {
-      const hasVisibleFrame = frames.some(f => f && f.offsetParent !== null);
-      if (!hasVisibleFrame) return;
-    }
 
     const themeId = window.projectConfig?.design?.blogTheme || window.projectConfig?.design?.activeTheme || 'basalt';
     const activeDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')

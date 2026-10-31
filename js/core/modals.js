@@ -261,9 +261,9 @@
   }
 
   // Helper: Extract all available images in a draft (markdown, html, gallery, attached)
-  function getDraftAvailableImages(draft) {
+  function getDraftAvailableImages(draft, options = {}) {
     if (!draft) return [];
-    if (typeof window.reconcileDraftImages === 'function') {
+    if (!options.skipReconcile && typeof window.reconcileDraftImages === 'function') {
       window.reconcileDraftImages(draft);
     }
     const found = [];
@@ -1154,13 +1154,27 @@
     }
   }
 
-  function updateBackgroundCodeStrings() {
+  function updateBackgroundCodeStrings(force = false) {
     if (!currentDraft) return;
-    const fullHtml = generateFullHtml(currentDraft);
+    const panelCode = document.getElementById('tab-code-export');
+    if (!force && (!panelCode || !panelCode.classList.contains('active') || panelCode.style.display === 'none')) {
+      return;
+    }
+    const fullHtml = generateFullHtml(currentDraft, { preferStaticPaths: true });
     const blogCardHtml = generateBlogCardHtml(currentDraft);
     const featuredCardHtml = generateFeaturedCardHtml(currentDraft);
     const mdWithFrontmatter = generateMarkdownWithFrontmatter(currentDraft);
-    const jsonDraft = JSON.stringify(currentDraft, null, 2);
+    const slimDraft = {
+      ...currentDraft,
+      images: Array.isArray(currentDraft.images)
+        ? currentDraft.images.map(im => {
+            if (!im || typeof im !== 'object') return im;
+            const { dataUrl, blob, ...rest } = im;
+            return rest;
+          })
+        : []
+    };
+    const jsonDraft = JSON.stringify(slimDraft, null, 2);
 
     const htmlCode = document.getElementById('export-html-code');
     const blogCardCode = document.getElementById('export-blog-card-code');
@@ -1200,6 +1214,7 @@
       if (btnBack) btnBack.style.display = 'inline-flex';
       if (modalTitle) modalTitle.textContent = 'Code Formats';
       if (modalDesc) modalDesc.textContent = 'All raw code snippets, generated standalone files, and machine-readable backups.';
+      updateBackgroundCodeStrings(true);
     } else {
       if (panelSetup) {
         panelSetup.classList.add('active');
@@ -1251,9 +1266,6 @@
 
   function prepareExportModal() {
     if (!currentDraft) return;
-    if (typeof window.reconcileDraftImages === 'function') {
-      window.reconcileDraftImages(currentDraft);
-    }
     syncFormToDraft();
     showPublishMenu('setup');
 
@@ -1262,7 +1274,7 @@
     }
 
     // 1. Auto-detect featured image if none set, or reset if current was deleted
-    const available = getDraftAvailableImages(currentDraft);
+    const available = getDraftAvailableImages(currentDraft, { skipReconcile: true });
     const autoImg = available.length > 0 ? available[0] : '';
     if (!currentDraft.coverImage || currentDraft.coverImage.trim() === '') {
       if (autoImg && !currentDraft.coverImageRemoved) {
@@ -1844,7 +1856,7 @@
     const slugInput = document.getElementById('setup-post-slug');
     let pendingSlugConfirmPromise = null;
 
-    function applyConfirmedSlugToDraft(cleanSlug) {
+    function applyConfirmedSlugToDraft(cleanSlug, { skipSideEffects = false } = {}) {
       if (!currentDraft) return;
       currentDraft.slug = cleanSlug;
       const wasEverPublished = (typeof window.hasDraftBeenPublished === 'function')
@@ -1866,12 +1878,14 @@
       if (targetPathCard) targetPathCard.textContent = `blog/${cleanSlug || 'slug'}/index.html`;
       if (typeof updateEditorUrlSlug === 'function') updateEditorUrlSlug(cleanSlug);
       updateUrlPreviewDisplay(cleanSlug);
-      updateVisualCardPreviews();
-      updateBackgroundCodeStrings();
-      if (typeof scheduleAutosave === 'function') scheduleAutosave();
+      if (!skipSideEffects) {
+        updateVisualCardPreviews();
+        updateBackgroundCodeStrings();
+        if (typeof scheduleAutosave === 'function') scheduleAutosave();
+      }
     }
 
-    async function commitManualSlugChange(rawSlugValue, { isFromSyncBtn = false } = {}) {
+    async function commitManualSlugChange(rawSlugValue, { isFromSyncBtn = false, skipSideEffects = false } = {}) {
       if (!currentDraft) return true;
       if (pendingSlugConfirmPromise) return pendingSlugConfirmPromise;
 
@@ -1886,10 +1900,10 @@
         const autoTitleSlug = generateSlug(currentDraft.title || '', defaultPlaceholder, 30);
         if (!cleanSlug || isFromSyncBtn || cleanSlug === autoTitleSlug) {
           currentDraft.slugManuallyEdited = false;
-          applyConfirmedSlugToDraft(cleanSlug || autoTitleSlug);
+          applyConfirmedSlugToDraft(cleanSlug || autoTitleSlug, { skipSideEffects });
         } else {
           currentDraft.slugManuallyEdited = true;
-          applyConfirmedSlugToDraft(cleanSlug);
+          applyConfirmedSlugToDraft(cleanSlug, { skipSideEffects });
         }
         return true;
       }
@@ -1912,7 +1926,7 @@
         pendingSlugConfirmPromise = null;
         if (confirmed) {
           currentDraft.slugManuallyEdited = true;
-          applyConfirmedSlugToDraft(cleanSlug);
+          applyConfirmedSlugToDraft(cleanSlug, { skipSideEffects });
           return true;
         } else {
           currentDraft.slug = lockedSlug;
@@ -2966,13 +2980,14 @@
 
       const slugInput = document.getElementById('setup-post-slug');
       if (slugInput && typeof commitManualSlugChange === 'function') {
-        const slugConfirmed = await commitManualSlugChange(slugInput.value);
+        const slugConfirmed = await commitManualSlugChange(slugInput.value, { skipSideEffects: true });
         if (!slugConfirmed) return;
       }
 
       _isPublishingPostFromModal = true;
       const modalPublishStartTs = Date.now();
       setModalBtnsSpinning(true);
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
       try {
       if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
       const inputSlugVal = slugInput ? slugInput.value.trim() : '';
@@ -3038,22 +3053,18 @@
       // When publishing: lock in current post images, and prune unused lingering temp images without duplicating heavy dataUrl strings
       if (currentDraft && Array.isArray(currentDraft.tempImages)) {
         if (!Array.isArray(currentDraft.images)) currentDraft.images = [];
+        const existingNames = new Set(currentDraft.images.map(ex => ex && ex.filename).filter(Boolean));
         currentDraft.tempImages.forEach(im => {
           if (!im || !im.filename) return;
-          const alreadyInImages = currentDraft.images.some(existing => existing && existing.filename === im.filename);
-          if (!alreadyInImages && typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft)) {
+          if (!existingNames.has(im.filename) && typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft)) {
             const regObj = (typeof imageRegistry !== 'undefined' && imageRegistry)
               ? (imageRegistry.get(im.filename) || imageRegistry.get(im.relativePath) || imageRegistry.get(`/blog/images/${im.filename}`))
               : null;
             currentDraft.images.push(regObj || im);
+            existingNames.add(im.filename);
           }
         });
-        const publishedFilenames = (currentDraft.images || []).map(im => im.filename);
-        const unusedTempImages = currentDraft.tempImages.filter(im => {
-          if (!im || !im.filename || publishedFilenames.includes(im.filename)) return false;
-          if (typeof window.isImageReferencedInDraft === 'function' && window.isImageReferencedInDraft(im, currentDraft)) return false;
-          return true;
-        });
+        const unusedTempImages = currentDraft.tempImages.filter(im => im && im.filename && !existingNames.has(im.filename));
         unusedTempImages.forEach(im => {
           if (typeof cleanupOrphanedImageStorage === 'function') {
             cleanupOrphanedImageStorage(im.filename, currentDraft.id);
@@ -3140,12 +3151,6 @@
       if (elapsedModalPub < 380) {
         await new Promise(r => setTimeout(r, 380 - elapsedModalPub));
       }
-      if (typeof window.updateAllPreviewFrames === 'function') {
-        window.updateAllPreviewFrames();
-      }
-      if (typeof window.syncLiveWorkspaceData === 'function') {
-        window.syncLiveWorkspaceData();
-      }
 
       if (typeof window.updateCategorySelectUI === 'function') {
         window.updateCategorySelectUI();
@@ -3153,17 +3158,8 @@
       if (typeof updateEditorHeader === 'function') {
         updateEditorHeader();
       }
-      if (typeof renderAllPostsGrid === 'function') {
-        renderAllPostsGrid();
-      }
-      if (typeof renderPostsPipeline === 'function') {
-        renderPostsPipeline();
-      }
-      if (typeof renderTaxonomy === 'function') {
-        renderTaxonomy();
-      }
 
-      // Close modal
+      // Close modal immediately before background dashboard/preview refreshes
       closeModal('modal-export');
 
       // Feedback toast
@@ -3173,6 +3169,17 @@
       } else {
         showToast(isPage ? '🚀 Page published!' : '🚀 Post published!', 'success');
       }
+
+      setTimeout(() => {
+        if (window.currentView !== 'editor') {
+          if (typeof renderAllPostsGrid === 'function') renderAllPostsGrid();
+          if (typeof renderPostsPipeline === 'function') renderPostsPipeline();
+          if (typeof renderTaxonomy === 'function') renderTaxonomy();
+        }
+        if (typeof window.updateAllPreviewFrames === 'function') {
+          window.updateAllPreviewFrames();
+        }
+      }, 0);
       } finally {
         _isPublishingPostFromModal = false;
         setModalBtnsSpinning(false);

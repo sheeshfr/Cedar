@@ -553,8 +553,8 @@
 
     if (currentMode === 'canvas') {
       if (canvasProse) {
-        if (isFocusedInHeader && curDraft._headerSyncClean && typeof curDraft.proseHtml === 'string') {
-          // Prose has not changed while typing in title/subtitle; skip redundant DOM clone & markdown serialization
+        if ((isFocusedInHeader || isExportOpen) && curDraft._headerSyncClean && typeof curDraft.proseHtml === 'string') {
+          // Prose has not changed while typing in title/subtitle or Post Settings modal; skip redundant DOM clone & markdown serialization
         } else {
           if (window.mergeAdjacentLists) {
             window.mergeAdjacentLists(canvasProse);
@@ -568,7 +568,7 @@
           if (typeof window.reconcileDraftImages === 'function') {
             window.reconcileDraftImages(curDraft, canvasProse);
           }
-          curDraft._headerSyncClean = isFocusedInHeader;
+          curDraft._headerSyncClean = true;
         }
       }
     } else {

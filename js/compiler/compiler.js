@@ -5069,12 +5069,16 @@ ${socialMeta.metaLines}
         }
       }
 
-      const postClone = JSON.parse(JSON.stringify(post));
-      delete postClone.tempImages;
-      delete postClone.coverImageOriginal;
-      delete postClone.revisions;
-      delete postClone.history;
-      delete postClone.autosave;
+      const {
+        images: _postImgs,
+        tempImages: _postTempImgs,
+        coverImageOriginal: _postCoverOrig,
+        revisions: _postRevs,
+        history: _postHist,
+        autosave: _postAuto,
+        ...postSlimBase
+      } = post;
+      const postClone = JSON.parse(JSON.stringify(postSlimBase));
       if (publicProject && publicProject.defaultAuthor) {
         postClone.authorName = publicProject.defaultAuthor;
         postClone.author = publicProject.defaultAuthor;
@@ -5130,12 +5134,16 @@ ${socialMeta.metaLines}
       const isHidden = !isAboutCedar && Boolean(page.hidden || page.retired);
       const folder = `pages/published/${slug}`;
 
-      const pageClone = JSON.parse(JSON.stringify(page));
-      delete pageClone.tempImages;
-      delete pageClone.coverImageOriginal;
-      delete pageClone.revisions;
-      delete pageClone.history;
-      delete pageClone.autosave;
+      const {
+        images: _pageImgs,
+        tempImages: _pageTempImgs,
+        coverImageOriginal: _pageCoverOrig,
+        revisions: _pageRevs,
+        history: _pageHist,
+        autosave: _pageAuto,
+        ...pageSlimBase
+      } = page;
+      const pageClone = JSON.parse(JSON.stringify(pageSlimBase));
 
       // Sync RSS or Links page content
       if (pageClone.id === 'page_rss' || slug === 'rss') {

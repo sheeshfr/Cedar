@@ -3845,9 +3845,9 @@
 }
 
 #btn-publish-post-footer {
-  background: #ffffff !important;
-  border: 1px solid #ffffff !important;
-  color: #111216 !important;
+  background: var(--btn-primary-bg, #ffffff) !important;
+  border: 1px solid var(--btn-primary-bg, #ffffff) !important;
+  color: var(--btn-primary-color, #111216) !important;
   height: 36px !important;
   line-height: 34px !important;
   padding: 0 1.25rem !important;
@@ -3856,6 +3856,7 @@
   font-size: 0.88rem !important;
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 0.45rem !important;
   cursor: pointer !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25) !important;
@@ -3863,8 +3864,7 @@
 }
 
 #btn-publish-post-footer:hover {
-  background: #f4f4f5 !important;
-  border-color: #f4f4f5 !important;
+  opacity: 0.92;
   transform: translateY(-1px);
 }
 
@@ -3872,9 +3872,18 @@
   background: var(--btn-primary-bg, var(--accent-primary, #71717a)) !important;
   color: var(--btn-primary-color, #ffffff) !important;
   font-weight: 600 !important;
+  justify-content: center !important;
   box-shadow: 0 4px 14px var(--btn-primary-glow, rgba(113, 113, 122, 0.4));
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   transition: all 0.2s ease;
+}
+
+#btn-publish-post-footer .cedar-btn-spinner,
+.btn-publish-modal-action .cedar-btn-spinner {
+  color: inherit !important;
+  border: 2.5px solid rgba(128, 128, 128, 0.35) !important;
+  border: 2.5px solid color-mix(in srgb, currentColor 28%, transparent) !important;
+  border-top-color: currentColor !important;
 }
 
 .btn-publish-modal-action svg {

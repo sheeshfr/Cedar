@@ -1376,7 +1376,7 @@
         .publish-log-line.log-warn .log-prefix, .publish-log-line.log-warn .log-text { color: #facc15; }
         .publish-log-line.log-error .log-prefix, .publish-log-line.log-error .log-text { color: #f87171; }
         @keyframes cedarBtnSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .cedar-btn-spinner { display: inline-block !important; width: 20px !important; height: 20px !important; border: 2.5px solid rgba(255, 255, 255, 0.3) !important; border-top-color: #ffffff !important; border-radius: 50% !important; animation: cedarBtnSpin 0.65s linear infinite !important; flex-shrink: 0 !important; box-sizing: border-box !important; }
+        .cedar-btn-spinner { display: inline-block !important; width: 20px !important; height: 20px !important; border: 2.5px solid rgba(128, 128, 128, 0.35) !important; border: 2.5px solid color-mix(in srgb, currentColor 28%, transparent) !important; border-top-color: currentColor !important; border-radius: 50% !important; animation: cedarBtnSpin 0.65s linear infinite !important; flex-shrink: 0 !important; box-sizing: border-box !important; }
       `;
       document.head.appendChild(styleEl);
     }

@@ -96,6 +96,7 @@
   }
 
   const _opfsWriteLocks = new Map();
+  const _opfsPendingPayloads = new Map();
 
   async function _opfsWriteFileImpl(path, data) {
     let payload = data;
@@ -122,13 +123,26 @@
 
   async function opfsWriteFile(path, data) {
     const lockKey = String(path || '').replace(/\\/g, '/').toLowerCase();
+    const isAlreadyQueued = _opfsPendingPayloads.has(lockKey);
+    _opfsPendingPayloads.set(lockKey, { path, data });
+    if (isAlreadyQueued && _opfsWriteLocks.has(lockKey)) {
+      return await _opfsWriteLocks.get(lockKey);
+    }
     const prev = _opfsWriteLocks.get(lockKey) || Promise.resolve();
-    const next = prev.catch(() => {}).then(() => _opfsWriteFileImpl(path, data));
+    const next = prev.catch(() => {}).then(async () => {
+      let result = true;
+      while (_opfsPendingPayloads.has(lockKey)) {
+        const current = _opfsPendingPayloads.get(lockKey);
+        _opfsPendingPayloads.delete(lockKey);
+        result = await _opfsWriteFileImpl(current.path, current.data);
+      }
+      return result;
+    });
     _opfsWriteLocks.set(lockKey, next);
     try {
       return await next;
     } finally {
-      if (_opfsWriteLocks.get(lockKey) === next) {
+      if (_opfsWriteLocks.get(lockKey) === next && !_opfsPendingPayloads.has(lockKey)) {
         _opfsWriteLocks.delete(lockKey);
       }
     }

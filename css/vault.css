@@ -1165,8 +1165,9 @@
   display: inline-block !important;
   width: 20px !important;
   height: 20px !important;
-  border: 2.5px solid rgba(255, 255, 255, 0.3) !important;
-  border-top-color: #ffffff !important;
+  border: 2.5px solid rgba(128, 128, 128, 0.35) !important;
+  border: 2.5px solid color-mix(in srgb, currentColor 28%, transparent) !important;
+  border-top-color: currentColor !important;
   border-radius: 50% !important;
   animation: cedarBtnSpin 0.65s linear infinite !important;
   flex-shrink: 0 !important;
