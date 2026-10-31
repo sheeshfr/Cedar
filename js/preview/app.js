@@ -128,11 +128,7 @@
       if (draft.type === 'page') {
         return (prefix || '') + '/' + encodeURIComponent(slug);
       } else {
-        let cat = draft.permalinkCat !== undefined ? draft.permalinkCat : (draft.tag || (draft.categories && draft.categories[0]) || 'uncategorized');
-        if (!cat) cat = 'uncategorized';
-        // Replace spaces with dashes and encode
-        let catStr = encodeURIComponent(cat.toLowerCase().replace(/\s+/g, '-')) + '/';
-        return (prefix || '') + '/' + catStr + encodeURIComponent(slug) + '/';
+        return (prefix || '') + '/p/' + encodeURIComponent(slug) + '/';
       }
     }
     window.buildPostUrl = buildPostUrl;
@@ -298,10 +294,10 @@
       return { view: 'posts', page: page, category: query.category || query.cat || null, canonicalHash: page > 1 ? `#/blog?page=${page}` : '#/blog' };
     }
 
-    // 3. Legacy Single Post Reader: /posts/:slug or /post/:slug
-    if ((rootToken === 'posts' || rootToken === 'post') && segments.length >= 2) {
+    // 3. Single Post Reader: /p/:slug (and legacy /posts/:slug or /post/:slug)
+    if ((rootToken === 'p' || rootToken === 'posts' || rootToken === 'post') && segments.length >= 2) {
       const slug = segments.slice(1).join('/');
-      return { view: 'reader', type: 'post', slug: slug, canonicalHash: `#/${encodeURIComponent(slug)}` };
+      return { view: 'reader', type: 'post', slug: slug, canonicalHash: `#/p/${encodeURIComponent(slug)}/` };
     }
 
     // 4. Legacy Static Pages: /pages/:slug or /page/:slug

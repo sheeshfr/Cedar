@@ -17,7 +17,7 @@
     const newTrimmed = newName.trim();
     if (!newTrimmed || oldTrimmed === newTrimmed) return false;
 
-    const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+    const reservedNames = new Set(['p', 'uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
     if (reservedNames.has(newTrimmed.toLowerCase())) {
       if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
       renderTaxonomy();
@@ -289,34 +289,6 @@
         if (save && input) {
           const newName = input.value.trim();
           if (newName && newName !== cat) {
-            const oldSlug = cat.toLowerCase().replace(/\s+/g, '-');
-            const newSlug = newName.toLowerCase().replace(/\s+/g, '-');
-            const pubCount = Array.isArray(window.drafts)
-              ? window.drafts.filter(d => {
-                  if (!d || d.type === 'page') return false;
-                  const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
-                  if (!isPub) return false;
-                  const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
-                  return pCat === cat.toLowerCase();
-                }).length
-              : 0;
-            if (pubCount > 0 && oldSlug !== newSlug && typeof window.showConfirmDialog === 'function') {
-              const confirmed = await window.showConfirmDialog({
-                title: 'URL Link Warning',
-                message: `Renaming "${cat}" to "${newName}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} (/${oldSlug}/... → /${newSlug}/...) and break existing links. Are you sure you want to rename it?`,
-                confirmText: 'Yes, Rename',
-                cancelText: 'Cancel',
-                isDanger: true
-              });
-              if (!confirmed) {
-                chip.classList.remove('is-editing');
-                chip.removeAttribute('style');
-                chip.setAttribute('draggable', 'true');
-                chip.innerHTML = originalHtml;
-                bindEvents();
-                return;
-              }
-            }
             const didRename = renameCategory(cat, newName);
             if (didRename) return;
           } else if (fromButton && typeof window.showToast === 'function') {
@@ -369,21 +341,10 @@
 
       chip.querySelector('.btn-chip-delete')?.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const pubCount = Array.isArray(window.drafts)
-          ? window.drafts.filter(d => {
-              if (!d || d.type === 'page') return false;
-              const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
-              if (!isPub) return false;
-              const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
-              return pCat === cat.toLowerCase();
-            }).length
-          : 0;
         if (typeof window.showConfirmDialog === 'function') {
-          const warnMsg = pubCount > 0
-            ? `Deleting category "${cat}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} and break existing links. Are you sure you want to delete it?`
-            : `Are you sure you want to delete category "${cat}"?`;
+          const warnMsg = `Are you sure you want to delete category "${cat}"?`;
           const confirmed = await window.showConfirmDialog({
-            title: pubCount > 0 ? 'URL Link Warning' : 'Delete Category?',
+            title: 'Delete Category?',
             message: warnMsg,
             confirmText: 'Delete',
             cancelText: 'Cancel',

@@ -161,7 +161,7 @@
         const draft = window.drafts.find(d => d.id === pageId);
         if (draft) {
           const isBuiltIn = isBuiltInPage(draft);
-          const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+          const reservedNames = new Set(['p', 'uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
           if (!isBuiltIn && reservedNames.has(newTitle.toLowerCase())) {
             if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
             return;
@@ -966,21 +966,10 @@
 
     if (isCat) {
       const targetCatName = catName || page.categoryAggregate || page.title || '';
-      const pubCount = Array.isArray(window.drafts)
-        ? window.drafts.filter(d => {
-            if (!d || d.type === 'page') return false;
-            const isPub = Boolean(d.status === 'published' || d.everPublished || d.publishedAt || d.publishedSlug);
-            if (!isPub) return false;
-            const pCat = String(d.permalinkCat || d.tag || (Array.isArray(d.categories) && d.categories[0]) || '').trim().toLowerCase();
-            return pCat === targetCatName.toLowerCase();
-          }).length
-        : 0;
-      const warnMsg = pubCount > 0
-        ? `Deleting category "${targetCatName}" will change the URL of ${pubCount} published post${pubCount === 1 ? '' : 's'} and break existing links. Are you sure you want to delete it?`
-        : `Are you sure you want to delete category "${targetCatName}"?`;
+      const warnMsg = `Are you sure you want to delete category "${targetCatName}"?`;
       const confirmed = (typeof window.showConfirmDialog === 'function')
         ? await window.showConfirmDialog({
-            title: pubCount > 0 ? 'URL Link Warning' : 'Delete Category?',
+            title: 'Delete Category?',
             message: warnMsg,
             confirmText: 'Delete',
             isDanger: true
@@ -2007,7 +1996,7 @@
     const oldCatName = isAll ? 'All' : (page.categoryAggregate || page.title || '');
     const oldTitle = (page.title || '').trim();
 
-    const reservedNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+    const reservedNames = new Set(['p', 'uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
     if (!isBuiltIn && !isAll && newTitle.toLowerCase() !== oldTitle.toLowerCase() && reservedNames.has(newTitle.toLowerCase())) {
       if (typeof window.showToast === 'function') window.showToast("Woah! That's a reserved name - pick something else.");
       if (inputEditTitle) inputEditTitle.focus();

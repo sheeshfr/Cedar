@@ -89,22 +89,11 @@
     const slugPrefixEl = document.getElementById('workspace-url-prefix') || document.querySelector('.input-with-prefix .input-prefix');
     if (!slugPrefixEl) return;
     const curDraft = window.currentDraft;
-    if (!curDraft) {
-      slugPrefixEl.textContent = '/uncategorized/';
-      return;
-    }
-    if (curDraft.type === 'page') {
+    if (curDraft && curDraft.type === 'page') {
       slugPrefixEl.textContent = '/';
       return;
     }
-    const rawCat = (curDraft.permalinkCat !== undefined && curDraft.permalinkCat !== null && String(curDraft.permalinkCat).trim() !== '')
-      ? String(curDraft.permalinkCat).trim()
-      : ((curDraft.tag || (Array.isArray(curDraft.categories) && curDraft.categories[0]) || '').trim());
-    const normCat = (!rawCat || rawCat.toLowerCase() === 'uncategorized' || rawCat.toLowerCase() === 'posts')
-      ? 'uncategorized'
-      : rawCat;
-    const catSlug = encodeURIComponent(normCat.toLowerCase().replace(/\s+/g, '-'));
-    slugPrefixEl.textContent = `/${catSlug}/`;
+    slugPrefixEl.textContent = '/p/';
   }
   window.updateWorkspaceUrlPrefix = updateWorkspaceUrlPrefix;
 

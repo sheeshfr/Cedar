@@ -114,22 +114,22 @@
       return window.buildPostUrl(post);
     }
     const slug = post.slug || post.id || 'post';
-    let cat = post.permalinkCat !== undefined ? post.permalinkCat : (post.tag || (Array.isArray(post.categories) && post.categories[0]) || 'uncategorized');
-    if (!cat) cat = 'uncategorized';
-    const catSlug = encodeURIComponent(String(cat).trim().toLowerCase().replace(/\s+/g, '-'));
     const prefix = (typeof window !== 'undefined' && typeof window.getSiteBasePrefix === 'function')
       ? window.getSiteBasePrefix()
       : ((typeof window !== 'undefined' && !window.__CEDAR_PRODUCTION__ && window.location && (window.location.pathname === '/preview.html' || window.location.pathname.startsWith('/preview.html/'))) ? '/preview.html' : '');
-    return `${prefix}/${catSlug}/${encodeURIComponent(slug)}/`;
+    if (post.type === 'page') {
+      return `${prefix}/${encodeURIComponent(slug)}`;
+    }
+    return `${prefix}/p/${encodeURIComponent(slug)}/`;
   }
 
   function buildDisplayPostPath(post) {
     if (!post) return '';
     const slug = post.slug || post.id || 'post';
-    let cat = post.permalinkCat !== undefined ? post.permalinkCat : (post.tag || (Array.isArray(post.categories) && post.categories[0]) || 'uncategorized');
-    if (!cat) cat = 'uncategorized';
-    const catSlug = encodeURIComponent(String(cat).trim().toLowerCase().replace(/\s+/g, '-'));
-    return `/${catSlug}/${encodeURIComponent(slug)}/`;
+    if (post.type === 'page') {
+      return `/${encodeURIComponent(slug)}/`;
+    }
+    return `/p/${encodeURIComponent(slug)}/`;
   }
 
   function computeSmartLinkFallbackImage(targetUrl, domainName) {

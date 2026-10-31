@@ -629,72 +629,9 @@
 
   let pendingCategoryWarning = null;
 
-  function promptCategoryChangeWarning({ draft, newCategories, newTag, onProceed, onCancel }) {
-    const curDraft = draft || window.currentDraft || currentDraft;
-    const isPublishedPost = Boolean(
-      curDraft &&
-      curDraft.type !== 'page' &&
-      (curDraft.status === 'published' || curDraft.everPublished || curDraft.publishedAt || curDraft.publishedSlug)
-    );
-    if (!isPublishedPost) {
-      return false;
-    }
-
-    // 1. Existing effective URL category:
-    // If draft has an explicit permalinkCat, that's what was in its URL.
-    // Otherwise, look at draft.tag or draft.categories[0].
-    const rawOldCat = (curDraft.permalinkCat !== undefined && curDraft.permalinkCat !== null && String(curDraft.permalinkCat).trim() !== '')
-      ? String(curDraft.permalinkCat).trim()
-      : ((curDraft.tag || (Array.isArray(curDraft.categories) && curDraft.categories[0]) || '').trim());
-
-    const normOld = (!rawOldCat || rawOldCat.toLowerCase() === 'uncategorized' || rawOldCat.toLowerCase() === 'posts')
-      ? 'uncategorized'
-      : rawOldCat;
-
-    // 2. Target category:
-    const rawNewCat = (newTag !== undefined && newTag !== null)
-      ? String(newTag).trim()
-      : ((Array.isArray(newCategories) && newCategories.length > 0) ? String(newCategories[0]).trim() : '');
-
-    const normNew = (!rawNewCat || rawNewCat.toLowerCase() === 'uncategorized' || rawNewCat.toLowerCase() === 'posts')
-      ? 'uncategorized'
-      : rawNewCat;
-
-    // 3. Compare slugified categories:
-    const slugOld = normOld.toLowerCase().replace(/\s+/g, '-');
-    const slugNew = normNew.toLowerCase().replace(/\s+/g, '-');
-
-    if (slugOld === slugNew) {
-      return false;
-    }
-
-    const modal = document.getElementById('modal-category-warning');
-    if (!modal) return false;
-
-    // Ensure handlers are attached
-    if (typeof setupCategoryWarningModalHandlers === 'function') {
-      setupCategoryWarningModalHandlers();
-    }
-
-    const postSlug = curDraft.slug || 'post';
-    const curUrlEl = document.getElementById('cat-warn-current-url');
-    const newUrlEl = document.getElementById('cat-warn-new-url');
-    if (curUrlEl) curUrlEl.textContent = `/${slugOld}/${postSlug}/`;
-    if (newUrlEl) newUrlEl.textContent = `/${slugNew}/${postSlug}/`;
-
-    pendingCategoryWarning = {
-      draft: curDraft,
-      newCategories: Array.isArray(newCategories) ? [...newCategories] : (rawNewCat ? [rawNewCat] : []),
-      newTag: rawNewCat,
-      oldCat: normOld,
-      newCat: normNew,
-      onProceed,
-      onCancel
-    };
-
-    modal.style.display = 'flex';
-    modal.classList.add('active');
-    return true;
+  function promptCategoryChangeWarning() {
+    // Post URLs use /p/<slug>/ (Substack-style) and never change when categories are modified.
+    return false;
   }
   window.promptCategoryChangeWarning = promptCategoryChangeWarning;
 
@@ -2151,7 +2088,7 @@
         const newSlug = generateSlug(title, defaultPlaceholder, 30);
         const ok = await commitManualSlugChange(newSlug, { isFromSyncBtn: true });
         if (ok && typeof showToast === 'function') {
-          showToast(`URL slug synced: /blog/${newSlug}/`);
+          showToast(`URL slug synced: ${currentDraft.type === 'page' ? `/${newSlug}/` : `/p/${newSlug}/`}`);
         }
       });
     }
@@ -2336,7 +2273,7 @@
         catInput.focus();
         return;
       }
-      const reservedCatNames = new Set(['uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
+      const reservedCatNames = new Set(['p', 'uncategorized', 'posts', 'rss', 'about', 'about-cedar', 'about cedar', 'feed', 'links', 'all', 'all posts', 'all-posts']);
       if (reservedCatNames.has(val.toLowerCase())) {
         if (typeof showToast === 'function') showToast("Woah! That's a reserved name - pick something else.");
         return;
@@ -3549,7 +3486,7 @@
         <div class="draft-item-info">
           <div class="draft-item-title">${escapeHtml(d.title || 'Untitled Draft')}</div>
           <div class="draft-item-meta">
-            <span>/blog/${escapeHtml(d.slug)}/</span> &bull; <span>Updated ${updatedStr}</span>
+            <span>/p/${escapeHtml(d.slug)}/</span> &bull; <span>Updated ${updatedStr}</span>
           </div>
         </div>
         <div class="draft-item-actions">

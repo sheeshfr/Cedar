@@ -1429,7 +1429,8 @@
       rawProse = (draft.proseHtml || parseMarkdownToHtml(draft.markdown));
     }
     const proseHtml = (isLinks || hasCustomFragment) ? rawProse : prepareProseForPublish(rawProse, draft, options);
-    const canonicalPath = isPage ? `pages/published/${slug}/` : `blog/published/${slug}/`;
+    const assetFolderPath = isPage ? `pages/published/${slug}/` : `blog/published/${slug}/`;
+    const canonicalPath = isPage ? `${slug}/` : `p/${slug}/`;
     const resolvedDomain = (window.resolveProjectDomain ? window.resolveProjectDomain() : ((window.projectConfig && window.projectConfig.domain) || (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '') || '')).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     const siteBase = resolvedDomain ? `https://${resolvedDomain}` : '';
     const canonicalUrl = siteBase ? `${siteBase}/${canonicalPath}` : `/${canonicalPath}`;
@@ -1446,7 +1447,7 @@
           }
         }
         if (resolvedCover && !resolvedCover.startsWith('data:') && !resolvedCover.startsWith('blob:') && !resolvedCover.startsWith('http') && !resolvedCover.startsWith('/')) {
-          resolvedCover = `/${canonicalPath}${resolvedCover}`;
+          resolvedCover = `/${assetFolderPath}${resolvedCover}`;
         }
       } else if (typeof imageRegistry !== 'undefined' && imageRegistry.has(resolvedCover)) {
         resolvedCover = imageRegistry.get(resolvedCover).dataUrl;
@@ -4056,7 +4057,7 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
       <img src="${escapeHtml(coverImage)}" alt="" class="post-card-img" loading="lazy" onerror="const c=this.closest('.post-card');if(c)c.classList.add('post-card-no-cover');this.remove();">`
       : '';
 
-    return `  <a href="/blog/published/${slug}/" class="post-card${noCoverClass}">
+    return `  <a href="/p/${slug}/" class="post-card${noCoverClass}">
     <div class="post-card-img-wrap post-card-showcase-wrap" style="background-color: ${mutedColor}; aspect-ratio: 16 / 9;">
       <div class="post-card-showcase-cluster">
         ${swooshSvgHtml}
@@ -4099,7 +4100,7 @@ ${categoryEyebrowHtml}      <h3 class="post-card-title post-card-standard-title"
     </div>`;
     }
 
-    return `  <a href="/blog/published/${slug}/" class="featured-post-card">
+    return `  <a href="/p/${slug}/" class="featured-post-card">
 ${imgBlock ? imgBlock + '\n' : ''}    <div class="featured-post-content">
       <span class="featured-badge" style="color: #ec4899;">★ Featured Post</span>
       <h2 class="featured-post-title">${escapeHtml(title)}</h2>
@@ -4131,7 +4132,7 @@ ${imgBlock ? imgBlock + '\n' : ''}    <div class="featured-post-content">
     const resolvedDomain = (window.resolveProjectDomain ? window.resolveProjectDomain() : ((window.projectConfig && window.projectConfig.domain) || (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '') || '')).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     const siteBase = resolvedDomain ? `https://${resolvedDomain}` : '';
     const isPage = draft.type === 'page';
-    const relPath = isPage ? `/pages/published/${draft.slug}/` : `/blog/published/${draft.slug}/`;
+    const relPath = isPage ? `/${draft.slug}/` : `/p/${draft.slug}/`;
     const canonicalFrontmatter = siteBase ? `${siteBase}${relPath}` : relPath;
     return `---
 title: "${draft.title.replace(/"/g, '\\"')}"
@@ -4223,10 +4224,8 @@ ${draft.markdown || ''}`;
     const allItems = [];
     (publishedPosts || []).forEach(p => {
       const slug = p.slug || generateSlug(p.title || 'untitled');
-      const postUrl = `${siteUrl}/blog/published/${slug}/`;
-      if (!p.rssGuid || (domain && p.rssGuid.startsWith('http://localhost'))) {
-        p.rssGuid = postUrl;
-      }
+      const postUrl = `${siteUrl}/p/${slug}/`;
+      p.rssGuid = postUrl;
       const postDateRaw = p.publishedAt || p.publishedDate || p.createdAt || p.date || fallbackDateIso;
       if (!p.rssPubDate) {
         p.rssPubDate = new Date(postDateRaw).toUTCString();
@@ -4382,7 +4381,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.62';
+    const buildStamp = options.buildStamp || '6.6.63';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -5035,10 +5034,7 @@ ${socialMeta.metaLines}
     for (const post of publishedPosts) {
       const slug = post.slug || (typeof generateSlug === 'function' ? generateSlug(post.title) : 'post');
       const folder = `blog/published/${slug}`;
-      let cat = post.permalinkCat !== undefined ? post.permalinkCat : (post.tag || (post.categories && post.categories[0]) || 'uncategorized');
-      if (!cat) cat = 'uncategorized';
-      const catSlug = encodeURIComponent(String(cat).toLowerCase().trim().replace(/\s+/g, '-'));
-      const cleanRouteFolder = `${catSlug}/${slug}`;
+      const cleanRouteFolder = `p/${slug}`;
 
       // Export post images (skip uncropped original source buffers)
       const cleanImages = [];
@@ -5910,6 +5906,7 @@ ${page.markdown || ''}`;
         .replace(/\/index\.html$/i, '')
         .replace(/\/preview\.html(?:\/.*)?$/i, '')
         .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
+        .replace(/\/p\/[^/]+\/?$/i, '')
         .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
 
       if (typeof document !== 'undefined') {

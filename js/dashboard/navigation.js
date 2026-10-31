@@ -543,11 +543,7 @@
           if (d.type === 'page') {
             targetHash = '#/' + encodeURIComponent(d.slug || d.id);
           } else {
-            const cat = d.permalinkCat !== undefined ? d.permalinkCat : (d.tag || (d.categories && d.categories[0]) || '');
-            const catStr = (cat && cat.toLowerCase() !== 'uncategorized')
-              ? encodeURIComponent(cat.toLowerCase().replace(/\s+/g, '-')) + '/'
-              : '';
-            targetHash = '#/' + catStr + encodeURIComponent(d.slug || d.id);
+            targetHash = '#/p/' + encodeURIComponent(d.slug || d.id) + '/';
           }
         } else if (window._currentPreviewIframeHash && window.currentDashboardTab === 'preview') {
           targetHash = window._currentPreviewIframeHash;
