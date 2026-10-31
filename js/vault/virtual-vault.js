@@ -95,7 +95,9 @@
     }
   }
 
-  async function opfsWriteFile(path, data) {
+  const _opfsWriteLocks = new Map();
+
+  async function _opfsWriteFileImpl(path, data) {
     let payload = data;
     if (data instanceof Blob) {
       payload = await data.arrayBuffer();
@@ -115,6 +117,20 @@
     } catch (err) {
       try { await writable.abort(); } catch (e) {}
       throw err;
+    }
+  }
+
+  async function opfsWriteFile(path, data) {
+    const lockKey = String(path || '').replace(/\\/g, '/').toLowerCase();
+    const prev = _opfsWriteLocks.get(lockKey) || Promise.resolve();
+    const next = prev.catch(() => {}).then(() => _opfsWriteFileImpl(path, data));
+    _opfsWriteLocks.set(lockKey, next);
+    try {
+      return await next;
+    } finally {
+      if (_opfsWriteLocks.get(lockKey) === next) {
+        _opfsWriteLocks.delete(lockKey);
+      }
     }
   }
 

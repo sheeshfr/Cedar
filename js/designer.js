@@ -404,6 +404,12 @@
       document.getElementById('live-preview-iframe')
     ].filter(Boolean);
 
+    if (frames.length === 0) return;
+    if (window.currentView === 'editor') {
+      const hasVisibleFrame = frames.some(f => f && f.offsetParent !== null);
+      if (!hasVisibleFrame) return;
+    }
+
     const themeId = window.projectConfig?.design?.blogTheme || window.projectConfig?.design?.activeTheme || 'basalt';
     const activeDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
       ? window.CedarStore.getAllDrafts()

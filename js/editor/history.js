@@ -10,7 +10,7 @@
   window.Cedar.editor = window.Cedar.editor || window.Outpost.editor || {};
   window.Outpost.editor = window.Cedar.editor;
 
-  const MAX_HISTORY = 120;
+  const MAX_HISTORY = 60;
   const MACRO_INACTIVITY_MS = 3500;
 
   let undoStack = [];
@@ -20,6 +20,7 @@
   let macroInactivityTimer = null;
   let activeEditBlockNode = null;
   let sessionSentenceCompleted = false;
+  let hasUncommittedChanges = false;
 
   function getCaretOffset(element) {
     let caretOffset = 0;
@@ -88,12 +89,40 @@
     }
   }
 
-  function cleanProseHtmlForStorage(html) {
-    if (!html) return '';
+  function cleanProseHtmlForStorage(htmlOrEl) {
+    if (!htmlOrEl) return '';
+    const isElement = typeof htmlOrEl === 'object' && htmlOrEl.nodeType === 1;
+    let html = isElement ? '' : String(htmlOrEl);
+    if (!isElement && !html) return '';
     try {
-      if (typeof DOMParser !== 'undefined') {
-        const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
-        const body = doc.body;
+      let doc = null;
+      let body = null;
+      if (isElement) {
+        doc = htmlOrEl.ownerDocument || document;
+        body = htmlOrEl.cloneNode(true);
+      } else if (typeof DOMParser !== 'undefined') {
+        if (html.includes('data:image/')) {
+          html = html.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
+            if (!attrs.includes('data:image/')) return fullTag;
+            const nameMatch = attrs.match(/data-img-name=["']([^"']+)["']/i);
+            const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
+            let relPath = '';
+            if (nameMatch && nameMatch[1]) {
+              const fn = nameMatch[1].split('/').pop().split('\\').pop();
+              if (fn) relPath = `/blog/images/${fn}`;
+            } else if (origMatch && origMatch[1] && !origMatch[1].startsWith('data:')) {
+              relPath = origMatch[1];
+            }
+            if (!relPath) return fullTag;
+            return fullTag
+              .replace(/(\s|^)src=["']data:image\/[^"']+["']/i, `$1src="${relPath}"`)
+              .replace(/data-original-src=["']data:image\/[^"']+["']/i, `data-original-src="${relPath}"`);
+          });
+        }
+        doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+        body = doc.body;
+      }
+      if (body && doc) {
         body.querySelectorAll('.page-recent-posts-block, .page-individual-post-block').forEach(pb => {
           pb.innerHTML = '';
           pb.removeAttribute('data-editing-url');
@@ -140,16 +169,42 @@
             }
           }
         });
+        const curDraft = window.currentDraft;
+        const draftImages = (curDraft && Array.isArray(curDraft.images)) ? curDraft.images : null;
         body.querySelectorAll('img').forEach(img => {
+          const src = (img.getAttribute('src') || '').trim();
           const imgName = (img.getAttribute('data-img-name') || '').trim();
           const origSrc = (img.getAttribute('data-original-src') || '').trim();
-          if (imgName && (!origSrc || origSrc.startsWith('data:'))) {
-            const cleanFn = imgName.split('/').pop().split('\\').pop();
-            img.setAttribute('data-original-src', `/blog/images/${cleanFn}`);
+          let cleanFn = '';
+          if (imgName) {
+            cleanFn = imgName.split('/').pop().split('\\').pop();
+          } else if (origSrc && !origSrc.startsWith('data:') && !origSrc.startsWith('blob:') && !/^https?:\/\//i.test(origSrc)) {
+            cleanFn = origSrc.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+          } else if (src.startsWith('data:image/') && draftImages) {
+            const matched = draftImages.find(im => im && im.dataUrl === src && im.filename);
+            if (matched) cleanFn = matched.filename;
+          }
+          if (cleanFn) {
+            const relPath = `/blog/images/${cleanFn}`;
+            if (src.startsWith('data:image/')) {
+              if (window.imageRegistry) {
+                const regEntry = { dataUrl: src, filename: cleanFn, relativePath: relPath };
+                window.imageRegistry.set(cleanFn, regEntry);
+                window.imageRegistry.set(relPath, regEntry);
+                window.imageRegistry.set(`blog/images/${cleanFn}`, regEntry);
+              }
+              if (draftImages) {
+                const existing = draftImages.find(im => im && im.filename === cleanFn);
+                if (existing && !existing.dataUrl) existing.dataUrl = src;
+              }
+              img.setAttribute('src', relPath);
+            }
+            img.setAttribute('data-original-src', relPath);
+            img.setAttribute('data-img-name', cleanFn);
           }
           if (!img.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .image-sanitizing-placeholder, .gallery-split-img-box, .page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card')) {
-            const src = img.getAttribute('src') || '';
-            if (src) {
+            const currentSrc = img.getAttribute('src') || '';
+            if (currentSrc) {
               const figContainer = doc.createElement('div');
               figContainer.className = 'captioned-image-container';
               figContainer.setAttribute('contenteditable', 'false');
@@ -190,6 +245,9 @@
       }
     } catch (e) {
       console.warn('cleanProseHtmlForStorage error:', e);
+    }
+    if (isElement) {
+      html = htmlOrEl.innerHTML || '';
     }
     html = html.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');
     html = html.replace(/<button\b(?![^>]*(?:btn-share-article|btn-rss-subscribe|btn-copy-share-url))[^>]*>[\s\S]*?<\/button>/gi, '');
@@ -232,7 +290,7 @@
     return {
       title: canvasTitle ? canvasTitle.textContent : (currentDraft ? currentDraft.title || '' : ''),
       subtitle: canvasSubtitle ? canvasSubtitle.textContent : (currentDraft ? currentDraft.subtitle || '' : ''),
-      proseHtml: canvasProse ? cleanProseHtmlForStorage(canvasProse.innerHTML) : '',
+      proseHtml: canvasProse ? cleanProseHtmlForStorage(canvasProse) : '',
       markdown: mdInput ? mdInput.value : (currentDraft ? currentDraft.markdown || '' : ''),
       activeMode: activeMode || 'canvas',
       focusedTarget: focusedTarget,
@@ -296,6 +354,7 @@
     macroInactivityTimer = null;
     activeEditBlockNode = null;
     sessionSentenceCompleted = false;
+    hasUncommittedChanges = false;
     checkpointState = getEditorSnapshot();
     updateHistoryButtonsUI();
   }
@@ -306,6 +365,7 @@
       clearTimeout(macroInactivityTimer);
       macroInactivityTimer = null;
     }
+    hasUncommittedChanges = false;
     const currentLive = liveState || getEditorSnapshot();
     if (!checkpointState) {
       checkpointState = currentLive;
@@ -322,15 +382,21 @@
       redoStack = [];
       activeEditBlockNode = getCurrentEditBlockNode();
       sessionSentenceCompleted = false;
-      updateHistoryButtonsUI();
     }
+    updateHistoryButtonsUI();
   }
 
   function finalizeActiveTypingSession() {
+    if (!hasUncommittedChanges && !macroInactivityTimer) {
+      activeEditBlockNode = null;
+      sessionSentenceCompleted = false;
+      return;
+    }
     if (macroInactivityTimer) {
       clearTimeout(macroInactivityTimer);
       macroInactivityTimer = null;
     }
+    hasUncommittedChanges = false;
     const currentLive = getEditorSnapshot();
     if (checkpointState && !isSnapshotsEqual(currentLive, checkpointState)) {
       commitCheckpoint(currentLive);
@@ -353,6 +419,8 @@
     } else if (!activeEditBlockNode && currentBlock) {
       activeEditBlockNode = currentBlock;
     }
+
+    hasUncommittedChanges = true;
 
     // 2. Sentence boundary detection within block:
     const char = details.char || '';
@@ -388,12 +456,7 @@
   }
 
   function canUndoAction() {
-    if (undoStack.length > 0) return true;
-    if (checkpointState) {
-      const live = getEditorSnapshot();
-      return !isSnapshotsEqual(live, checkpointState);
-    }
-    return false;
+    return undoStack.length > 0 || hasUncommittedChanges;
   }
 
   function canRedoAction() {
@@ -408,6 +471,7 @@
       clearTimeout(macroInactivityTimer);
       macroInactivityTimer = null;
     }
+    hasUncommittedChanges = false;
 
     const currentLive = getEditorSnapshot();
 
@@ -422,7 +486,10 @@
     }
 
     // 2. Pop the previous snapshot from undoStack
-    if (undoStack.length === 0) return;
+    if (undoStack.length === 0) {
+      updateHistoryButtonsUI();
+      return;
+    }
 
     redoStack.push(checkpointState);
     const targetState = undoStack.pop();
@@ -441,6 +508,7 @@
       clearTimeout(macroInactivityTimer);
       macroInactivityTimer = null;
     }
+    hasUncommittedChanges = false;
 
     if (redoStack.length === 0) return;
 
@@ -498,12 +566,15 @@
       }
 
       // Restore Prose HTML
-      if (canvasProse && cleanProseHtmlForStorage(canvasProse.innerHTML) !== snapshot.proseHtml) {
+      if (canvasProse && cleanProseHtmlForStorage(canvasProse) !== snapshot.proseHtml) {
         canvasProse.innerHTML = cleanProseHtmlForStorage(snapshot.proseHtml) || '';
         const leftoverInd = canvasProse.querySelector('#canvas-drop-indicator');
         if (leftoverInd) leftoverInd.remove();
         if (typeof window.ensureImageCaptionElements === 'function') {
           window.ensureImageCaptionElements(canvasProse);
+        }
+        if (typeof window.hydrateCanvasImages === 'function') {
+          window.hydrateCanvasImages(canvasProse, currentDraft);
         }
         if (typeof window.hydratePageBlocks === 'function') {
           window.hydratePageBlocks(canvasProse, currentDraft, { isEditor: true, initialPage: 1 });
@@ -533,7 +604,7 @@
       if (currentDraft) {
         if (activeMode === 'canvas') {
           if (canvasProse) {
-            currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse.innerHTML);
+            currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse);
             if (typeof window.domToMarkdown === 'function') {
               currentDraft.markdown = window.domToMarkdown(canvasProse);
             }

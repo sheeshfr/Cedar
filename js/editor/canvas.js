@@ -190,6 +190,66 @@
       document.execCommand('defaultParagraphSeparator', false, 'p');
     } catch (e) {}
 
+    // Tracks a just-converted em-dash ('--' -> '—') so an immediate Backspace reverts it to '--'
+    let pendingEmDashRevert = null;
+
+    function resolveTextPositionBeforeCaret(range) {
+      if (!range || !range.collapsed) return null;
+      const node = range.startContainer;
+      const offset = range.startOffset;
+      if (node && node.nodeType === Node.TEXT_NODE) {
+        return { node, offset };
+      }
+      if (node && node.nodeType === Node.ELEMENT_NODE && offset > 0 && node.childNodes) {
+        const prev = node.childNodes[offset - 1];
+        if (prev && prev.nodeType === Node.TEXT_NODE) {
+          return { node: prev, offset: (prev.nodeValue || '').length };
+        }
+      }
+      return null;
+    }
+
+    function tryRevertPendingEmDash(e) {
+      if (!pendingEmDashRevert) return false;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !sel.isCollapsed) {
+        pendingEmDashRevert = null;
+        return false;
+      }
+      const pos = resolveTextPositionBeforeCaret(sel.getRangeAt(0));
+      if (
+        pos &&
+        pos.node === pendingEmDashRevert.node &&
+        pos.offset === pendingEmDashRevert.offset &&
+        pos.offset >= 1 &&
+        pos.node.nodeValue &&
+        pos.node.nodeValue.charAt(pos.offset - 1) === '\u2014'
+      ) {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        const raw = pos.node.nodeValue;
+        const idx = pos.offset - 1;
+        pos.node.nodeValue = raw.slice(0, idx) + '--' + raw.slice(pos.offset);
+        const nextOffset = idx + 2;
+        const newRange = document.createRange();
+        newRange.setStart(pos.node, nextOffset);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        window._savedSelectionRange = newRange.cloneRange();
+        pendingEmDashRevert = null;
+        if (typeof window.recordAction === 'function') window.recordAction('revert-em-dash', false);
+        if (typeof window.scheduleStatsUpdate === 'function') window.scheduleStatsUpdate();
+        else if (typeof window.updateStats === 'function') window.updateStats();
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+        return true;
+      }
+      pendingEmDashRevert = null;
+      return false;
+    }
+
     canvasProse.addEventListener('focus', () => {
       try {
         document.execCommand('defaultParagraphSeparator', false, 'p');
@@ -197,6 +257,7 @@
     });
 
     canvasProse.addEventListener('mousedown', (e) => {
+      pendingEmDashRevert = null;
       if (!e.target || e.target === canvasProse) return;
       const inCaption = e.target.closest ? e.target.closest('figcaption, .gallery-caption') : null;
       const inNonText = !inCaption && e.target.closest
@@ -1525,6 +1586,9 @@
     // Beforeinput safeguard: prevent browser native merge/delete of preceding/following non-text blocks or captions
     canvasProse.addEventListener('beforeinput', (e) => {
       const inputType = e.inputType || '';
+      if (inputType === 'deleteContentBackward' && tryRevertPendingEmDash(e)) {
+        return;
+      }
       if (inputType === 'insertParagraph' || inputType === 'insertLineBreak') {
         const selForList = window.getSelection();
         const li = findEnclosingListItem(selForList, e.target);
@@ -1703,6 +1767,7 @@
 
       // 0. If user is typing inside the Individual Post URL input, handle Enter/Escape and prevent prose shortcuts
       if (e.target && e.target.classList && e.target.classList.contains('individual-post-url-input')) {
+        pendingEmDashRevert = null;
         if (e.key === 'Enter') {
           e.preventDefault();
           e.stopPropagation();
@@ -1724,6 +1789,59 @@
         }
         e.stopPropagation();
         return;
+      }
+
+      // 0A. Immediate Backspace after '--' -> '—' reverts the em-dash back to '--'
+      if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (tryRevertPendingEmDash(e)) {
+          return;
+        }
+      } else if (e.key === '-' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.isComposing) {
+        // 0B. Two dashes ('--') in prose text body converts to em-dash ('—')
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && sel.isCollapsed) {
+          const range = sel.getRangeAt(0);
+          let anchorEl = range.startContainer;
+          if (anchorEl && anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
+          const inCodeOrInput = anchorEl && anchorEl.closest && anchorEl.closest('code, pre, input, textarea');
+          if (!inCodeOrInput && canvasProse.contains(range.startContainer)) {
+            const pos = resolveTextPositionBeforeCaret(range);
+            if (pos && pos.offset >= 1 && pos.node.nodeValue) {
+              const raw = pos.node.nodeValue;
+              let dashIdx = pos.offset - 1;
+              while (dashIdx >= 0 && raw.charAt(dashIdx) === '\u200B') {
+                dashIdx--;
+              }
+              const charBefore = dashIdx >= 0 ? raw.charAt(dashIdx) : '';
+              let prevIdx = dashIdx - 1;
+              while (prevIdx >= 0 && raw.charAt(prevIdx) === '\u200B') {
+                prevIdx--;
+              }
+              const charBeforeThat = prevIdx >= 0 ? raw.charAt(prevIdx) : '';
+              if (charBefore === '-' && charBeforeThat !== '-' && charBeforeThat !== '\u2014') {
+                e.preventDefault();
+                e.stopPropagation();
+                pos.node.nodeValue = raw.slice(0, dashIdx) + '\u2014' + raw.slice(pos.offset);
+                const newOffset = dashIdx + 1;
+                const newRange = document.createRange();
+                newRange.setStart(pos.node, newOffset);
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                window._savedSelectionRange = newRange.cloneRange();
+                pendingEmDashRevert = { node: pos.node, offset: newOffset };
+                if (typeof window.recordAction === 'function') window.recordAction('insert', false, { char: '\u2014' });
+                if (typeof window.scheduleStatsUpdate === 'function') window.scheduleStatsUpdate();
+                else if (typeof window.updateStats === 'function') window.updateStats();
+                if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+                return;
+              }
+            }
+          }
+        }
+        pendingEmDashRevert = null;
+      } else if (e.key !== 'Shift' && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta') {
+        pendingEmDashRevert = null;
       }
 
       if (e.key !== 'Control' && e.key !== 'Shift' && e.key !== 'Alt' && e.key !== 'Meta' && e.key !== 'Escape') {
@@ -2251,7 +2369,7 @@
           if (topBlock) {
             if (topBlock.parentNode === canvasProse) {
               const raw = (topBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
-              if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(topBlock.tagName) && /^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
+              if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(topBlock.tagName) && /^(\-{3,}|\u2014\-+|\*{3,}|\_{3,})$/.test(raw)) {
                 e.preventDefault();
                 window._lastActiveBlock = topBlock;
                 if (typeof window.swapCurrentBlock === 'function') {
@@ -2798,7 +2916,8 @@
         }
         if (block && block.parentNode === canvasProse && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(block.tagName)) {
           const raw = (block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
-          if (/^(\-{3,}|\*{3,}|\_{3,})$/.test(raw)) {
+          if (/^(\-{3,}|\u2014\-+|\*{3,}|\_{3,})$/.test(raw)) {
+            pendingEmDashRevert = null;
             window._lastActiveBlock = block;
             if (typeof window.swapCurrentBlock === 'function') {
               window.swapCurrentBlock('divider');
@@ -2806,6 +2925,38 @@
             }
           }
         }
+      }
+
+      // Mobile / IME fallback: convert '--' to '—' if inserted via input event without keydown '-' interception
+      let convertedInInput = false;
+      if (e.data === '-' && sel && sel.rangeCount && sel.isCollapsed) {
+        const range = sel.getRangeAt(0);
+        let anchorEl = range.startContainer;
+        if (anchorEl && anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
+        const inCodeOrInput = anchorEl && anchorEl.closest && anchorEl.closest('code, pre, input, textarea');
+        if (!inCodeOrInput && canvasProse.contains(range.startContainer)) {
+          const pos = resolveTextPositionBeforeCaret(range);
+          if (pos && pos.offset >= 2 && pos.node.nodeValue && pos.node.nodeValue.slice(pos.offset - 2, pos.offset) === '--') {
+            const raw = pos.node.nodeValue;
+            const prevChar = pos.offset >= 3 ? raw.charAt(pos.offset - 3) : '';
+            if (prevChar !== '-' && prevChar !== '\u2014') {
+              const startIdx = pos.offset - 2;
+              pos.node.nodeValue = raw.slice(0, startIdx) + '\u2014' + raw.slice(pos.offset);
+              const newOffset = startIdx + 1;
+              const newRange = document.createRange();
+              newRange.setStart(pos.node, newOffset);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+              window._savedSelectionRange = newRange.cloneRange();
+              pendingEmDashRevert = { node: pos.node, offset: newOffset };
+              convertedInInput = true;
+            }
+          }
+        }
+      }
+      if (!convertedInInput) {
+        pendingEmDashRevert = null;
       }
 
       if (typeof window.normalizeRawImages === 'function') {

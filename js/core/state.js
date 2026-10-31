@@ -5126,36 +5126,59 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         }
         return copy;
       };
+      const buildSlimAll = () => list.map(d => {
+        if (!d || typeof d !== 'object') return d;
+        const slimHtml = slimProseImgs(d.proseHtml, d.images);
+        const slimImages = Array.isArray(d.images) ? d.images.map(slimImageEntry) : d.images;
+        const slimTemp = Array.isArray(d.tempImages) ? d.tempImages.map(slimImageEntry) : d.tempImages;
+        const copy = { ...d, proseHtml: slimHtml, images: slimImages, tempImages: slimTemp };
+        if (typeof copy.authorAvatar === 'string' && copy.authorAvatar.startsWith('data:')) {
+          delete copy.authorAvatar;
+        }
+        if (typeof copy.coverImage === 'string' && copy.coverImage.startsWith('data:image/') && copy.coverImage.length > 4096) {
+          const matchingImg = Array.isArray(d.images) && d.images.find(im => im && im.dataUrl === copy.coverImage && im.filename);
+          copy.coverImage = (matchingImg && matchingImg.filename) ? (matchingImg.relativePath || matchingImg.filename) : '';
+        }
+        return copy;
+      });
+      let estBase64Chars = 0;
+      for (let i = 0; i < list.length; i++) {
+        const d = list[i];
+        if (!d || typeof d !== 'object') continue;
+        if (typeof d.proseHtml === 'string') estBase64Chars += d.proseHtml.length;
+        if (typeof d.coverImage === 'string' && d.coverImage.startsWith('data:')) estBase64Chars += d.coverImage.length;
+        if (Array.isArray(d.images)) {
+          for (let j = 0; j < d.images.length; j++) {
+            const im = d.images[j];
+            if (im && typeof im.dataUrl === 'string') estBase64Chars += im.dataUrl.length;
+          }
+        }
+        if (estBase64Chars > 1500000) break;
+      }
+      if (estBase64Chars > 1500000) {
+        try {
+          localStorage.setItem(key, JSON.stringify(buildSlimAll()));
+          return true;
+        } catch (qErrFast) {
+          try { localStorage.removeItem('cedar_activity_log'); } catch (_) {}
+          try {
+            localStorage.setItem(key, JSON.stringify(buildSlimAll()));
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
+      }
       try {
         localStorage.setItem(key, JSON.stringify(list));
         return true;
       } catch (qErr1) {
         try { localStorage.removeItem('cedar_activity_log'); } catch (_) {}
         try {
-          const slimProse = list.map(d => {
-            if (!d || typeof d !== 'object') return d;
-            return { ...d, proseHtml: slimProseImgs(d.proseHtml, d.images) };
-          });
-          localStorage.setItem(key, JSON.stringify(slimProse));
+          localStorage.setItem(key, JSON.stringify(buildSlimAll()));
           return true;
-        } catch (qErr2) {
-          try {
-            const slimAll = list.map(d => {
-              if (!d || typeof d !== 'object') return d;
-              const slimHtml = slimProseImgs(d.proseHtml, d.images);
-              const slimImages = Array.isArray(d.images) ? d.images.map(slimImageEntry) : d.images;
-              const slimTemp = Array.isArray(d.tempImages) ? d.tempImages.map(slimImageEntry) : d.tempImages;
-              const copy = { ...d, proseHtml: slimHtml, images: slimImages, tempImages: slimTemp };
-              if (typeof copy.authorAvatar === 'string' && copy.authorAvatar.startsWith('data:')) {
-                delete copy.authorAvatar;
-              }
-              return copy;
-            });
-            localStorage.setItem(key, JSON.stringify(slimAll));
-            return true;
-          } catch (qErr3) {
-            return false;
-          }
+        } catch (qErr3) {
+          return false;
         }
       }
     },
@@ -5988,10 +6011,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
     // Guarantee draft categories, tags, proseHtml, and tempImages are clean before saving
+    const liveCanvasEl = (window.currentView === 'editor') ? document.getElementById('rich-canvas-prose') : null;
 
     if (Array.isArray(drafts)) {
 
       drafts.forEach(d => {
+        if (!d || typeof d !== 'object') return;
+        const isCurrentDraft = Boolean(cur && d.id === cur.id);
+        const stamp = d.updatedAt || 1;
+        const alreadyCleaned = !isCurrentDraft && d._lastCleanedAt === stamp && (!d.proseHtml || !d.proseHtml.includes('data:image/'));
 
         if (d.type !== 'page' && d.type !== 'note' && d.status !== 'idea') {
 
@@ -6029,34 +6057,28 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
         }
 
-        if (d.proseHtml) {
+        if (!alreadyCleaned) {
+          if (d.proseHtml) {
+            const needsFullDomClean = !isCurrentDraft || d.proseHtml.includes('data:image/') || d.proseHtml.includes('canvas-drop-indicator') || d.proseHtml.includes('figure-hover-actions') || d.proseHtml.includes('block-hover-actions');
+            let cleaned = (needsFullDomClean && typeof window.cleanProseHtmlForStorage === 'function')
+              ? window.cleanProseHtmlForStorage(d.proseHtml)
+              : d.proseHtml;
 
-          let cleaned = (typeof window.cleanProseHtmlForStorage === 'function')
+            cleaned = cleaned.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');
+            cleaned = cleaned.replace(/\b(selected|selected-item)\b/gi, '');
+            cleaned = cleaned.replace(/class=["']([^"']*)["']/gi, (match, classes) => {
+              const c = classes.trim().replace(/\s+/g, ' ');
+              return c ? `class="${c}"` : '';
+            });
 
-            ? window.cleanProseHtmlForStorage(d.proseHtml)
+            d.proseHtml = cleaned;
+          }
 
-            : d.proseHtml;
+          if (typeof window.reconcileDraftImages === 'function') {
+            window.reconcileDraftImages(d, isCurrentDraft ? liveCanvasEl : null);
+          }
 
-          cleaned = cleaned.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');
-
-          cleaned = cleaned.replace(/\b(selected|selected-item)\b/gi, '');
-
-          cleaned = cleaned.replace(/class=["']([^"']*)["']/gi, (match, classes) => {
-
-            const c = classes.trim().replace(/\s+/g, ' ');
-
-            return c ? `class="${c}"` : '';
-
-          });
-
-          d.proseHtml = cleaned;
-
-        }
-
-        if (typeof window.reconcileDraftImages === 'function') {
-
-          window.reconcileDraftImages(d);
-
+          d._lastCleanedAt = d.updatedAt || 1;
         }
 
         if (Array.isArray(d.tempImages) && Array.isArray(d.images)) {
@@ -6096,159 +6118,110 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     // 1. LocalStorage Mirror (Immediate synchronous persistence first so reloads never read stale state)
 
     try {
-
-      const serialized = JSON.stringify(drafts);
-
-      try {
-
-        localStorage.setItem(STORAGE_KEY_DRAFTS, serialized);
-
-        savedInLocal = true;
-
-      } catch (quotaErr) {
-
-        // Free redundant backup keys and retry
-
-        try {
-
-          localStorage.removeItem('cedar_activity_log');
-
-          localStorage.removeItem('cedar_browser_backup_drafts');
-
-          localStorage.removeItem('outpost_browser_backup_drafts');
-
-          localStorage.removeItem(LEGACY_STORAGE_DRAFTS);
-
-        } catch (e) {}
-
-        try {
-
-          localStorage.setItem(STORAGE_KEY_DRAFTS, serialized);
-
-          savedInLocal = true;
-
-        } catch (quotaErr2) {
-
-          // Slim inline dataUrl duplicates in proseHtml where d.images already stores the dataUrl
-
-          const slimProseTagHelper = (html, dImages) => {
-            if (!html || typeof html !== 'string') return html;
-            return html.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
-              const nameMatch = attrs.match(/data-img-name=["']([^"']+)["']/i);
-              const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
-              const srcMatch = attrs.match(/(?:^|\s)src=["'](data:image\/[^"']+)["']/i);
-              let fallbackRel = '';
-              if (nameMatch && nameMatch[1]) {
-                fallbackRel = `/blog/images/${nameMatch[1].split('/').pop().split('\\').pop()}`;
-              } else if (origMatch && origMatch[1] && !origMatch[1].startsWith('data:')) {
-                fallbackRel = origMatch[1];
-              } else if (srcMatch && srcMatch[1] && Array.isArray(dImages)) {
-                const foundIm = dImages.find(im => im && im.dataUrl === srcMatch[1] && (im.relativePath || im.filename));
-                if (foundIm) fallbackRel = foundIm.relativePath || `/blog/images/${foundIm.filename}`;
-              }
-              let outTag = fullTag;
-              if (fallbackRel) {
-                outTag = outTag.replace(/(\s|^)src=["']data:image\/[^"']+["']/i, `$1src="${fallbackRel}"`);
-                outTag = outTag.replace(/data-original-src=["']data:image\/[^"']+["']/i, `data-original-src="${fallbackRel}"`);
-              }
-              return outTag;
-            });
-          };
-
-          const slimDrafts = drafts.map(d => {
-
-            if (!d || !d.proseHtml) return d;
-
-            return { ...d, proseHtml: slimProseTagHelper(d.proseHtml, d.images) };
-
-          });
-
-          try {
-
-            localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(slimDrafts));
-
-            savedInLocal = true;
-
-          } catch (quotaErr3) {
-
-            // Tier 3: Strip heavy base64 dataUrl payloads from images for the 5MB localStorage mirror
-            // (Full high-res images remain intact in memory, IndexedDB CedarVirtualStorage, and local disk)
-            const ultraSlimDrafts = slimDrafts.map(d => {
-
-              if (!d) return d;
-
-              const copy = { ...d };
-
-              if (Array.isArray(copy.images)) {
-
-                copy.images = copy.images.map(im => {
-
-                  if (!im || typeof im !== 'object') return im;
-
-                  const imCopy = { ...im };
-
-                  delete imCopy.dataUrl;
-
-                  delete imCopy.blob;
-
-                  if (typeof imCopy.src === 'string' && imCopy.src.startsWith('data:')) {
-
-                    imCopy.src = imCopy.relativePath || (imCopy.filename ? `/blog/images/${imCopy.filename}` : '');
-
-                  }
-
-                  return imCopy;
-
-                });
-
-              }
-
-              if (typeof copy.authorAvatar === 'string' && copy.authorAvatar.startsWith('data:')) {
-
-                delete copy.authorAvatar;
-
-              }
-
-              if (typeof copy.coverImage === 'string' && copy.coverImage.startsWith('data:image/') && copy.coverImage.length > 4096) {
-
-                const matchingImg = Array.isArray(d.images) && d.images.find(im => im && im.dataUrl === copy.coverImage && im.filename);
-
-                if (matchingImg && matchingImg.filename) {
-
-                  copy.coverImage = matchingImg.relativePath || matchingImg.filename;
-
-                } else {
-
-                  copy.coverImage = '';
-
-                }
-
-              }
-
-              if (typeof copy.featuredImage === 'string' && copy.featuredImage.startsWith('data:image/') && copy.featuredImage.length > 4096) {
-
-                copy.featuredImage = copy.coverImage || '';
-
-              }
-
-              if (typeof copy.proseHtml === 'string' && copy.proseHtml.includes('data:image/') && copy.proseHtml.length > 16384) {
-
-                copy.proseHtml = slimProseTagHelper(copy.proseHtml, d.images);
-
-              }
-
-              return copy;
-
-            });
-
-            localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(ultraSlimDrafts));
-
-            savedInLocal = true;
-
+      const slimProseTagHelper = (html, dImages) => {
+        if (!html || typeof html !== 'string' || !html.includes('data:image/')) return html;
+        return html.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
+          if (!attrs.includes('data:image/')) return fullTag;
+          const nameMatch = attrs.match(/data-img-name=["']([^"']+)["']/i);
+          const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
+          const srcMatch = attrs.match(/(?:^|\s)src=["'](data:image\/[^"']+)["']/i);
+          let fallbackRel = '';
+          if (nameMatch && nameMatch[1]) {
+            fallbackRel = `/blog/images/${nameMatch[1].split('/').pop().split('\\').pop()}`;
+          } else if (origMatch && origMatch[1] && !origMatch[1].startsWith('data:')) {
+            fallbackRel = origMatch[1];
+          } else if (srcMatch && srcMatch[1] && Array.isArray(dImages)) {
+            const foundIm = dImages.find(im => im && im.dataUrl === srcMatch[1] && (im.relativePath || im.filename));
+            if (foundIm) fallbackRel = foundIm.relativePath || `/blog/images/${foundIm.filename}`;
           }
+          let outTag = fullTag;
+          if (fallbackRel) {
+            outTag = outTag.replace(/(\s|^)src=["']data:image\/[^"']+["']/i, `$1src="${fallbackRel}"`);
+            outTag = outTag.replace(/data-original-src=["']data:image\/[^"']+["']/i, `data-original-src="${fallbackRel}"`);
+          }
+          return outTag;
+        });
+      };
 
+      const buildUltraSlimDrafts = () => drafts.map(d => {
+        if (!d) return d;
+        const copy = { ...d };
+        if (Array.isArray(copy.images)) {
+          copy.images = copy.images.map(im => {
+            if (!im || typeof im !== 'object') return im;
+            const imCopy = { ...im };
+            delete imCopy.dataUrl;
+            delete imCopy.blob;
+            if (typeof imCopy.src === 'string' && imCopy.src.startsWith('data:')) {
+              imCopy.src = imCopy.relativePath || (imCopy.filename ? `/blog/images/${imCopy.filename}` : '');
+            }
+            return imCopy;
+          });
         }
+        if (typeof copy.authorAvatar === 'string' && copy.authorAvatar.startsWith('data:')) {
+          delete copy.authorAvatar;
+        }
+        if (typeof copy.coverImage === 'string' && copy.coverImage.startsWith('data:image/') && copy.coverImage.length > 4096) {
+          const matchingImg = Array.isArray(d.images) && d.images.find(im => im && im.dataUrl === copy.coverImage && im.filename);
+          copy.coverImage = (matchingImg && matchingImg.filename) ? (matchingImg.relativePath || matchingImg.filename) : '';
+        }
+        if (typeof copy.featuredImage === 'string' && copy.featuredImage.startsWith('data:image/') && copy.featuredImage.length > 4096) {
+          copy.featuredImage = copy.coverImage || '';
+        }
+        if (typeof copy.proseHtml === 'string' && copy.proseHtml.includes('data:image/')) {
+          copy.proseHtml = slimProseTagHelper(copy.proseHtml, d.images);
+        }
+        return copy;
+      });
 
+      let estBase64Chars = 0;
+      if (Array.isArray(drafts)) {
+        for (let i = 0; i < drafts.length; i++) {
+          const d = drafts[i];
+          if (!d || typeof d !== 'object') continue;
+          if (typeof d.proseHtml === 'string') estBase64Chars += d.proseHtml.length;
+          if (typeof d.coverImage === 'string' && d.coverImage.startsWith('data:')) estBase64Chars += d.coverImage.length;
+          if (Array.isArray(d.images)) {
+            for (let j = 0; j < d.images.length; j++) {
+              const im = d.images[j];
+              if (im && typeof im.dataUrl === 'string') estBase64Chars += im.dataUrl.length;
+            }
+          }
+          if (estBase64Chars > 1500000) break;
+        }
+      }
+
+      if (estBase64Chars > 1500000) {
+        // Skip multi-megabyte JSON.stringify attempts that would blow past the 5MB localStorage limit
+        // (Full high-res images remain intact in memory, IndexedDB CedarVirtualStorage, and local disk)
+        const slimSerialized = JSON.stringify(buildUltraSlimDrafts());
+        try {
+          localStorage.setItem(STORAGE_KEY_DRAFTS, slimSerialized);
+          savedInLocal = true;
+        } catch (quotaErrFast) {
+          try {
+            localStorage.removeItem('cedar_activity_log');
+            localStorage.removeItem('cedar_browser_backup_drafts');
+            localStorage.removeItem('outpost_browser_backup_drafts');
+            localStorage.removeItem(LEGACY_STORAGE_DRAFTS);
+          } catch (e) {}
+          localStorage.setItem(STORAGE_KEY_DRAFTS, slimSerialized);
+          savedInLocal = true;
+        }
+      } else {
+        try {
+          localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(drafts));
+          savedInLocal = true;
+        } catch (quotaErr) {
+          try {
+            localStorage.removeItem('cedar_activity_log');
+            localStorage.removeItem('cedar_browser_backup_drafts');
+            localStorage.removeItem('outpost_browser_backup_drafts');
+            localStorage.removeItem(LEGACY_STORAGE_DRAFTS);
+          } catch (e) {}
+          localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(buildUltraSlimDrafts()));
+          savedInLocal = true;
+        }
       }
 
       if (cur) {
@@ -6272,14 +6245,22 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     // 2. High-Capacity Virtual Vault (OPFS / IndexedDB) — only write after boot hydration so script-load never overwrites OPFS
 
     const canWriteVaultDrafts = Boolean(window.__cedarBootHydrationComplete || window.__vaultDraftsHydratedAtBoot);
+    let sharedSerializedDrafts = null;
+    const getSerializedVaultDrafts = () => {
+      if (sharedSerializedDrafts === null) {
+        sharedSerializedDrafts = JSON.stringify(drafts);
+      }
+      return sharedSerializedDrafts;
+    };
 
     if (canWriteVaultDrafts && (window.CedarVirtualStorage || window.OutpostVirtualStorage) && typeof (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile === 'function') {
 
       try {
+        const payloadStr = getSerializedVaultDrafts();
 
-        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('editor/drafts.json', drafts);
+        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('editor/drafts.json', payloadStr);
 
-        try { await (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/drafts.json', drafts); } catch (e) {}
+        try { await (window.CedarVirtualStorage || window.OutpostVirtualStorage).writeFile('writer/drafts.json', payloadStr); } catch (e) {}
 
         savedInVirtual = true;
 
@@ -6302,10 +6283,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     if (canWriteVaultDrafts && window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
 
       try {
+        const payloadStr = getSerializedVaultDrafts();
 
-        await window.SheeshVault.writeFile('editor/drafts.json', drafts);
+        await window.SheeshVault.writeFile('editor/drafts.json', payloadStr);
 
-        try { await window.SheeshVault.writeFile('writer/drafts.json', drafts); } catch (e) {}
+        try { await window.SheeshVault.writeFile('writer/drafts.json', payloadStr); } catch (e) {}
 
         savedInVault = true;
 
@@ -6318,6 +6300,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     } else if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
 
       try {
+        const serializedVaultDrafts = getSerializedVaultDrafts();
 
         const res = await fetch('/api/vault-write', {
           method: 'POST',
@@ -6325,7 +6308,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           body: JSON.stringify({
             folderPath: savedVaultPath,
             filePath: 'editor/drafts.json',
-            content: JSON.stringify(drafts, null, 2),
+            content: serializedVaultDrafts,
             encoding: 'utf-8'
           })
         });
@@ -6337,7 +6320,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             body: JSON.stringify({
               folderPath: savedVaultPath,
               filePath: 'writer/drafts.json',
-              content: JSON.stringify(drafts, null, 2),
+              content: serializedVaultDrafts,
               encoding: 'utf-8'
             })
           });
@@ -6439,13 +6422,17 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
         saveDraftsToStorage();
 
-        updateStats();
+        if (typeof window.scheduleStatsUpdate === 'function') {
+          window.scheduleStatsUpdate();
+        } else if (typeof updateStats === 'function') {
+          updateStats();
+        }
 
         updateEditorHeader();
 
       }
 
-    }, 300);
+    }, 800);
 
   }
 

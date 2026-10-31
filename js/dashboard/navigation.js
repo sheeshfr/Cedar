@@ -385,7 +385,11 @@
           window.Cedar.designer.updateAllPreviewFrames();
           return;
         }
-        const frames = document.querySelectorAll('#designer-preview-site-frame, #preview-site-frame, #live-preview-iframe, iframe[title*="Preview"], iframe[title*="preview"]');
+        const frames = Array.from(document.querySelectorAll('#designer-preview-site-frame, #preview-site-frame, #live-preview-iframe, iframe[title*="Preview"], iframe[title*="preview"]'));
+        if (frames.length === 0) return;
+        if (window.currentView === 'editor' && !frames.some(f => f && f.offsetParent !== null)) {
+          return;
+        }
         const rawProj = (typeof window.projectConfig !== 'undefined') ? window.projectConfig : ((typeof projectConfig !== 'undefined') ? projectConfig : null);
         const rawDrfts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
           ? window.CedarStore.getAllDrafts()

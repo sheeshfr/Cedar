@@ -32,15 +32,19 @@
     if (el) el.value = val || '';
   };
 
-  const cleanProseHtmlForStorage = function(html) {
+  const cleanProseHtmlForStorage = function(htmlOrEl) {
     if (typeof window.cleanProseHtmlForStorage === 'function') {
-      return window.cleanProseHtmlForStorage(html);
+      return window.cleanProseHtmlForStorage(htmlOrEl);
     }
-    if (!html) return '';
+    if (!htmlOrEl) return '';
+    const isElement = typeof htmlOrEl === 'object' && htmlOrEl.nodeType === 1;
+    let html = isElement ? '' : String(htmlOrEl);
+    if (!isElement && !html) return '';
     try {
-      if (typeof DOMParser !== 'undefined') {
-        const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
-        const body = doc.body;
+      const body = isElement
+        ? htmlOrEl.cloneNode(true)
+        : (typeof DOMParser !== 'undefined' ? new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html').body : null);
+      if (body) {
         body.querySelectorAll('.page-recent-posts-block, .page-individual-post-block').forEach(pb => {
           pb.innerHTML = '';
           pb.removeAttribute('data-editing-url');
@@ -76,6 +80,7 @@
         return body.innerHTML.trim();
       }
     } catch (e) {}
+    if (isElement) html = htmlOrEl.innerHTML || '';
     html = html.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');
     html = html.replace(/\b(selected|selected-item|drop-merge-target|block-is-dragging|item-is-dragging|dragover-slot)\b/gi, '');
     return html.trim();
@@ -541,20 +546,29 @@
     const canvasProse = document.getElementById('rich-canvas-prose');
     const mdInput = document.getElementById('markdown-input');
     const currentMode = window.activeMode || activeMode || 'canvas';
+    const isFocusedInHeader = Boolean(
+      document.activeElement &&
+      (document.activeElement === canvasTitle || document.activeElement === canvasSubtitle)
+    );
 
     if (currentMode === 'canvas') {
       if (canvasProse) {
-        if (window.mergeAdjacentLists) {
-          window.mergeAdjacentLists(canvasProse);
-        }
-        if (typeof window.normalizeCustomColorNodes === 'function') {
-          window.normalizeCustomColorNodes(canvasProse);
-        }
-        curDraft.proseHtml = cleanProseHtmlForStorage(canvasProse.innerHTML);
-        curDraft.markdown = (typeof window.domToMarkdown === 'function') ? window.domToMarkdown(canvasProse) : (curDraft.markdown || '');
-        setVal('markdown-input', curDraft.markdown);
-        if (typeof window.reconcileDraftImages === 'function') {
-          window.reconcileDraftImages(curDraft, canvasProse);
+        if (isFocusedInHeader && curDraft._headerSyncClean && typeof curDraft.proseHtml === 'string') {
+          // Prose has not changed while typing in title/subtitle; skip redundant DOM clone & markdown serialization
+        } else {
+          if (window.mergeAdjacentLists) {
+            window.mergeAdjacentLists(canvasProse);
+          }
+          if (typeof window.normalizeCustomColorNodes === 'function') {
+            window.normalizeCustomColorNodes(canvasProse);
+          }
+          curDraft.proseHtml = cleanProseHtmlForStorage(canvasProse);
+          curDraft.markdown = (typeof window.domToMarkdown === 'function') ? window.domToMarkdown(canvasProse) : (curDraft.markdown || '');
+          setVal('markdown-input', curDraft.markdown);
+          if (typeof window.reconcileDraftImages === 'function') {
+            window.reconcileDraftImages(curDraft, canvasProse);
+          }
+          curDraft._headerSyncClean = isFocusedInHeader;
         }
       }
     } else {
@@ -700,8 +714,8 @@
         chars += subStats.chars;
       }
 
-      readTime = (typeof window.calculateReadTime === 'function')
-        ? window.calculateReadTime(canvasProse, curDraft ? curDraft.overrideReadTime : '', true)
+      readTime = (curDraft && curDraft.overrideReadTime && curDraft.overrideReadTime.trim())
+        ? curDraft.overrideReadTime.trim()
         : `${Math.max(1, Math.ceil(words / 200))} min read`;
     } else {
       const rawMd = mdInput ? mdInput.value : (curDraft ? curDraft.markdown || '' : '');
@@ -729,8 +743,8 @@
         chars += subStats.chars;
       }
 
-      readTime = (typeof window.calculateReadTime === 'function')
-        ? window.calculateReadTime(rawMd, curDraft ? curDraft.overrideReadTime : '', false)
+      readTime = (curDraft && curDraft.overrideReadTime && curDraft.overrideReadTime.trim())
+        ? curDraft.overrideReadTime.trim()
         : `${Math.max(1, Math.ceil(words / 200))} min read`;
     }
 
@@ -761,6 +775,32 @@
         exportStats.textContent = `${readTime} · ${wordsStr} · ${charsStr}`;
       }
     }
+  }
+
+  let statsUpdateTimer = null;
+  function scheduleStatsUpdate() {
+    if (statsUpdateTimer) clearTimeout(statsUpdateTimer);
+    statsUpdateTimer = setTimeout(() => {
+      statsUpdateTimer = null;
+      updateStats();
+    }, 150);
+  }
+  window.scheduleStatsUpdate = scheduleStatsUpdate;
+
+  let urlSlugUpdateTimer = null;
+  function scheduleUrlSlugUpdate(slug, immediate = false) {
+    if (urlSlugUpdateTimer) {
+      clearTimeout(urlSlugUpdateTimer);
+      urlSlugUpdateTimer = null;
+    }
+    if (immediate) {
+      if (typeof window.updateEditorUrlSlug === 'function') window.updateEditorUrlSlug(slug);
+      return;
+    }
+    urlSlugUpdateTimer = setTimeout(() => {
+      urlSlugUpdateTimer = null;
+      if (typeof window.updateEditorUrlSlug === 'function') window.updateEditorUrlSlug(slug);
+    }, 350);
   }
 
   function updateDraftsCount() {
@@ -805,7 +845,7 @@
         if (window.mergeAdjacentLists) {
           window.mergeAdjacentLists(canvasProse);
         }
-        if (window.currentDraft) window.currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse.innerHTML);
+        if (window.currentDraft) window.currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse);
         const compiledMd = (typeof window.domToMarkdown === 'function') ? window.domToMarkdown(canvasProse) : (window.currentDraft?.markdown || '');
         if (window.currentDraft) window.currentDraft.markdown = compiledMd;
         if (mdInput) {
@@ -844,7 +884,7 @@
         if (typeof window.ensureImageCaptionElements === 'function') window.ensureImageCaptionElements(canvasProse);
         if (typeof window.hydrateCanvasImages === 'function') window.hydrateCanvasImages(canvasProse, window.currentDraft);
         if (typeof window.hydratePageBlocks === 'function') window.hydratePageBlocks(canvasProse, window.currentDraft, { isEditor: true, initialPage: 1 });
-        if (window.currentDraft) window.currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse.innerHTML);
+        if (window.currentDraft) window.currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse);
       }
 
       // 2. Seamless in-canvas swap
@@ -913,7 +953,7 @@
               const setupSlug = document.getElementById('setup-post-slug');
               if (setupSlug) setupSlug.value = newSlug;
               curDraft.slug = newSlug;
-              if (typeof window.updateEditorUrlSlug === 'function') window.updateEditorUrlSlug(newSlug);
+              scheduleUrlSlugUpdate(newSlug);
             }
           }
           if (id === 'meta-slug') {
@@ -932,7 +972,7 @@
             curDraft.slugManuallyEdited = Boolean(cleanSlug && cleanSlug !== autoTitleSlug);
             const setupSlug = document.getElementById('setup-post-slug');
             if (setupSlug) setupSlug.value = curDraft.slug;
-            if (typeof window.updateEditorUrlSlug === 'function') window.updateEditorUrlSlug(curDraft.slug);
+            scheduleUrlSlugUpdate(curDraft.slug);
           }
           if (id === 'meta-subtitle') {
             const rSub = document.getElementById('rich-canvas-subtitle');
@@ -1065,15 +1105,18 @@
           const setupSlug = document.getElementById('setup-post-slug');
           if (setupSlug) setupSlug.value = newSlug;
           curDraft.slug = newSlug;
-          if (typeof window.updateEditorUrlSlug === 'function') window.updateEditorUrlSlug(newSlug);
+          scheduleUrlSlugUpdate(newSlug);
         }
-        updateStats();
+        scheduleStatsUpdate();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       });
 
       canvasTitle.addEventListener('blur', () => {
         const curDraft = window.currentDraft;
         const val = canvasTitle.textContent.trim();
+        if (curDraft && curDraft.slug) {
+          scheduleUrlSlugUpdate(curDraft.slug, true);
+        }
         if (curDraft && curDraft.type === 'page' && !isBuiltInPageDraft(curDraft) && reservedPageNames.has(val.toLowerCase())) {
           if (typeof window.showToast === 'function') {
             window.showToast("Woah! That's a reserved name - pick something else.");
@@ -1118,7 +1161,7 @@
         const metaSubtitle = document.getElementById('meta-subtitle');
         if (metaSubtitle) metaSubtitle.value = val;
         curDraft.subtitle = val;
-        updateStats();
+        scheduleStatsUpdate();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       });
 
@@ -1164,13 +1207,19 @@
 
     // Rich Canvas Prose input, paste & blur
     if (canvasProse) {
+      canvasProse.addEventListener('focus', () => {
+        if (window.currentDraft) window.currentDraft._headerSyncClean = false;
+      });
+
       canvasProse.addEventListener('input', () => {
-        updateStats();
+        if (window.currentDraft) window.currentDraft._headerSyncClean = false;
+        scheduleStatsUpdate();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
         if (typeof window.maintainCaretScrollBuffer === 'function') window.maintainCaretScrollBuffer();
       });
 
       canvasProse.addEventListener('paste', () => {
+        if (window.currentDraft) window.currentDraft._headerSyncClean = false;
         setTimeout(updateStats, 0);
       });
 
@@ -1186,7 +1235,7 @@
     const mdInput = document.getElementById('markdown-input');
     if (mdInput) {
       mdInput.addEventListener('input', () => {
-        updateStats();
+        scheduleStatsUpdate();
         autoResizeMarkdownTextarea();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
         if (typeof window.maintainCaretScrollBuffer === 'function') window.maintainCaretScrollBuffer();

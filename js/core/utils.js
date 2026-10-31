@@ -208,65 +208,79 @@
     return text;
   }
 
-  // --- Helper: Extract Clean Human Prose Text from Canvas DOM ---
+  // --- Helper: Extract Clean Human Prose Text from Canvas DOM (Zero-Clone In-Place Walk) ---
+  const PROSE_SKIP_TAGS = new Set(['BUTTON', 'SVG', 'SCRIPT', 'STYLE']);
+  const PROSE_BLOCK_TAGS = new Set([
+    'P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE',
+    'PRE', 'HR', 'TR', 'TH', 'TD', 'FIGCAPTION', 'FIGURE', 'SECTION',
+    'ARTICLE', 'HEADER', 'FOOTER'
+  ]);
+  const PROSE_SKIP_SELECTOR =
+    '.figure-hover-actions, .block-hover-actions, .gallery-item-controls, ' +
+    '.image-hover-pill-bar, .image-add-caption-btn, .gallery-item-btn, ' +
+    '.gallery-item-delete-btn, .gallery-item-btn-sep, .figure-action-sep, ' +
+    '.image-side-add-btn, #canvas-drop-indicator, .canvas-drop-indicator, ' +
+    '.image-sanitizing-placeholder, .page-recent-posts-block, .page-individual-post-block';
+
   function getCanvasProsePlainText(element) {
     if (!element) return '';
-    const clone = element.cloneNode(true);
-    // Remove editor UI controls, drag indicators, hover bars, buttons, svgs
-    const controls = clone.querySelectorAll(
-      '.figure-hover-actions, .block-hover-actions, .gallery-item-controls, ' +
-      '.image-hover-pill-bar, .image-add-caption-btn, .gallery-item-btn, ' +
-      '.gallery-item-delete-btn, .gallery-item-btn-sep, .figure-action-sep, ' +
-      '.image-side-add-btn, #canvas-drop-indicator, .canvas-drop-indicator, ' +
-      '.image-sanitizing-placeholder, .page-recent-posts-block, .page-individual-post-block, button, svg'
-    );
-    for (let i = 0; i < controls.length; i++) {
-      controls[i].remove();
-    }
+    const chunks = [];
 
-    // Process img elements: if no figcaption, fall back to meaningful alt text
-    const imgs = clone.querySelectorAll('img');
-    for (let j = 0; j < imgs.length; j++) {
-      const img = imgs[j];
-      const fig = img.closest('figure');
-      if (!fig || !fig.querySelector('figcaption')) {
-        const alt = (img.getAttribute('alt') || '').trim();
-        if (alt && alt !== 'Image' && alt !== 'Attached Image') {
-          const span = document.createElement('span');
-          span.textContent = ' ' + alt + ' ';
-          img.replaceWith(span);
-        } else {
-          img.remove();
+    function walk(node) {
+      if (!node) return;
+      const nodeType = node.nodeType;
+      if (nodeType === 3) { // Node.TEXT_NODE
+        chunks.push(node.nodeValue || '');
+        return;
+      }
+      if (nodeType !== 1) return; // Node.ELEMENT_NODE
+
+      const tag = node.tagName ? node.tagName.toUpperCase() : '';
+      if (PROSE_SKIP_TAGS.has(tag)) return;
+      if (node.id === 'canvas-drop-indicator') return;
+      if (node.classList && node.classList.length > 0 && typeof node.matches === 'function' && node.matches(PROSE_SKIP_SELECTOR)) {
+        return;
+      }
+
+      if (tag === 'BR') {
+        chunks.push('\n');
+        return;
+      }
+
+      if (tag === 'IMG') {
+        const fig = typeof node.closest === 'function' ? node.closest('figure') : null;
+        if (!fig || !fig.querySelector('figcaption')) {
+          const alt = (node.getAttribute('alt') || '').trim();
+          if (alt && alt !== 'Image' && alt !== 'Attached Image') {
+            chunks.push(' ' + alt + ' ');
+          }
         }
-      } else {
-        img.remove();
+        return;
+      }
+
+      if (tag === 'FIGCAPTION' || (node.classList && node.classList.contains('gallery-caption'))) {
+        const txt = (node.textContent || '').trim();
+        if (!txt || txt === 'Add caption here...' || txt === 'Add image caption here...') {
+          return;
+        }
+      }
+
+      const children = node.childNodes;
+      for (let i = 0, len = children.length; i < len; i++) {
+        walk(children[i]);
+      }
+
+      if (PROSE_BLOCK_TAGS.has(tag)) {
+        chunks.push('\n');
       }
     }
 
-    // Ignore placeholder captions
-    const caps = clone.querySelectorAll('figcaption, .gallery-caption');
-    for (let k = 0; k < caps.length; k++) {
-      const txt = caps[k].textContent.trim();
-      if (txt === 'Add caption here...' || txt === 'Add image caption here...') {
-        caps[k].remove();
-      }
+    const topChildren = element.childNodes;
+    for (let i = 0, len = topChildren.length; i < len; i++) {
+      walk(topChildren[i]);
     }
 
-    // Replace <br> elements with newlines
-    const brs = clone.querySelectorAll('br');
-    for (let m = 0; m < brs.length; m++) {
-      brs[m].replaceWith(document.createTextNode('\n'));
-    }
-
-    // Append newline to all block elements so adjacent blocks never merge words
-    const blockSelectors = 'p, div, h1, h2, h3, h4, h5, h6, li, blockquote, pre, hr, tr, th, td, figcaption, figure, section, article, header, footer';
-    const blocks = clone.querySelectorAll(blockSelectors);
-    for (let n = 0; n < blocks.length; n++) {
-      blocks[n].appendChild(document.createTextNode('\n'));
-    }
-
-    const raw = clone.textContent || '';
-    return raw
+    return chunks.join('')
       .replace(/\u00A0/g, ' ')
       .replace(/\r\n/g, '\n')
       .replace(/[ \t]+/g, ' ')
@@ -867,8 +881,10 @@
     }
 
     // 1a. Scan live DOM canvas if available
+    let scannedLiveCanvas = false;
     const canvas = liveCanvasProse || ((typeof currentDraft !== 'undefined' && currentDraft && currentDraft.id === draft.id) ? document.getElementById('rich-canvas-prose') : null);
     if (canvas && typeof canvas.querySelectorAll === 'function') {
+      scannedLiveCanvas = true;
       const imgs = canvas.querySelectorAll('img');
       for (let i = 0; i < imgs.length; i++) {
         const el = imgs[i];
@@ -881,31 +897,24 @@
       }
     }
 
-    // 1b. Scan draft.proseHtml and draft.html (recovers gallery images and embedded media)
-    const htmlCombined = (draft.proseHtml || '') + (draft.html || '');
-    if (htmlCombined) {
-      try {
-        const doc = new DOMParser().parseFromString(`<body>${htmlCombined}</body>`, 'text/html');
-        const imgs = doc.body.querySelectorAll('img');
-        for (let i = 0; i < imgs.length; i++) {
-          const el = imgs[i];
-          if (el.closest && el.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card')) continue;
-          const src = el.getAttribute('src') || '';
-          const origSrc = el.getAttribute('data-original-src') || el.dataset?.originalSrc || '';
-          const imgName = el.getAttribute('data-img-name') || el.dataset?.imgName || el.dataset?.filename || '';
-          const alt = el.getAttribute('alt') || '';
-          registerDiscoveredImage(src, origSrc, imgName, alt);
-        }
-      } catch (e) {
-        const imgRe = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-        let m;
-        while ((m = imgRe.exec(htmlCombined)) !== null) {
-          const fullTag = m[0];
-          const src = m[1];
-          const nameMatch = fullTag.match(/data-img-name=["']([^"']+)["']/i);
-          const origMatch = fullTag.match(/data-original-src=["']([^"']+)["']/i);
-          registerDiscoveredImage(src, origMatch ? origMatch[1] : '', nameMatch ? nameMatch[1] : '', '');
-        }
+    // 1b. Scan draft.proseHtml and draft.html using lightweight tag regex (avoids full DOMParser allocation on every save)
+    const htmlCombined = (scannedLiveCanvas ? '' : (draft.proseHtml || '')) + (draft.html || '');
+    if (htmlCombined && htmlCombined.includes('<img')) {
+      const imgTagRe = /<img\b[^>]*>/gi;
+      let tagMatch;
+      while ((tagMatch = imgTagRe.exec(htmlCombined)) !== null) {
+        const fullTag = tagMatch[0];
+        if (/class=["'][^"']*post-card/i.test(fullTag)) continue;
+        const srcMatch = fullTag.match(/(?:^|\s)src=["']([^"']+)["']/i);
+        const origMatch = fullTag.match(/data-original-src=["']([^"']+)["']/i);
+        const nameMatch = fullTag.match(/data-(?:img-name|filename)=["']([^"']+)["']/i);
+        const altMatch = fullTag.match(/(?:^|\s)alt=["']([^"']*)["']/i);
+        registerDiscoveredImage(
+          srcMatch ? srcMatch[1] : '',
+          origMatch ? origMatch[1] : '',
+          nameMatch ? nameMatch[1] : '',
+          altMatch ? altMatch[1] : ''
+        );
       }
     }
 
@@ -1000,7 +1009,11 @@
         return imgUrlOrObj.objectUrl;
       }
       if (imgUrlOrObj.blob && typeof Blob !== 'undefined' && imgUrlOrObj.blob instanceof Blob) {
-        try { return URL.createObjectURL(imgUrlOrObj.blob); } catch (e) {}
+        try {
+          const objUrl = URL.createObjectURL(imgUrlOrObj.blob);
+          imgUrlOrObj.objectUrl = objUrl;
+          return objUrl;
+        } catch (e) {}
       }
       target = imgUrlOrObj.filename || imgUrlOrObj.relativePath || imgUrlOrObj.url || imgUrlOrObj.src || imgUrlOrObj.dataUrl || imgUrlOrObj.data || '';
     } else {
