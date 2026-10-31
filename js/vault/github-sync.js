@@ -873,7 +873,11 @@
       };
 
       const recoverReadableBlob = async (blob, cleanPath) => {
-        if (blob instanceof Blob) {
+        const isInvalidBlobType = (t) => {
+          const low = String(t || '').toLowerCase();
+          return low.includes('text/html') || low.includes('application/json');
+        };
+        if (blob instanceof Blob && !isInvalidBlobType(blob.type)) {
           try {
             const ab = await blob.arrayBuffer();
             if (ab && ab.byteLength > 0) {
@@ -887,13 +891,15 @@
             || window.imageRegistry.get(cleanPath)
             || window.imageRegistry.get('/' + cleanPath)
             || window.imageRegistry.get(`blog/images/${fname}`)
-            || window.imageRegistry.get(`/blog/images/${fname}`);
+            || window.imageRegistry.get(`/blog/images/${fname}`)
+            || window.imageRegistry.get(`media/${fname}`)
+            || window.imageRegistry.get(`/media/${fname}`);
           if (reg) {
             if (reg.dataUrl && String(reg.dataUrl).startsWith('data:')) {
               const recovered = dataUrlToBinaryBlob(reg.dataUrl);
               if (recovered && recovered.size > 0) return recovered;
             }
-            if (reg.blob instanceof Blob && reg.blob !== blob) {
+            if (reg.blob instanceof Blob && reg.blob !== blob && !isInvalidBlobType(reg.blob.type)) {
               try {
                 const ab = await reg.blob.arrayBuffer();
                 if (ab && ab.byteLength > 0) {
@@ -903,16 +909,36 @@
             }
           }
         }
-        if (window.Vault && typeof window.Vault.readFile === 'function') {
-          const candidatePaths = [cleanPath];
-          if (fname) {
-            candidatePaths.push(`blog/images/${fname}`);
-            candidatePaths.push(`media/${fname}`);
-          }
+        const candidatePaths = [cleanPath];
+        if (fname) {
+          candidatePaths.push(`blog/images/${fname}`);
+          candidatePaths.push(`media/${fname}`);
+        }
+        const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+        if (vStorage && (typeof vStorage.readFile === 'function' || typeof vStorage.readBlob === 'function')) {
           for (const cp of candidatePaths) {
             try {
-              const vBlob = await window.Vault.readFile(cp, 'blob');
-              if (vBlob instanceof Blob && vBlob.size > 0) {
+              const vBlob = (typeof vStorage.readFile === 'function')
+                ? await vStorage.readFile(cp, 'blob').catch(() => null)
+                : await vStorage.readBlob(cp).catch(() => null);
+              if (vBlob instanceof Blob && vBlob.size > 0 && !isInvalidBlobType(vBlob.type)) {
+                const ab = await vBlob.arrayBuffer();
+                if (ab && ab.byteLength > 0) {
+                  return new Blob([ab], { type: vBlob.type || 'application/octet-stream' });
+                }
+              } else if (typeof vBlob === 'string' && vBlob.startsWith('data:')) {
+                const recovered = dataUrlToBinaryBlob(vBlob);
+                if (recovered && recovered.size > 0) return recovered;
+              }
+            } catch (e) {}
+          }
+        }
+        const vaultApi = window.SheeshVault || window.Vault;
+        if (vaultApi && typeof vaultApi.readFile === 'function') {
+          for (const cp of candidatePaths) {
+            try {
+              const vBlob = await vaultApi.readFile(cp, 'blob').catch(() => null);
+              if (vBlob instanceof Blob && vBlob.size > 0 && !isInvalidBlobType(vBlob.type)) {
                 const ab = await vBlob.arrayBuffer();
                 if (ab && ab.byteLength > 0) {
                   return new Blob([ab], { type: vBlob.type || 'application/octet-stream' });

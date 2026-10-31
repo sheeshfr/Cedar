@@ -1723,22 +1723,71 @@
       : (Array.isArray(window.drafts) ? window.drafts : []);
     allDrafts.forEach(d => {
       if (!d) return;
-      if (Array.isArray(d.images)) {
-        d.images.forEach(im => {
-          if (!im) return;
-          const fn = typeof im === 'string' ? im : (im.filename || im.relativePath || im.src || '');
-          const base = String(fn).split('/').pop().split('\\').pop();
-          const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
-          if (found && typeof im === 'object') {
-            im.blob = found.blob;
-            im.objectUrl = found.objectUrl;
-            im.dataUrl = found.dataUrl || found.objectUrl;
-            im.src = found.dataUrl || found.objectUrl;
-            draftsChanged = true;
-          }
-        });
+      if (!Array.isArray(d.images)) d.images = [];
+      const existingFnames = new Set();
+      d.images.forEach(im => {
+        if (!im) return;
+        const fn = typeof im === 'string' ? im : (im.filename || im.relativePath || im.src || '');
+        const base = String(fn).split('/').pop().split('\\').pop();
+        if (base) existingFnames.add(base.toLowerCase());
+        const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+        if (found && typeof im === 'object') {
+          im.blob = found.blob;
+          im.objectUrl = found.objectUrl;
+          im.dataUrl = found.dataUrl || found.objectUrl;
+          im.src = found.dataUrl || found.objectUrl;
+          draftsChanged = true;
+        }
+      });
+
+      // Also self-heal any local image filenames referenced in proseHtml, markdown, or coverImage that are missing from d.images
+      const refCandidates = new Set();
+      const addCandidate = (raw) => {
+        if (!raw || typeof raw !== 'string') return;
+        const s = raw.trim();
+        if (!s || s.startsWith('data:') || s.startsWith('blob:') || /^https?:\/\//i.test(s)) return;
+        const base = s.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+        if (base && base !== 'img' && /\.(webp|jpg|jpeg|png|gif|svg|avif)$/i.test(base)) {
+          refCandidates.add(base);
+        }
+      };
+      addCandidate(d.coverImage);
+      addCandidate(d.featuredImage);
+      if (typeof d.proseHtml === 'string' && d.proseHtml) {
+        const attrRegex = /\b(?:src|data-original-src|data-img-name)=["']([^"']+)["']/gi;
+        let m;
+        while ((m = attrRegex.exec(d.proseHtml)) !== null) {
+          addCandidate(m[1]);
+        }
       }
+      if (typeof d.markdown === 'string' && d.markdown) {
+        const mdImgRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+        let m;
+        while ((m = mdImgRegex.exec(d.markdown)) !== null) {
+          addCandidate(m[1]);
+        }
+      }
+      refCandidates.forEach(base => {
+        if (existingFnames.has(base.toLowerCase())) return;
+        const found = hydratedMap.get(base) || hydratedMap.get(base.toLowerCase());
+        if (found) {
+          existingFnames.add(base.toLowerCase());
+          d.images.push({
+            filename: found.filename || base,
+            relativePath: `/blog/images/${found.filename || base}`,
+            blob: found.blob,
+            objectUrl: found.objectUrl,
+            dataUrl: found.dataUrl || found.objectUrl,
+            src: found.dataUrl || found.objectUrl
+          });
+          draftsChanged = true;
+        }
+      });
     });
+
+    if (draftsChanged) {
+      window.__vaultDraftsHydratedAtBoot = true;
+    }
 
     if (configChanged && typeof window.saveProjectToStorage === 'function') {
       try { window.saveProjectToStorage(); } catch (e) {}
@@ -2022,6 +2071,27 @@
                   Object.assign(window.currentDraft, localItem);
                 }
                 needsHydrate = true;
+              } else if (Array.isArray(vd.images) && vd.images.length > 0) {
+                if (!Array.isArray(localItem.images)) localItem.images = [];
+                let imgsMerged = false;
+                vd.images.forEach(vim => {
+                  if (!vim || !vim.filename) return;
+                  const existing = localItem.images.find(lim => lim && lim.filename === vim.filename);
+                  if (!existing) {
+                    localItem.images.push(vim);
+                    imgsMerged = true;
+                  } else if (!existing.dataUrl && vim.dataUrl && String(vim.dataUrl).startsWith('data:')) {
+                    existing.dataUrl = vim.dataUrl;
+                    existing.src = vim.dataUrl;
+                    imgsMerged = true;
+                  }
+                });
+                if (imgsMerged) {
+                  if (window.currentDraft && window.currentDraft.id === localItem.id) {
+                    window.currentDraft.images = localItem.images;
+                  }
+                  needsHydrate = true;
+                }
               }
             }
           });
@@ -2109,6 +2179,9 @@
     }
 
     const mapChanged = hydratedMap.size > 0 ? applyHydratedImageMap(hydratedMap) : false;
+    if (mapChanged) {
+      window.__vaultDraftsHydratedAtBoot = true;
+    }
     const changed = mapChanged || configRestoredFromVirtual || draftsRestoredFromVirtual;
     if (configRestoredFromVirtual && !mapChanged && typeof window.saveProjectToStorage === 'function') {
       try { window.saveProjectToStorage(); } catch (e) {}

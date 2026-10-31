@@ -50,9 +50,14 @@
           if (resolved) displaySrc = resolved;
         }
 
+        const cleanImgName = (!src.startsWith('data:') && !src.startsWith('blob:') && !/^https?:\/\//i.test(src))
+          ? src.split('?')[0].split('#')[0].split('/').pop().split('\\').pop()
+          : '';
+
         images.push({
           src: displaySrc,
           originalSrc: src,
+          imgName: cleanImgName,
           alt: alt
         });
       });
@@ -64,18 +69,21 @@
 
       if (count <= 4) {
         images.forEach((img, idx) => {
-          itemsHtml += `<div class="custom-gallery-item" data-index="${idx}"><img src="${escapeHtml(img.src)}" data-original-src="${escapeHtml(img.originalSrc)}" alt="${escapeHtml(img.alt)}" loading="lazy" draggable="false"></div>`;
+          const nameAttr = img.imgName ? ` data-img-name="${escapeHtml(img.imgName)}"` : '';
+          itemsHtml += `<div class="custom-gallery-item" data-index="${idx}"><img src="${escapeHtml(img.src)}" data-original-src="${escapeHtml(img.originalSrc)}"${nameAttr} alt="${escapeHtml(img.alt)}" loading="lazy" draggable="false"></div>`;
         });
       } else {
         for (let idx = 0; idx < 3; idx++) {
           const img = images[idx];
-          itemsHtml += `<div class="custom-gallery-item" data-index="${idx}"><img src="${escapeHtml(img.src)}" data-original-src="${escapeHtml(img.originalSrc)}" alt="${escapeHtml(img.alt)}" loading="lazy" draggable="false"></div>`;
+          const nameAttr = img.imgName ? ` data-img-name="${escapeHtml(img.imgName)}"` : '';
+          itemsHtml += `<div class="custom-gallery-item" data-index="${idx}"><img src="${escapeHtml(img.src)}" data-original-src="${escapeHtml(img.originalSrc)}"${nameAttr} alt="${escapeHtml(img.alt)}" loading="lazy" draggable="false"></div>`;
         }
         const img4 = images[3];
+        const nameAttr4 = img4.imgName ? ` data-img-name="${escapeHtml(img4.imgName)}"` : '';
         const moreCount = count - 4;
         itemsHtml += `<div class="custom-gallery-item gallery-item-split" data-index="3">
           <div class="gallery-split-half gallery-split-img-box">
-            <img src="${escapeHtml(img4.src)}" data-original-src="${escapeHtml(img4.originalSrc)}" alt="${escapeHtml(img4.alt)}" loading="lazy" draggable="false">
+            <img src="${escapeHtml(img4.src)}" data-original-src="${escapeHtml(img4.originalSrc)}"${nameAttr4} alt="${escapeHtml(img4.alt)}" loading="lazy" draggable="false">
           </div>
           <div class="gallery-split-half gallery-split-badge" data-action="view-more" title="${moreCount} more ${moreCount === 1 ? 'image' : 'images'} in collection">
             <span class="gallery-badge-number">+${moreCount}</span>
@@ -83,7 +91,8 @@
         </div>`;
         for (let idx = 4; idx < count; idx++) {
           const img = images[idx];
-          itemsHtml += `<div class="custom-gallery-item gallery-item-hidden" data-index="${idx}" style="display: none;"><img src="${escapeHtml(img.src)}" data-original-src="${escapeHtml(img.originalSrc)}" alt="${escapeHtml(img.alt)}" loading="lazy" draggable="false"></div>`;
+          const nameAttr = img.imgName ? ` data-img-name="${escapeHtml(img.imgName)}"` : '';
+          itemsHtml += `<div class="custom-gallery-item gallery-item-hidden" data-index="${idx}" style="display: none;"><img src="${escapeHtml(img.src)}" data-original-src="${escapeHtml(img.originalSrc)}"${nameAttr} alt="${escapeHtml(img.alt)}" loading="lazy" draggable="false"></div>`;
         }
       }
 
@@ -4741,16 +4750,24 @@ ${socialMeta.metaLines}
 
   async function resolveReadableImageBlob(img, fname, folder) {
     if (!img) return null;
+    const isInvalidBlobType = (t) => {
+      const low = String(t || '').toLowerCase();
+      return low.includes('text/html') || low.includes('application/json');
+    };
     if (img.blob instanceof Blob) {
-      try {
-        const ab = await img.blob.arrayBuffer();
-        if (ab && ab.byteLength > 0) {
-          const fresh = new Blob([ab], { type: img.blob.type || 'image/webp' });
-          img.blob = fresh;
-          return fresh;
-        }
-      } catch (e) {
+      if (isInvalidBlobType(img.blob.type)) {
         img.blob = null;
+      } else {
+        try {
+          const ab = await img.blob.arrayBuffer();
+          if (ab && ab.byteLength > 0) {
+            const fresh = new Blob([ab], { type: img.blob.type || 'image/webp' });
+            img.blob = fresh;
+            return fresh;
+          }
+        } catch (e) {
+          img.blob = null;
+        }
       }
     }
     if (img.dataUrl && String(img.dataUrl).startsWith('data:')) {
@@ -4765,13 +4782,15 @@ ${socialMeta.metaLines}
       const reg = imageRegistry.get(fname)
         || (folder && imageRegistry.get(`${folder}/${fname}`))
         || imageRegistry.get(`blog/images/${fname}`)
-        || imageRegistry.get(`/blog/images/${fname}`);
+        || imageRegistry.get(`/blog/images/${fname}`)
+        || imageRegistry.get(`media/${fname}`)
+        || imageRegistry.get(`/media/${fname}`);
       if (reg) {
         if (reg.dataUrl && String(reg.dataUrl).startsWith('data:')) {
           const b = dataUrlToBlob(reg.dataUrl);
           if (b) { img.blob = b; reg.blob = b; return b; }
         }
-        if (reg.blob instanceof Blob) {
+        if (reg.blob instanceof Blob && !isInvalidBlobType(reg.blob.type)) {
           try {
             const ab = await reg.blob.arrayBuffer();
             if (ab && ab.byteLength > 0) {
@@ -4786,24 +4805,70 @@ ${socialMeta.metaLines}
         }
       }
     }
-    if (fname && typeof window !== 'undefined' && window.Vault && typeof window.Vault.readFile === 'function') {
+    if (fname && typeof window !== 'undefined' && window.projectConfig && Array.isArray(window.projectConfig.mediaLibrary)) {
+      const cleanFnLower = String(fname).toLowerCase();
+      const mItem = window.projectConfig.mediaLibrary.find(m => m && m.filename && String(m.filename).split('/').pop().split('\\').pop().toLowerCase() === cleanFnLower);
+      if (mItem) {
+        if (mItem.dataUrl && String(mItem.dataUrl).startsWith('data:')) {
+          const b = dataUrlToBlob(mItem.dataUrl);
+          if (b) { img.blob = b; return b; }
+        }
+        if (mItem.blob instanceof Blob && !isInvalidBlobType(mItem.blob.type)) {
+          try {
+            const ab = await mItem.blob.arrayBuffer();
+            if (ab && ab.byteLength > 0) {
+              const fresh = new Blob([ab], { type: mItem.blob.type || 'image/webp' });
+              img.blob = fresh;
+              return fresh;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+    if (fname && typeof window !== 'undefined') {
       const candidatePaths = [];
       if (folder) candidatePaths.push(`${folder}/${fname}`);
       if (img.relativePath) candidatePaths.push(String(img.relativePath).replace(/^\/+/, ''));
       candidatePaths.push(`blog/images/${fname}`);
       candidatePaths.push(`media/${fname}`);
-      for (const p of candidatePaths) {
-        try {
-          const vBlob = await window.Vault.readFile(p, 'blob');
-          if (vBlob instanceof Blob && vBlob.size > 0) {
-            const ab = await vBlob.arrayBuffer();
-            if (ab && ab.byteLength > 0) {
-              const fresh = new Blob([ab], { type: vBlob.type || 'image/webp' });
-              img.blob = fresh;
-              return fresh;
+
+      const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+      if (vStorage && (typeof vStorage.readFile === 'function' || typeof vStorage.readBlob === 'function')) {
+        for (const p of candidatePaths) {
+          try {
+            const vBlob = (typeof vStorage.readFile === 'function')
+              ? await vStorage.readFile(p, 'blob').catch(() => null)
+              : await vStorage.readBlob(p).catch(() => null);
+            if (vBlob instanceof Blob && vBlob.size > 0 && !isInvalidBlobType(vBlob.type)) {
+              const ab = await vBlob.arrayBuffer();
+              if (ab && ab.byteLength > 0) {
+                const fresh = new Blob([ab], { type: vBlob.type || 'image/webp' });
+                img.blob = fresh;
+                return fresh;
+              }
+            } else if (typeof vBlob === 'string' && vBlob.startsWith('data:')) {
+              const b = dataUrlToBlob(vBlob);
+              if (b) { img.blob = b; return b; }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
+      }
+
+      const vaultApi = window.SheeshVault || window.Vault;
+      if (vaultApi && typeof vaultApi.readFile === 'function') {
+        for (const p of candidatePaths) {
+          try {
+            const vBlob = await vaultApi.readFile(p, 'blob').catch(() => null);
+            if (vBlob instanceof Blob && vBlob.size > 0 && !isInvalidBlobType(vBlob.type)) {
+              const ab = await vBlob.arrayBuffer();
+              if (ab && ab.byteLength > 0) {
+                const fresh = new Blob([ab], { type: vBlob.type || 'image/webp' });
+                img.blob = fresh;
+                return fresh;
+              }
+            }
+          } catch (e) {}
+        }
       }
     }
     if (typeof fetch === 'function') {
@@ -4813,7 +4878,7 @@ ${socialMeta.metaLines}
           const r = await fetch(fetchTarget.startsWith('/') ? fetchTarget : '/' + fetchTarget);
           if (r.ok) {
             const b = await r.blob();
-            if (b && b.size > 0) {
+            if (b && b.size > 0 && !isInvalidBlobType(b.type)) {
               img.blob = b;
               return b;
             }
@@ -5048,11 +5113,13 @@ ${socialMeta.metaLines}
 
       // Export post images (skip uncropped original source buffers)
       const cleanImages = [];
+      const exportedFnames = new Set();
       if (Array.isArray(post.images)) {
         for (const img of post.images) {
           if (!img || img.isOriginal) continue;
           const fname = img.filename || img.name;
           if (fname) {
+            exportedFnames.add(fname);
             const blob = await resolveReadableImageBlob(img, fname, folder);
             if (blob) {
               addFile(`${folder}/${fname}`, blob);
@@ -5067,6 +5134,52 @@ ${socialMeta.metaLines}
             });
           }
         }
+      }
+
+      // Recover any local images referenced in proseHtml, markdown, or coverImage that were missing from post.images
+      const referencedFnames = new Set();
+      const extractLocalFname = (raw) => {
+        if (!raw || typeof raw !== 'string') return;
+        const s = raw.trim();
+        if (!s || s.startsWith('data:') || s.startsWith('blob:') || /^https?:\/\//i.test(s)) return;
+        const fn = s.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+        if (fn && fn !== 'img' && /\.(webp|jpg|jpeg|png|gif|svg|avif)$/i.test(fn)) {
+          referencedFnames.add(fn);
+        }
+      };
+      extractLocalFname(post.coverImage);
+      extractLocalFname(post.featuredImage);
+      if (typeof post.proseHtml === 'string' && post.proseHtml) {
+        const attrRegex = /\b(?:src|data-original-src|data-img-name)=["']([^"']+)["']/gi;
+        let m;
+        while ((m = attrRegex.exec(post.proseHtml)) !== null) {
+          extractLocalFname(m[1]);
+        }
+      }
+      if (typeof post.markdown === 'string' && post.markdown) {
+        const mdImgRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+        let m;
+        while ((m = mdImgRegex.exec(post.markdown)) !== null) {
+          extractLocalFname(m[1]);
+        }
+      }
+      for (const fname of referencedFnames) {
+        if (exportedFnames.has(fname)) continue;
+        exportedFnames.add(fname);
+        const syntheticImg = { filename: fname, relativePath: `/blog/images/${fname}` };
+        const blob = await resolveReadableImageBlob(syntheticImg, fname, folder);
+        if (blob) {
+          addFile(`${folder}/${fname}`, blob);
+          addFile(`blog/images/${fname}`, blob);
+          if (Array.isArray(post.images) && !post.images.some(im => im && (im.filename === fname || im.name === fname))) {
+            post.images.push({ filename: fname, relativePath: `/blog/images/${fname}`, blob });
+          }
+        }
+        cleanImages.push({
+          filename: fname,
+          relativePath: `/${folder}/${fname}`,
+          alt: ''
+        });
       }
 
       const {

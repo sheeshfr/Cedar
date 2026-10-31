@@ -1087,8 +1087,8 @@
           const vStorage = (window.CedarVirtualStorage || window.OutpostVirtualStorage) ||
             (srcWin && (srcWin.CedarVirtualStorage || srcWin.OutpostVirtualStorage));
           if (vStorage && typeof vStorage.readBlob === 'function') {
-            let b = await vStorage.readBlob(`blog/images/${cleanName}`);
-            if (!b) b = await vStorage.readBlob(`media/${cleanName}`);
+            let b = await vStorage.readBlob(`blog/images/${cleanName}`).catch(() => null);
+            if (!b) b = await vStorage.readBlob(`media/${cleanName}`).catch(() => null);
             if (b && applyBlobOrData(b)) return;
           }
         } catch (e) {}
@@ -1096,26 +1096,28 @@
         // Direct IndexedDB fallback for standalone preview.html tabs
         try {
           if (typeof indexedDB !== 'undefined') {
-            const db = await new Promise((resolve) => {
-              const req = indexedDB.open('cedar_virtual_fs', 1);
-              req.onsuccess = () => resolve(req.result);
-              req.onerror = () => resolve(null);
-            });
-            if (db && db.objectStoreNames.contains('files')) {
-              const readKey = (k) => new Promise((resolve) => {
-                try {
-                  const tx = db.transaction('files', 'readonly');
-                  const req = tx.objectStore('files').get(k);
-                  req.onsuccess = () => resolve(req.result || null);
-                  req.onerror = () => resolve(null);
-                } catch (err) {
-                  resolve(null);
-                }
+            for (const dbName of ['cedar_virtual_vault_db', 'cedar_virtual_fs']) {
+              const db = await new Promise((resolve) => {
+                const req = indexedDB.open(dbName, 1);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
               });
-              let rec = await readKey(`blog/images/${cleanName}`);
-              if (!rec) rec = await readKey(`media/${cleanName}`);
-              if (rec && (rec.content || rec.blob || rec.dataUrl)) {
-                applyBlobOrData(rec.content || rec.blob || rec.dataUrl);
+              if (db && db.objectStoreNames.contains('files')) {
+                const readKey = (k) => new Promise((resolve) => {
+                  try {
+                    const tx = db.transaction('files', 'readonly');
+                    const req = tx.objectStore('files').get(k);
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                  } catch (err) {
+                    resolve(null);
+                  }
+                });
+                let rec = await readKey(`blog/images/${cleanName}`);
+                if (!rec) rec = await readKey(`media/${cleanName}`);
+                if (rec && (rec.content || rec.blob || rec.dataUrl)) {
+                  if (applyBlobOrData(rec.content || rec.blob || rec.dataUrl)) return;
+                }
               }
             }
           }

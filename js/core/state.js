@@ -5188,6 +5188,24 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       this._isHydrating = true;
       try {
         rawList = Array.isArray(rawList) ? [...rawList] : [];
+        const preservedImgData = new Map();
+        const collectImgData = (item) => {
+          if (!item || !Array.isArray(item.images)) return;
+          item.images.forEach(im => {
+            if (!im || typeof im !== 'object' || !im.filename) return;
+            if (im.dataUrl || im.blob instanceof Blob || im.objectUrl) {
+              preservedImgData.set(im.filename, {
+                dataUrl: im.dataUrl,
+                blob: im.blob,
+                objectUrl: im.objectUrl,
+                src: im.src
+              });
+            }
+          });
+        };
+        this._posts.forEach(collectImgData);
+        this._pages.forEach(collectImgData);
+
         this._posts.clear();
         this._pages.clear();
         const deletedIds = this.getDeletedIdsSet();
@@ -5214,6 +5232,21 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         this.healDraftItem(d);
         if (this.isPurgedTestPage(d)) continue;
 
+        if (Array.isArray(d.images)) {
+          d.images.forEach(im => {
+            if (!im || typeof im !== 'object' || !im.filename) return;
+            const prev = preservedImgData.get(im.filename)
+              || (typeof window !== 'undefined' && window.imageRegistry && (window.imageRegistry.get(im.filename) || window.imageRegistry.get(`blog/images/${im.filename}`) || window.imageRegistry.get(`/blog/images/${im.filename}`)));
+            if (prev) {
+              if (!im.dataUrl && prev.dataUrl) im.dataUrl = prev.dataUrl;
+              if (!(im.blob instanceof Blob) && prev.blob instanceof Blob) im.blob = prev.blob;
+              if (!im.objectUrl && prev.objectUrl) im.objectUrl = prev.objectUrl;
+              if ((!im.src || !String(im.src).startsWith('data:')) && (prev.dataUrl || prev.objectUrl)) {
+                im.src = prev.dataUrl || prev.objectUrl;
+              }
+            }
+          });
+        }
 
         // Image & prose cleanup
         if (typeof window.reconcileDraftImages === 'function') {
@@ -5221,7 +5254,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         }
         if (d.proseHtml) {
           let cleaned = (typeof window.cleanProseHtmlForStorage === 'function')
-            ? window.cleanProseHtmlForStorage(d.proseHtml)
+            ? window.cleanProseHtmlForStorage(d.proseHtml, d)
             : d.proseHtml;
           cleaned = cleaned.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');
           cleaned = cleaned.replace(/\b(selected|selected-item)\b/gi, '');
@@ -6061,7 +6094,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           if (d.proseHtml) {
             const needsFullDomClean = !isCurrentDraft || d.proseHtml.includes('data:image/') || d.proseHtml.includes('canvas-drop-indicator') || d.proseHtml.includes('figure-hover-actions') || d.proseHtml.includes('block-hover-actions');
             let cleaned = (needsFullDomClean && typeof window.cleanProseHtmlForStorage === 'function')
-              ? window.cleanProseHtmlForStorage(d.proseHtml)
+              ? window.cleanProseHtmlForStorage(d.proseHtml, d)
               : d.proseHtml;
 
             cleaned = cleaned.replace(/<div\s+id=["']canvas-drop-indicator["'][^>]*>[\s\S]*?<\/div>/gi, '');

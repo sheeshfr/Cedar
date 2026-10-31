@@ -89,7 +89,7 @@
     }
   }
 
-  function cleanProseHtmlForStorage(htmlOrEl) {
+  function cleanProseHtmlForStorage(htmlOrEl, targetDraft) {
     if (!htmlOrEl) return '';
     const isElement = typeof htmlOrEl === 'object' && htmlOrEl.nodeType === 1;
     let html = isElement ? '' : String(htmlOrEl);
@@ -97,28 +97,13 @@
     try {
       let doc = null;
       let body = null;
+      const curDraft = targetDraft || window.currentDraft;
+      if (curDraft && !Array.isArray(curDraft.images)) curDraft.images = [];
+      const draftImages = (curDraft && Array.isArray(curDraft.images)) ? curDraft.images : null;
       if (isElement) {
         doc = htmlOrEl.ownerDocument || document;
         body = htmlOrEl.cloneNode(true);
       } else if (typeof DOMParser !== 'undefined') {
-        if (html.includes('data:image/')) {
-          html = html.replace(/<img\b([^>]*?)>/gi, (fullTag, attrs) => {
-            if (!attrs.includes('data:image/')) return fullTag;
-            const nameMatch = attrs.match(/data-img-name=["']([^"']+)["']/i);
-            const origMatch = attrs.match(/data-original-src=["']([^"']+)["']/i);
-            let relPath = '';
-            if (nameMatch && nameMatch[1]) {
-              const fn = nameMatch[1].split('/').pop().split('\\').pop();
-              if (fn) relPath = `/blog/images/${fn}`;
-            } else if (origMatch && origMatch[1] && !origMatch[1].startsWith('data:')) {
-              relPath = origMatch[1];
-            }
-            if (!relPath) return fullTag;
-            return fullTag
-              .replace(/(\s|^)src=["']data:image\/[^"']+["']/i, `$1src="${relPath}"`)
-              .replace(/data-original-src=["']data:image\/[^"']+["']/i, `data-original-src="${relPath}"`);
-          });
-        }
         doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
         body = doc.body;
       }
@@ -169,21 +154,23 @@
             }
           }
         });
-        const curDraft = window.currentDraft;
-        const draftImages = (curDraft && Array.isArray(curDraft.images)) ? curDraft.images : null;
         body.querySelectorAll('img').forEach(img => {
           const src = (img.getAttribute('src') || '').trim();
-          const imgName = (img.getAttribute('data-img-name') || '').trim();
+          const rawImgName = (img.getAttribute('data-img-name') || '').trim();
+          const imgName = rawImgName === 'img' ? '' : rawImgName;
           const origSrc = (img.getAttribute('data-original-src') || '').trim();
           let cleanFn = '';
           if (imgName) {
             cleanFn = imgName.split('/').pop().split('\\').pop();
           } else if (origSrc && !origSrc.startsWith('data:') && !origSrc.startsWith('blob:') && !/^https?:\/\//i.test(origSrc)) {
             cleanFn = origSrc.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
+          } else if (!src.startsWith('data:') && !src.startsWith('blob:') && !/^https?:\/\//i.test(src)) {
+            cleanFn = src.split('?')[0].split('#')[0].split('/').pop().split('\\').pop();
           } else if (src.startsWith('data:image/') && draftImages) {
             const matched = draftImages.find(im => im && im.dataUrl === src && im.filename);
             if (matched) cleanFn = matched.filename;
           }
+          if (cleanFn === 'img') cleanFn = '';
           if (cleanFn) {
             const relPath = `/blog/images/${cleanFn}`;
             if (src.startsWith('data:image/')) {
@@ -195,7 +182,12 @@
               }
               if (draftImages) {
                 const existing = draftImages.find(im => im && im.filename === cleanFn);
-                if (existing && !existing.dataUrl) existing.dataUrl = src;
+                if (existing) {
+                  if (!existing.dataUrl) existing.dataUrl = src;
+                  if (!existing.src || !String(existing.src).startsWith('data:')) existing.src = src;
+                } else {
+                  draftImages.push({ filename: cleanFn, relativePath: relPath, dataUrl: src, src });
+                }
               }
               img.setAttribute('src', relPath);
             }
