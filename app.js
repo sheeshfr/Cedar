@@ -82,6 +82,10 @@
       targets = Array.from(document.querySelectorAll('[data-include]'));
       depth++;
     }
+    const verLabel = document.getElementById('cedar-version-label');
+    if (verLabel && staticVersion) {
+      verLabel.textContent = `Cedar v${staticVersion}`;
+    }
   }
 
   // =========================================================================
