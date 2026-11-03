@@ -2180,6 +2180,57 @@ ${socialMeta.metaLines}
         white-space: nowrap !important;
       }
 
+      .spotlight-img-wrap,
+      .spotlight-carousel-slide .spotlight-img-wrap {
+        min-height: unset !important;
+        aspect-ratio: 16 / 9 !important;
+        margin: 0 auto 0.75rem auto !important;
+      }
+
+      .spotlight-title,
+      .spotlight-carousel-slide .spotlight-standard-title {
+        font-size: 1.45rem !important;
+        line-height: 1.25 !important;
+        margin: 0 0 0.45rem 0 !important;
+        text-align: center !important;
+      }
+
+      .spotlight-meta {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        align-items: center !important;
+        row-gap: 0.35rem !important;
+        column-gap: 0.55rem !important;
+        margin-top: 0.15rem !important;
+      }
+
+      .spotlight-author {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+      }
+
+      .spotlight-author + .spotlight-sep,
+      .spotlight-sep-author {
+        display: none !important;
+      }
+
+      .spotlight-meta-subrow {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.55rem !important;
+        white-space: nowrap !important;
+      }
+
+      .spotlight-date,
+      .spotlight-read-time,
+      .spotlight-meta time,
+      .spotlight-meta span {
+        white-space: nowrap !important;
+      }
+
       /* 4) No subtitle or preview text on feed cards */
       .post-card-desc:not(.article-prose .post-card-desc),
       .post-card-excerpt,
@@ -4448,7 +4499,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || '6.6.65';
+    const buildStamp = options.buildStamp || (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.81';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;

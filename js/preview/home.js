@@ -1430,10 +1430,12 @@
             ${badgeHtml}
             <h2 class="spotlight-title spotlight-standard-title">${escapeHtml(featured.title || 'Untitled Post')}</h2>
             <div class="spotlight-meta">
-              <span class="spotlight-author" style="cursor: pointer; display: inline-flex; align-items: center;" onclick="event.stopPropagation(); event.preventDefault(); if (window.navigateTo) window.navigateTo('#/author/' + encodeURIComponent('${escapeHtml(authName)}')); else window.location.hash='#/author/' + encodeURIComponent('${escapeHtml(authName)}');">${avatarImgHtml}By <span style="text-decoration: underline; text-underline-offset: 2px;">${escapeHtml(authName)}</span></span>
-              <span class="spotlight-sep">&bull;</span>
-              <time class="spotlight-date">${escapeHtml(formattedDate)}</time>
-              ${readTime ? `<span class="spotlight-sep">&bull;</span><span>${readTime}</span>` : ''}
+              <span class="spotlight-author" style="cursor: pointer; display: inline-flex; align-items: center;" onclick="event.stopPropagation(); event.preventDefault(); if (window.navigateTo) window.navigateTo('#/author/' + encodeURIComponent('${escapeHtml(authName)}')); else window.location.hash='#/author/' + encodeURIComponent('${escapeHtml(authName)}');">${avatarImgHtml}<span class="spotlight-author-byline">By <span style="text-decoration: underline; text-underline-offset: 2px;">${escapeHtml(authName)}</span></span></span>
+              <span class="spotlight-sep spotlight-sep-author">&bull;</span>
+              <span class="spotlight-meta-subrow">
+                <time class="spotlight-date">${escapeHtml(formattedDate)}</time>
+                ${readTime ? `<span class="spotlight-sep">&bull;</span><span class="spotlight-read-time">${readTime}</span>` : ''}
+              </span>
             </div>
             ${descText ? `<p class="spotlight-desc">${escapeHtml(descText)}</p>` : ''}
           </a>

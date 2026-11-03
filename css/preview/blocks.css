@@ -258,12 +258,27 @@
       margin-top: 0.25rem;
     }
 
+    .spotlight-meta-subrow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      white-space: nowrap;
+    }
+
     .spotlight-author {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       color: var(--text-primary, #ffffff);
       font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .spotlight-author-byline,
+    .spotlight-date,
+    .spotlight-read-time {
+      white-space: nowrap;
     }
 
     .spotlight-author .post-card-author-avatar {
@@ -1781,7 +1796,7 @@
 
       /* Spotlight Block */
       .hero-section {
-        padding: 0 0 1.5rem 0 !important;
+        padding: 0 0 1.25rem 0 !important;
       }
       .spotlight-card {
         grid-template-columns: 1fr !important;
@@ -1789,14 +1804,52 @@
         border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
         overflow: hidden !important;
       }
-      .spotlight-img-wrap {
-          min-height: 200px !important;
-        }
+      .spotlight-img-wrap,
+      .spotlight-carousel-slide .spotlight-img-wrap {
+        min-height: unset !important;
+        aspect-ratio: 16 / 9 !important;
+        margin: 0 auto 0.75rem auto !important;
+      }
       .spotlight-content {
         padding: 1.5rem 1.25rem !important;
       }
-      .spotlight-title {
+      .spotlight-title,
+      .spotlight-carousel-slide .spotlight-standard-title {
         font-size: 1.45rem !important;
+        line-height: 1.25 !important;
+        margin: 0 0 0.45rem 0 !important;
+        text-align: center !important;
+      }
+      .spotlight-meta {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        align-items: center !important;
+        row-gap: 0.35rem !important;
+        column-gap: 0.55rem !important;
+        margin-top: 0.15rem !important;
+      }
+      .spotlight-author {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+      }
+      .spotlight-author + .spotlight-sep,
+      .spotlight-sep-author {
+        display: none !important;
+      }
+      .spotlight-meta-subrow {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.55rem !important;
+        white-space: nowrap !important;
+      }
+      .spotlight-date,
+      .spotlight-read-time,
+      .spotlight-meta time,
+      .spotlight-meta span {
+        white-space: nowrap !important;
       }
 
       /* Editorial Signage Block */
@@ -2147,8 +2200,49 @@
       .spotlight-card {
         grid-template-columns: 1fr !important;
       }
-      .spotlight-img-wrap {
-        min-height: 200px !important;
+      .spotlight-img-wrap,
+      .spotlight-carousel-slide .spotlight-img-wrap {
+        min-height: unset !important;
+        aspect-ratio: 16 / 9 !important;
+        margin: 0 auto 0.75rem auto !important;
+      }
+      .spotlight-title,
+      .spotlight-carousel-slide .spotlight-standard-title {
+        font-size: 1.45rem !important;
+        line-height: 1.25 !important;
+        margin: 0 0 0.45rem 0 !important;
+        text-align: center !important;
+      }
+      .spotlight-meta {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        align-items: center !important;
+        row-gap: 0.35rem !important;
+        column-gap: 0.55rem !important;
+        margin-top: 0.15rem !important;
+      }
+      .spotlight-author {
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+      }
+      .spotlight-author + .spotlight-sep,
+      .spotlight-sep-author {
+        display: none !important;
+      }
+      .spotlight-meta-subrow {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.55rem !important;
+        white-space: nowrap !important;
+      }
+      .spotlight-date,
+      .spotlight-read-time,
+      .spotlight-meta time,
+      .spotlight-meta span {
+        white-space: nowrap !important;
       }
     }
 
