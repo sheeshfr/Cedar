@@ -47,14 +47,31 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '4.6.26';
+    let staticVersion = '6.6.80';
     try {
-      const versionedEl = document.querySelector('link[href*="style.css?v="], script[src*="compiler.js?v="], script[src*="?v="]');
-      if (versionedEl) {
-        const rawAttr = versionedEl.getAttribute('src') || versionedEl.getAttribute('href') || '';
-        const match = rawAttr.match(/[?&]v=([^&#]+)/);
-        if (match && match[1]) staticVersion = match[1];
-      }
+      const compareSemver = (a, b) => {
+        const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
+        const pb = String(b || '').split('.').map(n => parseInt(n, 10) || 0);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+          const da = pa[i] || 0;
+          const db = pb[i] || 0;
+          if (da !== db) return da - db;
+        }
+        return 0;
+      };
+      const versionedEls = document.querySelectorAll('link[href*="?v="], script[src*="?v="], [data-include*="?v="]');
+      let maxVer = '';
+      versionedEls.forEach(el => {
+        const rawAttr = el.getAttribute('src') || el.getAttribute('href') || el.getAttribute('data-include') || '';
+        const match = rawAttr.match(/[?&]v=([^&#"']+)/);
+        if (match && match[1]) {
+          if (!maxVer || compareSemver(match[1], maxVer) > 0) {
+            maxVer = match[1];
+          }
+        }
+      });
+      if (maxVer) staticVersion = maxVer;
+      window.Cedar.version = staticVersion;
     } catch (e) {}
 
     let targets = Array.from(document.querySelectorAll('[data-include]'));
