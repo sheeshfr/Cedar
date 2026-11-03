@@ -714,12 +714,18 @@
             appendPublishLog(`Empty repository detected (0 commits). Bootstrapping initial commit on ${branch}...`, 'info', '>');
             const siteTitle = window.projectConfig?.name || 'Cedar Blog';
             const readmeB64 = btoa(unescape(encodeURIComponent(`# ${siteTitle}\n\nPublished with [Cedar](https://cedar.pub).\n`)));
+            const bootIdentity = {
+              name: 'Cedar',
+              email: 'publish@cedar.pub'
+            };
             await apiRequest(`/repos/${repo}/contents/README.md`, {
               method: 'PUT',
               body: {
                 message: 'Initial commit (Cedar Studio)',
                 content: readmeB64,
-                branch: branch
+                branch: branch,
+                author: bootIdentity,
+                committer: bootIdentity
               }
             });
             branchRef = await apiRequest(`/repos/${repo}/git/ref/heads/${branch}`);
@@ -1146,13 +1152,20 @@
 
       // 4. Create Git Commit
       const commitMsg = `Cedar Studio: Rev #${currentRev} (${getDeviceName()}) [Web Publish]`;
+      const cedarCommitIdentity = {
+        name: 'Cedar',
+        email: 'publish@cedar.pub',
+        date: new Date().toISOString()
+      };
       appendPublishLog(`Creating atomic commit: "${commitMsg}"...`, 'info', '>');
       const commitRes = await apiRequest(`/repos/${repo}/git/commits`, {
         method: 'POST',
         body: {
           message: commitMsg,
           tree: newTreeSha,
-          parents: [headSha]
+          parents: [headSha],
+          author: cedarCommitIdentity,
+          committer: cedarCommitIdentity
         }
       });
       let newCommitSha = commitRes.sha;
@@ -1182,7 +1195,9 @@
                 body: {
                   message: commitMsg,
                   tree: newTreeSha,
-                  parents: [latestSha]
+                  parents: [latestSha],
+                  author: cedarCommitIdentity,
+                  committer: cedarCommitIdentity
                 }
               });
               newCommitSha = retryCommit.sha;
