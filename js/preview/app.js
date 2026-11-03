@@ -627,8 +627,16 @@
     window.__hasInAppNavigated = true;
     let clean = (targetRoute || '').trim();
     let previewUrl = toPreviewUrl(clean);
-    
-    if (options.replace) {
+    const searchModal = document.getElementById('search-modal');
+    const hadSearchHistory = Boolean(window.__cedarSearchHistoryPushed || (window.history && window.history.state && window.history.state.__cedarSearchModal));
+    if (searchModal && searchModal.style.display === 'flex') {
+      searchModal.style.display = 'none';
+      const searchInput = document.getElementById('search-modal-input');
+      if (searchInput) searchInput.blur();
+    }
+    window.__cedarSearchHistoryPushed = false;
+
+    if (options.replace || hadSearchHistory) {
       try {
         history.replaceState(null, '', previewUrl);
       } catch (e) {
@@ -808,8 +816,24 @@
     }
   }
 
-  window.addEventListener('hashchange', route);
-  window.addEventListener('popstate', route);
+  function handleHistoryNavigation() {
+    if (window.__cedarSuppressNextPopstateRoute) {
+      window.__cedarSuppressNextPopstateRoute = false;
+      return;
+    }
+    const searchModal = document.getElementById('search-modal');
+    if (searchModal && searchModal.style.display === 'flex') {
+      searchModal.style.display = 'none';
+      window.__cedarSearchHistoryPushed = false;
+      const searchInput = document.getElementById('search-modal-input');
+      if (searchInput) searchInput.blur();
+      return;
+    }
+    route();
+  }
+
+  window.addEventListener('hashchange', handleHistoryNavigation);
+  window.addEventListener('popstate', handleHistoryNavigation);
 
   // Intercept navigation links for smooth client-side routing
   document.addEventListener('click', (e) => {

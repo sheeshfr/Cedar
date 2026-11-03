@@ -403,7 +403,7 @@
       gap: 2rem;
       width: 100%;
       max-width: 100%;
-      margin: 0 0 3rem 0;
+      margin: 0;
       grid-template-columns: none !important;
     }
 
@@ -498,7 +498,7 @@
 
     .posts-section {
         padding-top: 2.25rem;
-        padding-bottom: 3rem;
+        padding-bottom: 1.25rem;
       }
 
     #view-posts .posts-section {
@@ -768,7 +768,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 1.75rem;
-      margin-bottom: 4rem;
+      margin-bottom: 0;
     }
 
     .post-card {
@@ -1649,8 +1649,8 @@
       align-items: center;
       justify-content: center;
       gap: 0.6rem;
-      margin: 2.5rem 0 4rem;
-      padding-top: 1.5rem;
+      margin: 2rem 0 0.5rem;
+      padding-top: 1.25rem;
       border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
     }
 
@@ -1918,7 +1918,7 @@
       /* Recent Posts Feed Block */
       .posts-section {
         padding-top: 0.65rem !important;
-        padding-bottom: 1.5rem !important;
+        padding-bottom: 0.65rem !important;
       }
       .feed-header-wrap:not(.divider-only) {
         flex-wrap: wrap !important;
@@ -1937,10 +1937,12 @@
       .posts-section .section-heading-wrap {
         padding: 0 !important;
       }
-      .posts-grid {
+      .posts-grid,
+      .posts-grid.posts-list-view,
+      .posts-list-view {
         grid-template-columns: 1fr !important;
         gap: 1.5rem !important;
-        margin-bottom: 2rem !important;
+        margin-bottom: 0 !important;
       }
 
       /* Mobile Post Cards: ALWAYS Image on top, Title underneath, Author & Post Date, NO subtitle or preview text */
@@ -1954,7 +1956,7 @@
         align-items: stretch !important;
         gap: 0.65rem !important;
         padding: 0 !important;
-        margin: 0 0 1.5rem 0 !important;
+        margin: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box !important;

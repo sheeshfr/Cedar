@@ -2177,6 +2177,12 @@ ${socialMeta.metaLines}
         max-width: 100% !important;
         box-sizing: border-box !important;
       }
+      .posts-grid .post-card,
+      #all-posts-grid .post-card,
+      .posts-list-view .post-card,
+      .post-card:last-child {
+        margin-bottom: 0 !important;
+      }
 
       /* 1) Image on top */
       .post-card-img-wrap,
@@ -4628,7 +4634,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.82';
+    const buildStamp = options.buildStamp || (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.83';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -5163,7 +5169,7 @@ ${socialMeta.metaLines}
 
     // 1. Fetch static engine text & binary assets so the exported site renders 1:1 with preview.html
     if (options.includeEngineAssets !== false && typeof fetch === 'function') {
-      const engineVer = (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.82';
+      const engineVer = (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.83';
       const bustQs = `?v=${encodeURIComponent(engineVer)}&t=${Date.now()}`;
       await Promise.all([
         ...PRODUCTION_ENGINE_TEXT_ASSETS.map(async (relPath) => {

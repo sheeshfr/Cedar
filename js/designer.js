@@ -2555,7 +2555,7 @@
     const container = document.getElementById('designer-live-preview');
     if (!container) return;
 
-    const previewVer = (window.Cedar && window.Cedar.version) || '6.6.82';
+    const previewVer = (window.Cedar && window.Cedar.version) || '6.6.83';
     let viewport = document.getElementById('designer-preview-viewport');
     let frame = document.getElementById('designer-preview-site-frame');
 

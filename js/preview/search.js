@@ -8,15 +8,39 @@
     const resultsContainer = document.getElementById('search-modal-results');
 
     function openModal() {
+      const wasOpen = modal.style.display === 'flex';
       modal.style.display = 'flex';
       input.value = '';
       resultsContainer.innerHTML = '';
+      if (!wasOpen && !window.__cedarSearchHistoryPushed) {
+        window.__cedarSearchHistoryPushed = true;
+        try {
+          const curState = (window.history && window.history.state && typeof window.history.state === 'object')
+            ? { ...window.history.state, __cedarSearchModal: true }
+            : { __cedarSearchModal: true };
+          window.history.pushState(curState, '', window.location.href);
+        } catch (e) {}
+      }
       input.focus();
     }
 
-    function closeModal() {
+    function closeModal(options = {}) {
+      const wasOpen = modal.style.display === 'flex';
       modal.style.display = 'none';
+      if (input) input.blur();
+      if (wasOpen && window.__cedarSearchHistoryPushed && !options.fromPopState && !options.skipHistoryBack) {
+        window.__cedarSearchHistoryPushed = false;
+        window.__cedarSuppressNextPopstateRoute = true;
+        try {
+          window.history.back();
+        } catch (e) {
+          window.__cedarSuppressNextPopstateRoute = false;
+        }
+      } else {
+        window.__cedarSearchHistoryPushed = false;
+      }
     }
+    window.closeCedarSearchModal = closeModal;
 
     const mobileBtn = document.getElementById('header-mobile-search-btn');
     if (btn) btn.addEventListener('click', openModal);
@@ -29,7 +53,15 @@
       }
     });
     modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.classList.contains('search-modal-wrap')) closeModal();
+      if (e.target === modal || e.target.classList.contains('search-modal-wrap')) {
+        closeModal();
+        return;
+      }
+      const resItem = e.target.closest('.search-result-item');
+      if (resItem) {
+        modal.style.display = 'none';
+        if (input) input.blur();
+      }
     });
 
     document.addEventListener('keydown', (e) => {
