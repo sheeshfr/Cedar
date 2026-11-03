@@ -1723,6 +1723,12 @@
              s === 'about-cedar' || id === 'page_about_cedar';
     };
 
+    const isBuiltInDefaultOffHidden = (d) => {
+      if (!d) return true;
+      if (d.hidden === undefined && d.retired === undefined) return true;
+      return Boolean(d.hidden || d.retired);
+    };
+
     // 3. Static Pages (User custom static pages & redirects)
     const publishedCustomPages = allDraftsForNav
       .filter(d => d.type === 'page' && !d.hidden && !d.retired && !d.isCategoryAggregate && !isBuiltInDraft(d));
@@ -1749,8 +1755,8 @@
       }
     });
 
-    // 4. About
-    const aboutPage = allDraftsForNav.find(d => d && d.type === 'page' && !d.hidden && !d.retired && (d.id === 'page_about' || d.slug === 'about' || (d.title || '').trim().toLowerCase() === 'about'));
+    // 4. About (defaults to OFF unless explicitly enabled)
+    const aboutPage = allDraftsForNav.find(d => d && d.type === 'page' && !isBuiltInDefaultOffHidden(d) && (d.id === 'page_about' || d.slug === 'about' || (d.title || '').trim().toLowerCase() === 'about'));
     if (aboutPage) {
       const pageTitle = (aboutPage.title || 'About').trim();
       const pageSlug = aboutPage.slug || 'about';
@@ -1763,8 +1769,8 @@
       });
     }
 
-    // 5. Links
-    const linksPage = allDraftsForNav.find(d => d && (d.type === 'page' || d.id === 'page_links') && !d.hidden && !d.retired && (d.id === 'page_links' || d.slug === 'links' || (d.title || '').trim().toLowerCase() === 'links'));
+    // 5. Links (defaults to OFF unless explicitly enabled)
+    const linksPage = allDraftsForNav.find(d => d && (d.type === 'page' || d.id === 'page_links') && !isBuiltInDefaultOffHidden(d) && (d.id === 'page_links' || d.slug === 'links' || (d.title || '').trim().toLowerCase() === 'links'));
     if (linksPage) {
       const pageTitle = (linksPage.title || 'Links').trim();
       const pageSlug = linksPage.slug || 'links';
@@ -1777,12 +1783,12 @@
       });
     }
 
-    // 6. RSS
+    // 6. RSS (defaults to OFF unless explicitly enabled)
     const isRssEnabled = (typeof resolveProjectRssEnabled === 'function')
       ? resolveProjectRssEnabled()
       : Boolean(window.projectConfig && window.projectConfig.rssEnabled);
     const rssDraft = allDraftsForNav.find(d => d && d.type === 'page' && (d.id === 'page_rss' || d.slug === 'rss' || (d.title || '').trim().toLowerCase() === 'rss'));
-    const isRssHidden = !isRssEnabled || Boolean(rssDraft && (rssDraft.hidden || rssDraft.retired));
+    const isRssHidden = !isRssEnabled || !rssDraft || isBuiltInDefaultOffHidden(rssDraft);
     if (!isRssHidden) {
       const rssLabel = (rssDraft && rssDraft.title ? rssDraft.title : 'RSS').trim() || 'RSS';
       navItems.push({
@@ -2005,6 +2011,25 @@ ${socialMeta.metaLines}
       padding: 0;
     }
 
+    .header-mobile-menu-btn,
+    .header-mobile-search-btn {
+      display: none;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      margin: 0;
+      transition: color 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .header-mobile-menu-btn {
+      color: var(--text-primary);
+    }
+
     @media (max-width: 899px) {
       .container {
         padding-left: 10px !important;
@@ -2012,68 +2037,121 @@ ${socialMeta.metaLines}
         max-width: 100% !important;
         box-sizing: border-box !important;
       }
-      .site-header:not(.header-align-left) .nav-wrap {
-        height: auto !important;
-        min-height: 0 !important;
-        position: static !important;
-        padding: var(--header-pad-v, 0.65rem) 10px !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        gap: var(--header-nav-gap, 0.5rem) !important;
+      .site-header {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) !important;
+        transform: translateY(0) !important;
+        will-change: transform;
       }
-      .site-header:not(.header-align-left) .custom-masthead-link {
+      .site-header.header-hidden:not(.mobile-nav-open) {
+        transform: translateY(-105%) !important;
+      }
+      .site-header .nav-wrap,
+      .site-header:not(.header-align-left) .nav-wrap,
+      .site-header.header-align-left .nav-wrap,
+      .site-header.header-align-center .nav-wrap,
+      .site-header.header-align-right .nav-wrap {
+        height: auto !important;
+        min-height: 56px !important;
+        position: relative !important;
+        padding: var(--header-pad-v, 0.65rem) 12px !important;
+        display: grid !important;
+        grid-template-columns: 40px minmax(0, 1fr) 40px !important;
+        grid-template-rows: auto !important;
+        align-items: center !important;
+        justify-items: center !important;
+        column-gap: 8px !important;
+        row-gap: 0 !important;
+      }
+      .site-header .header-mobile-menu-btn {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        justify-self: start !important;
+        align-self: center !important;
+        display: inline-flex !important;
+        width: 38px !important;
+        height: 38px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: var(--text-primary) !important;
+      }
+      .site-header .custom-masthead-link,
+      .site-header:not(.header-align-left) .custom-masthead-link,
+      .site-header.header-align-left .custom-masthead-link {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        justify-self: center !important;
+        align-self: center !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
+        justify-content: center !important;
         text-align: center !important;
+        width: auto !important;
+        min-width: 0 !important;
         max-width: 100% !important;
+        margin: 0 auto !important;
       }
-      .site-header:not(.header-align-left) .header-title-text {
+      .site-header .header-logo-img,
+      .site-header:not(.header-align-left) .header-logo-img,
+      .site-header.header-align-left .header-logo-img {
+        margin: 0 auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+        flex-shrink: 0 !important;
+      }
+      .site-header .header-title-text,
+      .site-header:not(.header-align-left) .header-title-text,
+      .site-header.header-align-left .header-title-text {
         white-space: normal !important;
         overflow-wrap: break-word !important;
         word-break: break-word !important;
         text-align: center !important;
-        max-width: 100% !important;
-      }
-      .site-header.header-align-left .nav-wrap {
-        height: auto !important;
-        min-height: auto !important;
-        position: relative !important;
-        padding: 0.75rem 10px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 0.55rem !important;
-      }
-      .site-header.header-align-left .custom-masthead-link {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-      }
-      .site-header.header-align-left .header-logo-img {
-        margin: 0 !important;
-        flex-shrink: 0 !important;
-      }
-      .site-header.header-align-left .header-title-text {
-        white-space: normal !important;
-        overflow-wrap: anywhere !important;
-        word-break: break-word !important;
-        text-align: left !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         max-width: 100% !important;
         line-height: 1.2 !important;
       }
-      .site-header.header-align-left .header-nav-wrap {
-        width: 100% !important;
+      .site-header .header-mobile-search-btn {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+        justify-self: end !important;
+        align-self: center !important;
+        display: inline-flex !important;
+        width: 38px !important;
+        height: 38px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: var(--text-primary) !important;
+      }
+      .site-header:not(.mobile-nav-open) .header-nav-wrap,
+      .site-header.header-align-left:not(.mobile-nav-open) .header-nav-wrap {
+        display: none !important;
+      }
+      .site-header.mobile-nav-open .header-nav-wrap,
+      .site-header.header-align-left.mobile-nav-open .header-nav-wrap {
+        grid-column: 1 / -1 !important;
+        grid-row: 2 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
         justify-content: center !important;
-        flex-wrap: wrap !important;
-        margin: 0 auto !important;
+        gap: 0.25rem !important;
+        width: 100% !important;
+        margin: 0.55rem 0 0.2rem 0 !important;
+        padding: 0.55rem 0 0.2rem 0 !important;
+        border-top: 1px solid var(--border-subtle) !important;
+      }
+      .site-header.mobile-nav-open .header-nav-wrap .nav-link,
+      .site-header.mobile-nav-open .header-nav-wrap .nav-item {
+        display: block !important;
+        width: 100% !important;
+        padding: 0.55rem 0.75rem !important;
+        font-size: 0.95rem !important;
+        text-align: center !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
       }
       .header-logo-img, .header-title-text, .header-tagline-text, .header-nav-wrap {
         position: static !important;
@@ -4043,11 +4121,17 @@ ${socialMeta.metaLines}
   <!-- Site Header -->
   ${isLinks ? '' : `<header class="site-header header-align-${mhAlign}">
     <div class="container nav-wrap">
+      <button type="button" id="header-mobile-menu-btn" class="header-mobile-menu-btn" title="Menu" aria-label="Toggle navigation menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
       <a href="${blogHomeHref}" class="brand-link custom-masthead-link">
         ${blogLogo ? `<img class="header-logo-img" src="${escapeHtml(blogLogo)}" alt="" onerror="this.style.display='none';">` : ''}
         <span class="header-title-text">${escapeHtml(blogSiteName)}</span>
         <span class="header-tagline-text">${escapeHtml(blogTagline)}</span>
       </a>
+      <button type="button" id="header-mobile-search-btn" class="header-mobile-search-btn" title="Search" aria-label="Search">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
+      </button>
       <nav class="nav-links header-nav-wrap">
         ${compiledNavItemsHtml}
       </nav>
@@ -4118,10 +4202,55 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
     const yearEl = document.getElementById('current-year');
     if (yearEl) yearEl.textContent = '${blogCreatedYear}';
 
-    // Keep site header persistently visible across all views and posts
+    // Mobile navigation drawer & scroll-hide header behavior
     (function() {
       var header = document.querySelector('.site-header');
       if (header) header.classList.remove('header-hidden');
+      document.addEventListener('click', function(e) {
+        var hdr = document.querySelector('.site-header');
+        if (!hdr) return;
+        var menuBtn = e.target.closest('#header-mobile-menu-btn, .header-mobile-menu-btn');
+        if (menuBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          var isOpen = hdr.classList.toggle('mobile-nav-open');
+          menuBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          if (isOpen) hdr.classList.remove('header-hidden');
+          return;
+        }
+        if (hdr.classList.contains('mobile-nav-open')) {
+          if (e.target.closest('.site-header nav a, .site-header .header-nav-wrap a, .brand-link, #header-mobile-search-btn') || !e.target.closest('.site-header')) {
+            hdr.classList.remove('mobile-nav-open');
+            var btn = document.getElementById('header-mobile-menu-btn');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+          }
+        }
+      });
+      var lastScrollY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+      var ticking = false;
+      window.addEventListener('scroll', function() {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(function() {
+          ticking = false;
+          var hdr = document.querySelector('.site-header');
+          if (!hdr) return;
+          var currentY = Math.max(0, window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0);
+          if (window.innerWidth > 899 || hdr.classList.contains('mobile-nav-open')) {
+            hdr.classList.remove('header-hidden');
+            lastScrollY = currentY;
+            return;
+          }
+          var delta = currentY - lastScrollY;
+          if (currentY <= 36 || delta < -5) {
+            hdr.classList.remove('header-hidden');
+            lastScrollY = currentY;
+          } else if (delta > 6 && currentY > 64) {
+            hdr.classList.add('header-hidden');
+            lastScrollY = currentY;
+          }
+        });
+      }, { passive: true });
     })();
   </script>
   <script src="/js/preview/reader.js"></script>
@@ -4499,7 +4628,7 @@ ${itemsXml}
       detectedSiteUrl: options.detectedSiteUrl
     });
     const createdYear = cfg.createdYear || (cfg.createdAt ? new Date(cfg.createdAt).getFullYear() : new Date().getFullYear());
-    const buildStamp = options.buildStamp || (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.81';
+    const buildStamp = options.buildStamp || (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.82';
     const is404 = Boolean(options.is404);
     const cleanCanonForDepth = (options.canonicalPath || '').replace(/^\/+|\/+$/g, '');
     const pathDepth = (!is404 && cleanCanonForDepth) ? cleanCanonForDepth.split('/').filter(Boolean).length : 0;
@@ -4560,6 +4689,9 @@ ${socialMeta.metaLines}
   <!-- Site Header -->
   <header class="site-header header-align-${escapeHtml(mhAlign)}${isSticky ? ' is-sticky' : ''}">
     <div class="container nav-wrap">
+      <button type="button" id="header-mobile-menu-btn" class="header-mobile-menu-btn" title="Menu" aria-label="Toggle navigation menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
       <a href="${relRoot}" class="brand-link" id="header-brand-link">
         <img src="${escapeHtml(initialLogoSrc)}" alt="Logo" class="brand-logo-img" id="header-logo" style="display: ${hasValidLogo ? 'block' : 'none'}; max-height: ${logoSize}px; width: auto; object-fit: contain;">
         <div class="brand-text" style="display: ${isTitleEnabled ? 'flex' : 'none'};">
@@ -4568,7 +4700,7 @@ ${socialMeta.metaLines}
         </div>
       </a>
       <button type="button" id="header-mobile-search-btn" class="header-mobile-search-btn" title="Search" aria-label="Search">
-        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
       </button>
       <nav style="display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;">
         <ul class="nav-links" id="header-nav-links">
@@ -5031,10 +5163,12 @@ ${socialMeta.metaLines}
 
     // 1. Fetch static engine text & binary assets so the exported site renders 1:1 with preview.html
     if (options.includeEngineAssets !== false && typeof fetch === 'function') {
+      const engineVer = (typeof window !== 'undefined' && window.Cedar && window.Cedar.version) || '6.6.82';
+      const bustQs = `?v=${encodeURIComponent(engineVer)}&t=${Date.now()}`;
       await Promise.all([
         ...PRODUCTION_ENGINE_TEXT_ASSETS.map(async (relPath) => {
           try {
-            let res = await fetch(relPath, { cache: 'no-store' }).catch(() => null); if (!res || !res.ok) res = await fetch('/' + relPath, { cache: 'no-store' });
+            let res = await fetch(relPath + bustQs, { cache: 'no-store' }).catch(() => null); if (!res || !res.ok) res = await fetch('/' + relPath + bustQs, { cache: 'no-store' });
             if (res.ok) {
               const txt = await res.text();
               addFile(relPath, txt);
@@ -5043,7 +5177,7 @@ ${socialMeta.metaLines}
         }),
         ...PRODUCTION_ENGINE_BINARY_ASSETS.map(async (relPath) => {
           try {
-            let res = await fetch(relPath, { cache: 'no-store' }).catch(() => null); if (!res || !res.ok) res = await fetch('/' + relPath, { cache: 'no-store' });
+            let res = await fetch(relPath + bustQs, { cache: 'no-store' }).catch(() => null); if (!res || !res.ok) res = await fetch('/' + relPath + bustQs, { cache: 'no-store' });
             if (res.ok) {
               const blob = await res.blob();
               addFile(relPath, blob);
@@ -5123,8 +5257,35 @@ ${socialMeta.metaLines}
     }
 
     // 3. Filter and sanitize published posts & pages
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_all_disabled') === 'true') {
+        publicProject.allDisabled = true;
+        publicProject.allEnabled = false;
+      }
+    } catch (e) {}
+    const isExportPageHidden = (p) => {
+      if (!p) return true;
+      const pid = String(p.id || '').trim().toLowerCase();
+      const pslug = String(p.slug || '').trim().toLowerCase();
+      const ptitle = String(p.title || '').trim().toLowerCase();
+      if (pid === 'page_about_cedar' || pslug === 'about-cedar') return false;
+      if (pid === 'page_all' || pslug === 'all' || ptitle === 'all') {
+        if (publicProject.allDisabled === true || publicProject.allEnabled === false) return true;
+        return Boolean(p.hidden === true || p.retired === true);
+      }
+      const isBuiltInOffByDefault =
+        pid === 'page_about' || pslug === 'about' || ptitle === 'about' ||
+        pid === 'page_links' || pslug === 'links' || ptitle === 'links' ||
+        pid === 'page_rss' || pslug === 'rss' || ptitle === 'rss';
+      if (isBuiltInOffByDefault) {
+        if ((pid === 'page_rss' || pslug === 'rss' || ptitle === 'rss') && !publicProject.rssEnabled) return true;
+        if (p.hidden === undefined && p.retired === undefined) return true;
+        return Boolean(p.hidden || p.retired);
+      }
+      return Boolean(p.hidden === true || p.retired === true);
+    };
     const publishedPosts = allDrafts.filter(d => d && (d.type === 'post' || !d.type) && d.type !== 'note' && d.status === 'published' && !d.hidden && !d.retired);
-    const rawPages = allDrafts.filter(d => d && d.type === 'page' && (!d.hidden && !d.retired || d.slug === 'about-cedar' || d.id === 'page_about_cedar' || d.slug === 'all' || d.id === 'page_all' || d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')));
+    const rawPages = allDrafts.filter(d => d && d.type === 'page' && (!isExportPageHidden(d) || d.slug === 'about-cedar' || d.id === 'page_about_cedar' || d.slug === 'all' || d.id === 'page_all' || d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')));
     const seenPageSlugs = new Set();
     const publishedPages = [];
     for (const p of rawPages) {
@@ -5343,7 +5504,7 @@ ${socialMeta.metaLines}
     for (const page of publishedPages) {
       const slug = page.slug || (typeof generateSlug === 'function' ? generateSlug(page.title) : 'page');
       const isAboutCedar = (page.id === 'page_about_cedar' || slug === 'about-cedar');
-      const isHidden = !isAboutCedar && Boolean(page.hidden || page.retired);
+      const isHidden = !isAboutCedar && isExportPageHidden(page);
       const folder = `pages/published/${slug}`;
 
       const {
@@ -5356,6 +5517,9 @@ ${socialMeta.metaLines}
         ...pageSlimBase
       } = page;
       const pageClone = JSON.parse(JSON.stringify(pageSlimBase));
+      if (isHidden) {
+        pageClone.hidden = true;
+      }
 
       // Sync RSS or Links page content
       if (pageClone.id === 'page_rss' || slug === 'rss') {

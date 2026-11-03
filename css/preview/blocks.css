@@ -1796,22 +1796,43 @@
 
       /* Spotlight Block */
       .hero-section {
-        padding: 0 0 1.25rem 0 !important;
+        padding: 0.5rem 0 0.35rem 0 !important;
       }
+      #spotlight-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        box-sizing: border-box !important;
+      }
+      .spotlight-carousel-viewport {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .spotlight-carousel-slide,
       .spotlight-card {
         grid-template-columns: 1fr !important;
-        border-radius: 12px !important;
-        border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border: none !important;
         overflow: hidden !important;
       }
       .spotlight-img-wrap,
       .spotlight-carousel-slide .spotlight-img-wrap {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
         min-height: unset !important;
         aspect-ratio: 16 / 9 !important;
-        margin: 0 auto 0.75rem auto !important;
+        margin: 0 auto 0.65rem auto !important;
       }
       .spotlight-content {
-        padding: 1.5rem 1.25rem !important;
+        padding: 0 !important;
       }
       .spotlight-title,
       .spotlight-carousel-slide .spotlight-standard-title {
@@ -1821,12 +1842,18 @@
         text-align: center !important;
       }
       .spotlight-meta {
+        display: flex !important;
         flex-wrap: wrap !important;
         justify-content: center !important;
         align-items: center !important;
         row-gap: 0.35rem !important;
         column-gap: 0.55rem !important;
         margin-top: 0.15rem !important;
+        width: 100% !important;
+      }
+      .spotlight-meta:has(.spotlight-meta-subrow) {
+        flex-direction: column !important;
+        gap: 0.35rem !important;
       }
       .spotlight-author {
         flex: 0 0 100% !important;
@@ -1890,13 +1917,13 @@
 
       /* Recent Posts Feed Block */
       .posts-section {
-        padding-top: 1.5rem !important;
+        padding-top: 0.65rem !important;
         padding-bottom: 1.5rem !important;
       }
       .feed-header-wrap:not(.divider-only) {
         flex-wrap: wrap !important;
         justify-content: center !important;
-        margin-bottom: 1.4rem !important;
+        margin-bottom: 1.15rem !important;
       }
       .feed-header-categories {
         width: 100% !important;
@@ -2197,14 +2224,29 @@
     }
 
     @container (max-width: 680px) {
+      .spotlight-carousel-viewport {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .spotlight-carousel-slide,
       .spotlight-card {
         grid-template-columns: 1fr !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border: none !important;
       }
       .spotlight-img-wrap,
       .spotlight-carousel-slide .spotlight-img-wrap {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
         min-height: unset !important;
         aspect-ratio: 16 / 9 !important;
-        margin: 0 auto 0.75rem auto !important;
+        margin: 0 auto 0.65rem auto !important;
       }
       .spotlight-title,
       .spotlight-carousel-slide .spotlight-standard-title {
@@ -2214,12 +2256,18 @@
         text-align: center !important;
       }
       .spotlight-meta {
+        display: flex !important;
         flex-wrap: wrap !important;
         justify-content: center !important;
         align-items: center !important;
         row-gap: 0.35rem !important;
         column-gap: 0.55rem !important;
         margin-top: 0.15rem !important;
+        width: 100% !important;
+      }
+      .spotlight-meta:has(.spotlight-meta-subrow) {
+        flex-direction: column !important;
+        gap: 0.35rem !important;
       }
       .spotlight-author {
         flex: 0 0 100% !important;

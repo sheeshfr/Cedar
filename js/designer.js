@@ -2555,19 +2555,23 @@
     const container = document.getElementById('designer-live-preview');
     if (!container) return;
 
+    const previewVer = (window.Cedar && window.Cedar.version) || '6.6.82';
     let viewport = document.getElementById('designer-preview-viewport');
     let frame = document.getElementById('designer-preview-site-frame');
 
     if (!viewport) {
       container.innerHTML = `
         <div class="designer-device-viewport ${designerPreviewDevice === 'mobile' ? 'device-mobile' : 'device-tablet'}" id="designer-preview-viewport">
-          <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.5.0#/" title="Cedar Live Site Preview"></iframe>
+          <iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=${previewVer}#/" title="Cedar Live Site Preview"></iframe>
         </div>`;
       viewport = document.getElementById('designer-preview-viewport');
       frame = document.getElementById('designer-preview-site-frame');
     } else if (!frame) {
-      viewport.innerHTML = `<iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=4.5.0#/" title="Cedar Live Site Preview"></iframe>`;
+      viewport.innerHTML = `<iframe id="designer-preview-site-frame" class="designer-preview-site-frame" src="preview.html?v=${previewVer}#/" title="Cedar Live Site Preview"></iframe>`;
       frame = document.getElementById('designer-preview-site-frame');
+    } else if (!frame.dataset.versionStamped || frame.dataset.versionStamped !== previewVer) {
+      frame.dataset.versionStamped = previewVer;
+      frame.src = `preview.html?v=${previewVer}#/`;
     }
 
     const isMobile = (designerPreviewDevice === 'mobile');

@@ -11,17 +11,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
   <link rel="alternate" type="application/rss+xml" title="Recent Posts RSS Feed" href="/blog/feed.xml" id="rss-link-posts">
   <!-- Modular Preview Stylesheets -->
-  <link rel="stylesheet" href="/css/fonts.css?v=6.6.81">
-  <link rel="stylesheet" href="/css/preview/theme.css?v=6.6.81">
-  <link rel="stylesheet" href="/css/preview/blocks.css?v=6.6.81">
-  <link rel="stylesheet" href="/css/preview/reader.css?v=6.6.81">
-  <link rel="stylesheet" href="/css/preview/gallery.css?v=6.6.81">
+  <link rel="stylesheet" href="/css/fonts.css?v=6.6.82">
+  <link rel="stylesheet" href="/css/preview/theme.css?v=6.6.82">
+  <link rel="stylesheet" href="/css/preview/blocks.css?v=6.6.82">
+  <link rel="stylesheet" href="/css/preview/reader.css?v=6.6.82">
+  <link rel="stylesheet" href="/css/preview/gallery.css?v=6.6.82">
 </head>
 <body>
 
   <!-- Site Header -->
   <header class="site-header">
     <div class="container nav-wrap">
+      <button type="button" id="header-mobile-menu-btn" class="header-mobile-menu-btn" title="Menu" aria-label="Toggle navigation menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
       <a href="/preview.html" class="brand-link" id="header-brand-link">
         <img src="" alt="Logo" class="brand-logo-img" id="header-logo" style="display: none;">
         <div class="brand-text">
@@ -30,7 +33,7 @@
         </div>
       </a>
       <button type="button" id="header-mobile-search-btn" class="header-mobile-search-btn" title="Search" aria-label="Search">
-        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>
       </button>
       <nav style="display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;">
         <ul class="nav-links" id="header-nav-links">
@@ -257,17 +260,17 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="/js/vault/virtual-vault.js?v=6.6.81"></script>
-  <script src="/js/core/sanitizer.js?v=6.6.81"></script>
-  <script src="/js/compiler/compiler.js?v=6.6.81"></script>
+  <script src="/js/vault/virtual-vault.js?v=6.6.82"></script>
+  <script src="/js/core/sanitizer.js?v=6.6.82"></script>
+  <script src="/js/compiler/compiler.js?v=6.6.82"></script>
   <!-- Modular Preview Application Scripts -->
-  <script src="/js/preview/theme.js?v=6.6.81"></script>
-  <script src="/js/preview/state.js?v=6.6.81"></script>
-  <script src="/js/preview/home.js?v=6.6.81"></script>
-  <script src="/js/editor/blocks.js?v=6.6.81"></script>
-  <script src="/js/preview/reader.js?v=6.6.81"></script>
-  <script src="/js/preview/app.js?v=6.6.81"></script>
-  <script src="/js/preview/search.js?v=6.6.81"></script>
+  <script src="/js/preview/theme.js?v=6.6.82"></script>
+  <script src="/js/preview/state.js?v=6.6.82"></script>
+  <script src="/js/preview/home.js?v=6.6.82"></script>
+  <script src="/js/editor/blocks.js?v=6.6.82"></script>
+  <script src="/js/preview/reader.js?v=6.6.82"></script>
+  <script src="/js/preview/app.js?v=6.6.82"></script>
+  <script src="/js/preview/search.js?v=6.6.82"></script>
     <!-- Search Modal -->
     <div id="search-modal" class="search-modal-wrap" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: flex-start; padding-top: 8vh; backdrop-filter: blur(4px);">
       <div class="search-modal-content" style="background: var(--bg-primary); width: 100%; max-width: 600px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-subtle);">

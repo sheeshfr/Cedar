@@ -30,6 +30,32 @@
   }
   window.isCategoryPageHidden = isCategoryPageHidden;
 
+  function isNavPageHidden(p) {
+    if (!p) return true;
+    const cfg = (typeof getConfig === 'function' ? getConfig() : {}) || {};
+    const id = (p.id || '').trim().toLowerCase();
+    const slug = (p.slug || '').trim().toLowerCase();
+    const title = (p.title || '').trim().toLowerCase();
+    if (id === 'page_about_cedar' || slug === 'about-cedar' || title === 'about cedar') return true;
+    if (id === 'page_all' || slug === 'all' || title === 'all') {
+      if (cfg.allDisabled === true || cfg.allEnabled === false) return true;
+      try {
+        if (typeof localStorage !== 'undefined' && !window.__CEDAR_PRODUCTION__ && localStorage.getItem('cedar_all_disabled') === 'true') return true;
+      } catch (e) {}
+      return Boolean(p.hidden === true || p.retired === true);
+    }
+    const isAbout = id === 'page_about' || slug === 'about' || title === 'about';
+    const isLinks = id === 'page_links' || slug === 'links' || title === 'links';
+    const isRss = id === 'page_rss' || slug === 'rss' || title === 'rss';
+    if (isAbout || isLinks || isRss) {
+      if (isRss && cfg.rssEnabled === false) return true;
+      if (p.hidden === undefined && p.retired === undefined) return true;
+      return Boolean(p.hidden || p.retired);
+    }
+    return Boolean(p.hidden === true || p.retired === true);
+  }
+  window.isNavPageHidden = isNavPageHidden;
+
   function getUserPublishedPages() {
     const isRssOff = (typeof getConfig === 'function' ? !getConfig().rssEnabled : false);
     const configuredCatsLower = new Set(
@@ -39,8 +65,7 @@
     );
     const rawPages = (getDrafts() || []).filter(d => {
       if (d.type !== 'page') return false;
-      if (d.hidden || d.retired) return false;
-      if (d.slug === 'about-cedar' || d.id === 'page_about_cedar') return false;
+      if (isNavPageHidden(d)) return false;
       if ((d.slug === 'rss' || d.id === 'page_rss') && isRssOff) return false;
       // Category pages are rendered via validCats so they don't duplicate in nav
       if (d.isCategoryAggregate || configuredCatsLower.has((d.title || '').trim().toLowerCase())) return false;
@@ -92,35 +117,6 @@
     `;
     
     const rawNavCats = (getConfig().categories && Array.isArray(getConfig().categories)) ? [...getConfig().categories] : [];
-    if (rawNavCats.length === 0) {
-      const draftsList = getDrafts() || [];
-      const seenNav = new Set();
-      draftsList.forEach(d => {
-        if (!d) return;
-        if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
-          const c = String(d.categoryAggregate || d.title || '').trim();
-          if (c && !seenNav.has(c.toLowerCase())) {
-            seenNav.add(c.toLowerCase());
-            rawNavCats.push(c);
-          }
-        }
-        if (d.status === 'published' && !d.hidden && !d.retired) {
-          if (d.tag && !seenNav.has(d.tag.trim().toLowerCase())) {
-            seenNav.add(d.tag.trim().toLowerCase());
-            rawNavCats.push(d.tag.trim());
-          }
-          if (Array.isArray(d.categories)) {
-            d.categories.forEach(cat => {
-              const str = String(cat || '').trim();
-              if (str && !seenNav.has(str.toLowerCase())) {
-                seenNav.add(str.toLowerCase());
-                rawNavCats.push(str);
-              }
-            });
-          }
-        }
-      });
-    }
     const validCats = rawNavCats.filter(c => {
       const val = (typeof c === 'object' ? (c.name || c.title || '') : String(c)).trim();
       if (!val || val.toLowerCase() === 'uncategorized' || val.toLowerCase() === 'general' || val.toLowerCase() === 'posts') return false;
@@ -317,8 +313,7 @@
       });
     }
 
-    // 8. RSS page
-    const isRssOff = (typeof getConfig === 'function' ? !getConfig().rssEnabled : false);
+    // 8. RSS page (only shown if explicitly enabled by the user)
     const rssPage = pages.find(p => {
       const s = (p.slug || p.id || '').toLowerCase();
       const t = (p.title || '').trim().toLowerCase();
@@ -336,21 +331,6 @@
         type: 'builtin',
         html: `<li><a href="${window.buildPostUrl(rssPage)}" class="nav-link ${isActive ? 'active' : ''}">${escapeHtml(label)}</a></li>`
       });
-    } else if (!isRssOff) {
-      const rssDraft = (getDrafts() || []).find(d => d.type === 'page' && (d.id === 'page_rss' || d.slug === 'rss' || (d.title || '').trim().toLowerCase() === 'rss'));
-      const isRssHidden = rssDraft ? Boolean(rssDraft.hidden || rssDraft.retired) : false;
-      if (!isRssHidden) {
-        const isRssActive = !isHome && !activeCatSlug && (activePageSlug === 'rss' || activeRoute === 'page:rss' || activeRoute === 'rss');
-        const rssHref = typeof window.toPreviewUrl === 'function' ? window.toPreviewUrl('#/rss') : '/preview.html/rss';
-        const rssLabel = (rssDraft && rssDraft.title ? rssDraft.title : 'RSS').trim() || 'RSS';
-        navItems.push({
-          id: 'page_rss',
-          slug: 'rss',
-          title: rssLabel,
-          type: 'builtin',
-          html: `<li><a href="${rssHref}" class="nav-link ${isRssActive ? 'active' : ''}">${escapeHtml(rssLabel)}</a></li>`
-        });
-      }
     }
 
     // Sort navigation items: custom order if user-arranged, otherwise Categories -> Static -> Redirects -> Built-Ins (chronological newest first)
@@ -515,6 +495,17 @@
           headerEl.classList.toggle('header-align-center', mhAlign === 'center');
           headerEl.classList.toggle('header-align-right', mhAlign === 'right');
         }
+        if (navWrapEl && brandLinkEl && !document.getElementById('header-mobile-menu-btn')) {
+          const mobMenuBtn = document.createElement('button');
+          mobMenuBtn.type = 'button';
+          mobMenuBtn.id = 'header-mobile-menu-btn';
+          mobMenuBtn.className = 'header-mobile-menu-btn';
+          mobMenuBtn.title = 'Menu';
+          mobMenuBtn.setAttribute('aria-label', 'Toggle navigation menu');
+          mobMenuBtn.setAttribute('aria-expanded', 'false');
+          mobMenuBtn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>`;
+          brandLinkEl.insertAdjacentElement('beforebegin', mobMenuBtn);
+        }
         if (navWrapEl && brandLinkEl && !document.getElementById('header-mobile-search-btn')) {
           const mobSearchBtn = document.createElement('button');
           mobSearchBtn.type = 'button';
@@ -522,8 +513,61 @@
           mobSearchBtn.className = 'header-mobile-search-btn';
           mobSearchBtn.title = 'Search';
           mobSearchBtn.setAttribute('aria-label', 'Search');
-          mobSearchBtn.innerHTML = `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>`;
+          mobSearchBtn.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="1.75 1.75 20.5 20.5" style="display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path></svg>`;
           brandLinkEl.insertAdjacentElement('afterend', mobSearchBtn);
+        }
+        if (!window._cedarMobileMenuBound) {
+          window._cedarMobileMenuBound = true;
+          document.addEventListener('click', (e) => {
+            const hdr = document.querySelector('.site-header');
+            if (!hdr) return;
+            const menuBtn = e.target.closest('#header-mobile-menu-btn, .header-mobile-menu-btn');
+            if (menuBtn) {
+              e.preventDefault();
+              e.stopPropagation();
+              const isOpen = hdr.classList.toggle('mobile-nav-open');
+              menuBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+              if (isOpen) hdr.classList.remove('header-hidden');
+              return;
+            }
+            if (hdr.classList.contains('mobile-nav-open')) {
+              const clickedNavLink = e.target.closest('.site-header nav a, .site-header .header-nav-wrap a, #header-brand-link, #header-mobile-search-btn');
+              const clickedOutside = !e.target.closest('.site-header');
+              if (clickedNavLink || clickedOutside) {
+                hdr.classList.remove('mobile-nav-open');
+                const btn = document.getElementById('header-mobile-menu-btn');
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+              }
+            }
+          });
+        }
+        if (!window._cedarMobileHeaderScrollBound) {
+          window._cedarMobileHeaderScrollBound = true;
+          let lastScrollY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+          let ticking = false;
+          window.addEventListener('scroll', () => {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(() => {
+              ticking = false;
+              const hdr = document.querySelector('.site-header');
+              if (!hdr) return;
+              const currentY = Math.max(0, window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0);
+              if (window.innerWidth > 899 || hdr.classList.contains('mobile-nav-open')) {
+                hdr.classList.remove('header-hidden');
+                lastScrollY = currentY;
+                return;
+              }
+              const delta = currentY - lastScrollY;
+              if (currentY <= 36 || delta < -5) {
+                hdr.classList.remove('header-hidden');
+                lastScrollY = currentY;
+              } else if (delta > 6 && currentY > 64) {
+                hdr.classList.add('header-hidden');
+                lastScrollY = currentY;
+              }
+            });
+          }, { passive: true });
         }
         if (brandLinkEl && !brandLinkEl._homeBound) {
           brandLinkEl._homeBound = true;
