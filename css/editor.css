@@ -2185,7 +2185,7 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   position: relative;
   display: grid;
   gap: 10px;
-  margin: 2.2rem 0 0.5rem;
+  margin: 2.2rem 0;
   width: 100%;
   max-width: 100%;
   user-select: none;
@@ -2193,6 +2193,11 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   outline: none;
   border-radius: var(--post-image-radius, 8px);
   box-sizing: border-box;
+}
+
+.custom-gallery-grid.has-caption,
+.custom-gallery-grid:has(+ .gallery-caption) {
+  margin-bottom: 0;
 }
 
 .custom-gallery-grid.selected {
@@ -2480,13 +2485,15 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 }
 
 /* Gallery caption */
+.canvas-prose p.gallery-caption,
+.article-prose p.gallery-caption,
 .gallery-caption {
   font-size: 0.85rem;
   color: #a1a1aa;
   font-style: italic;
   text-align: center;
   margin-top: 0.65rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.2rem;
   outline: none;
   border-radius: 4px;
   padding: 2px 4px;

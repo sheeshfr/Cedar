@@ -3254,11 +3254,16 @@ ${socialMeta.metaLines}
       display: grid !important;
       grid-template-columns: repeat(2, 1fr);
       gap: 10px;
-      margin: 2.2rem 0 0.5rem;
+      margin: 2.2rem 0;
       width: 100%;
       max-width: 100% !important;
       border-radius: 12px;
       box-sizing: border-box;
+    }
+
+    .custom-gallery-grid.has-caption,
+    .custom-gallery-grid:has(+ .gallery-caption) {
+      margin-bottom: 0;
     }
 
     .custom-gallery-item {
@@ -3400,12 +3405,15 @@ ${socialMeta.metaLines}
       display: none !important;
     }
 
+    .article-prose p.gallery-caption,
     .gallery-caption {
       font-size: 0.85rem;
       color: var(--text-dim);
       font-style: italic;
       text-align: center;
-      margin-bottom: 2rem;
+      margin-top: 0.65rem;
+      margin-bottom: 2.2rem;
+      line-height: 1.5;
     }
 
     /* Navigation Footer */

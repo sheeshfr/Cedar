@@ -1301,6 +1301,7 @@
   function isTextBlock(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
     if (
+      el.classList.contains('gallery-caption') ||
       el.classList.contains('captioned-image-container') ||
       el.classList.contains('custom-gallery-grid') ||
       el.classList.contains('image-gallery-grid') ||
@@ -1457,7 +1458,13 @@
     if (isSpecialBlock) {
       canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
       window._selectedImageBlock = null;
-      topBlock.parentNode.insertBefore(newP, topBlock.nextSibling);
+      let insertAfter = topBlock;
+      if (insertAfter.classList.contains('custom-gallery-grid') &&
+          insertAfter.nextElementSibling &&
+          insertAfter.nextElementSibling.classList.contains('gallery-caption')) {
+        insertAfter = insertAfter.nextElementSibling;
+      }
+      topBlock.parentNode.insertBefore(newP, insertAfter.nextSibling);
       cleanConsecutiveEmptyParagraphs(canvasProse, newP);
       ensureTrailingTextBlock();
       focusNodeCaretLocal(newP, true);
