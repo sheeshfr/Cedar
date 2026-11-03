@@ -155,10 +155,31 @@
           }
         });
         body.querySelectorAll('img').forEach(img => {
+          if (img.classList && (img.classList.contains('external-card-favicon') || img.classList.contains('post-card-img'))) {
+            img.remove();
+            return;
+          }
           const src = (img.getAttribute('src') || '').trim();
           const rawImgName = (img.getAttribute('data-img-name') || '').trim();
-          const imgName = rawImgName === 'img' ? '' : rawImgName;
+          const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
+          const imgName = (rawImgName === 'img' || (isBogusFn && isBogusFn(rawImgName))) ? '' : rawImgName;
           const origSrc = (img.getAttribute('data-original-src') || '').trim();
+          const isUnbackedWeb = (
+            (imgName.toLowerCase() === 'web-image.jpg' || origSrc.toLowerCase().endsWith('/web-image.jpg') || src.toLowerCase().endsWith('/web-image.jpg')) &&
+            !src.startsWith('data:image/') &&
+            !src.startsWith('blob:') &&
+            !(window.imageRegistry && (window.imageRegistry.get('web-image.jpg')?.dataUrl || window.imageRegistry.get('/blog/images/web-image.jpg')?.dataUrl))
+          );
+          if (
+            (!src && !origSrc && !imgName) ||
+            isUnbackedWeb ||
+            (isBogusFn && ((src && isBogusFn(src)) || (origSrc && isBogusFn(origSrc))))
+          ) {
+            const parentFig = img.closest('.captioned-image-container');
+            if (parentFig) parentFig.remove();
+            else img.remove();
+            return;
+          }
           let cleanFn = '';
           if (imgName) {
             cleanFn = imgName.split('/').pop().split('\\').pop();
@@ -170,7 +191,7 @@
             const matched = draftImages.find(im => im && im.dataUrl === src && im.filename);
             if (matched) cleanFn = matched.filename;
           }
-          if (cleanFn === 'img') cleanFn = '';
+          if (cleanFn === 'img' || (isBogusFn && isBogusFn(cleanFn))) cleanFn = '';
           if (cleanFn) {
             const relPath = `/blog/images/${cleanFn}`;
             if (src.startsWith('data:image/')) {
@@ -233,6 +254,9 @@
             el.remove();
           }
         });
+        if (typeof window.mergeAdjacentLists === 'function') {
+          window.mergeAdjacentLists(body);
+        }
         return body.innerHTML.replace(/\u200B/g, '').trim();
       }
     } catch (e) {

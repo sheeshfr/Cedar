@@ -1350,6 +1350,7 @@
         topBlock.remove();
         if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
         placeCaretAtEndOfNode(prevSib);
+        if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
         if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
         if (typeof window.updateStats === 'function') window.updateStats();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
@@ -1472,6 +1473,7 @@
           if (sel) sel.removeAllRanges();
         } catch (err) {}
       }
+      if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
 
       if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
       if (typeof window.updateStats === 'function') window.updateStats();
@@ -1491,6 +1493,7 @@
         firstBlock.remove();
         if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
         placeCaretInBlock(secondBlock, true);
+        if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
         if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
         if (typeof window.updateStats === 'function') window.updateStats();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
@@ -1506,6 +1509,7 @@
         secondBlock.remove();
         if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
         placeCaretAtEndOfNode(firstBlock);
+        if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
         if (typeof window.recordAction === 'function') window.recordAction('delete-empty-line', true);
         if (typeof window.updateStats === 'function') window.updateStats();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
@@ -1513,13 +1517,16 @@
       }
 
       if (window.commitCheckpoint) window.commitCheckpoint();
-      while (firstBlock.lastChild && firstBlock.lastChild.nodeType === Node.ELEMENT_NODE && firstBlock.lastChild.tagName === 'BR') {
-        firstBlock.removeChild(firstBlock.lastChild);
+      const firstTarget = (firstBlock.tagName === 'UL' || firstBlock.tagName === 'OL')
+        ? (firstBlock.querySelector('li:last-of-type') || firstBlock.lastElementChild || firstBlock)
+        : firstBlock;
+      while (firstTarget.lastChild && firstTarget.lastChild.nodeType === Node.ELEMENT_NODE && firstTarget.lastChild.tagName === 'BR') {
+        firstTarget.removeChild(firstTarget.lastChild);
       }
 
       const caretMarker = document.createElement('span');
       caretMarker.setAttribute('data-cedar-merge-caret', 'true');
-      firstBlock.appendChild(caretMarker);
+      firstTarget.appendChild(caretMarker);
 
       if (secondBlock.tagName === 'UL' || secondBlock.tagName === 'OL') {
         const firstLi = secondBlock.querySelector('li');
@@ -1529,7 +1536,7 @@
               firstLi.removeChild(firstLi.firstChild);
               break;
             }
-            firstBlock.appendChild(firstLi.firstChild);
+            firstTarget.appendChild(firstLi.firstChild);
           }
           firstLi.remove();
         }
@@ -1543,7 +1550,7 @@
             innerP.removeChild(innerP.firstChild);
             break;
           }
-          firstBlock.appendChild(innerP.firstChild);
+          firstTarget.appendChild(innerP.firstChild);
         }
         if (innerP !== secondBlock) innerP.remove();
         if (!secondBlock.textContent.trim()) secondBlock.remove();
@@ -1553,7 +1560,7 @@
             secondBlock.removeChild(secondBlock.firstChild);
             break;
           }
-          firstBlock.appendChild(secondBlock.firstChild);
+          firstTarget.appendChild(secondBlock.firstChild);
         }
         secondBlock.remove();
       }
@@ -1577,6 +1584,7 @@
         caretMarker.remove();
       }
 
+      if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
       if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
       if (typeof window.recordAction === 'function') window.recordAction('delete-merge', true);
       if (typeof window.updateStats === 'function') window.updateStats();
@@ -2339,18 +2347,57 @@
           let node = range.commonAncestorContainer;
           if (node && node.nodeType === Node.TEXT_NODE) node = node.parentNode;
 
-          // If inside a blank list item (bullet or number), exit cleanly to a new paragraph
+          // If inside a list item (bullet or number):
+          // - Blank list item: exit cleanly to a new paragraph
+          // - Non-blank list item: create a new list item in the SAME <ol>/<ul> block
           const li = findEnclosingListItem(sel, e.target);
           if (li && canvasProse.contains(li)) {
             const listParent = li.closest('ul, ol');
             if (listParent && canvasProse.contains(listParent)) {
+              e.preventDefault();
+              e.stopPropagation();
               if (isBlankListItem(li)) {
-                e.preventDefault();
-                e.stopPropagation();
                 exitListItemToNewParagraph(li, listParent);
                 return;
               }
-              // Non-blank list item: allow native list item continuation
+              if (window.commitCheckpoint) window.commitCheckpoint();
+              if (!range.collapsed) {
+                range.deleteContents();
+              }
+              if (isCaretAtStartOfListItem(li, range)) {
+                const newLiBefore = document.createElement('li');
+                newLiBefore.innerHTML = '<br>';
+                listParent.insertBefore(newLiBefore, li);
+                placeCaretAtStartOfNode(li);
+              } else {
+                const postRange = document.createRange();
+                postRange.selectNodeContents(li);
+                postRange.setStart(range.endContainer, range.endOffset);
+                const extracted = postRange.extractContents();
+                const newLi = document.createElement('li');
+                const hasExtractedText = (extracted.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '').length > 0;
+                const hasExtractedMedia = Boolean(extracted.querySelector && extracted.querySelector('img, video, audio, iframe, hr'));
+                if (hasExtractedText || hasExtractedMedia) {
+                  newLi.appendChild(extracted);
+                } else {
+                  newLi.innerHTML = '<br>';
+                }
+                if (isBlankListItem(li)) {
+                  li.innerHTML = '<br>';
+                } else {
+                  while (li.lastChild && li.lastChild.nodeType === Node.ELEMENT_NODE && li.lastChild.tagName === 'BR') {
+                    li.removeChild(li.lastChild);
+                  }
+                }
+                listParent.insertBefore(newLi, li.nextSibling);
+                if (typeof window.mergeAdjacentLists === 'function') {
+                  window.mergeAdjacentLists(canvasProse);
+                }
+                placeCaretAtStartOfNode(newLi);
+              }
+              if (typeof window.recordAction === 'function') window.recordAction('enter-list-item', true);
+              if (typeof window.updateStats === 'function') window.updateStats();
+              if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
               return;
             }
           }
@@ -3130,8 +3177,11 @@
 
         // Scenario 3: Highlighted text within a text body -> become Hyperlink Text
         if (hasSelection) {
+          e._cedarImageHandled = true;
+          e._outpostImageHandled = true;
           e.preventDefault();
           e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
           document.execCommand('createLink', false, formattedUrl);
           const anchor = (sel.anchorNode && sel.anchorNode.closest) ? sel.anchorNode.closest('a') : (sel.anchorNode && sel.anchorNode.parentNode?.closest('a'));
           if (anchor) {
@@ -3188,8 +3238,11 @@
 
         // Scenario 1: Blank text box -> instantly turn into the URL box!
         if (currentBlock && isBlankTextBlock(currentBlock)) {
+          e._cedarImageHandled = true;
+          e._outpostImageHandled = true;
           e.preventDefault();
           e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
           if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
 
@@ -3225,8 +3278,11 @@
 
         // Scenario 2: Body of text with collapsed selection -> insert hyperlink text
         if (sel && sel.rangeCount > 0) {
+          e._cedarImageHandled = true;
+          e._outpostImageHandled = true;
           e.preventDefault();
           e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
           const range = sel.getRangeAt(0);
           range.deleteContents();

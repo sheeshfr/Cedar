@@ -230,8 +230,8 @@
         const mlJson = await mlResp.json();
         if (mlJson && mlJson.status === 'success' && mlJson.data) {
           const d = mlJson.data;
-          const resolvedTitle = cleanPageTitle(d.title) || cleanDomainTitle;
-          const resolvedDesc = (d.description || '').trim();
+          const resolvedTitle = (cleanPageTitle(d.title) || cleanDomainTitle).replace(/[\r\n]+/g, ' ').trim();
+          const resolvedDesc = (d.description || '').replace(/[\r\n]+/g, ' ').trim();
           const logoUrl = (d.logo && d.logo.url) ? d.logo.url : '';
           const ogImgUrl = (d.image && d.image.url) ? d.image.url : '';
           const shotUrl = (d.screenshot && d.screenshot.url) ? d.screenshot.url : '';
@@ -686,13 +686,13 @@
       thumbWrapHtml = `
         <div class="post-card-img-wrap" style="background-color: var(--bg-secondary, #18181b); aspect-ratio: 16 / 9;">
           <div class="post-card-img-ambient" style="background-image: url('${esc(image)}');"></div>
-          <img src="${esc(image)}" alt="" class="post-card-img" loading="lazy" onerror="if(this.parentElement) { this.parentElement.style.display='none'; }">
+          <img src="${esc(image)}" alt="" class="post-card-img" loading="lazy" draggable="false" onerror="if(this.parentElement) { this.parentElement.style.display='none'; }">
         </div>
       `;
     }
 
     const iconHtml = icon
-      ? `<img src="${esc(icon)}" alt="" class="external-card-favicon" style="width: 18px !important; height: 18px !important; min-width: 18px !important; max-width: 18px !important; border-radius: 4px !important; object-fit: contain !important; flex-shrink: 0 !important; margin: 0 !important; display: inline-block !important;" onerror="if(!this.dataset.triedGoogleFav && '${esc(fallbackFavicon)}') { this.dataset.triedGoogleFav='true'; this.src='${esc(fallbackFavicon)}'; } else { this.style.display='none'; }">`
+      ? `<img src="${esc(icon)}" alt="" class="external-card-favicon" draggable="false" style="width: 18px !important; height: 18px !important; min-width: 18px !important; max-width: 18px !important; border-radius: 4px !important; object-fit: contain !important; flex-shrink: 0 !important; margin: 0 !important; display: inline-block !important;" onerror="if(!this.dataset.triedGoogleFav && '${esc(fallbackFavicon)}') { this.dataset.triedGoogleFav='true'; this.src='${esc(fallbackFavicon)}'; } else { this.style.display='none'; }">`
       : '';
 
     const cleanSub = (subtitle || '').trim();
@@ -709,7 +709,7 @@
     const cardLayoutClass = layoutStyle === 'horizontal' ? 'layout-horizontal' : '';
 
     return `
-      <a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="post-card external-link-card ${cardLayoutClass}">
+      <a href="${esc(href)}" target="_blank" rel="noopener noreferrer" draggable="false" class="post-card external-link-card ${cardLayoutClass}">
         ${thumbWrapHtml}
         <div class="post-card-body">
           <h4 class="post-card-title external-card-title" style="display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px !important;">
@@ -957,6 +957,9 @@
     }
 
     blockEl.innerHTML = html;
+    if (isEditor) {
+      blockEl.querySelectorAll('a, img').forEach(el => el.setAttribute('draggable', 'false'));
+    }
   }
 
   function hydrateSingleRecentPostsBlock(blockEl, pageDraft, options = {}) {

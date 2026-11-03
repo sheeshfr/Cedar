@@ -301,11 +301,13 @@
 
     // 4. HTML <img> tags in proseHtml and html (recovers gallery images and embedded media)
     const htmlCombined = (draft.proseHtml || '') + (draft.html || '');
+    const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
     if (htmlCombined) {
       let hMatch;
       const hImgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
       while ((hMatch = hImgRegex.exec(htmlCombined)) !== null) {
         const fullTag = hMatch[0];
+        if (/class=["'][^"']*(?:post-card|external-card-favicon)/i.test(fullTag)) continue;
         const srcAttr = hMatch[1];
         const nameMatch = fullTag.match(/data-img-name=["']([^"']+)["']/i);
         const origMatch = fullTag.match(/data-original-src=["']([^"']+)["']/i);
@@ -313,6 +315,9 @@
         let name = nameMatch ? nameMatch[1] : '';
         const orig = origMatch ? origMatch[1] : '';
         const altVal = altMatch ? altMatch[1].trim() : '';
+        if (isBogusFn && ((srcAttr && isBogusFn(srcAttr)) || (orig && isBogusFn(orig)) || (name && isBogusFn(name)))) {
+          continue;
+        }
         if (!name && altVal && /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(altVal)) {
           name = altVal.split('/').pop().split('\\').pop();
         }
@@ -344,17 +349,29 @@
     found.forEach(rawUrl => {
       const u = (rawUrl || '').trim();
       if (!u || u.startsWith('data:') || u.startsWith('blob:')) return;
+      if (isBogusFn && isBogusFn(u)) return;
 
       const baseName = getImageBaseFilename(u).toLowerCase();
       if (baseName) {
+        if (isBogusFn && isBogusFn(baseName)) return;
+        if (draft._brokenCoverUrls && draft._brokenCoverUrls instanceof Set && draft._brokenCoverUrls.has(baseName)) return;
+        const mInDraft = (draft.images && Array.isArray(draft.images))
+          ? draft.images.find(im => im && (String(im.filename || '').toLowerCase() === baseName || getImageBaseFilename(im.relativePath).toLowerCase() === baseName))
+          : null;
+        const hasRealData = Boolean(
+          (mInDraft && (mInDraft.dataUrl || mInDraft.blob || (mInDraft.src && mInDraft.src.startsWith('data:')))) ||
+          (window.imageRegistry && (window.imageRegistry.get(baseName)?.dataUrl || window.imageRegistry.get(u)?.dataUrl))
+        );
+        if (baseName === 'web-image.jpg' && !hasRealData) return;
+        if (!/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(baseName) && !hasRealData) return;
+
         if (!seenFilenames.has(baseName)) {
           seenFilenames.add(baseName);
 
           // If draft.images has a canonical relativePath for this filename, use it
           let canonical = u;
-          if (draft.images && Array.isArray(draft.images)) {
-            const m = draft.images.find(im => im && (im.filename === baseName || getImageBaseFilename(im.relativePath) === baseName));
-            if (m && m.relativePath && !m.relativePath.startsWith('data:')) canonical = m.relativePath;
+          if (mInDraft && mInDraft.relativePath && !mInDraft.relativePath.startsWith('data:')) {
+            canonical = mInDraft.relativePath;
           }
           unique.push(canonical);
         }
@@ -897,7 +914,8 @@
       btnRemove.style.cursor = hasImage ? 'pointer' : 'not-allowed';
     }
 
-    // Determine current index in available images
+    // Determine current index in available images (slots 0..totalCount-1 are real images; final slot totalCount is 'No image available')
+    const totalSlots = totalCount > 0 ? totalCount + 1 : 0;
     let currentIndex = -1;
     if (hasImage) {
       const coverBase = getImageBaseFilename(cover).toLowerCase();
@@ -906,21 +924,23 @@
         if (coverBase && getImageBaseFilename(u).toLowerCase() === coverBase) return true;
         return false;
       });
+    } else if (totalCount > 0) {
+      currentIndex = totalCount; // Final slot: 'No image available'
     }
 
     if (cycleCountEl) {
       if (totalCount === 0) {
         cycleCountEl.textContent = '(0/0)';
       } else if (!hasImage) {
-        cycleCountEl.textContent = `(—/${totalCount})`;
+        cycleCountEl.textContent = `(${totalSlots}/${totalSlots})`;
       } else if (currentIndex !== -1) {
-        cycleCountEl.textContent = `(${currentIndex + 1}/${totalCount})`;
+        cycleCountEl.textContent = `(${currentIndex + 1}/${totalSlots})`;
       } else {
-        cycleCountEl.textContent = `(1/${totalCount})`;
+        cycleCountEl.textContent = `(1/${totalSlots})`;
       }
     }
 
-    const canCycle = totalCount > 1;
+    const canCycle = totalCount > 0;
     if (btnPrev) {
       btnPrev.disabled = !canCycle;
     }
@@ -931,6 +951,22 @@
     if (hasImage) {
       const displaySrc = resolveImageDisplayUrl(cover, currentDraft);
       imgEl.onerror = () => {
+        const failedBase = getImageBaseFilename(cover).toLowerCase();
+        if (failedBase && currentDraft) {
+          if (!(currentDraft._brokenCoverUrls instanceof Set)) {
+            currentDraft._brokenCoverUrls = new Set();
+          }
+          if (!currentDraft._brokenCoverUrls.has(failedBase)) {
+            currentDraft._brokenCoverUrls.add(failedBase);
+            const nextAvailable = getDraftAvailableImages(currentDraft, { skipReconcile: true });
+            if (nextAvailable.length > 0 && !currentDraft.coverImageRemoved) {
+              currentDraft.coverImage = nextAvailable[0];
+              renderSetupFeaturedImage();
+              updateVisualCardPreviews();
+              return;
+            }
+          }
+        }
         imgEl.style.display = 'none';
         if (emptyEl) emptyEl.style.display = 'flex';
       };
@@ -955,23 +991,36 @@
     const available = getDraftAvailableImages(currentDraft);
     if (available.length === 0) return;
 
+    // Slots 0..available.length-1 are real images; final slot (index = available.length) is 'No image available'
+    const totalSlots = available.length + 1;
     const cover = (currentDraft.coverImage || '').trim();
     const coverBase = getImageBaseFilename(cover).toLowerCase();
-    let idx = available.findIndex(u => {
-      if (u.toLowerCase() === cover.toLowerCase()) return true;
-      if (coverBase && getImageBaseFilename(u).toLowerCase() === coverBase) return true;
-      return false;
-    });
-
-    if (idx === -1) {
-      idx = direction > 0 ? 0 : available.length - 1;
+    let idx = -1;
+    if (!cover || currentDraft.coverImageRemoved) {
+      idx = available.length; // Currently on the final 'No image available' slot
     } else {
-      idx = (idx + direction + available.length) % available.length;
+      idx = available.findIndex(u => {
+        if (u.toLowerCase() === cover.toLowerCase()) return true;
+        if (coverBase && getImageBaseFilename(u).toLowerCase() === coverBase) return true;
+        return false;
+      });
+      if (idx === -1) idx = 0;
     }
 
-    currentDraft.coverImage = available[idx];
-    currentDraft.coverImageRemoved = false;
-    currentDraft.coverImageOriginal = '';
+    idx = (idx + direction + totalSlots) % totalSlots;
+
+    if (idx === available.length) {
+      // Final slot: 'No image available' (blank featured image)
+      currentDraft.coverImage = '';
+      currentDraft.featuredImage = '';
+      currentDraft.coverImageRemoved = true;
+      currentDraft.coverImageOriginal = '';
+    } else {
+      currentDraft.coverImage = available[idx];
+      currentDraft.featuredImage = '';
+      currentDraft.coverImageRemoved = false;
+      currentDraft.coverImageOriginal = '';
+    }
 
     renderSetupFeaturedImage();
     updateVisualCardPreviews();
@@ -1946,6 +1995,14 @@
 
     if (slugInput) {
       slugInput.addEventListener('input', () => {
+        if (/\s/.test(slugInput.value)) {
+          const selStart = slugInput.selectionStart;
+          const before = slugInput.value.slice(0, typeof selStart === 'number' ? selStart : slugInput.value.length).replace(/\s+/g, '-');
+          slugInput.value = slugInput.value.replace(/\s+/g, '-');
+          try {
+            slugInput.setSelectionRange(before.length, before.length);
+          } catch (err) {}
+        }
         if (!currentDraft) return;
         const wasEverPublished = (typeof window.hasDraftBeenPublished === 'function')
           ? window.hasDraftBeenPublished(currentDraft)
@@ -1973,6 +2030,22 @@
       });
 
       slugInput.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.code === 'Space') {
+          e.preventDefault();
+          const start = typeof slugInput.selectionStart === 'number' ? slugInput.selectionStart : slugInput.value.length;
+          const end = typeof slugInput.selectionEnd === 'number' ? slugInput.selectionEnd : slugInput.value.length;
+          const before = slugInput.value.slice(0, start);
+          const after = slugInput.value.slice(end);
+          const insertDash = before.endsWith('-') ? '' : '-';
+          const nextAfter = insertDash && after.startsWith('-') ? after.slice(1) : after;
+          slugInput.value = before + insertDash + nextAfter;
+          const nextPos = before.length + insertDash.length;
+          try {
+            slugInput.setSelectionRange(nextPos, nextPos);
+          } catch (err) {}
+          slugInput.dispatchEvent(new Event('input', { bubbles: true }));
+          return;
+        }
         if (e.key === 'Enter') {
           e.preventDefault();
           slugInput.blur();
@@ -3775,7 +3848,6 @@
   function openPublishDrawer() {
     const el = document.getElementById('modal-export');
     if (!el) return;
-    el.style.display = 'flex';
     if (typeof prepareExportModal === 'function') {
       try {
         prepareExportModal();
@@ -3783,6 +3855,7 @@
         console.error('[Cedar] Error preparing export/settings modal:', err);
       }
     }
+    el.style.display = 'flex';
     void el.offsetWidth; // Force CSS transition reflow
     el.classList.add('open');
     document.body.classList.add('publish-drawer-open');

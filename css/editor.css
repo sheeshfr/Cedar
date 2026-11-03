@@ -1263,40 +1263,27 @@
 
 .canvas-prose ul, .article-prose ul,
 .canvas-prose ol, .article-prose ol {
-  margin-top: 0.5rem;
+  margin-top: 0;
   margin-bottom: 1.25rem;
   padding-left: 1.5rem;
   max-width: 100%;
   box-sizing: border-box;
 }
 
+.canvas-prose ul:has(+ ul), .article-prose ul:has(+ ul),
+.canvas-prose ol:has(+ ol), .article-prose ol:has(+ ol) {
+  margin-bottom: 0.25rem;
+}
+
 .canvas-prose ul + ul, .article-prose ul + ul,
 .canvas-prose ol + ol, .article-prose ol + ol {
-  margin-top: -1.25rem;
-}
-
-.canvas-prose p:has(+ ul), .article-prose p:has(+ ul),
-.canvas-prose p:has(+ ol), .article-prose p:has(+ ol),
-.canvas-prose div:has(+ ul), .article-prose div:has(+ ul),
-.canvas-prose div:has(+ ol), .article-prose div:has(+ ol),
-.canvas-prose blockquote:has(+ ul), .article-prose blockquote:has(+ ul),
-.canvas-prose blockquote:has(+ ol), .article-prose blockquote:has(+ ol) {
-  margin-bottom: 0.25rem !important;
-}
-
-.canvas-prose p + ul, .article-prose p + ul,
-.canvas-prose p + ol, .article-prose p + ol,
-.canvas-prose div + ul, .article-prose div + ul,
-.canvas-prose div + ol, .article-prose div + ol,
-.canvas-prose blockquote + ul, .article-prose blockquote + ul,
-.canvas-prose blockquote + ol, .article-prose blockquote + ol {
-  margin-top: 0.25rem !important;
+  margin-top: 0;
 }
 
 .canvas-prose li,
 .article-prose li {
   margin-top: 0;
-  margin-bottom: 0;
+  margin-bottom: 0.25rem;
   line-height: 1.8;
   overflow-wrap: break-word;
   word-break: normal;
@@ -1308,6 +1295,14 @@
 .canvas-prose li:last-child,
 .article-prose li:last-child {
   margin-bottom: 0;
+}
+
+.canvas-prose li p,
+.article-prose li p,
+.canvas-prose li div,
+.article-prose li div {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 /* Canvas Divider Line / Break Line */

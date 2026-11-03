@@ -369,6 +369,7 @@
       canvasProse.querySelectorAll('#canvas-drop-indicator').forEach(el => el.remove());
       if (typeof window.normalizeCustomColorNodes === 'function') window.normalizeCustomColorNodes(canvasProse);
       if (typeof window.normalizeRawImages === 'function') window.normalizeRawImages(canvasProse);
+      if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
       if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') window.cleanConsecutiveEmptyParagraphs(canvasProse);
       if (typeof window.ensureTrailingTextBlock === 'function') window.ensureTrailingTextBlock();
       if (typeof window.ensureImageCaptionElements === 'function') window.ensureImageCaptionElements(canvasProse);
@@ -957,6 +958,14 @@
             }
           }
           if (id === 'meta-slug') {
+            if (/\s/.test(el.value)) {
+              const selStart = el.selectionStart;
+              const before = el.value.slice(0, typeof selStart === 'number' ? selStart : el.value.length).replace(/\s+/g, '-');
+              el.value = el.value.replace(/\s+/g, '-');
+              try {
+                el.setSelectionRange(before.length, before.length);
+              } catch (err) {}
+            }
             const wasEverPublished = (typeof window.hasDraftBeenPublished === 'function')
               ? window.hasDraftBeenPublished(curDraft)
               : Boolean(curDraft.status === 'published' || curDraft.everPublished || curDraft.publishedAt || curDraft.publishedDate || curDraft.publishedSlug);
@@ -1015,6 +1024,22 @@
 
         if (id === 'meta-slug') {
           el.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.code === 'Space') {
+              e.preventDefault();
+              const start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+              const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : el.value.length;
+              const before = el.value.slice(0, start);
+              const after = el.value.slice(end);
+              const insertDash = before.endsWith('-') ? '' : '-';
+              const nextAfter = insertDash && after.startsWith('-') ? after.slice(1) : after;
+              el.value = before + insertDash + nextAfter;
+              const nextPos = before.length + insertDash.length;
+              try {
+                el.setSelectionRange(nextPos, nextPos);
+              } catch (err) {}
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            }
             if (e.key === 'Enter') {
               e.preventDefault();
               el.blur();

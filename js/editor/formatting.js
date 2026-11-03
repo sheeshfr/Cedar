@@ -2752,15 +2752,14 @@
             }
 
             if (block && block.parentNode === cProse && (block.tagName === 'P' || block.tagName === 'DIV' || block.tagName === 'BLOCKQUOTE')) {
-              let textBefore = '';
+              let hasBrBeforeCaret = false;
               try {
                 const preRange = document.createRange();
                 preRange.setStart(block, 0);
                 preRange.setEnd(range.startContainer, range.startOffset);
-                textBefore = preRange.toString().replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '');
-              } catch (err) {
-                textBefore = (block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '');
-              }
+                const preFrag = preRange.cloneContents();
+                hasBrBeforeCaret = Boolean(preFrag.querySelector && preFrag.querySelector('br') && (preFrag.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '').length > 0);
+              } catch (err) {}
 
               const rawBlockText = (block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '');
               const hasMedia = Boolean(block.querySelector && block.querySelector('img, video, audio, iframe, hr'));
@@ -2776,8 +2775,34 @@
                 if (window.mergeAdjacentLists) window.mergeAdjacentLists(cProse);
                 focusNodeCaret(newLi, true);
                 handledCustom = true;
-              } else if (textBefore.length > 0) {
-                // Text before caret: start a new list immediately below this block
+              } else if (!hasBrBeforeCaret && (block.tagName === 'P' || block.tagName === 'DIV')) {
+                // Convert the current paragraph/div directly into a list item and merge with adjacent lists
+                const newList = document.createElement(listType);
+                if (block.style && block.style.textAlign) newList.style.textAlign = block.style.textAlign;
+                const newLi = document.createElement('li');
+                while (block.firstChild) {
+                  newLi.appendChild(block.firstChild);
+                }
+                // Strip leading manual bullet/number prefix if present (e.g. "1. " or "- ")
+                const firstWalker = document.createTreeWalker(newLi, NodeFilter.SHOW_TEXT, null, false);
+                const firstTxt = firstWalker.nextNode();
+                if (firstTxt && firstTxt.textContent) {
+                  if (listType === 'ol') {
+                    firstTxt.textContent = firstTxt.textContent.replace(/^\s*\d+[\.\)]\s+/, '');
+                  } else {
+                    firstTxt.textContent = firstTxt.textContent.replace(/^\s*[\*\-\+\u2022]\s+/, '');
+                  }
+                }
+                if (!newLi.hasChildNodes() || (!newLi.textContent.trim() && !newLi.querySelector('br, img'))) {
+                  newLi.innerHTML = '<br>';
+                }
+                newList.appendChild(newLi);
+                block.parentNode.replaceChild(newList, block);
+                if (window.mergeAdjacentLists) window.mergeAdjacentLists(cProse);
+                focusNodeCaret(newLi, false);
+                handledCustom = true;
+              } else if (hasBrBeforeCaret) {
+                // Soft line break (<br>) before caret: extract current line into a new list immediately below
                 let postFragment = null;
                 try {
                   const postRange = document.createRange();
@@ -2788,7 +2813,6 @@
                   postFragment = document.createDocumentFragment();
                 }
 
-                // Strip trailing <br> and empty whitespace from block so it doesn't leave an empty blank line
                 while (block.lastChild) {
                   if (block.lastChild.nodeType === Node.TEXT_NODE && !block.lastChild.textContent.trim()) {
                     block.removeChild(block.lastChild);

@@ -845,7 +845,8 @@
 
     // 2. Find all <img> elements not wrapped in recognized Cedar containers or page blocks
     const rawImgs = Array.from(root.querySelectorAll('img')).filter(img => {
-      return !img.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .image-sanitizing-placeholder, .gallery-split-img-box, .page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card');
+      if (img.classList && (img.classList.contains('external-card-favicon') || img.classList.contains('post-card-img'))) return false;
+      return !img.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .image-sanitizing-placeholder, .gallery-split-img-box, .page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card, .external-link-card');
     });
 
     if (rawImgs.length === 0 && nestedBlocks.length === 0) return;
@@ -853,8 +854,16 @@
     rawImgs.forEach(img => {
       const src = img.getAttribute('src') || img.src || '';
       if (!src) return;
+      if (typeof window.isBogusOrExternalCardImageUrl === 'function' && window.isBogusOrExternalCardImageUrl(src)) {
+        img.remove();
+        return;
+      }
       const rawName = img.getAttribute('data-img-name') || img.dataset.imgName;
       const imgName = rawName || ((src.startsWith('data:') || src.startsWith('blob:')) ? ('image-' + Date.now().toString(36) + '.jpg') : (src.split('/').pop().split('?')[0] || 'image.jpg'));
+      if (typeof window.isBogusOrExternalCardImageUrl === 'function' && window.isBogusOrExternalCardImageUrl(imgName)) {
+        img.remove();
+        return;
+      }
       const rawOrig = img.getAttribute('data-original-src') || img.dataset.originalSrc || '';
       const originalSrc = (rawOrig && !rawOrig.startsWith('data:') && !rawOrig.startsWith('blob:'))
         ? rawOrig
@@ -1200,6 +1209,33 @@
       ? [root]
       : Array.from(root.querySelectorAll('.captioned-image-container'));
     containers.forEach(container => {
+      const checkImg = container.querySelector('img');
+      if (!checkImg) {
+        container.remove();
+        return;
+      }
+      const cSrc = (checkImg.getAttribute('src') || '').trim();
+      const cOrig = (checkImg.getAttribute('data-original-src') || '').trim();
+      const cName = (checkImg.getAttribute('data-img-name') || '').trim();
+      const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
+      const isUnbackedWebPlaceholder = (
+        (cName.toLowerCase() === 'web-image.jpg' || cOrig.toLowerCase().endsWith('/web-image.jpg') || cSrc.toLowerCase().endsWith('/web-image.jpg')) &&
+        !cSrc.startsWith('data:image/') &&
+        !cSrc.startsWith('blob:') &&
+        !(window.imageRegistry && (window.imageRegistry.get('web-image.jpg')?.dataUrl || window.imageRegistry.get('/blog/images/web-image.jpg')?.dataUrl))
+      );
+      if (
+        (!cSrc && !cOrig && !cName) ||
+        isUnbackedWebPlaceholder ||
+        (isBogusFn && (
+          (cSrc && isBogusFn(cSrc)) ||
+          (cOrig && isBogusFn(cOrig)) ||
+          (cName && isBogusFn(cName) && !cSrc.startsWith('data:image/') && !cSrc.startsWith('blob:') && !/^https?:\/\//i.test(cSrc))
+        ))
+      ) {
+        container.remove();
+        return;
+      }
       if (container.getAttribute('contenteditable') !== 'false') {
         container.setAttribute('contenteditable', 'false');
       }
@@ -1524,6 +1560,23 @@
       if (!imgEl._hasCedarHydrateError) {
         imgEl._hasCedarHydrateError = true;
         imgEl.addEventListener('error', () => {
+          const pContainer = imgEl.closest ? imgEl.closest('.captioned-image-container') : null;
+          const errName = (imgEl.getAttribute('data-img-name') || cleanName || '').trim().toLowerCase();
+          const errSrc = (imgEl.getAttribute('src') || '').trim();
+          const errOrig = (imgEl.getAttribute('data-original-src') || '').trim();
+          const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
+          if (
+            pContainer &&
+            (
+              errName === 'web-image.jpg' ||
+              errName === 'favicons' ||
+              errName === 'img' ||
+              (isBogusFn && (isBogusFn(errSrc) || isBogusFn(errOrig)))
+            )
+          ) {
+            pContainer.remove();
+            return;
+          }
           hydrateFromVault();
         });
       }
@@ -2096,9 +2149,22 @@
                               (canvasProse && canvasProse.offsetParent !== null);
       if (!isEditorVisible) return;
 
-      // Don't intercept paste inside foreign modals or global search input
+      // Don't intercept paste inside foreign modals, global search, inputs, textareas, captions, or header fields
       const activeEl = document.activeElement;
-      if (activeEl && (activeEl.id === 'global-search-input' || activeEl.closest('#modal-settings, #modal-export, #modal-import, #modal-ftue'))) {
+      const targetEl = e.target && e.target.nodeType === 1 ? e.target : (e.target && e.target.parentElement ? e.target.parentElement : null);
+      if (
+        (activeEl && (
+          activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.id === 'global-search-input' ||
+          activeEl.id === 'rich-canvas-title' ||
+          activeEl.id === 'rich-canvas-subtitle' ||
+          activeEl.tagName === 'FIGCAPTION' ||
+          (activeEl.classList && activeEl.classList.contains('gallery-caption')) ||
+          (activeEl.closest && activeEl.closest('input, textarea, figcaption, .gallery-caption, .page-individual-post-block, #modal-settings, #modal-export, #modal-import, #modal-ftue'))
+        )) ||
+        (targetEl && targetEl.closest && targetEl.closest('input, textarea, figcaption, .gallery-caption, .page-individual-post-block, #modal-settings, #modal-export, #modal-import, #modal-ftue'))
+      ) {
         return;
       }
 
@@ -2150,24 +2216,30 @@
       let detectedOrigSrc = '';
       let detectedImgName = '';
       let detectedAlt = 'Image';
+      const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
       const mdMatch = plainText.match(/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/i);
       if (mdMatch) {
         detectedAlt = mdMatch[1] || 'Image';
         detectedUrl = mdMatch[2];
       } else if (/^https?:\/\/[^\s]+?\.(png|jpe?g|webp|gif|svg|avif)(\?[^\s]*)?$/i.test(plainText) || /^https?:\/\/images\.unsplash\.com\/[^\s]+$/i.test(plainText)) {
         detectedUrl = plainText;
-      } else if (htmlText) {
+      } else if (htmlText && !/class=["'][^"']*(?:post-card|external-link-card|external-card-favicon)/i.test(htmlText)) {
         const imgTagMatch = htmlText.match(/<img[^>]*>/i);
-        const imgMatch = htmlText.match(/<img[^>]+src=["'](https?:\/\/[^"']+|data:image\/[^"']+|blob:[^"']+|\/?blog\/images\/[^"']+)["']/i) ||
-                         (!plainText ? htmlText.match(/<img[^>]+src=["']([^"']+)["']/i) : null);
-        if (imgMatch && imgMatch[1]) {
+        // Only extract an <img> from clipboard HTML when there is no plain text (e.g. "Copy Image")
+        // OR when the <img> is an internal Cedar image with data-img-name / blog/images/ path
+        const hasInternalImgAttr = Boolean(imgTagMatch && /data-img-name=["'][^"']+["']|\/blog\/images\//i.test(imgTagMatch[0]));
+        const imgMatch = (!plainText || hasInternalImgAttr)
+          ? (htmlText.match(/<img[^>]+src=["'](https?:\/\/[^"']+|data:image\/[^"']+|blob:[^"']+|\/?blog\/images\/[^"']+)["']/i) ||
+             (!plainText ? htmlText.match(/<img[^>]+src=["']([^"']+)["']/i) : null))
+          : null;
+        if (imgMatch && imgMatch[1] && !(isBogusFn && isBogusFn(imgMatch[1]))) {
           detectedUrl = imgMatch[1];
           if (imgTagMatch) {
             const origM = imgTagMatch[0].match(/data-original-src=["']([^"']+)["']/i);
             const nameM = imgTagMatch[0].match(/data-img-name=["']([^"']+)["']/i);
             const altM = imgTagMatch[0].match(/alt=["']([^"']*)["']/i);
-            if (origM && origM[1]) detectedOrigSrc = origM[1];
-            if (nameM && nameM[1]) detectedImgName = nameM[1];
+            if (origM && origM[1] && !(isBogusFn && isBogusFn(origM[1]))) detectedOrigSrc = origM[1];
+            if (nameM && nameM[1] && !(isBogusFn && isBogusFn(nameM[1]))) detectedImgName = nameM[1];
             if (altM && altM[1]) detectedAlt = altM[1];
           }
         }
@@ -2176,6 +2248,10 @@
         detectedOrigSrc = window._copiedEditorImageObj.relativePath;
         detectedImgName = window._copiedEditorImageObj.filename;
         detectedAlt = window._copiedEditorImageObj.alt || 'Image';
+      }
+
+      if (detectedUrl && isBogusFn && isBogusFn(detectedUrl)) {
+        detectedUrl = null;
       }
 
       if (detectedUrl) {
@@ -2222,13 +2298,16 @@
           }
         } catch (err) {}
 
-        await handleImageUploadAndInsert({
-          src: detectedUrl,
-          dataUrl: detectedUrl,
-          relativePath: detectedOrigSrc || detectedUrl,
-          filename: detectedImgName || 'web-image.jpg',
-          alt: detectedAlt
-        });
+        const candExtFn = detectedUrl.split('/').pop().split('?')[0].split('#')[0] || '';
+        if (/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(candExtFn)) {
+          await handleImageUploadAndInsert({
+            src: detectedUrl,
+            dataUrl: detectedUrl,
+            relativePath: detectedOrigSrc || detectedUrl,
+            filename: detectedImgName || candExtFn,
+            alt: detectedAlt
+          });
+        }
         return;
       }
 
@@ -2378,11 +2457,22 @@
       const html = dt.getData('text/html') || '';
       const uriList = dt.getData('text/uri-list') || '';
       const plainText = (dt.getData('text/plain') || '').trim();
+      const dtTypes = Array.from(dt.types || []);
+      if (
+        plainText === 'cedar-block' ||
+        plainText === 'cedar-gallery-item' ||
+        dtTypes.includes('application/x-cedar-block') ||
+        dtTypes.includes('application/x-cedar-gallery-item')
+      ) {
+        return;
+      }
+
+      const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
 
       if (imageFiles.length === 0) {
-        if (html) {
+        if (html && !/class=["'][^"']*(?:post-card|external-link-card|external-card-favicon|page-individual-post-block)/i.test(html)) {
           const imgMatch = html.match(/<img[^>]+src=["'](https?:\/\/[^"']+|data:image\/[^"']+)["']/i);
-          if (imgMatch) {
+          if (imgMatch && !(isBogusFn && isBogusFn(imgMatch[1]))) {
             detectedUrl = imgMatch[1];
             const altMatch = html.match(/<img[^>]+alt=["']([^"']*)["']/i);
             if (altMatch && altMatch[1]) detectedAlt = altMatch[1];
@@ -2390,16 +2480,23 @@
         }
         if (!detectedUrl && uriList) {
           const lines = uriList.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
-          if (lines.length > 0 && (/^https?:\/\//i.test(lines[0]) || lines[0].startsWith('data:image/'))) {
+          if (
+            lines.length > 0 &&
+            (lines[0].startsWith('data:image/') || /^https?:\/\/[^\s]+?\.(png|jpe?g|webp|gif|svg|avif|bmp)(\?[^\s]*)?$/i.test(lines[0])) &&
+            !(isBogusFn && isBogusFn(lines[0]))
+          ) {
             detectedUrl = lines[0];
           }
         }
         if (!detectedUrl && plainText) {
           const mdMatch = plainText.match(/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/i);
-          if (mdMatch) {
+          if (mdMatch && !(isBogusFn && isBogusFn(mdMatch[2]))) {
             detectedAlt = mdMatch[1] || 'Image';
             detectedUrl = mdMatch[2];
-          } else if (/^https?:\/\/[^\s]+?\.(png|jpe?g|webp|gif|svg|avif)(\?[^\s]*)?$/i.test(plainText) || /^https?:\/\/images\.unsplash\.com\/[^\s]+$/i.test(plainText)) {
+          } else if (
+            (/^https?:\/\/[^\s]+?\.(png|jpe?g|webp|gif|svg|avif|bmp)(\?[^\s]*)?$/i.test(plainText) || /^https?:\/\/images\.unsplash\.com\/[^\s]+$/i.test(plainText)) &&
+            !(isBogusFn && isBogusFn(plainText))
+          ) {
             detectedUrl = plainText;
           }
         }
@@ -2446,13 +2543,16 @@
           }
         } catch (err) {}
 
-        await handleImageUploadAndInsert({
-          src: detectedUrl,
-          dataUrl: detectedUrl,
-          relativePath: detectedUrl,
-          filename: detectedUrl.split('/').pop().split('?')[0] || 'web-image.jpg',
-          alt: detectedAlt
-        }, targetBlock);
+        const candExtFn = detectedUrl.split('/').pop().split('?')[0].split('#')[0] || '';
+        if (/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(candExtFn)) {
+          await handleImageUploadAndInsert({
+            src: detectedUrl,
+            dataUrl: detectedUrl,
+            relativePath: detectedUrl,
+            filename: candExtFn,
+            alt: detectedAlt
+          }, targetBlock);
+        }
       }
     };
 

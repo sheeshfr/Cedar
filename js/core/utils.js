@@ -648,9 +648,117 @@
 
 
 
-  // --- Helper: Keep Adjacent Lists (UL/OL) Separate (Never Auto-Combine Separate Blocks) ---
+  // --- Helper: Merge Adjacent Lists (UL/OL) & Unwrap Nested Paragraphs Inside List Items ---
   function mergeAdjacentLists(container) {
-    return false;
+    if (!container || !container.querySelectorAll) return false;
+    let modified = false;
+
+    const isLiveDoc = Boolean(typeof document !== 'undefined' && document.body && document.body.contains(container));
+    const sel = (isLiveDoc && typeof window !== 'undefined' && window.getSelection) ? window.getSelection() : null;
+    let savedSel = null;
+    if (sel && sel.rangeCount > 0) {
+      const r = sel.getRangeAt(0);
+      if (container.contains(r.commonAncestorContainer)) {
+        savedSel = {
+          startContainer: r.startContainer,
+          startOffset: r.startOffset,
+          endContainer: r.endContainer,
+          endOffset: r.endOffset
+        };
+      }
+    }
+
+    // 1. Unwrap direct <p> or <div> wrappers inside <li> so list items never get paragraph block margins
+    container.querySelectorAll('li').forEach(li => {
+      const children = Array.from(li.children);
+      if (children.length > 0 && children.every(ch => ch.tagName === 'P' || ch.tagName === 'DIV')) {
+        children.forEach((wrapper, idx) => {
+          while (wrapper.firstChild) {
+            if (
+              wrapper.firstChild.nodeType === Node.ELEMENT_NODE &&
+              wrapper.firstChild.tagName === 'BR' &&
+              !wrapper.firstChild.nextSibling &&
+              idx < children.length - 1
+            ) {
+              wrapper.removeChild(wrapper.firstChild);
+              break;
+            }
+            li.insertBefore(wrapper.firstChild, wrapper);
+          }
+          if (idx < children.length - 1) {
+            li.insertBefore((container.ownerDocument || document).createElement('br'), wrapper);
+          }
+          if (savedSel) {
+            if (savedSel.startContainer === wrapper) {
+              savedSel.startContainer = li;
+              savedSel.startOffset = Math.min(savedSel.startOffset, li.childNodes.length);
+            }
+            if (savedSel.endContainer === wrapper) {
+              savedSel.endContainer = li;
+              savedSel.endOffset = Math.min(savedSel.endOffset, li.childNodes.length);
+            }
+          }
+          wrapper.remove();
+          modified = true;
+        });
+        if (!li.hasChildNodes()) {
+          li.innerHTML = '<br>';
+        }
+      }
+    });
+
+    // 2. Merge consecutive <ul>+<ul> or <ol>+<ol> sibling blocks into a single list block
+    let curr = container.firstElementChild;
+    while (curr) {
+      const next = curr.nextElementSibling;
+      if (
+        next &&
+        (curr.tagName === 'UL' || curr.tagName === 'OL') &&
+        next.tagName === curr.tagName
+      ) {
+        // Check that only whitespace text nodes exist between curr and next
+        let hasNonWhitespaceBetween = false;
+        let between = curr.nextSibling;
+        while (between && between !== next) {
+          if (between.nodeType === Node.TEXT_NODE && (between.textContent || '').trim().length > 0) {
+            hasNonWhitespaceBetween = true;
+            break;
+          }
+          between = between.nextSibling;
+        }
+
+        if (!hasNonWhitespaceBetween) {
+          while (next.firstChild) {
+            const child = next.firstChild;
+            if (child.nodeType === Node.ELEMENT_NODE && child.tagName === 'LI') {
+              curr.appendChild(child);
+            } else {
+              next.removeChild(child);
+            }
+          }
+          if (curr.tagName === 'OL' && curr.getAttribute('start') === '1') {
+            curr.removeAttribute('start');
+          }
+          next.remove();
+          modified = true;
+          continue;
+        }
+      }
+      curr = next;
+    }
+
+    if (modified && sel && savedSel && savedSel.startContainer && savedSel.startContainer.isConnected && savedSel.endContainer && savedSel.endContainer.isConnected) {
+      try {
+        const newRange = document.createRange();
+        newRange.setStart(savedSel.startContainer, savedSel.startOffset);
+        newRange.setEnd(savedSel.endContainer, savedSel.endOffset);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        window._savedSelectionRange = newRange.cloneRange();
+      } catch (e) {}
+    }
+
+    return modified;
   }
 
   const MUTED_COVER_PALETTE = [
@@ -822,6 +930,35 @@
   }
 
   /**
+   * Checks if a URL or filename belongs to an external link card (favicon / screenshot service)
+   * or is a known bogus/placeholder image token that should never be treated as an article image.
+   */
+  function isBogusOrExternalCardImageUrl(val) {
+    if (!val || typeof val !== 'string') return true;
+    const s = val.trim();
+    if (!s) return true;
+    const lower = s.toLowerCase();
+    if (
+      lower === 'img' ||
+      lower === 'image' ||
+      lower === 'favicons' ||
+      lower === 'favicon' ||
+      lower === 'favicon.ico' ||
+      lower === '/blog/images/img' ||
+      lower === 'blog/images/img' ||
+      lower === '/blog/images/favicons' ||
+      lower === 'blog/images/favicons'
+    ) {
+      return true;
+    }
+    if (/google\.com\/s2\/favicons|api\.microlink\.io|s0\.wp\.com\/mshots|icons\.duckduckgo\.com/i.test(s)) {
+      return true;
+    }
+    return false;
+  }
+  window.isBogusOrExternalCardImageUrl = isBogusOrExternalCardImageUrl;
+
+  /**
    * Reconciles draft.images against actual content:
    * 1. Recovers gallery / prose images into draft.images and imageRegistry
    * 2. Removes orphaned images and storage immediately from draft.images AND draft.tempImages
@@ -830,30 +967,68 @@
     if (!draft) return [];
     if (!Array.isArray(draft.images)) draft.images = [];
 
-    // Purge any corrupted image items that have data URLs or blob URLs as filenames
-    draft.images = draft.images.filter(im => im && im.filename && !im.filename.startsWith('data:') && !im.filename.startsWith('blob:'));
+    const isUnbackedWebImagePlaceholder = (im) => {
+      if (!im) return true;
+      const fn = String(im.filename || '').trim().toLowerCase();
+      if (fn !== 'web-image.jpg') return false;
+      const hasData = Boolean(
+        (im.dataUrl && String(im.dataUrl).startsWith('data:image/')) ||
+        (im.src && (String(im.src).startsWith('data:image/') || String(im.src).startsWith('blob:'))) ||
+        im.blob
+      );
+      return !hasData;
+    };
+
+    // Purge any corrupted image items that have data URLs, blob URLs, or bogus link-card tokens as filenames
+    draft.images = draft.images.filter(im =>
+      im &&
+      im.filename &&
+      !im.filename.startsWith('data:') &&
+      !im.filename.startsWith('blob:') &&
+      !isBogusOrExternalCardImageUrl(im.filename) &&
+      !isBogusOrExternalCardImageUrl(im.src || im.relativePath || '') &&
+      !isUnbackedWebImagePlaceholder(im)
+    );
     if (Array.isArray(draft.tempImages)) {
-      draft.tempImages = draft.tempImages.filter(im => im && im.filename && !im.filename.startsWith('data:') && !im.filename.startsWith('blob:'));
+      draft.tempImages = draft.tempImages.filter(im =>
+        im &&
+        im.filename &&
+        !im.filename.startsWith('data:') &&
+        !im.filename.startsWith('blob:') &&
+        !isBogusOrExternalCardImageUrl(im.filename) &&
+        !isBogusOrExternalCardImageUrl(im.src || im.relativePath || '') &&
+        !isUnbackedWebImagePlaceholder(im)
+      );
     }
 
     // Helper: register an image found in canvas or HTML
     function registerDiscoveredImage(src, origSrc, imgName, alt) {
       if (!src && !origSrc && !imgName && !alt) return;
-      let filename = (imgName && imgName !== 'img') ? imgName : '';
+      if (
+        (src && isBogusOrExternalCardImageUrl(src)) ||
+        (origSrc && isBogusOrExternalCardImageUrl(origSrc)) ||
+        (imgName && isBogusOrExternalCardImageUrl(imgName))
+      ) {
+        return;
+      }
+      let filename = (imgName && !isBogusOrExternalCardImageUrl(imgName)) ? imgName : '';
       if (!filename && origSrc && !origSrc.startsWith('data:') && !origSrc.startsWith('blob:')) {
         const cand = origSrc.split('/').pop().split('\\').pop().split('?')[0];
-        if (cand && cand !== 'img') filename = cand;
+        if (cand && !isBogusOrExternalCardImageUrl(cand)) filename = cand;
       }
       if (!filename && src && !src.startsWith('data:') && !src.startsWith('blob:')) {
         const cand = src.split('/').pop().split('\\').pop().split('?')[0];
-        if (cand && cand !== 'img') filename = cand;
+        if (cand && !isBogusOrExternalCardImageUrl(cand)) filename = cand;
       }
       if (!filename && alt && /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(alt.trim())) {
         filename = alt.trim().split('/').pop().split('\\').pop();
       }
-      if (!filename || filename === 'img' || filename.startsWith('data:') || filename.startsWith('blob:')) return;
+      if (!filename || isBogusOrExternalCardImageUrl(filename) || filename.startsWith('data:') || filename.startsWith('blob:')) return;
 
-      const isDataOrBlob = src && (src.startsWith('data:') || src.startsWith('blob:'));
+      const isDataOrBlob = Boolean(src && (src.startsWith('data:image/') || src.startsWith('blob:')));
+      if (filename.toLowerCase() === 'web-image.jpg' && !isDataOrBlob) return;
+      if (!/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(filename) && !isDataOrBlob) return;
+
       const dataUrl = isDataOrBlob ? src : '';
       const relPath = (origSrc && !origSrc.startsWith('data:')) ? origSrc : (filename ? `/blog/images/${filename}` : '');
 
@@ -888,7 +1063,8 @@
       const imgs = canvas.querySelectorAll('img');
       for (let i = 0; i < imgs.length; i++) {
         const el = imgs[i];
-        if (el.closest && el.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card')) continue;
+        if (el.closest && el.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card, .external-link-card')) continue;
+        if (el.classList && (el.classList.contains('external-card-favicon') || el.classList.contains('post-card-img'))) continue;
         const src = el.getAttribute('src') || '';
         const origSrc = el.getAttribute('data-original-src') || el.dataset?.originalSrc || '';
         const imgName = el.getAttribute('data-img-name') || el.dataset?.imgName || el.dataset?.filename || '';
@@ -904,7 +1080,7 @@
       let tagMatch;
       while ((tagMatch = imgTagRe.exec(htmlCombined)) !== null) {
         const fullTag = tagMatch[0];
-        if (/class=["'][^"']*post-card/i.test(fullTag)) continue;
+        if (/class=["'][^"']*(?:post-card|external-card-favicon)/i.test(fullTag)) continue;
         const srcMatch = fullTag.match(/(?:^|\s)src=["']([^"']+)["']/i);
         const origMatch = fullTag.match(/data-original-src=["']([^"']+)["']/i);
         const nameMatch = fullTag.match(/data-(?:img-name|filename)=["']([^"']+)["']/i);

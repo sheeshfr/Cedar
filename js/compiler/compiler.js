@@ -132,7 +132,7 @@
     html = html.replace(/:::individual-post(?:\s+([\s\S]*?))?:::/gi, function (_, attrsStr) {
       const attrs = attrsStr || '';
       const getAttr = (name) => {
-        const m = attrs.match(new RegExp(name + '="([^"]*)"', 'i')) || attrs.match(new RegExp(name + "='([^']*)'", 'i'));
+        const m = attrs.match(new RegExp('(?:^|\\s)' + name + '="([^"]*)"', 'i')) || attrs.match(new RegExp("(?:^|\\s)" + name + "='([^']*)'", 'i'));
         return m ? m[1] : '';
       };
 
@@ -165,6 +165,14 @@
 
     // 3. Captioned Image in Markdown format: ![Alt](url "Caption")
     html = html.replace(/!\[(.*?)\]\(([^\s\)\"]+)(?:\s+"(.*?)")?\)/g, function (_, alt, src, caption) {
+      src = (src || '').trim();
+      if (!src) return '';
+      if (typeof window !== 'undefined' && typeof window.isBogusOrExternalCardImageUrl === 'function' && window.isBogusOrExternalCardImageUrl(src)) {
+        return '';
+      }
+      if (/\/web-image\.jpg$/i.test(src) && !(typeof imageRegistry !== 'undefined' && imageRegistry && (imageRegistry.get('web-image.jpg')?.dataUrl || imageRegistry.get(src)?.dataUrl))) {
+        return '';
+      }
       caption = (caption || '').trim();
       alt = alt || '';
       let displaySrc = src;
@@ -328,10 +336,23 @@
         continue;
       }
 
-      // Empty line handling: flush paragraphs and lists so separate blocks stay separate
+      // Empty line handling: flush paragraphs; keep list open if next non-empty line continues the same list type
       if (!line.trim()) {
         flushParagraph();
-        flushList();
+        if (inList) {
+          let nextNonEmpty = '';
+          for (let j = i + 1; j < lines.length; j++) {
+            if (lines[j].trim()) {
+              nextNonEmpty = lines[j];
+              break;
+            }
+          }
+          const continuesUl = (listType === 'ul' && /^[\*\-\+\u2022]\s+(.*)/.test(nextNonEmpty));
+          const continuesOl = (listType === 'ol' && /^\d+[\.\)]\s+(.*)/.test(nextNonEmpty));
+          if (!continuesUl && !continuesOl) {
+            flushList();
+          }
+        }
         continue;
       }
 
@@ -413,12 +434,13 @@
             let cap = figcaption ? figcaption.textContent.trim() : '';
             if (cap === 'Add caption here...' || cap === 'Add image caption here...') cap = '';
             const alt = img.alt || 'Image';
+            const isBogusFn = (typeof window !== 'undefined' && typeof window.isBogusOrExternalCardImageUrl === 'function') ? window.isBogusOrExternalCardImageUrl : null;
             
             // Prefer original relative path /blog/images/filename or registered path
             const activeBlogSlug = (typeof resolveProjectBlogPath === 'function') ? resolveProjectBlogPath() : ((window.projectConfig && window.projectConfig.blogPath) || 'blog');
             const blogImgPrefix = activeBlogSlug ? `/${activeBlogSlug}/images/` : '/images/';
             let src = img.dataset.originalSrc || img.getAttribute('src');
-            if (img.dataset.imgName && img.dataset.imgName !== 'img') {
+            if (img.dataset.imgName && img.dataset.imgName !== 'img' && !(isBogusFn && isBogusFn(img.dataset.imgName))) {
               src = `${blogImgPrefix}${img.dataset.imgName}`;
             } else if (src && src.startsWith('data:')) {
               // find in registry
@@ -431,6 +453,13 @@
                   }
                 }
               }
+            }
+
+            if (!src || (isBogusFn && isBogusFn(src))) {
+              return;
+            }
+            if (/\/web-image\.jpg$/i.test(src) && !(typeof imageRegistry !== 'undefined' && imageRegistry && (imageRegistry.get('web-image.jpg')?.dataUrl || imageRegistry.get(src)?.dataUrl))) {
+              return;
             }
 
             output += `\n\n![${alt}](${src}${cap ? ` "${cap}"` : ''})\n\n`;
@@ -704,11 +733,19 @@
             }
             break;
           }
-          case 'img':
+          case 'img': {
+            if (child.classList && (child.classList.contains('external-card-favicon') || child.classList.contains('post-card-img'))) {
+              break;
+            }
             const rawInAlt = child.getAttribute('alt') || 'Image';
-            const rawInSrc = child.dataset.originalSrc || child.getAttribute('src') || '';
+            const rawInSrc = (child.dataset.originalSrc || child.getAttribute('src') || '').trim();
+            const isBogusFn = (typeof window !== 'undefined' && typeof window.isBogusOrExternalCardImageUrl === 'function') ? window.isBogusOrExternalCardImageUrl : null;
+            if (!rawInSrc || (isBogusFn && isBogusFn(rawInSrc))) {
+              break;
+            }
             out += `\n\n![${rawInAlt}](${rawInSrc})\n\n`;
             break;
+          }
           case 'hr':
             out += '\n\n---\n\n';
             break;
@@ -2599,32 +2636,25 @@ ${socialMeta.metaLines}
 
     /* Lists & Tight Rolling Spacing */
     .article-prose ul, .article-prose ol {
-      margin-top: 0.5rem;
+      margin-top: 0;
       margin-bottom: 1.25rem;
       padding-left: 1.5rem;
       box-sizing: border-box;
     }
 
-    .article-prose ul + ul, .article-prose ul + ol,
-    .article-prose ol + ol, .article-prose ol + ul {
-      margin-top: -1.25rem;
+    .article-prose ul:has(+ ul),
+    .article-prose ol:has(+ ol) {
+      margin-bottom: 0.25rem;
     }
 
-    .article-prose p:has(+ ul), .article-prose p:has(+ ol),
-    .article-prose div:has(+ ul), .article-prose div:has(+ ol),
-    .article-prose blockquote:has(+ ul), .article-prose blockquote:has(+ ol) {
-      margin-bottom: 0.25rem !important;
-    }
-
-    .article-prose p + ul, .article-prose p + ol,
-    .article-prose div + ul, .article-prose div + ol,
-    .article-prose blockquote + ul, .article-prose blockquote + ol {
-      margin-top: 0.25rem !important;
+    .article-prose ul + ul,
+    .article-prose ol + ol {
+      margin-top: 0;
     }
 
     .article-prose li {
       margin-top: 0;
-      margin-bottom: 0;
+      margin-bottom: 0.25rem;
       line-height: 1.8;
       overflow-wrap: break-word;
       word-break: normal;
@@ -2634,6 +2664,12 @@ ${socialMeta.metaLines}
 
     .article-prose li:last-child {
       margin-bottom: 0;
+    }
+
+    .article-prose li p,
+    .article-prose li div {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
     }
 
     .article-prose hr,
@@ -4054,7 +4090,9 @@ ${prevNextHtml}        <div style="text-align: center; display: flex; justify-co
     const mutedColor = (typeof getMutedCoverColor === 'function')
       ? getMutedCoverColor(draft.id || slug || title)
       : '#27272a';
-    const coverImage = (typeof getPostFeaturedImage === 'function' ? getPostFeaturedImage(draft) : '') || draft.coverImage || draft.featuredImage || '';
+    const coverImage = draft.coverImageRemoved
+      ? ''
+      : ((typeof getPostFeaturedImage === 'function' ? getPostFeaturedImage(draft) : '') || draft.coverImage || draft.featuredImage || '');
 
     const rawAuths = (Array.isArray(draft.authors) && draft.authors.length > 0) ? draft.authors : [draft.authorName || 'Staff'];
     const authName = rawAuths.map(a => a?.name || a).join(', ');
