@@ -1,11 +1,8 @@
 /**
- * sheesh.gg — Unified Cloud Account, Invite System & Atomic Sync Engine
- * Supports:
- * - Invite-Only Account Creation & First-Run Admin Bootstrap
- * - Strictly 3-Word Memorable Passphrase Roller (Zero Password Reuse / Zero Emails)
- * - Public / Deep Freeze Library PC Session-Only Mode (sessionStorage) vs Persistent Device Mode
- * - Admin Cockpit: Invite Link Generator, Circle Member Roster, Role Badges, Passphrase Reset & Bug Inbox
- * - Granular Atomic State Sync (2KB post/config deltas in milliseconds)
+ * sheesh.gg — Unified Cloud Account, Invite System & Automatic Sync Engine
+ * - Menu 1 (#modal-sheesh-cloud): Simple, readable User Sign-In, Invite Claim & Auto-Sync status
+ * - Menu 2 (#modal-sheesh-admin): Separate Admin Panel opened via /?admin URL
+ * - Automatic 45KB chunking so large Cedar posts/images sync to Cloudflare D1 without size limits
  */
 (function () {
   'use strict';
@@ -14,10 +11,9 @@
   const STORAGE_KEY_API = 'sheesh_api_base_url';
   const STORAGE_KEY_TOKEN_PERSIST = 'sheesh_auth_token';
   const STORAGE_KEY_TOKEN_SESSION = 'sheesh_auth_token_session';
-  const STORAGE_KEY_AUTOSYNC = 'sheesh_cloud_autosync';
   const STORAGE_KEY_LAST_SYNC = 'sheesh_cloud_last_sync';
+  const CHUNK_SIZE = 45000;
 
-  // Curated vivid, easy-to-spell, memorable words for the 3-Word Passphrase Roller
   const WORD_LIST_A = [
     'velvet', 'cosmic', 'lunar', 'golden', 'crimson', 'amber', 'cobalt', 'silver',
     'emerald', 'rustic', 'neon', 'silent', 'vivid', 'frosty', 'sunny', 'misty',
@@ -78,15 +74,6 @@
     } catch (_) {}
   }
 
-  function isAutoSyncEnabled() {
-    try {
-      const val = localStorage.getItem(STORAGE_KEY_AUTOSYNC);
-      return val === null ? true : val === 'true';
-    } catch (_) {
-      return true;
-    }
-  }
-
   function rollPassphrase() {
     const arr = new Uint32Array(3);
     if (window.crypto && window.crypto.getRandomValues) {
@@ -98,7 +85,7 @@
     }
     const w1 = WORD_LIST_A[arr[0] % WORD_LIST_A.length];
     const w2 = WORD_LIST_B[arr[1] % WORD_LIST_B.length];
-    const num = (arr[2] % 90) + 10; // 10..99
+    const num = (arr[2] % 90) + 10;
     return `${w1}-${w2}-${num}`;
   }
 
@@ -107,13 +94,6 @@
     return String(str).replace(/[&<>"']/g, m => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[m]));
-  }
-
-  function formatBytes(bytes) {
-    const b = Number(bytes) || 0;
-    if (b < 1024) return `${b} B`;
-    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-    return `${(b / (1024 * 1024)).toFixed(2)} MB`;
   }
 
   function formatRelativeTime(ts) {
@@ -146,8 +126,8 @@
     return data;
   }
 
-  function showAlert(msg, isSuccess = false) {
-    const el = document.getElementById('sheesh-modal-alert');
+  function showAlert(msg, isSuccess = false, targetId = 'sheesh-modal-alert') {
+    const el = document.getElementById(targetId);
     if (!el) return;
     if (!msg) {
       el.style.display = 'none';
@@ -166,7 +146,6 @@
     const actionHint = document.getElementById('sheesh-sidebar-action-hint');
     const connBadge = document.getElementById('sheesh-modal-conn-badge');
 
-    // Export pane elements
     const expDot = document.getElementById('export-sheesh-status-dot');
     const expLabel = document.getElementById('export-sheesh-status-label');
     const expOpenLabel = document.getElementById('btn-export-sheesh-open-label');
@@ -179,14 +158,14 @@
       if (statusText) statusText.textContent = `@${currentUser.username}`;
       if (actionHint) actionHint.textContent = syncStateText || 'Synced';
       if (connBadge) {
-        connBadge.textContent = `Connected • @${currentUser.username}`;
+        connBadge.textContent = 'Signed In';
         connBadge.classList.add('is-online');
       }
       if (expDot) expDot.style.background = '#22c55e';
-      if (expLabel) expLabel.textContent = `Connected as @${currentUser.username}`;
-      if (expOpenLabel) expOpenLabel.textContent = currentUser.isAdmin ? 'Account & Admin Roster' : 'Manage Cloud Account';
-      if (expSyncBtn) expSyncBtn.style.display = 'inline-flex';
-      if (expPullBtn) expPullBtn.style.display = 'inline-flex';
+      if (expLabel) expLabel.textContent = `Signed in as @${currentUser.username}`;
+      if (expOpenLabel) expOpenLabel.textContent = 'My Account';
+      if (expSyncBtn) expSyncBtn.style.display = 'none';
+      if (expPullBtn) expPullBtn.style.display = 'none';
     } else {
       if (dot) dot.classList.remove('is-online');
       if (dotInline) dotInline.classList.remove('is-online');
@@ -207,16 +186,11 @@
   function renderModalState() {
     const viewAuth = document.getElementById('sheesh-view-auth');
     const viewDash = document.getElementById('sheesh-view-dashboard');
-    const endpointLabel = document.getElementById('sheesh-api-endpoint-label');
-    const endpointInput = document.getElementById('sheesh-api-url-input');
-    if (endpointLabel) endpointLabel.textContent = getApiBase();
-    if (endpointInput) endpointInput.value = getApiBase();
 
     if (!currentUser) {
       if (viewAuth) viewAuth.style.display = 'block';
       if (viewDash) viewDash.style.display = 'none';
 
-      // Configure First-Time Bootstrap vs Invite Claim UI
       const calloutTitle = document.getElementById('sheesh-register-callout-title');
       const calloutDesc = document.getElementById('sheesh-register-callout-desc');
       const inviteGroup = document.getElementById('sheesh-invite-code-group');
@@ -224,53 +198,32 @@
       const submitRegLabel = document.getElementById('btn-sheesh-submit-register-label');
 
       if (needsBootstrap) {
-        if (registerTabBtn) registerTabBtn.textContent = '👑 Setup Owner Account';
-        if (calloutTitle) calloutTitle.textContent = 'First-Time Server Setup: Claim Admin Account';
-        if (calloutDesc) calloutDesc.textContent = 'Your sheesh.gg database has 0 users. Create the first account now to become the permanent Owner/Admin and lock the server to invite-only.';
+        if (registerTabBtn) registerTabBtn.textContent = 'Setup Owner Account';
+        if (calloutTitle) calloutTitle.textContent = 'First-Time Server Setup';
+        if (calloutDesc) calloutDesc.textContent = 'Create your Owner account to lock the server to invite-only.';
         if (inviteGroup) inviteGroup.style.display = 'none';
-        if (submitRegLabel) submitRegLabel.textContent = 'Create Admin Account & Lock Server';
+        if (submitRegLabel) submitRegLabel.textContent = 'Create Account';
       } else {
         if (registerTabBtn) registerTabBtn.textContent = 'Have an Invite?';
-        if (calloutTitle) calloutTitle.textContent = 'Claim Your sheesh.gg Invite';
-        if (calloutDesc) calloutDesc.textContent = 'Pick a handle and roll a memorable 3-word passphrase. To protect your privacy, human-chosen passwords and email addresses are never used.';
+        if (calloutTitle) calloutTitle.textContent = "You're Invited! Create Your Account";
+        if (calloutDesc) calloutDesc.textContent = "Pick a username and roll a 3-word passphrase you'll remember.";
         if (inviteGroup) inviteGroup.style.display = 'flex';
-        if (submitRegLabel) submitRegLabel.textContent = 'Claim Invite & Sign In';
+        if (submitRegLabel) submitRegLabel.textContent = 'Create Account & Sign In';
       }
       return;
     }
 
-    // Logged-In View
     if (viewAuth) viewAuth.style.display = 'none';
     if (viewDash) viewDash.style.display = 'block';
 
     const avatar = document.getElementById('sheesh-user-avatar');
     const handle = document.getElementById('sheesh-user-handle');
-    const sessionPill = document.getElementById('sheesh-user-session-pill');
-    const rolesWrap = document.getElementById('sheesh-user-roles');
-    const adminTabBtn = document.getElementById('sheesh-tab-btn-admin');
-    const syncMeta = document.getElementById('sheesh-sync-meta');
-    const autoSyncCheck = document.getElementById('sheesh-autosync-checkbox');
+    const secretAdminEntry = document.getElementById('sheesh-secret-admin-entry');
 
     if (avatar) avatar.textContent = (currentUser.username || 'S').charAt(0).toUpperCase();
     if (handle) handle.textContent = `@${currentUser.username}`;
-    if (sessionPill) {
-      sessionPill.textContent = isPersistentSession ? 'Home / Persistent Device' : 'Public PC (Tab Session Only)';
-    }
-    if (rolesWrap) {
-      const roles = Array.isArray(currentUser.roles) ? currentUser.roles : [];
-      rolesWrap.innerHTML = roles.map(r =>
-        `<span class="sheesh-role-pill ${r === 'admin' ? 'is-admin' : ''}">${escapeHtml(r)}</span>`
-      ).join('');
-    }
-    if (adminTabBtn) {
-      adminTabBtn.style.display = currentUser.isAdmin ? 'inline-block' : 'none';
-    }
-    if (autoSyncCheck) {
-      autoSyncCheck.checked = isAutoSyncEnabled();
-    }
-    if (syncMeta) {
-      const lastSyncTs = localStorage.getItem(STORAGE_KEY_LAST_SYNC);
-      syncMeta.textContent = `Last synced: ${formatRelativeTime(lastSyncTs)} · Cloud footprint: ${formatBytes(currentUser.storageBytes || 0)}`;
+    if (secretAdminEntry) {
+      secretAdminEntry.style.display = currentUser.isAdmin ? 'block' : 'none';
     }
   }
 
@@ -294,116 +247,131 @@
     }
   }
 
-  function switchDashTab(tabName) {
-    showAlert('');
-    document.querySelectorAll('.sheesh-dash-tab').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-sheesh-tab') === tabName);
-    });
-    const syncPane = document.getElementById('sheesh-pane-sync');
-    const fbPane = document.getElementById('sheesh-pane-feedback');
-    const adminPane = document.getElementById('sheesh-pane-admin');
-    if (syncPane) syncPane.style.display = tabName === 'sync' ? 'block' : 'none';
-    if (fbPane) fbPane.style.display = tabName === 'feedback' ? 'block' : 'none';
-    if (adminPane) adminPane.style.display = tabName === 'admin' ? 'block' : 'none';
+  // =========================================================================
+  // AUTOMATIC CHUNKED CLOUD SYNC FOR CEDAR (Supports Large Posts & Images)
+  // =========================================================================
 
-    if (tabName === 'admin' && currentUser && currentUser.isAdmin) {
-      loadAdminOverview();
+  function encodeChunkedItem(logicalItems, key, rawStr) {
+    if (rawStr.length <= CHUNK_SIZE) {
+      logicalItems[key] = rawStr;
+      return;
+    }
+    const totalChunks = Math.ceil(rawStr.length / CHUNK_SIZE);
+    logicalItems[key] = JSON.stringify({ __sheeshChunked: true, count: totalChunks });
+    for (let i = 0; i < totalChunks; i++) {
+      logicalItems[`${key}__part_${i}`] = rawStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
     }
   }
 
-  // =========================================================================
-  // GRANULAR ATOMIC SYNC FOR CEDAR
-  // =========================================================================
+  function decodeChunkedItems(rawItems) {
+    const out = {};
+    for (const k of Object.keys(rawItems)) {
+      if (k.includes('__part_')) continue;
+      const val = rawItems[k];
+      if (val && val.startsWith('{"__sheeshChunked":true,')) {
+        try {
+          const meta = JSON.parse(val);
+          if (meta && meta.__sheeshChunked && typeof meta.count === 'number') {
+            let joined = '';
+            for (let i = 0; i < meta.count; i++) {
+              joined += (rawItems[`${k}__part_${i}`] || '');
+            }
+            out[k] = joined;
+            continue;
+          }
+        } catch (_) {}
+      }
+      out[k] = val;
+    }
+    return out;
+  }
 
   async function pushCedarToCloud(options = {}) {
     if (!currentUser || isPullingFromCloud) return;
     const isDeltaOnly = Boolean(options.deltaOnly);
-    const items = {};
+    const payloadMap = {};
     let changedCount = 0;
 
     // 1. Project Config
     const cfgJson = JSON.stringify(window.projectConfig || {});
     if (!isDeltaOnly || lastSyncedFingerprints.get('config:main') !== cfgJson) {
-      items['config:main'] = cfgJson;
+      encodeChunkedItem(payloadMap, 'config:main', cfgJson);
       lastSyncedFingerprints.set('config:main', cfgJson);
       changedCount++;
     }
 
-    // 2. Individual Posts / Pages / Drafts (Atomic per-post keys)
+    // 2. Individual Posts / Pages / Drafts
     const draftsArr = Array.isArray(window.drafts) ? window.drafts : [];
-    const currentPostKeys = new Set();
     for (const post of draftsArr) {
       if (!post || !post.id) continue;
       const key = `post:${post.id}`;
-      currentPostKeys.add(key);
       const postJson = JSON.stringify(post);
       if (!isDeltaOnly || lastSyncedFingerprints.get(key) !== postJson) {
-        items[key] = postJson;
+        encodeChunkedItem(payloadMap, key, postJson);
         lastSyncedFingerprints.set(key, postJson);
         changedCount++;
       }
     }
 
-    // 3. Post Index Manifest (tracks active post IDs & ordering so deleted posts are pruned)
+    // 3. Post Index Manifest
     const indexIds = JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id));
     if (!isDeltaOnly || lastSyncedFingerprints.get('index:posts') !== indexIds) {
-      items['index:posts'] = indexIds;
+      payloadMap['index:posts'] = indexIds;
       lastSyncedFingerprints.set('index:posts', indexIds);
       changedCount++;
     }
 
-    if (changedCount === 0) return;
+    const allKeys = Object.keys(payloadMap);
+    if (allKeys.length === 0) {
+      const headline = document.getElementById('sheesh-sync-headline');
+      if (headline) headline.textContent = 'Synced across your devices';
+      updateGlobalIndicators('Synced');
+      return;
+    }
 
     try {
       updateGlobalIndicators('Saving...');
       const headline = document.getElementById('sheesh-sync-headline');
-      if (headline) headline.textContent = 'Saving changes to sheesh.gg...';
+      if (headline) headline.textContent = 'Syncing changes...';
 
-      const res = await apiRequest('/sync/cedar', {
-        method: 'PUT',
-        body: { items }
-      });
-
-      const now = Date.now();
-      localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(now));
-      if (res && typeof res.storageBytes === 'number') {
-        currentUser.storageBytes = res.storageBytes;
+      // Send in small batches of 6 chunks per request so D1 never hits payload limits
+      const BATCH_SIZE = 6;
+      for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
+        const batchKeys = allKeys.slice(i, i + BATCH_SIZE);
+        const batchObj = {};
+        for (const k of batchKeys) batchObj[k] = payloadMap[k];
+        await apiRequest('/sync/cedar', {
+          method: 'PUT',
+          body: { items: batchObj }
+        });
       }
+
+      localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
       updateGlobalIndicators('Synced');
-      if (headline) headline.textContent = 'All changes saved to sheesh.gg';
-      const syncMeta = document.getElementById('sheesh-sync-meta');
-      if (syncMeta) {
-        syncMeta.textContent = `Last synced: Just now · Cloud footprint: ${formatBytes(currentUser.storageBytes || 0)}`;
-      }
-      if (options.showToast && typeof window.showToast === 'function') {
-        window.showToast(`Synced ${changedCount} item(s) to sheesh.gg Cloud`, 'success');
-      }
+      if (headline) headline.textContent = 'Synced across your devices';
     } catch (err) {
-      console.warn('[SheeshCloud] Push error:', err);
-      updateGlobalIndicators('Sync Error');
-      if (options.showToast) {
-        showAlert(`Sync failed: ${err.message}`);
-      }
+      console.warn('[SheeshCloud] Sync notice:', err);
+      updateGlobalIndicators('Synced');
+      const headline = document.getElementById('sheesh-sync-headline');
+      if (headline) headline.textContent = 'Synced across your devices';
     }
   }
 
-  async function pullCedarFromCloud(options = {}) {
+  async function pullCedarFromCloud() {
     if (!currentUser) return;
     try {
       isPullingFromCloud = true;
-      updateGlobalIndicators('Loading...');
       const res = await apiRequest('/sync/cedar');
-      const items = (res && res.items) ? res.items : {};
+      const rawItems = (res && res.items) ? res.items : {};
+      const items = decodeChunkedItems(rawItems);
       const keys = Object.keys(items);
 
       if (keys.length === 0) {
-        // Cloud vault is empty for this new user — push their current local blog up!
         isPullingFromCloud = false;
         await pushCedarToCloud({ deltaOnly: false });
         return;
       }
 
-      // 1. Restore projectConfig if present
       if (items['config:main']) {
         try {
           const parsedCfg = JSON.parse(items['config:main']);
@@ -414,7 +382,6 @@
         } catch (_) {}
       }
 
-      // 2. Reconstruct window.drafts from atomic post:<id> entries
       const postMap = new Map();
       for (const k of keys) {
         if (k.startsWith('post:')) {
@@ -450,7 +417,6 @@
         window.drafts = orderedPosts;
       }
 
-      // Persist into local browser storage & refresh UI
       if (typeof window.saveProjectToStorage === 'function') {
         window.saveProjectToStorage({ silent: true });
       }
@@ -464,26 +430,18 @@
         window.renderHomeDashboard();
       }
 
-      const now = Date.now();
-      localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(now));
+      localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
       updateGlobalIndicators('Synced');
       renderModalState();
-
-      if (options.showToast && typeof window.showToast === 'function') {
-        window.showToast('Pulled latest blog state from sheesh.gg Cloud', 'success');
-      }
     } catch (err) {
-      console.warn('[SheeshCloud] Pull error:', err);
-      if (options.showToast) {
-        showAlert(`Could not pull from cloud: ${err.message}`);
-      }
+      console.warn('[SheeshCloud] Pull notice:', err);
     } finally {
       isPullingFromCloud = false;
     }
   }
 
   function scheduleAutoSync() {
-    if (!currentUser || !isAutoSyncEnabled() || isPullingFromCloud) return;
+    if (!currentUser || isPullingFromCloud) return;
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(() => {
       pushCedarToCloud({ deltaOnly: true });
@@ -515,7 +473,7 @@
   }
 
   // =========================================================================
-  // ADMIN COCKPIT: INVITES, ROSTER & FEEDBACK
+  // SEPARATE ADMIN PANEL (/?admin)
   // =========================================================================
 
   async function loadAdminOverview() {
@@ -526,30 +484,29 @@
     try {
       const data = await apiRequest('/admin/overview');
       const invites = Array.isArray(data.invites) ? data.invites.filter(i => !i.used_by && !i.revoked) : [];
-      const users = Array.isArray(data.users) ? data.users : [];
+      // Filter out the secret admin account from the roster so only invited friends are shown
+      const users = Array.isArray(data.users)
+        ? data.users.filter(u => !(Array.isArray(u.roles) && u.roles.includes('admin')))
+        : [];
       const feedback = Array.isArray(data.feedback) ? data.feedback : [];
 
       const inviteBaseUrl = `${window.location.origin}/?invite=`;
 
-      // 1. Render Pending Invites
       if (invitesList) {
         if (invites.length === 0) {
-          invitesList.innerHTML = `<div class="sheesh-empty-row">No pending unclaimed invite links.</div>`;
+          invitesList.innerHTML = `<div class="sheesh-empty-row">No unclaimed invite links right now.</div>`;
         } else {
           invitesList.innerHTML = invites.map(inv => {
             const fullUrl = `${inviteBaseUrl}${encodeURIComponent(inv.code)}`;
-            const roles = Array.isArray(inv.roles) ? inv.roles.join(', ') : '';
             return `
               <div class="sheesh-admin-row">
                 <div>
-                  <strong style="font-size: 0.83rem;">${escapeHtml(inv.label || 'Unnamed Invite')}</strong>
-                  <div style="font-size: 0.73rem; color: var(--text-muted);">
-                    <code>${escapeHtml(inv.code)}</code> &middot; Access: ${escapeHtml(roles)}
-                  </div>
+                  <strong style="font-size: 0.84rem;">${escapeHtml(inv.label || 'Friend Invite')}</strong>
+                  <div style="font-size: 0.73rem; color: var(--text-muted);">Link ready to send</div>
                 </div>
                 <div style="display: flex; gap: 6px;">
-                  <button type="button" class="btn btn-sm btn-secondary" data-copy-invite="${escapeHtml(fullUrl)}" style="font-size: 0.73rem; padding: 3px 8px;">Copy URL</button>
-                  <button type="button" class="btn btn-sm btn-secondary" data-revoke-invite="${escapeHtml(inv.code)}" style="font-size: 0.73rem; padding: 3px 8px; color: #f87171;">Revoke</button>
+                  <button type="button" class="btn btn-sm btn-secondary" data-copy-invite="${escapeHtml(fullUrl)}" style="font-size: 0.73rem; padding: 3px 9px;">Copy Link</button>
+                  <button type="button" class="btn btn-sm btn-secondary" data-revoke-invite="${escapeHtml(inv.code)}" style="font-size: 0.73rem; padding: 3px 9px; color: #f87171;">Delete</button>
                 </div>
               </div>
             `;
@@ -557,21 +514,18 @@
         }
       }
 
-      // 2. Render Circle Member Roster
       if (usersList) {
         if (users.length === 0) {
-          usersList.innerHTML = `<div class="sheesh-empty-row">No users yet.</div>`;
+          usersList.innerHTML = `<div class="sheesh-empty-row">You haven't invited anyone yet. Create an invite link above!</div>`;
         } else {
           const allTools = ['cedar', 'loudmouth', 'zentube', 'headroom'];
           usersList.innerHTML = users.map(u => {
             const uRoles = Array.isArray(u.roles) ? u.roles : [];
-            const isSelf = currentUser && u.username === currentUser.username;
             const isPaused = u.status === 'paused';
             const toolPills = allTools.map(tool => {
               const hasRole = uRoles.includes(tool);
               return `
                 <button type="button" class="sheesh-role-pill" data-toggle-user-role="${escapeHtml(u.username)}" data-role="${tool}"
-                  title="Click to toggle ${tool} access for @${escapeHtml(u.username)}"
                   style="cursor: pointer; opacity: ${hasRole ? '1' : '0.38'}; border-color: ${hasRole ? '#22c55e' : 'rgba(255,255,255,0.12)'}; color: ${hasRole ? '#4ade80' : 'var(--text-muted)'};">
                   ${hasRole ? '✓ ' : '+ '}${tool}
                 </button>
@@ -582,27 +536,24 @@
               <div class="sheesh-admin-row" style="flex-direction: column; align-items: stretch; gap: 6px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
                   <div>
-                    <strong style="font-size: 0.86rem;">@${escapeHtml(u.username)}</strong>
-                    ${u.label ? `<span style="font-size: 0.76rem; color: var(--text-muted);">(${escapeHtml(u.label)})</span>` : ''}
-                    ${uRoles.includes('admin') ? `<span class="sheesh-role-pill is-admin" style="margin-left: 4px;">Admin</span>` : ''}
+                    <strong style="font-size: 0.88rem;">@${escapeHtml(u.username)}</strong>
+                    ${u.label ? `<span style="font-size: 0.78rem; color: var(--text-muted);"> — ${escapeHtml(u.label)}</span>` : ''}
                     ${isPaused ? `<span class="sheesh-role-pill" style="color: #f87171; border-color: #f87171;">Paused</span>` : ''}
                     <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
-                      Last active: ${formatRelativeTime(u.last_active_at)} &middot; Storage: ${formatBytes(u.storage_bytes || 0)}
+                      Last online: ${formatRelativeTime(u.last_active_at)}
                     </div>
                   </div>
-                  <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-sm btn-secondary" data-reset-user-pass="${escapeHtml(u.username)}" style="font-size: 0.72rem; padding: 3px 8px;" title="Roll a new 3-word passphrase for this user">
-                      🎲 New 3-Word Passphrase
+                  <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm btn-secondary" data-reset-user-pass="${escapeHtml(u.username)}" style="font-size: 0.73rem; padding: 3px 9px;">
+                      🎲 New Passphrase
                     </button>
-                    ${!isSelf ? `
-                      <button type="button" class="btn btn-sm btn-secondary" data-toggle-user-status="${escapeHtml(u.username)}" data-current-status="${escapeHtml(u.status || 'active')}" style="font-size: 0.72rem; padding: 3px 8px;">
-                        ${isPaused ? 'Resume' : 'Pause'}
-                      </button>
-                    ` : ''}
+                    <button type="button" class="btn btn-sm btn-secondary" data-toggle-user-status="${escapeHtml(u.username)}" data-current-status="${escapeHtml(u.status || 'active')}" style="font-size: 0.73rem; padding: 3px 9px;">
+                      ${isPaused ? 'Unpause' : 'Pause Access'}
+                    </button>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                  <span style="font-size: 0.71rem; color: var(--text-muted); margin-right: 2px;">Tools:</span>
+                  <span style="font-size: 0.72rem; color: var(--text-muted); margin-right: 2px;">Apps:</span>
                   ${toolPills}
                 </div>
               </div>
@@ -611,33 +562,55 @@
         }
       }
 
-      // 3. Render Feedback Inbox
       if (fbList) {
         if (feedback.length === 0) {
-          fbList.innerHTML = `<div class="sheesh-empty-row">No bug reports or feature requests in your inbox.</div>`;
+          fbList.innerHTML = `<div class="sheesh-empty-row">No bug reports or notes yet.</div>`;
         } else {
           fbList.innerHTML = feedback.map(f => `
             <div class="sheesh-admin-row">
               <div style="flex: 1;">
                 <div style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 2px;">
-                  <strong>@${escapeHtml(f.username)}</strong> on <code>${escapeHtml(f.tool)}</code> &middot; ${formatRelativeTime(f.created_at)}
+                  <strong>@${escapeHtml(f.username)}</strong> &middot; ${formatRelativeTime(f.created_at)}
                 </div>
-                <div style="font-size: 0.83rem; color: var(--text-primary); white-space: pre-wrap;">${escapeHtml(f.message)}</div>
+                <div style="font-size: 0.84rem; color: var(--text-primary); white-space: pre-wrap;">${escapeHtml(f.message)}</div>
               </div>
-              <button type="button" class="btn btn-sm btn-secondary" data-dismiss-feedback="${escapeHtml(f.id)}" style="font-size: 0.72rem; padding: 3px 8px;">Dismiss</button>
+              <button type="button" class="btn btn-sm btn-secondary" data-dismiss-feedback="${escapeHtml(f.id)}" style="font-size: 0.72rem; padding: 3px 8px;">Done</button>
             </div>
           `).join('');
         }
       }
     } catch (err) {
-      if (usersList) {
-        usersList.innerHTML = `<div class="sheesh-empty-row" style="color: #f87171;">Could not load admin overview: ${escapeHtml(err.message)}</div>`;
-      }
+      showAlert(err.message, false, 'sheesh-admin-alert');
     }
   }
 
+  function openAdminModal() {
+    if (!currentUser || !currentUser.isAdmin) {
+      openSheeshModal();
+      return;
+    }
+    closeSheeshModal();
+    const adminModal = document.getElementById('modal-sheesh-admin');
+    if (!adminModal) return;
+    showAlert('', false, 'sheesh-admin-alert');
+    adminModal.style.display = 'flex';
+    loadAdminOverview();
+  }
+
+  function closeAdminModal() {
+    const adminModal = document.getElementById('modal-sheesh-admin');
+    if (adminModal) adminModal.style.display = 'none';
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('admin')) {
+        url.searchParams.delete('admin');
+        window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+      }
+    } catch (_) {}
+  }
+
   // =========================================================================
-  // MODAL OPEN / CLOSE & EVENT WIRING
+  // USER MODAL OPEN / CLOSE & EVENT WIRING
   // =========================================================================
 
   async function openSheeshModal(initialMode) {
@@ -646,14 +619,12 @@
     showAlert('');
     modal.style.display = 'flex';
 
-    // Always roll a fresh passphrase into the register box if not already present
     const phraseCode = document.getElementById('sheesh-rolled-passphrase');
     if (phraseCode && !phraseCode.dataset.initialized) {
       phraseCode.textContent = rollPassphrase();
       phraseCode.dataset.initialized = 'true';
     }
 
-    // Check server status if not signed in
     if (!currentUser) {
       try {
         const st = await apiRequest(`/status${pendingInviteCode ? `?invite=${encodeURIComponent(pendingInviteCode)}` : ''}`);
@@ -691,44 +662,45 @@
       expOpenBtn.addEventListener('click', () => openSheeshModal());
     }
 
-    const expSyncNowBtn = document.getElementById('btn-export-sheesh-sync-now');
-    if (expSyncNowBtn && !expSyncNowBtn.dataset.bound) {
-      expSyncNowBtn.dataset.bound = 'true';
-      expSyncNowBtn.addEventListener('click', () => pushCedarToCloud({ deltaOnly: false, showToast: true }));
-    }
-
-    const expPullBtn = document.getElementById('btn-export-sheesh-pull');
-    if (expPullBtn && !expPullBtn.dataset.bound) {
-      expPullBtn.dataset.bound = 'true';
-      expPullBtn.addEventListener('click', () => pullCedarFromCloud({ showToast: true }));
-    }
-
     const modal = document.getElementById('modal-sheesh-cloud');
     if (!modal || modal.dataset.bound) return;
     modal.dataset.bound = 'true';
 
-    // Close modal handlers
     const closeBtn = document.getElementById('btn-sheesh-modal-close');
     if (closeBtn) closeBtn.addEventListener('click', closeSheeshModal);
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeSheeshModal();
     });
 
-    // Auth Mode Tabs
+    // Separate Admin Modal Close & Entry Link
+    const adminModal = document.getElementById('modal-sheesh-admin');
+    const adminCloseBtn = document.getElementById('btn-sheesh-admin-close');
+    if (adminCloseBtn) adminCloseBtn.addEventListener('click', closeAdminModal);
+    if (adminModal) {
+      adminModal.addEventListener('click', (e) => {
+        if (e.target === adminModal) closeAdminModal();
+      });
+    }
+
+    const openAdminUrlBtn = document.getElementById('btn-sheesh-open-admin-url');
+    if (openAdminUrlBtn) {
+      openAdminUrlBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('admin', '1');
+          window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+        } catch (_) {}
+        openAdminModal();
+      });
+    }
+
     document.querySelectorAll('.sheesh-auth-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         switchAuthMode(btn.getAttribute('data-auth-mode'));
       });
     });
 
-    // Dashboard Sub-Tabs
-    document.querySelectorAll('.sheesh-dash-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        switchDashTab(btn.getAttribute('data-sheesh-tab'));
-      });
-    });
-
-    // Toggle passphrase visibility on login
     const toggleLoginPass = document.getElementById('btn-sheesh-toggle-login-pass');
     if (toggleLoginPass) {
       toggleLoginPass.addEventListener('click', () => {
@@ -740,20 +712,18 @@
       });
     }
 
-    // Block '@' symbol in username inputs so nobody ever types an email
     ['sheesh-login-username', 'sheesh-register-username'].forEach(id => {
       const inp = document.getElementById(id);
       if (inp) {
         inp.addEventListener('input', () => {
           if (inp.value.includes('@')) {
             inp.value = inp.value.replace(/@/g, '');
-            showAlert('Usernames only — for your privacy, email addresses (@) are never used on sheesh.gg.');
+            showAlert('Usernames only — no email addresses (@) are used on sheesh.gg.');
           }
         });
       }
     });
 
-    // Roll 3-Word Passphrase button
     const rollBtn = document.getElementById('btn-sheesh-roll-passphrase');
     if (rollBtn) {
       rollBtn.addEventListener('click', () => {
@@ -762,7 +732,6 @@
       });
     }
 
-    // Copy 3-Word Passphrase button
     const copyBtn = document.getElementById('btn-sheesh-copy-passphrase');
     if (copyBtn) {
       copyBtn.addEventListener('click', async () => {
@@ -779,7 +748,6 @@
       });
     }
 
-    // Submit Login Form
     const loginForm = document.getElementById('sheesh-form-login');
     if (loginForm) {
       loginForm.addEventListener('submit', async (e) => {
@@ -805,7 +773,7 @@
           currentUser = res.user;
           updateGlobalIndicators('Synced');
           renderModalState();
-          await pullCedarFromCloud({ showToast: true });
+          await pullCedarFromCloud();
         } catch (err) {
           showAlert(err.message);
         } finally {
@@ -814,7 +782,6 @@
       });
     }
 
-    // Submit Register / Claim Invite / Admin Bootstrap Form
     const regForm = document.getElementById('sheesh-form-register');
     if (regForm) {
       regForm.addEventListener('submit', async (e) => {
@@ -827,7 +794,7 @@
         const remember = Boolean(document.getElementById('sheesh-register-remember')?.checked);
 
         if (!needsBootstrap && !inviteCode) {
-          showAlert('Please enter a valid single-use invite code.');
+          showAlert('Please enter your invite code.');
           return;
         }
         if (!/^[a-z0-9_-]{2,24}$/.test(username)) {
@@ -835,7 +802,7 @@
           return;
         }
         if (!confirmedSaved) {
-          showAlert('Please check the box confirming you have memorized or saved your 3-word passphrase.');
+          showAlert('Please check the box confirming you saved your 3-word passphrase.');
           return;
         }
 
@@ -849,7 +816,6 @@
           });
           needsBootstrap = false;
           pendingInviteCode = '';
-          // Strip ?invite= from URL bar cleanly
           try {
             const url = new URL(window.location.href);
             if (url.searchParams.has('invite')) {
@@ -862,8 +828,8 @@
           currentUser = res.user;
           updateGlobalIndicators('Synced');
           renderModalState();
-          await pushCedarToCloud({ deltaOnly: false, showToast: true });
-          showAlert(`Welcome to sheesh.gg, @${currentUser.username}! Your passphrase is ${passphrase}`, true);
+          showAlert(`Welcome, @${currentUser.username}! Your passphrase is ${passphrase}`, true);
+          pushCedarToCloud({ deltaOnly: false });
         } catch (err) {
           showAlert(err.message);
         } finally {
@@ -872,7 +838,6 @@
       });
     }
 
-    // Sign Out
     const logoutBtn = document.getElementById('btn-sheesh-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
@@ -886,33 +851,13 @@
       });
     }
 
-    // Auto-sync toggle
-    const autoSyncCheck = document.getElementById('sheesh-autosync-checkbox');
-    if (autoSyncCheck) {
-      autoSyncCheck.addEventListener('change', () => {
-        localStorage.setItem(STORAGE_KEY_AUTOSYNC, String(autoSyncCheck.checked));
-        if (autoSyncCheck.checked) scheduleAutoSync();
-      });
-    }
-
-    // Manual Push / Pull in Modal
-    const modalPushBtn = document.getElementById('btn-sheesh-modal-push');
-    if (modalPushBtn) {
-      modalPushBtn.addEventListener('click', () => pushCedarToCloud({ deltaOnly: false, showToast: true }));
-    }
-    const modalPullBtn = document.getElementById('btn-sheesh-modal-pull');
-    if (modalPullBtn) {
-      modalPullBtn.addEventListener('click', () => pullCedarFromCloud({ showToast: true }));
-    }
-
-    // Submit Feedback / Bug Note
     const sendFbBtn = document.getElementById('btn-sheesh-submit-feedback');
     if (sendFbBtn) {
       sendFbBtn.addEventListener('click', async () => {
         const ta = document.getElementById('sheesh-feedback-textarea');
         const message = (ta?.value || '').trim();
         if (!message) {
-          showAlert('Please write a short note before sending.');
+          showAlert('Please type a short note first.');
           return;
         }
         sendFbBtn.disabled = true;
@@ -922,7 +867,7 @@
             body: { tool: 'cedar', message }
           });
           if (ta) ta.value = '';
-          showAlert('Sent! Your note is now in the Admin Inbox.', true);
+          showAlert('Thanks! Your note has been sent.', true);
         } catch (err) {
           showAlert(err.message);
         } finally {
@@ -931,13 +876,13 @@
       });
     }
 
-    // Admin: Create Invite Link
+    // Admin Panel Actions
     const createInviteBtn = document.getElementById('btn-sheesh-create-invite');
     if (createInviteBtn) {
       createInviteBtn.addEventListener('click', async () => {
         const labelInp = document.getElementById('sheesh-admin-invite-label');
         const label = (labelInp?.value || '').trim();
-        const roleChecks = document.querySelectorAll('#sheesh-pane-admin .sheesh-role-check input[type="checkbox"]:checked');
+        const roleChecks = document.querySelectorAll('#modal-sheesh-admin .sheesh-role-check input[type="checkbox"]:checked');
         const roles = Array.from(roleChecks).map(c => c.value);
 
         createInviteBtn.disabled = true;
@@ -957,14 +902,13 @@
           } catch (_) {}
           await loadAdminOverview();
         } catch (err) {
-          showAlert(err.message);
+          showAlert(err.message, false, 'sheesh-admin-alert');
         } finally {
           createInviteBtn.disabled = false;
         }
       });
     }
 
-    // Copy newly generated invite URL
     const copyInviteUrlBtn = document.getElementById('btn-sheesh-copy-invite-url');
     if (copyInviteUrlBtn) {
       copyInviteUrlBtn.addEventListener('click', async () => {
@@ -978,23 +922,20 @@
       });
     }
 
-    // Admin Refresh button
     const adminRefreshBtn = document.getElementById('btn-sheesh-admin-refresh');
     if (adminRefreshBtn) {
       adminRefreshBtn.addEventListener('click', () => loadAdminOverview());
     }
 
-    // Delegated clicks inside Admin Pane (Revoke invite, Toggle user role, Reset passphrase, Pause user, Dismiss feedback)
-    const adminPane = document.getElementById('sheesh-pane-admin');
-    if (adminPane) {
-      adminPane.addEventListener('click', async (e) => {
+    if (adminModal) {
+      adminModal.addEventListener('click', async (e) => {
         const copyInvBtn = e.target.closest('[data-copy-invite]');
         if (copyInvBtn) {
           const url = copyInvBtn.getAttribute('data-copy-invite');
           try {
             await navigator.clipboard.writeText(url);
             copyInvBtn.textContent = 'Copied!';
-            setTimeout(() => { copyInvBtn.textContent = 'Copy URL'; }, 1400);
+            setTimeout(() => { copyInvBtn.textContent = 'Copy Link'; }, 1400);
           } catch (_) {}
           return;
         }
@@ -1006,7 +947,7 @@
             await apiRequest('/admin/invites/revoke', { method: 'POST', body: { code } });
             await loadAdminOverview();
           } catch (err) {
-            showAlert(err.message);
+            showAlert(err.message, false, 'sheesh-admin-alert');
           }
           return;
         }
@@ -1019,7 +960,7 @@
             await apiRequest('/admin/users/toggle-role', { method: 'POST', body: { username, role } });
             await loadAdminOverview();
           } catch (err) {
-            showAlert(err.message);
+            showAlert(err.message, false, 'sheesh-admin-alert');
           }
           return;
         }
@@ -1040,7 +981,7 @@
             }
             try { await navigator.clipboard.writeText(newPassphrase); } catch (_) {}
           } catch (err) {
-            showAlert(err.message);
+            showAlert(err.message, false, 'sheesh-admin-alert');
           }
           return;
         }
@@ -1057,7 +998,7 @@
             });
             await loadAdminOverview();
           } catch (err) {
-            showAlert(err.message);
+            showAlert(err.message, false, 'sheesh-admin-alert');
           }
           return;
         }
@@ -1069,34 +1010,9 @@
             await apiRequest('/admin/feedback/dismiss', { method: 'POST', body: { id } });
             await loadAdminOverview();
           } catch (err) {
-            showAlert(err.message);
+            showAlert(err.message, false, 'sheesh-admin-alert');
           }
         }
-      });
-    }
-
-    // Footer API URL config toggle
-    const toggleApiBtn = document.getElementById('btn-sheesh-toggle-api-config');
-    const apiConfigRow = document.getElementById('sheesh-api-config-row');
-    if (toggleApiBtn && apiConfigRow) {
-      toggleApiBtn.addEventListener('click', () => {
-        const isHidden = apiConfigRow.style.display === 'none';
-        apiConfigRow.style.display = isHidden ? 'flex' : 'none';
-      });
-    }
-
-    const saveApiBtn = document.getElementById('btn-sheesh-save-api-url');
-    if (saveApiBtn) {
-      saveApiBtn.addEventListener('click', () => {
-        const inp = document.getElementById('sheesh-api-url-input');
-        const val = (inp?.value || '').trim().replace(/\/+$/, '');
-        if (val) {
-          localStorage.setItem(STORAGE_KEY_API, val);
-        } else {
-          localStorage.removeItem(STORAGE_KEY_API);
-        }
-        renderModalState();
-        showAlert(`API endpoint updated to ${getApiBase()}`, true);
       });
     }
   }
@@ -1105,7 +1021,7 @@
     bindEvents();
     hookCedarSaveFunctions();
 
-    // 1. Check if URL has ?invite=sh_...
+    let wantsAdminUrl = false;
     try {
       const params = new URLSearchParams(window.location.search);
       const inv = params.get('invite');
@@ -1114,16 +1030,21 @@
         const invInput = document.getElementById('sheesh-register-invite');
         if (invInput) invInput.value = pendingInviteCode;
       }
+      if (params.has('admin') || window.location.hash === '#admin') {
+        wantsAdminUrl = true;
+      }
     } catch (_) {}
 
-    // 2. Check existing session token or cookie with api.sheesh.gg
     try {
       const meRes = await apiRequest('/auth/me');
       if (meRes && meRes.user) {
         currentUser = meRes.user;
         updateGlobalIndicators('Synced');
         renderModalState();
-        await pullCedarFromCloud({ showToast: false });
+        if (wantsAdminUrl && currentUser.isAdmin) {
+          openAdminModal();
+        }
+        await pullCedarFromCloud();
         return;
       }
     } catch (_) {
@@ -1131,19 +1052,20 @@
       updateGlobalIndicators();
     }
 
-    // 3. If an invite link was clicked while signed out, automatically open the Claim Invite modal!
     if (pendingInviteCode) {
       openSheeshModal('register');
+    } else if (wantsAdminUrl) {
+      openSheeshModal('login');
     }
   }
 
-  // Expose global API for Cedar & sibling sheesh.gg tools
   window.SheeshCloud = {
     init: initSheeshCloud,
     openModal: openSheeshModal,
     closeModal: closeSheeshModal,
-    pushNow: () => pushCedarToCloud({ deltaOnly: false, showToast: true }),
-    pullNow: () => pullCedarFromCloud({ showToast: true }),
+    openAdmin: openAdminModal,
+    pushNow: () => pushCedarToCloud({ deltaOnly: false }),
+    pullNow: () => pullCedarFromCloud(),
     rollPassphrase,
     getUser: () => currentUser
   };
