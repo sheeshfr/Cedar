@@ -684,9 +684,9 @@
     let thumbWrapHtml = '';
     if (image) {
       thumbWrapHtml = `
-        <div class="post-card-img-wrap" style="background-color: var(--bg-secondary, #18181b); aspect-ratio: 16 / 9;">
+        <div class="post-card-img-wrap" style="position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background-color: var(--bg-secondary, #18181b);">
           <div class="post-card-img-ambient" style="background-image: url('${esc(image)}');"></div>
-          <img src="${esc(image)}" alt="" class="post-card-img" loading="lazy" draggable="false" onerror="if(this.parentElement) { this.parentElement.style.display='none'; }">
+          <img src="${esc(image)}" alt="" class="post-card-img" loading="lazy" draggable="false" style="width: 100%; height: 100%; max-width: 100%; object-fit: cover; display: block; margin: 0; border-radius: 0;" onerror="if(this.parentElement) { this.parentElement.style.display='none'; }">
         </div>
       `;
     }
@@ -698,7 +698,7 @@
     const cleanSub = (subtitle || '').trim();
     const isSubSameAsDomain = cleanSub.toLowerCase() === (domain || '').trim().toLowerCase();
     const descText = (!cleanSub || isSubSameAsDomain) ? '' : cleanSub;
-    const descHtml = descText ? `<p class="post-card-desc">${esc(descText)}</p>` : '';
+    const descHtml = descText ? `<p class="post-card-desc" style="margin: 0; font-size: 0.81rem; line-height: 1.42; color: var(--text-muted, #a1a1aa); text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(descText)}</p>` : '';
 
     const domainBar = `
       <div class="external-card-domain-bar" style="display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-muted, #a1a1aa); font-weight: 500; letter-spacing: 0.01em;">
@@ -709,10 +709,10 @@
     const cardLayoutClass = layoutStyle === 'horizontal' ? 'layout-horizontal' : '';
 
     return `
-      <a href="${esc(href)}" target="_blank" rel="noopener noreferrer" draggable="false" class="post-card external-link-card ${cardLayoutClass}">
+      <a href="${esc(href)}" target="_blank" rel="noopener noreferrer" draggable="false" class="post-card external-link-card ${cardLayoutClass}" style="display: flex; flex-direction: column; width: 100%; max-width: 380px; margin: 0 auto; background-color: var(--bg-secondary, #1c1c22); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; overflow: hidden; text-decoration: none !important; color: var(--text-primary, #f4f4f5);">
         ${thumbWrapHtml}
-        <div class="post-card-body">
-          <h4 class="post-card-title external-card-title" style="display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px !important;">
+        <div class="post-card-body" style="padding: 12px 14px 13px; display: flex; flex-direction: column; gap: 5px;">
+          <h4 class="post-card-title external-card-title" style="display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px !important; margin: 0; font-size: 0.96rem; font-weight: 700; line-height: 1.3; color: var(--text-primary, #f4f4f5); text-decoration: none;">
             ${iconHtml}
             <span class="external-card-title-text" style="overflow: hidden; text-overflow: ellipsis;">${esc(title)}</span>
           </h4>
@@ -848,6 +848,11 @@
     const hasLinkedItem = Boolean(linkedPost || linkedPage || (externalMeta && externalMeta.url));
     blockEl.classList.toggle('has-card', hasLinkedItem);
     blockEl.classList.toggle('is-unlinked', !hasLinkedItem);
+    if (hasLinkedItem) {
+      blockEl.setAttribute('style', 'margin: 1.75rem auto; width: 100%; display: flex; justify-content: center;');
+    } else {
+      blockEl.removeAttribute('style');
+    }
 
     const isEditingUrl = isEditor && (!hasLinkedItem || blockEl.dataset.editingUrl === 'true');
 
@@ -938,15 +943,15 @@
       if (cardHtml) {
         if (layout === 'grid') {
           html += `
-            <div class="page-block-render-area individual-post-render-grid">
-              <div class="individual-post-grid-center">
+            <div class="page-block-render-area individual-post-render-grid" style="width: 100%;">
+              <div class="individual-post-grid-center" style="width: 100%; max-width: 380px; margin: 0 auto;">
                 ${cardHtml}
               </div>
             </div>
           `;
         } else {
           html += `
-            <div class="page-block-render-area individual-post-render-list">
+            <div class="page-block-render-area individual-post-render-list" style="width: 100%;">
               <div class="posts-grid posts-list-view cols-1" style="margin-bottom: 0;">
                 ${cardHtml}
               </div>

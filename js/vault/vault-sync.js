@@ -2175,6 +2175,16 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
       await window.SheeshVault.writeFile('editor/drafts.json', window.drafts);
 
       try { await window.SheeshVault.writeFile('writer/drafts.json', window.drafts); } catch (e) {}
+      if (typeof window.generateRssFeedXml === 'function' && (!window.projectConfig || window.projectConfig.rssEnabled !== false)) {
+        try {
+          const pubPosts = (Array.isArray(window.drafts) ? window.drafts : []).filter(d => d && (d.type === 'post' || !d.type) && (!d.status || d.status === 'published') && !d.hidden && !d.retired);
+          const rssXml = window.generateRssFeedXml(pubPosts, window.projectConfig);
+          if (rssXml) {
+            await window.SheeshVault.writeFile('feed.xml', rssXml);
+            await window.SheeshVault.writeFile('blog/feed.xml', rssXml);
+          }
+        } catch (e) {}
+      }
 
       if (typeof window.showToast === 'function') {
 

@@ -4391,6 +4391,7 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 .page-individual-post-block,
 .app-theme-light .page-individual-post-block {
   position: relative;
+  display: block !important;
   margin: 1.85rem 0;
   padding: 0;
   border: none;
@@ -4751,8 +4752,9 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 }
 
 .canvas-prose .post-card.layout-horizontal {
-  flex-direction: row;
-  align-items: stretch;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  max-width: 100% !important;
 }
 
 .canvas-prose .post-card-link {

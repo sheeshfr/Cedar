@@ -765,6 +765,48 @@
   // STATIC POST COMPILERS & EXPORT SNIPPETS
   // =========================================================================
 
+  function ensureSelfContainedExternalCardStyles(rootEl) {
+    if (!rootEl || !rootEl.querySelectorAll) return;
+    rootEl.querySelectorAll('.page-individual-post-block.has-card').forEach(blockEl => {
+      blockEl.setAttribute('style', 'margin: 1.75rem auto; width: 100%; display: flex; justify-content: center;');
+    });
+    rootEl.querySelectorAll('.page-individual-post-block .page-block-render-area').forEach(areaEl => {
+      if (!areaEl.getAttribute('style')) {
+        areaEl.setAttribute('style', 'width: 100%;');
+      }
+    });
+    rootEl.querySelectorAll('.individual-post-grid-center').forEach(gridCenterEl => {
+      gridCenterEl.setAttribute('style', 'width: 100%; max-width: 380px; margin: 0 auto;');
+    });
+    rootEl.querySelectorAll('a.post-card.external-link-card').forEach(cardEl => {
+      cardEl.setAttribute('style', 'display: flex; flex-direction: column; width: 100%; max-width: 380px; margin: 0 auto; background-color: var(--bg-secondary, #1c1c22); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; overflow: hidden; text-decoration: none !important; color: var(--text-primary, #f4f4f5);');
+      const imgWrap = cardEl.querySelector('.post-card-img-wrap');
+      if (imgWrap) {
+        imgWrap.setAttribute('style', 'position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background-color: var(--bg-secondary, #18181b);');
+      }
+      const cardImg = cardEl.querySelector('img.post-card-img');
+      if (cardImg) {
+        cardImg.setAttribute('style', 'width: 100%; height: 100%; max-width: 100%; object-fit: cover; display: block; margin: 0; border-radius: 0;');
+      }
+      const cardBody = cardEl.querySelector('.post-card-body');
+      if (cardBody) {
+        cardBody.setAttribute('style', 'padding: 12px 14px 13px; display: flex; flex-direction: column; gap: 5px;');
+      }
+      const cardTitle = cardEl.querySelector('.post-card-title.external-card-title, .external-card-title');
+      if (cardTitle) {
+        cardTitle.setAttribute('style', 'display: flex !important; flex-direction: row !important; align-items: center !important; gap: 8px !important; margin: 0; font-size: 0.96rem; font-weight: 700; line-height: 1.3; color: var(--text-primary, #f4f4f5); text-decoration: none;');
+      }
+      const favicon = cardEl.querySelector('img.external-card-favicon');
+      if (favicon) {
+        favicon.setAttribute('style', 'width: 18px !important; height: 18px !important; min-width: 18px !important; max-width: 18px !important; border-radius: 4px !important; object-fit: contain !important; flex-shrink: 0 !important; margin: 0 !important; display: inline-block !important;');
+      }
+      const cardDesc = cardEl.querySelector('.post-card-desc');
+      if (cardDesc) {
+        cardDesc.setAttribute('style', 'margin: 0; font-size: 0.81rem; line-height: 1.42; color: var(--text-muted, #a1a1aa); text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;');
+      }
+    });
+  }
+
   function prepareProseForPublish(html, draft, options = {}) {
     if (!html) return '';
     const preferStaticPaths = Boolean(options && options.preferStaticPaths);
@@ -836,6 +878,7 @@
 
       // 3.5. Ensure media and containers stay bounded within article width
       body.querySelectorAll('img, figure, .captioned-image-container, .image-media-wrapper, .custom-gallery-grid, .custom-gallery-item').forEach(el => {
+        if (el.closest && el.closest('.post-card, .external-link-card')) return;
         if (el.style) {
           if (el.style.width && (el.style.width.includes('vw') || parseInt(el.style.width, 10) > 820)) {
             el.style.width = '100%';
@@ -843,6 +886,9 @@
           el.style.maxWidth = '100%';
         }
       });
+
+      // 3.6. Ensure self-contained inline styles on external social bookmark cards
+      ensureSelfContainedExternalCardStyles(body);
 
       // 4. Resolve image URLs against static paths (for production site build) or imageRegistry / resolvePostImage
       body.querySelectorAll('img').forEach(img => {
@@ -2984,6 +3030,7 @@ ${socialMeta.metaLines}
     .article-prose .post-card.layout-horizontal {
       flex-direction: row !important;
       align-items: stretch !important;
+      max-width: 100% !important;
       padding: 0 !important;
       gap: 0 !important;
     }
@@ -4411,7 +4458,7 @@ ${draft.markdown || ''}`;
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {}));
     const siteTitle = cfg.name || (cfg.design && cfg.design.branding && cfg.design.branding.siteTitle) || 'Cedar';
     const siteDesc = cfg.description || cfg.subtitle || (cfg.design && cfg.design.branding && cfg.design.branding.tagline) || siteTitle;
-    const rawDomain = (cfg.domain || cfg.detectedDomain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const rawDomain = (resolveEffectiveSiteDomain(cfg) || cfg.domain || cfg.detectedDomain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     const domain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain)) ? rawDomain : '';
     const autoBase = (typeof window !== 'undefined' && typeof window.resolveAutoDetectedSiteBaseUrl === 'function')
       ? window.resolveAutoDetectedSiteBaseUrl(cfg)
@@ -4554,6 +4601,9 @@ ${draft.markdown || ''}`;
               a.setAttribute('href', `${siteUrl}${href}`);
             }
           });
+
+          // Ensure self-contained inline styles on external social bookmark cards for RSS readers
+          ensureSelfContainedExternalCardStyles(body);
 
           fullHtml = body.innerHTML.trim();
         } catch (e) {}

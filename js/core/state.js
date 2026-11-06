@@ -6298,13 +6298,32 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             : (Array.isArray(window.drafts) ? window.drafts : drafts);
           const payloadStr = JSON.stringify(latestDrafts);
 
+          const rssXml = (typeof window.generateRssFeedXml === 'function' && (!projectConfig || projectConfig.rssEnabled !== false))
+            ? window.generateRssFeedXml(
+                latestDrafts.filter(d => d && (d.type === 'post' || !d.type) && (!d.status || d.status === 'published') && !d.hidden && !d.retired && !((typeof window.isLinksDraft === 'function' ? window.isLinksDraft(d) : (d.id === 'page_links' || d.slug === 'links' || (d.title || '').trim().toLowerCase() === 'links' || d.linksData)))),
+                projectConfig
+              )
+            : '';
+
           if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
             // SheeshVault.writeFile writes to physical disk AND mirrors to CedarVirtualStorage automatically
             await window.SheeshVault.writeFile('editor/drafts.json', payloadStr);
+            if (rssXml) {
+              try {
+                await window.SheeshVault.writeFile('feed.xml', rssXml);
+                await window.SheeshVault.writeFile('blog/feed.xml', rssXml);
+              } catch (e) {}
+            }
           } else {
             const vStore = window.CedarVirtualStorage || window.OutpostVirtualStorage;
             if (vStore && typeof vStore.writeFile === 'function') {
               await vStore.writeFile('editor/drafts.json', payloadStr);
+              if (rssXml) {
+                try {
+                  await vStore.writeFile('feed.xml', rssXml);
+                  await vStore.writeFile('blog/feed.xml', rssXml);
+                } catch (e) {}
+              }
             }
             if (savedVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
               await fetch('/api/vault-write', {
@@ -6317,6 +6336,20 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
                   encoding: 'utf-8'
                 })
               }).catch(() => {});
+              if (rssXml) {
+                for (const feedRelPath of ['feed.xml', 'blog/feed.xml']) {
+                  fetch('/api/vault-write', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      folderPath: savedVaultPath,
+                      filePath: feedRelPath,
+                      content: rssXml,
+                      encoding: 'utf-8'
+                    })
+                  }).catch(() => {});
+                }
+              }
             }
           }
         } catch (vErr) {
