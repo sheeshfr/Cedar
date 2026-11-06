@@ -125,8 +125,12 @@
     });
 
     const hashStr = (window.location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
-    const pathStr = (window.location.pathname || '').replace(/^.*preview\.html\/?/i, '').trim().toLowerCase();
-    const rawRoute = (hashStr || pathStr).replace(/\/+$/, '');
+    const basePref = (typeof window.getSiteBasePrefix === 'function' ? window.getSiteBasePrefix() : '').toLowerCase();
+    let pathStr = (window.location.pathname || '').replace(/^.*preview\.html\/?/i, '').trim().toLowerCase();
+    if (basePref && (pathStr === basePref || pathStr.startsWith(basePref + '/'))) {
+      pathStr = pathStr.slice(basePref.length);
+    }
+    const rawRoute = (hashStr || pathStr).replace(/^\/+|\/+$/g, '');
     const segments = rawRoute.split('/').filter(Boolean);
     const rootToken = segments[0] || '';
 

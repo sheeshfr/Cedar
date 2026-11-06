@@ -5874,6 +5874,28 @@ ${socialMeta.metaLines}
         addFile('blog/feed.xml', rssFeed);
       }
 
+      // 10. Subpath Mirroring (when repository/worker is named 'blog' and mounted at domain.com/blog/)
+      if (workerSiteName === 'blog') {
+        const allPostsHtml = generateBlogHomeHtml(publishedPosts, publicProject, {
+          pageTitle: `All Posts — ${siteTitle}`,
+          metaDesc: `All articles published on ${siteTitle}.`,
+          canonicalPath: 'blog/',
+          detectedSiteUrl: options.detectedSiteUrl
+        });
+        const snapshot = files.slice();
+        for (const entry of snapshot) {
+          if (!entry || !entry.name) continue;
+          const p = entry.name;
+          if (p === 'wrangler.jsonc' || p === 'CNAME' || p === '.nojekyll' || p === '.assetsignore' || p === '.gitignore' || p === 'sync.json') continue;
+          if (p === 'blog/index.html' || p === 'blog/feed.xml') continue;
+          if (p.startsWith('blog/images/') || p.startsWith('blog/published/')) continue;
+          addFile(`blog/${p}`, entry.data);
+        }
+        // Serve the main Home shell (with ./ relative paths) at /blog/index.html so domain.com/blog/ is the site root
+        addFile('blog/index.html', rootHtml);
+        addFile('blog/blog/index.html', allPostsHtml);
+      }
+
     return files;
   }
   window.buildProductionSiteFiles = buildProductionSiteFiles;
