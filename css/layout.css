@@ -961,3 +961,566 @@ body.sidebar-collapsed .dash-main-wrap {
   display: none !important;
 }
 
+/* ==========================================================================
+   sheesh.gg Sidebar Portal Button & Cloud Account Modal
+   ========================================================================== */
+
+.sidebar-footer {
+  gap: 8px;
+}
+
+.sheesh-portal-btn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.sheesh-portal-btn:hover {
+  transform: scale(1.03);
+  filter: brightness(1.08);
+  background-color: var(--sidebar-hover, rgba(255, 255, 255, 0.04));
+  border-color: var(--sidebar-border, rgba(255, 255, 255, 0.08));
+}
+
+.sheesh-portal-logo-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheesh-portal-img {
+  width: 112px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.sheesh-status-dot {
+  display: none;
+  position: absolute;
+  bottom: -1px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #71717a;
+  border: 2px solid var(--sidebar-bg, #121214);
+}
+
+.sheesh-status-dot.is-online {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
+}
+
+.sheesh-portal-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.71rem;
+  line-height: 1.2;
+  color: var(--sidebar-text-muted, #a1a1aa);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheesh-portal-dot-inline {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #71717a;
+  flex-shrink: 0;
+}
+
+.sheesh-portal-dot-inline.is-online {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+}
+
+.sheesh-portal-status-text {
+  font-weight: 600;
+  color: var(--sidebar-text-primary, var(--text-primary));
+}
+
+.sheesh-portal-action-hint {
+  color: var(--accent-primary, #a855f7);
+  font-weight: 500;
+}
+
+/* Collapsed Sidebar States for sheesh.gg Portal Button */
+.sidebar.collapsed .sheesh-portal-btn,
+.dash-sidebar.collapsed .sheesh-portal-btn {
+  width: 54px;
+  padding: 5px 2px;
+}
+
+.sidebar.collapsed .sheesh-portal-img,
+.dash-sidebar.collapsed .sheesh-portal-img {
+  width: 48px;
+}
+
+.sidebar.collapsed .sheesh-portal-meta,
+.dash-sidebar.collapsed .sheesh-portal-meta {
+  display: none !important;
+}
+
+.sidebar.collapsed .sheesh-status-dot,
+.dash-sidebar.collapsed .sheesh-status-dot {
+  display: block;
+}
+
+@media (max-width: 870px) and (min-width: 769px) {
+  .sidebar:not(.manually-expanded) .sheesh-portal-btn,
+  .dash-sidebar:not(.manually-expanded) .sheesh-portal-btn {
+    width: 54px !important;
+    padding: 5px 2px !important;
+  }
+  .sidebar:not(.manually-expanded) .sheesh-portal-img,
+  .dash-sidebar:not(.manually-expanded) .sheesh-portal-img {
+    width: 48px !important;
+  }
+  .sidebar:not(.manually-expanded) .sheesh-portal-meta,
+  .dash-sidebar:not(.manually-expanded) .sheesh-portal-meta {
+    display: none !important;
+  }
+  .sidebar:not(.manually-expanded) .sheesh-status-dot,
+  .dash-sidebar:not(.manually-expanded) .sheesh-status-dot {
+    display: block !important;
+  }
+}
+
+/* Modal Styles for sheesh.gg Cloud Hub */
+.sheesh-modal-card {
+  max-width: 560px;
+  width: 94vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.sheesh-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1.1rem 1.35rem;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.sheesh-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sheesh-modal-logo {
+  width: 72px;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sheesh-conn-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(113, 113, 122, 0.16);
+  color: var(--text-muted, #a1a1aa);
+  border: 1px solid rgba(113, 113, 122, 0.3);
+}
+
+.sheesh-conn-badge.is-online {
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.app-theme-light .sheesh-conn-badge.is-online {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.sheesh-visit-link {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted, #a1a1aa);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.sheesh-visit-link:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+.sheesh-modal-body {
+  padding: 1.2rem 1.35rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sheesh-alert-banner {
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.sheesh-alert-banner.is-success {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.app-theme-light .sheesh-alert-banner {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.app-theme-light .sheesh-alert-banner.is-success {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.sheesh-auth-tabs,
+.sheesh-dash-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 9px;
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.22));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  margin-bottom: 1.1rem;
+}
+
+.sheesh-auth-tab,
+.sheesh-dash-tab {
+  flex: 1;
+  padding: 0.48rem 0.75rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #a1a1aa);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sheesh-auth-tab.active,
+.sheesh-dash-tab.active {
+  background: var(--bg-card, #27272a);
+  color: var(--text-primary, #ffffff);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.app-theme-light .sheesh-auth-tab.active,
+.app-theme-light .sheesh-dash-tab.active {
+  background: #ffffff;
+  color: #18181b;
+}
+
+.sheesh-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sheesh-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.sheesh-field-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted, #a1a1aa);
+  line-height: 1.35;
+}
+
+.sheesh-invite-callout {
+  padding: 0.75rem 0.95rem;
+  border-radius: 9px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  text-align: left;
+}
+
+.sheesh-invite-callout strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 3px;
+  color: var(--text-primary);
+}
+
+.sheesh-invite-callout p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.sheesh-passphrase-roller-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 9px;
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.28));
+  border: 1px dashed var(--accent-primary, #a855f7);
+  flex-wrap: wrap;
+}
+
+.sheesh-rolled-phrase {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  user-select: all;
+}
+
+.sheesh-roller-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.sheesh-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  cursor: pointer;
+  text-align: left;
+}
+
+.sheesh-checkbox-row input[type="checkbox"] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.sheesh-checkbox-row strong {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.sheesh-checkbox-row span {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.sheesh-submit-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  font-weight: 600;
+}
+
+.sheesh-profile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.09));
+  margin-bottom: 1rem;
+}
+
+.sheesh-profile-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sheesh-avatar-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sheesh-profile-handle {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.sheesh-session-mode-pill {
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.14);
+  color: var(--text-muted);
+  border: 1px solid rgba(168, 85, 247, 0.28);
+}
+
+.sheesh-role-pills {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.sheesh-role-pill {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.08));
+  color: var(--text-muted);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.sheesh-role-pill.is-admin {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.sheesh-sync-card,
+.sheesh-admin-section {
+  padding: 0.95rem 1rem;
+  border-radius: 10px;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.09));
+  margin-bottom: 0.9rem;
+  text-align: left;
+}
+
+.sheesh-sync-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sheesh-live-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
+  flex-shrink: 0;
+}
+
+.sheesh-sync-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 0.95rem;
+}
+
+.sheesh-admin-heading {
+  margin: 0 0 0.65rem 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sheesh-role-checkboxes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sheesh-role-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  cursor: pointer;
+}
+
+.sheesh-generated-invite-box {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.sheesh-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sheesh-admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  flex-wrap: wrap;
+}
+
+.sheesh-empty-row {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0.4rem 0;
+}
+
+.sheesh-modal-footer {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1.35rem;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+

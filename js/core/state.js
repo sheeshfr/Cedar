@@ -1621,6 +1621,8 @@
 
       id: id,
 
+      rssGuid: id,
+
       type: type, // 'post' | 'page'
 
       status: type === 'page' ? 'published' : status, // Pages only have published/hidden, never draft
@@ -3700,7 +3702,21 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
   function resolveAutoDetectedSiteBaseUrl(config) {
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (typeof window !== 'undefined' && window.projectConfig ? window.projectConfig : {})) || {};
-    const rawDomain = String(cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    let rawDomain = String(cfg.domain || cfg.detectedDomain || (typeof localStorage !== 'undefined' ? (localStorage.getItem(STORAGE_KEY_DOMAIN) || '') : '') || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    if (!rawDomain || /^localhost(?::\d+)?$/i.test(rawDomain) || /^127\.0\.0\.1(?::\d+)?$/.test(rawDomain)) {
+      try {
+        const ghRepo = (cfg && cfg.githubRepo) || (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY_REPO)) || '';
+        const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '');
+        if (repoSlug.includes('.')) {
+          rawDomain = repoSlug.toLowerCase();
+        } else {
+          const tldMatch = repoSlug.match(/^([a-z0-9-]+)-(com|org|net|io|gg|dev|pub|me|co|app|xyz|blog|art|games|tech|ai|sh|cc|tv|lol|wtf|ink|page|site|live|pro|studio|design|club|fun|space|world|zone|build|info|us|uk|ca|de|fr|jp|au|nz|nl|se|no|fi|dk|ch|at|be|es|it|pt|br|mx|in|kr|tw|hk|sg)$/i);
+          if (tldMatch) {
+            rawDomain = `${tldMatch[1].toLowerCase()}.${tldMatch[2].toLowerCase()}`;
+          }
+        }
+      } catch (e) {}
+    }
     const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain) && !/^127\.0\.0\.1(?::\d+)?$/.test(rawDomain))
       ? rawDomain
       : '';
@@ -3749,7 +3765,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (validDomain) {
         return `https://${validDomain}`;
       }
-      if (host === 'cedar.pub' || host === 'www.cedar.pub') {
+      if (host === 'cedar.pub' || host === 'www.cedar.pub' || host === 'cedar.sheesh.gg') {
         return '';
       }
       return `${window.location.origin}${subpath}`;
@@ -6649,6 +6665,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       if (!item.publishedSlug && item.slug) {
         item.publishedSlug = item.slug;
       }
+      if (!item.rssGuid || /^https?:\/\//i.test(String(item.rssGuid).trim())) {
+        item.rssGuid = item.id;
+      }
       item.slugCommitted = true;
     }
 
@@ -6765,6 +6784,14 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     const copy = JSON.parse(JSON.stringify(item));
 
     copy.id = (copy.type === 'page' ? 'page_' : 'post_') + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+    copy.rssGuid = copy.id;
+
+    delete copy.rssPubDate;
+    delete copy.publishedAt;
+    delete copy.publishedDate;
+    delete copy.publishedSlug;
+    delete copy.everPublished;
 
     copy.title = (copy.title || 'Untitled') + ' (Copy)';
 

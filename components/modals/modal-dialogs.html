@@ -1702,3 +1702,273 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
       </div>
     </div>
   </div>
+
+  <!-- Modal: sheesh.gg Cloud Account, Invite Claim & Admin Cockpit -->
+  <div class="modal-overlay" id="modal-sheesh-cloud" style="display: none; z-index: 100050;" role="dialog" aria-modal="true" aria-labelledby="sheesh-modal-title">
+    <div class="modal-card sheesh-modal-card">
+      <!-- Header -->
+      <div class="modal-header sheesh-modal-header">
+        <div class="sheesh-modal-title-row">
+          <img src="images/sheesh.png" alt="sheesh.gg" class="sheesh-modal-logo">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <h2 class="modal-title" id="sheesh-modal-title" style="margin: 0; font-size: 1.08rem;">sheesh.gg Cloud</h2>
+              <span class="sheesh-conn-badge" id="sheesh-modal-conn-badge">Local Mode</span>
+            </div>
+            <p class="modal-desc" id="sheesh-modal-subtitle" style="margin: 2px 0 0 0; font-size: 0.8rem;">Invite-only cross-device sync for Cedar, Loudmouth &amp; sheesh.gg tools.</p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <a href="https://sheesh.gg" target="_blank" rel="noopener" class="sheesh-visit-link" title="Open sheesh.gg main portal">
+            <span>sheesh.gg</span>
+            <span>&nearr;</span>
+          </a>
+          <button type="button" class="modal-close-btn" id="btn-sheesh-modal-close" title="Close">&times;</button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="modal-body sheesh-modal-body">
+        <!-- Alert / Error / Info Banner -->
+        <div class="sheesh-alert-banner" id="sheesh-modal-alert" style="display: none;"></div>
+
+        <!-- =========================================================
+             VIEW 1: AUTHENTICATION (Sign In / Claim Invite / Bootstrap)
+             ========================================================= -->
+        <div id="sheesh-view-auth">
+          <!-- Mode Switch Tabs -->
+          <div class="sheesh-auth-tabs" id="sheesh-auth-tabs">
+            <button type="button" class="sheesh-auth-tab active" id="sheesh-auth-tab-login" data-auth-mode="login">Sign In</button>
+            <button type="button" class="sheesh-auth-tab" id="sheesh-auth-tab-register" data-auth-mode="register">Have an Invite?</button>
+          </div>
+
+          <!-- Form A: Sign In -->
+          <form id="sheesh-form-login" class="sheesh-auth-form" autocomplete="on">
+            <div class="sheesh-field-group">
+              <label class="form-label" for="sheesh-login-username">Username</label>
+              <input type="text" id="sheesh-login-username" class="form-input" placeholder="e.g. maple_fox" spellcheck="false" autocomplete="username">
+              <span class="sheesh-field-hint">Usernames only &mdash; no email addresses exist on sheesh.gg.</span>
+            </div>
+
+            <div class="sheesh-field-group">
+              <label class="form-label" for="sheesh-login-passphrase">3-Word Passphrase</label>
+              <div style="position: relative; display: flex; align-items: center;">
+                <input type="password" id="sheesh-login-passphrase" class="form-input" placeholder="word-word-00" spellcheck="false" autocomplete="current-password" style="padding-right: 2.6rem; font-family: var(--font-mono, monospace);">
+                <button type="button" id="btn-sheesh-toggle-login-pass" class="btn-link" title="Show/hide passphrase" style="position: absolute; right: 8px; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 0.75rem;">Show</button>
+              </div>
+            </div>
+
+            <label class="sheesh-checkbox-row" for="sheesh-login-remember">
+              <input type="checkbox" id="sheesh-login-remember" checked>
+              <div>
+                <strong>Keep me signed in on this device</strong>
+                <span>Uncheck on public or Deep Freeze library computers so closing this tab erases your session immediately.</span>
+              </div>
+            </label>
+
+            <button type="submit" class="btn btn-primary popout-3d sheesh-submit-btn" id="btn-sheesh-submit-login">
+              <span>Sign In to sheesh.gg</span>
+            </button>
+          </form>
+
+          <!-- Form B: Claim Invite (or First-Run Admin Bootstrap) -->
+          <form id="sheesh-form-register" class="sheesh-auth-form" style="display: none;" autocomplete="off">
+            <div class="sheesh-invite-callout" id="sheesh-register-callout">
+              <strong id="sheesh-register-callout-title">Claim Your sheesh.gg Invite</strong>
+              <p id="sheesh-register-callout-desc">Pick a handle and roll a memorable 3-word passphrase. To protect your privacy, human-chosen passwords and email addresses are never used.</p>
+            </div>
+
+            <div class="sheesh-field-group" id="sheesh-invite-code-group">
+              <label class="form-label" for="sheesh-register-invite">Invite Code</label>
+              <input type="text" id="sheesh-register-invite" class="form-input" placeholder="sh_..." spellcheck="false" style="font-family: var(--font-mono, monospace);">
+            </div>
+
+            <div class="sheesh-field-group">
+              <label class="form-label" for="sheesh-register-username">Choose a Username</label>
+              <input type="text" id="sheesh-register-username" class="form-input" placeholder="e.g. cozy_frog" spellcheck="false" maxlength="24">
+              <span class="sheesh-field-hint">2&ndash;24 characters: letters, numbers, underscores, or hyphens. No <code>@</code> symbols.</span>
+            </div>
+
+            <div class="sheesh-field-group">
+              <label class="form-label">Your Memorable 3-Word Passphrase</label>
+              <div class="sheesh-passphrase-roller-box">
+                <code class="sheesh-rolled-phrase" id="sheesh-rolled-passphrase">velvet-waffle-42</code>
+                <div class="sheesh-roller-actions">
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-roll-passphrase" title="Roll a different 3-word combination">
+                    <span>🎲 Roll Another</span>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-copy-passphrase" title="Copy passphrase to clipboard">
+                    <span id="btn-sheesh-copy-passphrase-label">Copy</span>
+                  </button>
+                </div>
+              </div>
+              <span class="sheesh-field-hint">Guaranteed unique to sheesh.gg so your real-world passwords are never at risk. Memorize it or save it in your notes!</span>
+            </div>
+
+            <label class="sheesh-checkbox-row" for="sheesh-register-confirm-saved">
+              <input type="checkbox" id="sheesh-register-confirm-saved">
+              <div>
+                <strong>I have memorized or saved my 3-word passphrase</strong>
+                <span>If you ever forget it, the admin can roll a fresh 3-word phrase for you in 1 click.</span>
+              </div>
+            </label>
+
+            <label class="sheesh-checkbox-row" for="sheesh-register-remember">
+              <input type="checkbox" id="sheesh-register-remember" checked>
+              <div>
+                <strong>Keep me signed in on this device</strong>
+                <span>Uncheck on public or Deep Freeze library computers.</span>
+              </div>
+            </label>
+
+            <button type="submit" class="btn btn-primary popout-3d sheesh-submit-btn" id="btn-sheesh-submit-register">
+              <span id="btn-sheesh-submit-register-label">Claim Invite &amp; Sign In</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- =========================================================
+             VIEW 2: LOGGED-IN DASHBOARD (Sync, Feedback & Admin Cockpit)
+             ========================================================= -->
+        <div id="sheesh-view-dashboard" style="display: none;">
+          <!-- Profile Summary Bar -->
+          <div class="sheesh-profile-bar">
+            <div class="sheesh-profile-info">
+              <div class="sheesh-avatar-circle" id="sheesh-user-avatar">S</div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <strong class="sheesh-profile-handle" id="sheesh-user-handle">@user</strong>
+                  <span class="sheesh-session-mode-pill" id="sheesh-user-session-pill">Persistent Device</span>
+                </div>
+                <div class="sheesh-role-pills" id="sheesh-user-roles"></div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-logout">Sign Out</button>
+          </div>
+
+          <!-- Dashboard Sub-Navigation Tabs -->
+          <div class="sheesh-dash-tabs">
+            <button type="button" class="sheesh-dash-tab active" data-sheesh-tab="sync">Cloud Sync</button>
+            <button type="button" class="sheesh-dash-tab" data-sheesh-tab="feedback">Bug / Idea Box</button>
+            <button type="button" class="sheesh-dash-tab" data-sheesh-tab="admin" id="sheesh-tab-btn-admin" style="display: none;">👑 Admin &amp; Invites</button>
+          </div>
+
+          <!-- Tab 1: Cloud Sync Controls -->
+          <div class="sheesh-dash-pane" id="sheesh-pane-sync">
+            <div class="sheesh-sync-card">
+              <div class="sheesh-sync-status-row">
+                <div>
+                  <h4 id="sheesh-sync-headline" style="margin: 0 0 4px 0; font-size: 0.96rem;">All changes saved to sheesh.gg</h4>
+                  <p id="sheesh-sync-meta" style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">Last synced: Just now &middot; Cloud footprint: 0 KB</p>
+                </div>
+                <span class="sheesh-live-pulse-dot" id="sheesh-sync-pulse-dot"></span>
+              </div>
+
+              <label class="sheesh-checkbox-row" for="sheesh-autosync-checkbox" style="margin-top: 0.85rem;">
+                <input type="checkbox" id="sheesh-autosync-checkbox" checked>
+                <div>
+                  <strong>Auto-Sync as I work</strong>
+                  <span>Automatically push 2KB atomic updates to sheesh.gg whenever you save a post, draft, page, or setting.</span>
+                </div>
+              </label>
+
+              <div class="sheesh-sync-actions">
+                <button type="button" class="btn btn-primary btn-sm popout-3d" id="btn-sheesh-modal-push">
+                  <span>&uarr; Push Local Blog to Cloud</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm popout-3d" id="btn-sheesh-modal-pull">
+                  <span>&darr; Pull Cloud Blog to This Device</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Bug / Idea Box (For Circle Members) -->
+          <div class="sheesh-dash-pane" id="sheesh-pane-feedback" style="display: none;">
+            <div class="sheesh-sync-card">
+              <h4 style="margin: 0 0 4px 0; font-size: 0.95rem;">Send a Bug Report or Feature Request</h4>
+              <p style="margin: 0 0 0.75rem 0; font-size: 0.8rem; color: var(--text-muted);">Spotted something broken or have an idea for Cedar or sheesh.gg? Drop a note directly into the Admin Inbox.</p>
+              <textarea id="sheesh-feedback-textarea" class="form-input" rows="4" placeholder="What happened, or what would you love to see added?" style="width: 100%; resize: vertical; margin-bottom: 0.75rem;"></textarea>
+              <button type="button" class="btn btn-primary btn-sm popout-3d" id="btn-sheesh-submit-feedback">Send to Admin Inbox</button>
+            </div>
+          </div>
+
+          <!-- Tab 3: Admin Cockpit (Invites, Member Roster & Feedback Inbox) -->
+          <div class="sheesh-dash-pane" id="sheesh-pane-admin" style="display: none;">
+            <!-- Section A: Generate Invite Link -->
+            <div class="sheesh-admin-section">
+              <h4 class="sheesh-admin-heading">1. Create Single-Use Invite Link</h4>
+              <div class="sheesh-invite-builder">
+                <div class="sheesh-field-group" style="margin-bottom: 0.6rem;">
+                  <label class="form-label" for="sheesh-admin-invite-label">Who is this invite for? (Private note for your roster)</label>
+                  <input type="text" id="sheesh-admin-invite-label" class="form-input" placeholder="e.g. Girlfriend, Alex, Library Coworker">
+                </div>
+                <div class="sheesh-field-group" style="margin-bottom: 0.75rem;">
+                  <label class="form-label">Unlock Access To:</label>
+                  <div class="sheesh-role-checkboxes">
+                    <label class="sheesh-role-check"><input type="checkbox" value="cedar" checked> <span>Cedar</span></label>
+                    <label class="sheesh-role-check"><input type="checkbox" value="loudmouth" checked> <span>Loudmouth</span></label>
+                    <label class="sheesh-role-check"><input type="checkbox" value="zentube" checked> <span>ZenTube</span></label>
+                    <label class="sheesh-role-check"><input type="checkbox" value="headroom" checked> <span>Headroom</span></label>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm popout-3d" id="btn-sheesh-create-invite">
+                  <span>+ Generate &amp; Copy Invite Link</span>
+                </button>
+
+                <!-- Newly Generated Link Output -->
+                <div class="sheesh-generated-invite-box" id="sheesh-generated-invite-box" style="display: none;">
+                  <div style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 4px;">Single-use invite link copied! Send this URL to your friend:</div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <input type="text" id="sheesh-generated-invite-url" class="form-input" readonly style="font-family: var(--font-mono, monospace); font-size: 0.78rem; flex: 1;">
+                    <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-copy-invite-url">Copy</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section B: Pending Unclaimed Invites -->
+            <div class="sheesh-admin-section">
+              <h4 class="sheesh-admin-heading">2. Pending Invite Links</h4>
+              <div id="sheesh-admin-invites-list" class="sheesh-admin-list">
+                <div class="sheesh-empty-row">No pending unclaimed invites.</div>
+              </div>
+            </div>
+
+            <!-- Section C: Circle Member Roster -->
+            <div class="sheesh-admin-section">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <h4 class="sheesh-admin-heading" style="margin: 0;">3. Circle Member Roster</h4>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-admin-refresh" style="font-size: 0.74rem; padding: 3px 9px;">Refresh</button>
+              </div>
+              <!-- Reset Passphrase Callout (Appears when rolling a new phrase for a friend) -->
+              <div class="sheesh-generated-invite-box" id="sheesh-reset-pass-result" style="display: none; margin-bottom: 0.75rem;"></div>
+              <div id="sheesh-admin-users-list" class="sheesh-admin-list">
+                <div class="sheesh-empty-row">Loading members...</div>
+              </div>
+            </div>
+
+            <!-- Section D: Feedback & Bug Inbox -->
+            <div class="sheesh-admin-section">
+              <h4 class="sheesh-admin-heading">4. Friends &amp; Family Bug / Idea Inbox</h4>
+              <div id="sheesh-admin-feedback-list" class="sheesh-admin-list">
+                <div class="sheesh-empty-row">No bug reports or ideas yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer: Advanced API Endpoint Config (Collapsible for custom/local testing) -->
+      <div class="modal-footer sheesh-modal-footer">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 0.75rem; color: var(--text-muted);">
+          <span>Server: <code id="sheesh-api-endpoint-label">https://api.sheesh.gg</code></span>
+          <button type="button" class="btn-link" id="btn-sheesh-toggle-api-config" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem; text-decoration: underline;">Change API URL</button>
+        </div>
+        <div id="sheesh-api-config-row" style="display: none; width: 100%; margin-top: 8px; gap: 6px; align-items: center;">
+          <input type="text" id="sheesh-api-url-input" class="form-input" placeholder="https://api.sheesh.gg" style="flex: 1; font-size: 0.78rem; padding: 5px 9px;">
+          <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-save-api-url">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>

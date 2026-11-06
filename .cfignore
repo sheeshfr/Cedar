@@ -22,4 +22,6 @@ __pycache__/
 serve.py
 cedar.bat
 cedar.sh
+docs/
+
 

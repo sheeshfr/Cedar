@@ -47,7 +47,7 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '6.6.84';
+    let staticVersion = '6.6.85';
     try {
       const compareSemver = (a, b) => {
         const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -469,6 +469,14 @@
       }
       if (typeof ftue.checkAndLaunch === 'function') {
         ftue.checkAndLaunch();
+      }
+    }
+
+    if (window.SheeshCloud && typeof window.SheeshCloud.init === 'function') {
+      try {
+        window.SheeshCloud.init();
+      } catch (e) {
+        console.warn('[Cedar] SheeshCloud init notice:', e);
       }
     }
 

@@ -767,7 +767,18 @@
 
   function ensureSelfContainedExternalCardStyles(rootEl) {
     if (!rootEl || !rootEl.querySelectorAll) return;
+    rootEl.querySelectorAll('.page-individual-post-block').forEach(blockEl => {
+      if (blockEl.querySelector('a.post-card, a.external-link-card')) {
+        blockEl.classList.add('has-card');
+        if (!blockEl.getAttribute('data-block-type')) {
+          blockEl.setAttribute('data-block-type', 'individual-post');
+        }
+      }
+    });
     rootEl.querySelectorAll('.page-individual-post-block.has-card').forEach(blockEl => {
+      if (!blockEl.getAttribute('data-block-type')) {
+        blockEl.setAttribute('data-block-type', 'individual-post');
+      }
       blockEl.setAttribute('style', 'margin: 1.75rem auto; width: 100%; display: flex; justify-content: center;');
     });
     rootEl.querySelectorAll('.page-individual-post-block .page-block-render-area').forEach(areaEl => {
@@ -943,11 +954,16 @@
         }
       });
 
-      // 5. Ensure gallery items and grids are intact with correct data-count
+      // 5. Ensure gallery items and grids are intact with correct data-count and data-index
       body.querySelectorAll('.custom-gallery-grid').forEach(grid => {
         const items = grid.querySelectorAll('.custom-gallery-item:not(.gallery-slot-placeholder)');
         if (items.length > 0) {
           grid.setAttribute('data-count', items.length >= 5 ? 'more' : items.length.toString());
+          items.forEach((item, idx) => {
+            if (!item.hasAttribute('data-index')) {
+              item.setAttribute('data-index', String(idx));
+            }
+          });
         }
       });
 
@@ -1148,6 +1164,12 @@
     return (lastSpace > maxLen * 0.6 ? sliced.slice(0, lastSpace) : sliced).replace(/[.,;:!?-]+$/, '') + '…';
   }
 
+  function isLocalOrInvalidHost(val) {
+    const cleaned = String(val || '').trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    if (!cleaned || cleaned === '[your domain]' || cleaned.includes('[')) return true;
+    return /^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$/i.test(cleaned);
+  }
+
   function resolveEffectiveSiteDomain(cfg, options = {}) {
     const rawCandidates = [
       options && options.detectedSiteUrl,
@@ -1159,14 +1181,14 @@
     ];
     for (const cand of rawCandidates) {
       const cleaned = String(cand || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      if (cleaned && cleaned !== '[your domain]' && !cleaned.includes('[') && !/^localhost(?::\d+)?$/i.test(cleaned) && !/^127\.0\.0\.1(?::\d+)?$/.test(cleaned)) {
+      if (!isLocalOrInvalidHost(cleaned)) {
         return cleaned;
       }
     }
     try {
       const ghRepo = (cfg && cfg.githubRepo) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_github_repo')) || '';
       const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '');
-      if (repoSlug.includes('.')) {
+      if (repoSlug.includes('.') && !isLocalOrInvalidHost(repoSlug)) {
         return repoSlug.toLowerCase();
       }
       const tldMatch = repoSlug.match(/^([a-z0-9-]+)-(com|org|net|io|gg|dev|pub|me|co|app|xyz|blog|art|games|tech|ai|sh|cc|tv|lol|wtf|ink|page|site|live|pro|studio|design|club|fun|space|world|zone|build|info|us|uk|ca|de|fr|jp|au|nz|nl|se|no|fi|dk|ch|at|be|es|it|pt|br|mx|in|kr|tw|hk|sg)$/i);
@@ -1174,6 +1196,18 @@
         return `${tldMatch[1].toLowerCase()}.${tldMatch[2].toLowerCase()}`;
       }
     } catch (e) {}
+    const postList = (options && Array.isArray(options.publishedPosts))
+      ? options.publishedPosts
+      : ((typeof window !== 'undefined' && Array.isArray(window.drafts)) ? window.drafts : []);
+    for (const p of postList) {
+      if (!p) continue;
+      for (const urlField of [p.canonical, p.rssGuid]) {
+        const m = String(urlField || '').trim().match(/^https?:\/\/([^/:\s]+)(?::\d+)?\//i);
+        if (m && m[1] && !isLocalOrInvalidHost(m[1])) {
+          return m[1].toLowerCase();
+        }
+      }
+    }
     return '';
   }
 
@@ -4458,20 +4492,26 @@ ${draft.markdown || ''}`;
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (window.projectConfig || {}));
     const siteTitle = cfg.name || (cfg.design && cfg.design.branding && cfg.design.branding.siteTitle) || 'Cedar';
     const siteDesc = cfg.description || cfg.subtitle || (cfg.design && cfg.design.branding && cfg.design.branding.tagline) || siteTitle;
-    const rawDomain = (resolveEffectiveSiteDomain(cfg) || cfg.domain || cfg.detectedDomain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const domain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain)) ? rawDomain : '';
-    const autoBase = (typeof window !== 'undefined' && typeof window.resolveAutoDetectedSiteBaseUrl === 'function')
+    const rawDomain = (resolveEffectiveSiteDomain(cfg, { publishedPosts }) || cfg.domain || cfg.detectedDomain || (typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : (typeof localStorage !== 'undefined' ? localStorage.getItem('cedar_user_domain') : '')) || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const domain = (!isLocalOrInvalidHost(rawDomain)) ? rawDomain : '';
+    const rawAutoBase = (typeof window !== 'undefined' && typeof window.resolveAutoDetectedSiteBaseUrl === 'function')
       ? window.resolveAutoDetectedSiteBaseUrl(cfg)
       : '';
-    const siteUrl = domain ? `https://${domain}` : (autoBase || 'http://localhost:8080');
+    const cleanAutoBase = String(rawAutoBase || '').trim().replace(/\/+$/, '');
+    const validAutoBase = (cleanAutoBase && !/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?(?:\/|$)/i.test(cleanAutoBase))
+      ? cleanAutoBase
+      : '';
+    const siteUrl = domain ? `https://${domain}` : validAutoBase;
     const feedUrl = `${siteUrl}/feed.xml`;
     const fallbackDateIso = cfg.lastUpdated || cfg.createdAt || '2026-01-01T00:00:00.000Z';
 
     const escapeCdata = (str) => String(str || '').replace(/\]\]>/g, ']]]]><![CDATA[>');
 
+    const stripLocalOrigin = (urlStr) => String(urlStr || '').trim().replace(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?(?=\/|$)/i, '');
+
     const toAbsoluteAssetUrl = (rawSrc, slug, postImgs) => {
       if (!rawSrc || typeof rawSrc !== 'string') return '';
-      const trimmed = rawSrc.trim();
+      const trimmed = stripLocalOrigin(rawSrc);
       if (!trimmed || trimmed.startsWith('blob:')) return '';
       if (/^https?:\/\//i.test(trimmed)) return trimmed;
       if (trimmed.startsWith('data:')) {
@@ -4525,13 +4565,18 @@ ${draft.markdown || ''}`;
     (publishedPosts || []).forEach(p => {
       const slug = p.slug || generateSlug(p.title || 'untitled');
       const postUrl = `${siteUrl}/p/${slug}/`;
-      p.rssGuid = postUrl;
       const postDateRaw = p.publishedAt || p.publishedDate || p.createdAt || p.date || fallbackDateIso;
+      if (!p.id || !String(p.id).trim()) {
+        p.id = 'post_' + (new Date(postDateRaw).getTime() || 0) + '_' + (p.publishedSlug || slug);
+      }
+      if (!p.rssGuid || /^https?:\/\//i.test(String(p.rssGuid).trim())) {
+        p.rssGuid = String(p.id).trim();
+      }
       if (!p.rssPubDate) {
         p.rssPubDate = new Date(postDateRaw).toUTCString();
       }
       const pubDate = p.rssPubDate;
-      const guid = p.rssGuid;
+      const guid = String(p.rssGuid || p.id).trim();
       const timestamp = new Date(postDateRaw).getTime() || 0;
       const author = cfg.defaultAuthor || p.authorName || (Array.isArray(p.authors) && p.authors[0]) || 'Staff';
       const desc = p.subtitle || p.customDesc || (p.markdown ? p.markdown.replace(/[#*>`~\[\]]/g, '').substring(0, 280).trim() : '');
@@ -4553,13 +4598,7 @@ ${draft.markdown || ''}`;
           const body = doc.body;
 
           // Remove interactive web-only widgets (Share / Subscribe / RSS copy bars) from syndication feed body
-          body.querySelectorAll('.article-share-block, .article-rss-block, .rss-feed-showcase-card, [data-block-type="share"], [data-block-type="rss"], [data-block-type="rss-box"], .gallery-split-badge').forEach(el => el.remove());
-
-          // Unhide any +N gallery images so RSS readers display all images in a gallery
-          body.querySelectorAll('.gallery-item-hidden').forEach(el => {
-            el.classList.remove('gallery-item-hidden');
-            el.style.removeProperty('display');
-          });
+          body.querySelectorAll('.article-share-block, .article-rss-block, .rss-feed-showcase-card, [data-block-type="share"], [data-block-type="rss"], [data-block-type="rss-box"]').forEach(el => el.remove());
 
           // Rewrite all image sources to absolute URLs and clean up editor attributes
           body.querySelectorAll('img').forEach(img => {
@@ -4594,11 +4633,15 @@ ${draft.markdown || ''}`;
             }
           });
 
-          // Rewrite relative anchor links to absolute site URLs
+          // Rewrite relative or localhost anchor links to absolute site URLs
           body.querySelectorAll('a[href]').forEach(a => {
-            const href = (a.getAttribute('href') || '').trim();
+            const rawHref = (a.getAttribute('href') || '').trim();
+            if (!rawHref) return;
+            const href = stripLocalOrigin(rawHref);
             if (href && href.startsWith('/') && !href.startsWith('//')) {
               a.setAttribute('href', `${siteUrl}${href}`);
+            } else if (href !== rawHref) {
+              a.setAttribute('href', href || `${siteUrl}/`);
             }
           });
 
@@ -4628,7 +4671,7 @@ ${draft.markdown || ''}`;
         xml: `    <item>
       <title><![CDATA[${escapeCdata(p.title || 'Untitled')}]]></title>
       <link>${postUrl}</link>
-      <guid isPermaLink="true">${guid}</guid>
+      <guid isPermaLink="false">${escapeHtml(guid)}</guid>
       <pubDate>${pubDate}</pubDate>
       <author><![CDATA[${escapeCdata(author)}]]></author>
       <dc:creator><![CDATA[${escapeCdata(author)}]]></dc:creator>
@@ -4646,7 +4689,7 @@ ${draft.markdown || ''}`;
     const itemsXml = allItems.map(item => item.xml).join('\n');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:cedar="https://cedar.pub/ns/1.0">
   <channel>
     <title><![CDATA[${escapeCdata(siteTitle)}]]></title>
     <link>${siteUrl}/blog/</link>
@@ -4654,6 +4697,7 @@ ${draft.markdown || ''}`;
     <language>en-us</language>
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <generator>Cedar Static Engine</generator>
+    <cedar:engine version="1.0">cedar.pub</cedar:engine>
     <atom:link href="${feedUrl}" rel="self" type="application/rss+xml"/>
 ${itemsXml}
   </channel>
@@ -6336,8 +6380,8 @@ ${page.markdown || ''}`;
       return window.resolveAutoDetectedSiteBaseUrl(config);
     }
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (typeof window !== 'undefined' && window.projectConfig ? window.projectConfig : {})) || {};
-    const rawDomain = String(cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain) && !/^127\.0\.0\.1(?::\d+)?$/.test(rawDomain))
+    const rawDomain = String(resolveEffectiveSiteDomain(cfg) || cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const validDomain = (!isLocalOrInvalidHost(rawDomain))
       ? rawDomain
       : '';
 
@@ -6386,7 +6430,7 @@ ${page.markdown || ''}`;
       if (validDomain) {
         return `https://${validDomain}`;
       }
-      if (host === 'cedar.pub' || host === 'www.cedar.pub') {
+      if (host === 'cedar.pub' || host === 'www.cedar.pub' || host === 'cedar.sheesh.gg') {
         return '';
       }
       return `${window.location.origin}${subpath}`;
