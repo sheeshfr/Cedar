@@ -971,138 +971,86 @@ body.sidebar-collapsed .dash-main-wrap {
 
 .sheesh-portal-btn {
   width: 100%;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md, 8px);
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
   text-decoration: none;
   cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   transition: transform 0.16s ease, filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
   box-sizing: border-box;
+  background: rgba(161, 161, 170, 0.13);
+  border: 1px solid rgba(161, 161, 170, 0.26);
+  color: var(--sidebar-text-primary, #e4e4e7);
+}
+
+.sheesh-portal-btn.is-online {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.38);
+  color: #4ade80;
+}
+
+.app-theme-light .sheesh-portal-btn.is-online {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(22, 163, 74, 0.35);
+  color: #15803d;
 }
 
 .sheesh-portal-btn:hover {
-  transform: scale(1.03);
-  filter: brightness(1.08);
-  background-color: var(--sidebar-hover, rgba(255, 255, 255, 0.04));
-  border-color: var(--sidebar-border, rgba(255, 255, 255, 0.08));
-}
-
-.sheesh-portal-logo-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sheesh-portal-img {
-  width: 112px;
-  max-width: 100%;
-  height: auto;
-  display: block;
-  object-fit: contain;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.sheesh-status-dot {
-  display: none;
-  position: absolute;
-  bottom: -1px;
-  right: -2px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #71717a;
-  border: 2px solid var(--sidebar-bg, #121214);
-}
-
-.sheesh-status-dot.is-online {
-  background: #22c55e;
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
-}
-
-.sheesh-portal-meta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  font-size: 0.71rem;
-  line-height: 1.2;
-  color: var(--sidebar-text-muted, #a1a1aa);
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transform: translateY(-1px);
+  filter: brightness(1.1);
 }
 
 .sheesh-portal-dot-inline {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #71717a;
+  background: #a1a1aa;
   flex-shrink: 0;
 }
 
 .sheesh-portal-dot-inline.is-online {
   background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  box-shadow: 0 0 7px rgba(34, 197, 94, 0.7);
 }
 
 .sheesh-portal-status-text {
   font-weight: 600;
-  color: var(--sidebar-text-primary, var(--text-primary));
+  color: inherit;
+  white-space: nowrap;
 }
 
-.sheesh-portal-action-hint {
-  color: var(--accent-primary, #a855f7);
-  font-weight: 500;
-}
-
-/* Collapsed Sidebar States for sheesh.gg Portal Button */
+/* Collapsed Sidebar States for Account Status Pill */
 .sidebar.collapsed .sheesh-portal-btn,
 .dash-sidebar.collapsed .sheesh-portal-btn {
-  width: 54px;
-  padding: 5px 2px;
+  width: 52px;
+  padding: 5px 4px;
+  font-size: 0.64rem;
+  gap: 4px;
 }
 
-.sidebar.collapsed .sheesh-portal-img,
-.dash-sidebar.collapsed .sheesh-portal-img {
-  width: 48px;
-}
-
-.sidebar.collapsed .sheesh-portal-meta,
-.dash-sidebar.collapsed .sheesh-portal-meta {
-  display: none !important;
-}
-
-.sidebar.collapsed .sheesh-status-dot,
-.dash-sidebar.collapsed .sheesh-status-dot {
-  display: block;
+.sidebar.collapsed .sheesh-portal-dot-inline,
+.dash-sidebar.collapsed .sheesh-portal-dot-inline {
+  display: none;
 }
 
 @media (max-width: 870px) and (min-width: 769px) {
   .sidebar:not(.manually-expanded) .sheesh-portal-btn,
   .dash-sidebar:not(.manually-expanded) .sheesh-portal-btn {
-    width: 54px !important;
-    padding: 5px 2px !important;
+    width: 52px !important;
+    padding: 5px 4px !important;
+    font-size: 0.64rem !important;
+    gap: 4px !important;
   }
-  .sidebar:not(.manually-expanded) .sheesh-portal-img,
-  .dash-sidebar:not(.manually-expanded) .sheesh-portal-img {
-    width: 48px !important;
-  }
-  .sidebar:not(.manually-expanded) .sheesh-portal-meta,
-  .dash-sidebar:not(.manually-expanded) .sheesh-portal-meta {
+  .sidebar:not(.manually-expanded) .sheesh-portal-dot-inline,
+  .dash-sidebar:not(.manually-expanded) .sheesh-portal-dot-inline {
     display: none !important;
-  }
-  .sidebar:not(.manually-expanded) .sheesh-status-dot,
-  .dash-sidebar:not(.manually-expanded) .sheesh-status-dot {
-    display: block !important;
   }
 }
 

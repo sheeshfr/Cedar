@@ -139,11 +139,16 @@
     el.style.display = 'block';
   }
 
-  function updateGlobalIndicators(syncStateText) {
-    const dot = document.getElementById('sheesh-sidebar-dot');
+  function getSafeDisplayName(user) {
+    if (!user) return '';
+    if (user.isAdmin) return 'Admin';
+    return `@${user.username}`;
+  }
+
+  function updateGlobalIndicators() {
+    const sidebarBtn = document.getElementById('sheesh-sidebar-btn');
     const dotInline = document.getElementById('sheesh-sidebar-dot-inline');
     const statusText = document.getElementById('sheesh-sidebar-status-text');
-    const actionHint = document.getElementById('sheesh-sidebar-action-hint');
     const connBadge = document.getElementById('sheesh-modal-conn-badge');
 
     const expDot = document.getElementById('export-sheesh-status-dot');
@@ -153,30 +158,34 @@
     const expPullBtn = document.getElementById('btn-export-sheesh-pull');
 
     if (currentUser) {
-      if (dot) dot.classList.add('is-online');
+      if (sidebarBtn) {
+        sidebarBtn.classList.add('is-online');
+        sidebarBtn.classList.remove('is-local');
+      }
       if (dotInline) dotInline.classList.add('is-online');
-      if (statusText) statusText.textContent = `@${currentUser.username}`;
-      if (actionHint) actionHint.textContent = syncStateText || 'Synced';
+      if (statusText) statusText.textContent = 'Logged In';
       if (connBadge) {
-        connBadge.textContent = 'Signed In';
+        connBadge.textContent = 'Logged In';
         connBadge.classList.add('is-online');
       }
       if (expDot) expDot.style.background = '#22c55e';
-      if (expLabel) expLabel.textContent = `Signed in as @${currentUser.username}`;
+      if (expLabel) expLabel.textContent = `Logged In (${getSafeDisplayName(currentUser)})`;
       if (expOpenLabel) expOpenLabel.textContent = 'My Account';
       if (expSyncBtn) expSyncBtn.style.display = 'none';
       if (expPullBtn) expPullBtn.style.display = 'none';
     } else {
-      if (dot) dot.classList.remove('is-online');
+      if (sidebarBtn) {
+        sidebarBtn.classList.remove('is-online');
+        sidebarBtn.classList.add('is-local');
+      }
       if (dotInline) dotInline.classList.remove('is-online');
-      if (statusText) statusText.textContent = 'Local Mode';
-      if (actionHint) actionHint.textContent = 'Sign In';
+      if (statusText) statusText.textContent = 'Local';
       if (connBadge) {
-        connBadge.textContent = 'Local Mode';
+        connBadge.textContent = 'Local';
         connBadge.classList.remove('is-online');
       }
       if (expDot) expDot.style.background = '';
-      if (expLabel) expLabel.textContent = 'Local Mode (Not Signed In)';
+      if (expLabel) expLabel.textContent = 'Local (Not Signed In)';
       if (expOpenLabel) expOpenLabel.textContent = 'Sign In / Claim Invite';
       if (expSyncBtn) expSyncBtn.style.display = 'none';
       if (expPullBtn) expPullBtn.style.display = 'none';
@@ -220,8 +229,9 @@
     const handle = document.getElementById('sheesh-user-handle');
     const secretAdminEntry = document.getElementById('sheesh-secret-admin-entry');
 
-    if (avatar) avatar.textContent = (currentUser.username || 'S').charAt(0).toUpperCase();
-    if (handle) handle.textContent = `@${currentUser.username}`;
+    const safeName = getSafeDisplayName(currentUser);
+    if (avatar) avatar.textContent = currentUser.isAdmin ? 'A' : (currentUser.username || 'U').charAt(0).toUpperCase();
+    if (handle) handle.textContent = safeName;
     if (secretAdminEntry) {
       secretAdminEntry.style.display = currentUser.isAdmin ? 'block' : 'none';
     }
@@ -828,7 +838,7 @@
           currentUser = res.user;
           updateGlobalIndicators('Synced');
           renderModalState();
-          showAlert(`Welcome, @${currentUser.username}! Your passphrase is ${passphrase}`, true);
+          showAlert(`Welcome, ${getSafeDisplayName(currentUser)}! Your passphrase is ${passphrase}`, true);
           pushCedarToCloud({ deltaOnly: false });
         } catch (err) {
           showAlert(err.message);
