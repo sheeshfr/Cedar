@@ -1727,13 +1727,8 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
       <div class="modal-body sheesh-modal-body">
         <div class="sheesh-alert-banner" id="sheesh-modal-alert" style="display: none;"></div>
 
-        <!-- VIEW A: NOT SIGNED IN (Sign In or Claim Invite) -->
+        <!-- VIEW A: NOT SIGNED IN -->
         <div id="sheesh-view-auth">
-          <div class="sheesh-auth-tabs" id="sheesh-auth-tabs">
-            <button type="button" class="sheesh-auth-tab active" id="sheesh-auth-tab-login" data-auth-mode="login">Sign In</button>
-            <button type="button" class="sheesh-auth-tab" id="sheesh-auth-tab-register" data-auth-mode="register">Have an Invite?</button>
-          </div>
-
           <!-- Sign In Form -->
           <form id="sheesh-form-login" class="sheesh-auth-form" autocomplete="on">
             <div class="sheesh-field-group">
@@ -1769,9 +1764,9 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
               <p id="sheesh-register-callout-desc">Pick a username and roll a 3-word passphrase you'll remember.</p>
             </div>
 
-            <div class="sheesh-field-group" id="sheesh-invite-code-group">
+            <div class="sheesh-field-group" id="sheesh-invite-code-group" style="display: none;">
               <label class="form-label" for="sheesh-register-invite">Invite Code</label>
-              <input type="text" id="sheesh-register-invite" class="form-input" placeholder="sh_..." spellcheck="false" style="font-family: var(--font-mono, monospace);">
+              <input type="text" id="sheesh-register-invite" class="form-input" placeholder="sh_..." readonly spellcheck="false" style="font-family: var(--font-mono, monospace);">
             </div>
 
             <div class="sheesh-field-group">

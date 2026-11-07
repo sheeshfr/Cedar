@@ -379,7 +379,7 @@
       }
       if (expDot) expDot.style.background = '';
       if (expLabel) expLabel.textContent = 'Local (Not Signed In)';
-      if (expOpenLabel) expOpenLabel.textContent = 'Sign In / Claim Invite';
+      if (expOpenLabel) expOpenLabel.textContent = 'Sign In';
       if (expSyncBtn) expSyncBtn.style.display = 'none';
       if (expPullBtn) expPullBtn.style.display = 'none';
     }
@@ -388,6 +388,8 @@
   function renderModalState() {
     const viewAuth = document.getElementById('sheesh-view-auth');
     const viewDash = document.getElementById('sheesh-view-dashboard');
+    const authTabs = document.getElementById('sheesh-auth-tabs');
+    if (authTabs) authTabs.style.display = 'none';
     const secretAdminEntry = document.getElementById('sheesh-secret-admin-entry');
     const openAdminUrlBtn = document.getElementById('btn-sheesh-open-admin-url');
     if (secretAdminEntry) {
@@ -405,20 +407,17 @@
       const calloutTitle = document.getElementById('sheesh-register-callout-title');
       const calloutDesc = document.getElementById('sheesh-register-callout-desc');
       const inviteGroup = document.getElementById('sheesh-invite-code-group');
-      const registerTabBtn = document.getElementById('sheesh-auth-tab-register');
       const submitRegLabel = document.getElementById('btn-sheesh-submit-register-label');
 
+      if (inviteGroup) inviteGroup.style.display = 'none';
+
       if (needsBootstrap) {
-        if (registerTabBtn) registerTabBtn.textContent = 'Setup Owner Account';
         if (calloutTitle) calloutTitle.textContent = 'First-Time Server Setup';
         if (calloutDesc) calloutDesc.textContent = 'Create your Owner account to lock the server to invite-only.';
-        if (inviteGroup) inviteGroup.style.display = 'none';
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account';
       } else {
-        if (registerTabBtn) registerTabBtn.textContent = 'Have an Invite?';
         if (calloutTitle) calloutTitle.textContent = "You're Invited! Create Your Account";
         if (calloutDesc) calloutDesc.textContent = "Pick a username and roll a 3-word passphrase you'll remember.";
-        if (inviteGroup) inviteGroup.style.display = 'flex';
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account & Sign In';
       }
       return;
@@ -437,19 +436,17 @@
 
   function switchAuthMode(mode) {
     showAlert('');
-    const loginTab = document.getElementById('sheesh-auth-tab-login');
-    const regTab = document.getElementById('sheesh-auth-tab-register');
+    const authTabs = document.getElementById('sheesh-auth-tabs');
+    if (authTabs) authTabs.style.display = 'none';
     const loginForm = document.getElementById('sheesh-form-login');
     const regForm = document.getElementById('sheesh-form-register');
 
-    if (mode === 'register') {
-      if (loginTab) loginTab.classList.remove('active');
-      if (regTab) regTab.classList.add('active');
+    // Invite Claim menu is 100% restricted to users following a valid ?invite=sh_... link (or initial server bootstrap)
+    const canRegister = Boolean(needsBootstrap || pendingInviteCode);
+    if (mode === 'register' && canRegister) {
       if (loginForm) loginForm.style.display = 'none';
       if (regForm) regForm.style.display = 'flex';
     } else {
-      if (loginTab) loginTab.classList.add('active');
-      if (regTab) regTab.classList.remove('active');
       if (loginForm) loginForm.style.display = 'flex';
       if (regForm) regForm.style.display = 'none';
     }
@@ -1147,14 +1144,20 @@
       try {
         const st = await apiRequest(`/status${pendingInviteCode ? `?invite=${encodeURIComponent(pendingInviteCode)}` : ''}`);
         needsBootstrap = Boolean(st && st.needsBootstrap);
-        if (needsBootstrap || initialMode === 'register' || pendingInviteCode) {
+        if (pendingInviteCode && st && st.inviteValid === false) {
+          pendingInviteCode = '';
+          switchAuthMode('login');
+          showAlert('This invite link is invalid or has already been claimed.');
+        } else if (needsBootstrap || pendingInviteCode) {
           switchAuthMode('register');
         } else {
           switchAuthMode('login');
         }
       } catch (_) {
-        if (initialMode === 'register' || pendingInviteCode) {
+        if (pendingInviteCode) {
           switchAuthMode('register');
+        } else {
+          switchAuthMode('login');
         }
       }
     }
