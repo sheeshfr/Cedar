@@ -21,7 +21,7 @@
 ## Usage
 
 ### 1. Web App (Recommended)
-Visit [**https://cedar.pub**](https://cedar.pub) in any modern browser to start writing, designing, and managing your site immediately—no installation required. All data stays 100% in your local browser storage or linked local folder.
+Visit [**https://cedar.sheesh.gg**](https://cedar.sheesh.gg) in any modern browser to start writing, designing, and managing your site immediately—no installation required. All data stays 100% in your local browser storage or linked local folder.
 
 ### 2. Run Locally
 Clone the repository and run the included local Python server for automatic real-time disk syncing with your local blog folder:

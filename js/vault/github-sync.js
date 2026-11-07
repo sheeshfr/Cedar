@@ -713,7 +713,7 @@
             if (typeof window.showToast === 'function') window.showToast('Initializing empty GitHub repository...');
             appendPublishLog(`Empty repository detected (0 commits). Bootstrapping initial commit on ${branch}...`, 'info', '>');
             const siteTitle = window.projectConfig?.name || 'Cedar Blog';
-            const readmeB64 = btoa(unescape(encodeURIComponent(`# ${siteTitle}\n\nPublished with [Cedar](https://cedar.pub).\n`)));
+            const readmeB64 = btoa(unescape(encodeURIComponent(`# ${siteTitle}\n\nPublished with [Cedar](https://cedar.sheesh.gg).\n`)));
             const bootIdentity = {
               name: 'Cedar',
               email: 'publish@cedar.pub'

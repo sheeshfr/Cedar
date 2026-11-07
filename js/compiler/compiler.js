@@ -1407,8 +1407,8 @@
         draft.markdown = canonicalCedar.markdown;
         draft.proseHtml = canonicalCedar.proseHtml;
       } else {
-        draft.markdown = `> After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.\n\n**Cedar** is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:\n\n- **Gives you a focused writing studio** for drafting and formatting posts.\n- **Manages your posts, pages, and media** in one place.\n- **Organizes your static site files** automatically so they are always ready to publish.\n- **Makes deploying effortless**—whether pushing straight to GitHub or exporting a \`.zip\`.\n\n### 100% Local-First\n\nEven though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.\n\nWhatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.\n\n[Try Cedar at cedar.pub](https://cedar.pub) • [View Source on GitHub](https://github.com/sheeshfr/Cedar)`;
-        draft.proseHtml = `<blockquote>After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.</blockquote><p><strong>Cedar</strong> is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:</p><ul><li><strong>Gives you a focused writing studio</strong> for drafting and formatting posts.</li><li><strong>Manages your posts, pages, and media</strong> in one place.</li><li><strong>Organizes your static site files</strong> automatically so they are always ready to publish.</li><li><strong>Makes deploying effortless</strong>—whether pushing straight to GitHub or exporting a <code>.zip</code>.</li></ul><h3>100% Local-First</h3><p>Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.</p><p>Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.</p><p><a href="https://cedar.pub" target="_blank" rel="noopener noreferrer">Try Cedar at cedar.pub</a> &nbsp;&bull;&nbsp; <a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">View Source on GitHub</a></p>`;
+        draft.markdown = `> After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.\n\n**Cedar** is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:\n\n- **Gives you a focused writing studio** for drafting and formatting posts.\n- **Manages your posts, pages, and media** in one place.\n- **Organizes your static site files** automatically so they are always ready to publish.\n- **Makes deploying effortless**—whether pushing straight to GitHub or exporting a \`.zip\`.\n\n### 100% Local-First\n\nEven though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.\n\nWhatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.\n\n[Try Cedar at cedar.sheesh.gg](https://cedar.sheesh.gg) • [View Source on GitHub](https://github.com/sheeshfr/Cedar)`;
+        draft.proseHtml = `<blockquote>After a decade-plus of experimenting with blogging tools, I never found one I really liked. Cedar is my attempt at pulling the best parts of classic writers into a single, focused experience.</blockquote><p><strong>Cedar</strong> is an open-source, web-based static blog generator built to keep writing simple. Out of the box, it:</p><ul><li><strong>Gives you a focused writing studio</strong> for drafting and formatting posts.</li><li><strong>Manages your posts, pages, and media</strong> in one place.</li><li><strong>Organizes your static site files</strong> automatically so they are always ready to publish.</li><li><strong>Makes deploying effortless</strong>—whether pushing straight to GitHub or exporting a <code>.zip</code>.</li></ul><h3>100% Local-First</h3><p>Even though Cedar runs in your browser, everything you create stays 100% on your machine until you choose to move it elsewhere. You can work directly in your browser's local storage, save your project to a folder on your computer or a portable SSD, or publish straight to GitHub.</p><p>Whatever your workflow, Cedar handles the file structure behind the scenes—so you get all the speed and ownership of a static site without ever having to wrestle with files and folders.</p><p><a href="https://cedar.sheesh.gg" target="_blank" rel="noopener noreferrer">Try Cedar at cedar.sheesh.gg</a> &nbsp;&bull;&nbsp; <a href="https://github.com/sheeshfr/Cedar" target="_blank" rel="noopener noreferrer">View Source on GitHub</a></p>`;
       }
     }
     const title = draft.title || 'Untitled Article';
@@ -4689,7 +4689,7 @@ ${draft.markdown || ''}`;
     const itemsXml = allItems.map(item => item.xml).join('\n');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:cedar="https://cedar.pub/ns/1.0">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:cedar="https://cedar.sheesh.gg/ns/1.0">
   <channel>
     <title><![CDATA[${escapeCdata(siteTitle)}]]></title>
     <link>${siteUrl}/blog/</link>
@@ -4697,7 +4697,7 @@ ${draft.markdown || ''}`;
     <language>en-us</language>
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <generator>Cedar Static Engine</generator>
-    <cedar:engine version="1.0">cedar.pub</cedar:engine>
+    <cedar:engine version="1.0">cedar.sheesh.gg</cedar:engine>
     <atom:link href="${feedUrl}" rel="self" type="application/rss+xml"/>
 ${itemsXml}
   </channel>
@@ -6452,7 +6452,7 @@ ${page.markdown || ''}`;
       if (validDomain) {
         return `https://${validDomain}`;
       }
-      if (host === 'cedar.pub' || host === 'www.cedar.pub' || host === 'cedar.sheesh.gg') {
+      if (host === 'cedar.sheesh.gg' || host === 'www.cedar.sheesh.gg' || host === 'cedar.sheesh.gg') {
         return '';
       }
       return `${window.location.origin}${subpath}`;
