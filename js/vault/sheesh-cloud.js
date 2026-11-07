@@ -388,6 +388,15 @@
   function renderModalState() {
     const viewAuth = document.getElementById('sheesh-view-auth');
     const viewDash = document.getElementById('sheesh-view-dashboard');
+    const secretAdminEntry = document.getElementById('sheesh-secret-admin-entry');
+    const openAdminUrlBtn = document.getElementById('btn-sheesh-open-admin-url');
+    if (secretAdminEntry) {
+      secretAdminEntry.style.display = 'block';
+    }
+    if (openAdminUrlBtn) {
+      openAdminUrlBtn.textContent = 'See More...';
+      openAdminUrlBtn.setAttribute('href', 'https://sheesh.gg/account/');
+    }
 
     if (!currentUser) {
       if (viewAuth) viewAuth.style.display = 'block';
@@ -420,14 +429,10 @@
 
     const avatar = document.getElementById('sheesh-user-avatar');
     const handle = document.getElementById('sheesh-user-handle');
-    const secretAdminEntry = document.getElementById('sheesh-secret-admin-entry');
 
     const safeName = getSafeDisplayName(currentUser);
     if (avatar) avatar.textContent = currentUser.isAdmin ? 'A' : (currentUser.username || 'U').charAt(0).toUpperCase();
     if (handle) handle.textContent = safeName;
-    if (secretAdminEntry) {
-      secretAdminEntry.style.display = currentUser.isAdmin ? 'block' : 'none';
-    }
   }
 
   function switchAuthMode(mode) {
@@ -1019,24 +1024,106 @@
       openSheeshModal();
       return;
     }
-    closeSheeshModal();
+    closeSheeshModal({ keepHistory: true });
     const adminModal = document.getElementById('modal-sheesh-admin');
     if (!adminModal) return;
     showAlert('', false, 'sheesh-admin-alert');
+    pushModalHistoryState();
     adminModal.style.display = 'flex';
     loadAdminOverview();
   }
 
-  function closeAdminModal() {
+  function closeAdminModal(options) {
     const adminModal = document.getElementById('modal-sheesh-admin');
     if (adminModal) adminModal.style.display = 'none';
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has('admin')) {
         url.searchParams.delete('admin');
-        window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+        window.history.replaceState(window.history.state, document.title, url.pathname + url.search + url.hash);
       }
     } catch (_) {}
+    popModalHistoryStateIfNeeded(options);
+  }
+
+  // =========================================================================
+  // MODAL HISTORY & BACK-BUTTON INTERCEPTION
+  // =========================================================================
+
+  let modalHistoryPushed = false;
+  let isClosingViaHistoryBack = false;
+  let modalHistoryListenerBound = false;
+
+  function isModalVisible(el) {
+    return Boolean(el && el.style.display && el.style.display !== 'none');
+  }
+
+  function isAnySheeshModalOpen() {
+    return isModalVisible(document.getElementById('modal-sheesh-cloud')) ||
+           isModalVisible(document.getElementById('modal-sheesh-admin'));
+  }
+
+  function pushModalHistoryState() {
+    ensureModalHistoryListener();
+    if (modalHistoryPushed) return;
+    try {
+      const baseState = (window.history && window.history.state && typeof window.history.state === 'object')
+        ? Object.assign({}, window.history.state)
+        : {};
+      baseState.__sheeshModalOpen = true;
+      window.history.pushState(baseState, document.title, window.location.href);
+      modalHistoryPushed = true;
+    } catch (_) {}
+  }
+
+  function popModalHistoryStateIfNeeded(options) {
+    const fromPopState = Boolean(options && options.fromPopState);
+    const keepHistory = Boolean(options && options.keepHistory);
+    if (fromPopState) {
+      modalHistoryPushed = false;
+      return;
+    }
+    if (keepHistory) {
+      return;
+    }
+    if (modalHistoryPushed && !isAnySheeshModalOpen()) {
+      modalHistoryPushed = false;
+      isClosingViaHistoryBack = true;
+      try {
+        window.history.back();
+      } catch (_) {
+        isClosingViaHistoryBack = false;
+      }
+    }
+  }
+
+  function ensureModalHistoryListener() {
+    if (modalHistoryListenerBound) return;
+    modalHistoryListenerBound = true;
+
+    window.addEventListener('popstate', (e) => {
+      if (isClosingViaHistoryBack) {
+        isClosingViaHistoryBack = false;
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (isAnySheeshModalOpen()) {
+        modalHistoryPushed = false;
+        closeSheeshModal({ fromPopState: true });
+        closeAdminModal({ fromPopState: true });
+        e.stopImmediatePropagation();
+      }
+    }, true);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isAnySheeshModalOpen()) {
+        if (isModalVisible(document.getElementById('modal-sheesh-admin'))) {
+          closeAdminModal();
+        } else {
+          closeSheeshModal();
+        }
+      }
+    });
   }
 
   // =========================================================================
@@ -1047,6 +1134,7 @@
     const modal = document.getElementById('modal-sheesh-cloud');
     if (!modal) return;
     showAlert('');
+    pushModalHistoryState();
     modal.style.display = 'flex';
 
     const phraseCode = document.getElementById('sheesh-rolled-passphrase');
@@ -1074,12 +1162,14 @@
     renderModalState();
   }
 
-  function closeSheeshModal() {
+  function closeSheeshModal(options) {
     const modal = document.getElementById('modal-sheesh-cloud');
     if (modal) modal.style.display = 'none';
+    popModalHistoryStateIfNeeded(options);
   }
 
   function bindEvents() {
+    ensureModalHistoryListener();
     const sidebarBtn = document.getElementById('sheesh-sidebar-btn');
     if (sidebarBtn && !sidebarBtn.dataset.bound) {
       sidebarBtn.dataset.bound = 'true';
@@ -1114,15 +1204,7 @@
 
     const openAdminUrlBtn = document.getElementById('btn-sheesh-open-admin-url');
     if (openAdminUrlBtn) {
-      openAdminUrlBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        try {
-          const url = new URL(window.location.href);
-          url.searchParams.set('admin', '1');
-          window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
-        } catch (_) {}
-        openAdminModal();
-      });
+      openAdminUrlBtn.setAttribute('href', 'https://sheesh.gg/account/');
     }
 
     document.querySelectorAll('.sheesh-auth-tab').forEach(btn => {
