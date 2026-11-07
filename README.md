@@ -2,7 +2,7 @@
   <img src="logo.png" alt="Cedar Logo" width="128" />
   <h1>Cedar</h1>
   <p>A private, local-first static blogging platform and visual site builder that operates entirely in your browser. Write, design, and manage your site locally, then publish directly to GitHub or export a ready-to-host <code>.zip</code> archive.</p>
-  <p>Vibe coded by <b>Gemini</b> • Designed by <b>SheeshFr</b></p>
+  <p>Vibe coded by <a href="https://github.com/sheeshfr"><b>SheeshFr</b></a></p>
 </div>
 
 ---
