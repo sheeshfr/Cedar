@@ -2312,6 +2312,17 @@
       });
     }
 
+    const btnSheeshSignIn = document.getElementById('ftue-btn-sheesh-signin');
+    if (btnSheeshSignIn) {
+      btnSheeshSignIn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.SheeshCloud && typeof window.SheeshCloud.openModal === 'function') {
+          window.SheeshCloud.openModal('login');
+        }
+      });
+    }
+
     // 2. Back buttons
     const backFromNew = document.getElementById('ftue-back-from-new');
     if (backFromNew) {

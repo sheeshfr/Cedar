@@ -4127,6 +4127,43 @@
   transition: color 0.2s ease;
 }
 
+.ftue-signin-footer {
+  margin-top: 1.35rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--ftue-card-border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.ftue-signin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.62rem 1.25rem;
+  border-radius: 9px;
+  border: 1px solid var(--ftue-card-border, rgba(255, 255, 255, 0.12));
+  background: var(--ftue-card-bg, #18181b);
+  color: var(--ftue-text-secondary, #a1a1aa);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+}
+
+.ftue-signin-btn:hover,
+.ftue-signin-btn:focus-visible {
+  outline: none;
+  border-color: var(--ftue-accent, var(--accent-primary, #71717a));
+  background: var(--ftue-card-hover-bg, #1c1c20);
+  color: var(--ftue-text-primary, #ffffff);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px var(--ftue-btn-primary-glow, rgba(0, 0, 0, 0.3));
+}
+
 .ftue-back-btn {
   display: inline-flex;
   align-items: center;

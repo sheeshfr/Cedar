@@ -14,6 +14,9 @@
   const STORAGE_KEY_TOKEN_SESSION = 'sheesh_auth_token_session';
   const STORAGE_KEY_ACTIVE_USER = 'sheesh_active_user_id';
   const STORAGE_KEY_LAST_SYNC = 'sheesh_cloud_last_sync';
+  const STORAGE_KEY_INVITE_PASSWORDS = 'sheesh_invite_passwords_map';
+  const STORAGE_KEY_USERNAME_CASING = 'sheesh_username_casing_map';
+  const STORAGE_KEY_FLASH_POPUP = 'sheesh_flash_top_popup';
   const CHUNK_SIZE = 45000;
   const MAX_MEDIA_CHARS = 1500000; // ~1.5MB per synced image
 
@@ -178,6 +181,8 @@
   let needsBootstrap = false;
   let pendingInviteCode = '';
   let pendingInviteLabel = '';
+  let pendingInvitePassword = '';
+  let topPopupHideTimer = null;
   let syncDebounceTimer = null;
   let isPullingFromCloud = false;
   let isPushingToCloud = false;
@@ -320,23 +325,239 @@
     return data;
   }
 
-  function showAlert(msg, isSuccess = false, targetId = 'sheesh-modal-alert') {
-    const el = document.getElementById(targetId);
-    if (!el) return;
+  function computeInviteDoubleSuffix(baseCode) {
+    const str = `sheesh-invite-double-v1:${String(baseCode || '').trim().toLowerCase()}`;
+    let h1 = 0x811c9dc5;
+    let h2 = 0xcbf29ce4;
+    let h3 = 0x1b873593;
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+      h2 = Math.imul(h2 ^ (c + i), 0x85ebca6b) >>> 0;
+      h3 = Math.imul(h3 ^ (c * 31), 0xc2b2ae35) >>> 0;
+    }
+    return (
+      h1.toString(16).padStart(8, '0') +
+      h2.toString(16).padStart(8, '0') +
+      h3.toString(16).padStart(8, '0')
+    ).slice(0, 12);
+  }
+
+  function expandInviteCode(code) {
+    const clean = String(code || '').trim();
+    if (/^sh_[0-9a-f]{12}$/i.test(clean)) {
+      return `${clean}${computeInviteDoubleSuffix(clean)}`;
+    }
+    return clean;
+  }
+
+  function extractBaseInviteCodeIfValid(code) {
+    const clean = String(code || '').trim();
+    if (/^sh_[0-9a-f]{24}$/i.test(clean)) {
+      const base = clean.slice(0, 15);
+      const suffix = clean.slice(15).toLowerCase();
+      if (computeInviteDoubleSuffix(base) === suffix) {
+        return base;
+      }
+    }
+    return null;
+  }
+
+  function normalizeInviteCode(code) {
+    const clean = String(code || '').trim();
+    return extractBaseInviteCodeIfValid(clean) || clean;
+  }
+
+  function getInvitePasswordMap() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_INVITE_PASSWORDS);
+      return raw ? (safeJsonParse(raw, {}) || {}) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function setInvitePasswordInMap(code, password) {
+    if (!code) return;
+    try {
+      const base = normalizeInviteCode(code);
+      const map = getInvitePasswordMap();
+      if (password && String(password).trim()) {
+        map[base] = String(password).trim();
+      } else {
+        delete map[base];
+      }
+      localStorage.setItem(STORAGE_KEY_INVITE_PASSWORDS, JSON.stringify(map));
+    } catch (_) {}
+  }
+
+  function getUsernameCasingMap() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_USERNAME_CASING);
+      return raw ? (safeJsonParse(raw, {}) || {}) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function setUsernameCasingInMap(username, inviteCode) {
+    const clean = String(username || '').trim();
+    if (!clean) return;
+    try {
+      const map = getUsernameCasingMap();
+      map[clean.toLowerCase()] = clean;
+      if (inviteCode) {
+        map[`inv:${normalizeInviteCode(inviteCode)}`] = clean;
+      }
+      localStorage.setItem(STORAGE_KEY_USERNAME_CASING, JSON.stringify(map));
+    } catch (_) {}
+  }
+
+  function resolveDisplayUsername(username, inviteCode) {
+    const raw = String(username || '').trim();
+    const map = getUsernameCasingMap();
+    if (inviteCode) {
+      const byInv = map[`inv:${normalizeInviteCode(inviteCode)}`];
+      if (byInv) return byInv;
+    }
+    if (!raw) return '';
+    if (raw !== raw.toLowerCase()) return raw;
+    return map[raw.toLowerCase()] || raw;
+  }
+
+  function formatInviteLabelWithPassword(name, password) {
+    const cleanName = String(name || '').split('||')[0].trim();
+    const cleanPass = String(password || '').trim();
+    return cleanPass ? `${cleanName} || ${cleanPass}` : cleanName;
+  }
+
+  function parseInviteLabelAndPassword(rawLabel, inviteCode, explicitPassword) {
+    const raw = String(rawLabel || '').trim();
+    let name = raw;
+    let password = String(explicitPassword || '').trim();
+    if (raw.includes('||')) {
+      const parts = raw.split('||');
+      name = (parts[0] || '').trim();
+      if (!password) {
+        password = parts.slice(1).join('||').trim();
+      }
+    }
+    if (!password && inviteCode) {
+      const base = normalizeInviteCode(inviteCode);
+      const map = getInvitePasswordMap();
+      if (map[base]) {
+        password = String(map[base]).trim();
+      }
+    }
+    return { name, password };
+  }
+
+  function getAccountHubUrl() {
+    const host = (window.location.hostname || '').toLowerCase();
+    if (host === 'sheesh.gg' || host === 'www.sheesh.gg' || host === 'localhost' || host === '127.0.0.1') {
+      return '/account/';
+    }
+    return 'https://sheesh.gg/account/';
+  }
+
+  function ensureInvitePasswordFieldsInDom() {
+    const regForm = document.getElementById('sheesh-form-register');
+    if (regForm && !document.getElementById('sheesh-register-invite-password')) {
+      const userInp = document.getElementById('sheesh-register-username');
+      const userGroup = userInp ? userInp.closest('.sheesh-field-group') : null;
+      const passGroup = document.createElement('div');
+      passGroup.className = 'sheesh-field-group';
+      passGroup.id = 'sheesh-invite-password-group';
+      passGroup.innerHTML = `
+        <label class="form-label" for="sheesh-register-invite-password">Invite Password</label>
+        <input type="text" id="sheesh-register-invite-password" class="form-input" placeholder="Enter short password given with this invite" spellcheck="false" autocomplete="off" style="font-family: var(--font-mono, monospace);">
+      `;
+      if (userGroup && userGroup.parentNode) {
+        userGroup.parentNode.insertBefore(passGroup, userGroup);
+      } else {
+        regForm.insertBefore(passGroup, regForm.firstChild);
+      }
+    }
+
+    const adminLabelInp = document.getElementById('sheesh-admin-invite-label');
+    if (adminLabelInp && !document.getElementById('sheesh-admin-invite-password')) {
+      const adminPassInp = document.createElement('input');
+      adminPassInp.type = 'text';
+      adminPassInp.id = 'sheesh-admin-invite-password';
+      adminPassInp.className = 'form-input';
+      adminPassInp.placeholder = 'Short invite password';
+      adminPassInp.required = true;
+      adminPassInp.style.cssText = 'flex: 1; min-width: 150px; font-family: var(--font-mono, monospace);';
+      adminLabelInp.insertAdjacentElement('afterend', adminPassInp);
+    }
+  }
+
+  function showTopBrowserPopup(msg, isSuccess = false) {
+    let popup = document.getElementById('sheesh-top-toast-popup');
     if (!msg) {
-      el.style.display = 'none';
-      el.textContent = '';
+      if (popup) popup.classList.remove('is-visible');
       return;
     }
-    el.textContent = msg;
-    el.className = 'sheesh-alert-banner' + (isSuccess ? ' is-success' : '');
-    el.style.display = 'block';
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'sheesh-top-toast-popup';
+      popup.className = 'sheesh-top-browser-popup';
+      popup.setAttribute('role', 'status');
+      popup.setAttribute('aria-live', 'polite');
+      popup.innerHTML = `
+        <span class="sheesh-top-popup-icon" id="sheesh-top-popup-icon"></span>
+        <span class="sheesh-top-popup-text" id="sheesh-top-popup-text"></span>
+        <button type="button" class="sheesh-top-popup-close" id="sheesh-top-popup-close" title="Dismiss">&times;</button>
+      `;
+      document.body.appendChild(popup);
+      const closeBtn = popup.querySelector('#sheesh-top-popup-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          popup.classList.remove('is-visible');
+        });
+      }
+    }
+
+    const iconEl = popup.querySelector('#sheesh-top-popup-icon');
+    const textEl = popup.querySelector('#sheesh-top-popup-text');
+    if (iconEl) {
+      iconEl.innerHTML = isSuccess
+        ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`
+        : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+    }
+    if (textEl) {
+      textEl.textContent = msg;
+    }
+    popup.classList.toggle('is-success', Boolean(isSuccess));
+    popup.classList.add('is-visible');
+
+    if (topPopupHideTimer) clearTimeout(topPopupHideTimer);
+    topPopupHideTimer = setTimeout(() => {
+      if (popup) popup.classList.remove('is-visible');
+    }, 5200);
+  }
+
+  function showAlert(msg, isSuccess = false, targetId = 'sheesh-modal-alert') {
+    const el = document.getElementById(targetId);
+    if (!msg) {
+      if (el) {
+        el.style.display = 'none';
+        el.textContent = '';
+      }
+      return;
+    }
+    if (el) {
+      el.textContent = msg;
+      el.className = 'sheesh-alert-banner' + (isSuccess ? ' is-success' : '');
+      el.style.display = 'block';
+    }
+    showTopBrowserPopup(msg, isSuccess);
   }
 
   function getSafeDisplayName(user) {
     if (!user) return '';
     if (user.isAdmin) return 'Admin';
-    return `@${user.username}`;
+    return `@${resolveDisplayUsername(user.username)}`;
   }
 
   function updateGlobalIndicators() {
@@ -405,12 +626,17 @@
       if (viewAuth) viewAuth.style.display = 'block';
       if (viewDash) viewDash.style.display = 'none';
 
+      ensureInvitePasswordFieldsInDom();
       const calloutTitle = document.getElementById('sheesh-register-callout-title');
       const calloutDesc = document.getElementById('sheesh-register-callout-desc');
       const inviteGroup = document.getElementById('sheesh-invite-code-group');
+      const invitePassGroup = document.getElementById('sheesh-invite-password-group');
+      const invitePassInp = document.getElementById('sheesh-register-invite-password');
       const submitRegLabel = document.getElementById('btn-sheesh-submit-register-label');
 
       if (inviteGroup) inviteGroup.style.display = 'none';
+      if (invitePassGroup) invitePassGroup.style.display = needsBootstrap ? 'none' : 'block';
+      if (invitePassInp) invitePassInp.required = !needsBootstrap;
 
       if (needsBootstrap) {
         if (calloutTitle) calloutTitle.textContent = 'First-Time Server Setup';
@@ -422,7 +648,7 @@
             ? `Welcome, ${pendingInviteLabel}! You're Invited — Create Your Account`
             : "You're Invited! Create Your Account";
         }
-        if (calloutDesc) calloutDesc.textContent = "Pick a username and roll a 3-word passphrase you'll remember.";
+        if (calloutDesc) calloutDesc.textContent = "Enter your short invite password, pick a username, and roll a 3-word passphrase you'll remember.";
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account & Sign In';
       }
       return;
@@ -1164,19 +1390,25 @@
       phraseCode.dataset.initialized = 'true';
     }
 
-    if (!currentUser) {
+    if (!currentUser || pendingInviteCode) {
       try {
+        const normalizedCode = pendingInviteCode ? normalizeInviteCode(pendingInviteCode) : '';
+        if (normalizedCode) pendingInviteCode = normalizedCode;
         const st = await apiRequest(`/status${pendingInviteCode ? `?invite=${encodeURIComponent(pendingInviteCode)}` : ''}`);
         needsBootstrap = Boolean(st && st.needsBootstrap);
         if (pendingInviteCode && st && st.inviteValid === false) {
           pendingInviteCode = '';
           pendingInviteLabel = '';
+          pendingInvitePassword = '';
           switchAuthMode('login');
           showAlert('This invite link is invalid or has already been claimed.');
         } else if (needsBootstrap || pendingInviteCode) {
-          if (pendingInviteCode && st && st.inviteLabel) {
-            pendingInviteLabel = String(st.inviteLabel).trim();
+          if (pendingInviteCode && st) {
+            const parsed = parseInviteLabelAndPassword(st.inviteLabel, pendingInviteCode, st.invitePassword);
+            pendingInviteLabel = parsed.name;
+            pendingInvitePassword = parsed.password;
           }
+          currentUser = null;
           switchAuthMode('register');
         } else {
           switchAuthMode('login');
@@ -1201,6 +1433,20 @@
 
   function bindEvents() {
     ensureModalHistoryListener();
+    if (!window.__sheeshFtueSigninBound) {
+      window.__sheeshFtueSigninBound = true;
+      document.addEventListener('click', (e) => {
+        const ftueSignInBtn = e.target && e.target.closest
+          ? e.target.closest('#ftue-btn-sheesh-signin, [data-action="ftue-sheesh-signin"]')
+          : null;
+        if (ftueSignInBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          openSheeshModal('login');
+        }
+      });
+    }
+
     const sidebarBtn = document.getElementById('sheesh-sidebar-btn');
     if (sidebarBtn && !sidebarBtn.dataset.bound) {
       sidebarBtn.dataset.bound = 'true';
@@ -1308,6 +1554,8 @@
         const btn = document.getElementById('btn-sheesh-submit-login');
         if (btn) btn.disabled = true;
         try {
+          const ftueModal = document.getElementById('modal-ftue');
+          const wasFtueOpen = Boolean(ftueModal && ftueModal.style.display && ftueModal.style.display !== 'none');
           const res = await apiRequest('/auth/login', {
             method: 'POST',
             body: { username, passphrase, persistent: remember }
@@ -1318,6 +1566,9 @@
           updateGlobalIndicators('Synced');
           renderModalState();
           await pullCedarFromCloud();
+          if (wasFtueOpen) {
+            closeSheeshModal();
+          }
         } catch (err) {
           showAlert(err.message);
         } finally {
@@ -1331,8 +1582,10 @@
       regForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         showAlert('');
-        const inviteCode = (document.getElementById('sheesh-register-invite')?.value || '').trim();
-        const username = (document.getElementById('sheesh-register-username')?.value || '').trim().toLowerCase();
+        const rawInviteCode = (document.getElementById('sheesh-register-invite')?.value || pendingInviteCode || '').trim();
+        const inviteCode = normalizeInviteCode(rawInviteCode);
+        const rawUsername = (document.getElementById('sheesh-register-username')?.value || '').trim();
+        const invitePassword = (document.getElementById('sheesh-register-invite-password')?.value || '').trim();
         const passphrase = (document.getElementById('sheesh-rolled-passphrase')?.textContent || '').trim().toLowerCase();
         const confirmedSaved = Boolean(document.getElementById('sheesh-register-confirm-saved')?.checked);
         const remember = Boolean(document.getElementById('sheesh-register-remember')?.checked);
@@ -1341,7 +1594,18 @@
           showAlert('Please enter your invite code.');
           return;
         }
-        if (!/^[a-z0-9_-]{2,24}$/.test(username)) {
+        if (!needsBootstrap) {
+          if (!invitePassword) {
+            showAlert('Please enter the short invite password for this invite link.');
+            return;
+          }
+          const expectedPass = pendingInvitePassword || getInvitePasswordMap()[inviteCode] || '';
+          if (expectedPass && invitePassword !== expectedPass && invitePassword.toLowerCase() !== expectedPass.toLowerCase()) {
+            showAlert('Incorrect invite password. Please check the short password given to you with this invite link.');
+            return;
+          }
+        }
+        if (!/^[a-zA-Z0-9_-]{2,24}$/.test(rawUsername)) {
           showAlert('Username must be 2–24 characters using only letters, numbers, underscores, or hyphens.');
           return;
         }
@@ -1356,12 +1620,15 @@
           const endpoint = needsBootstrap ? '/auth/bootstrap' : '/auth/claim-invite';
           const res = await apiRequest(endpoint, {
             method: 'POST',
-            body: { inviteCode, username, passphrase, persistent: remember }
+            body: { inviteCode, username: rawUsername, invitePassword, passphrase, persistent: remember }
           });
-          const greetedLabel = pendingInviteLabel || (res.user && res.user.label) || '';
+          setUsernameCasingInMap(rawUsername, inviteCode);
+          const parsedResLabel = parseInviteLabelAndPassword(res.user && res.user.label, inviteCode).name;
+          const greetedLabel = pendingInviteLabel || parsedResLabel || '';
           needsBootstrap = false;
           pendingInviteCode = '';
           pendingInviteLabel = '';
+          pendingInvitePassword = '';
           try {
             const url = new URL(window.location.href);
             if (url.searchParams.has('invite')) {
@@ -1370,16 +1637,33 @@
             }
           } catch (_) {}
 
+          if (res.user) {
+            res.user.username = rawUsername;
+            res.user.label = parsedResLabel;
+          }
           await ensureLocalUserIsolation(res.user);
           storeToken(res.token, remember);
           currentUser = res.user;
+          try {
+            localStorage.setItem('cedar_ftue_completed', '1');
+            if (window.CedarFTUE && typeof window.CedarFTUE.close === 'function') {
+              window.CedarFTUE.close();
+            }
+          } catch (_) {}
           updateGlobalIndicators('Synced');
           renderModalState();
           const welcomeName = greetedLabel && !currentUser.isAdmin
             ? `${greetedLabel} (${getSafeDisplayName(currentUser)})`
             : getSafeDisplayName(currentUser);
-          showAlert(`Welcome, ${welcomeName}! Your passphrase is ${passphrase}`, true);
-          await pushCedarToCloud({ deltaOnly: false });
+          const successMsg = `Account created! Welcome to sheesh.gg, ${welcomeName}! Your passphrase is ${passphrase}`;
+          showAlert(successMsg, true);
+          try {
+            sessionStorage.setItem(STORAGE_KEY_FLASH_POPUP, JSON.stringify({ msg: successMsg, isSuccess: true }));
+          } catch (_) {}
+          await pushCedarToCloud({ deltaOnly: false }).catch(() => {});
+          if (!(window.location.pathname || '').toLowerCase().startsWith('/account')) {
+            window.location.href = getAccountHubUrl();
+          }
         } catch (err) {
           showAlert(err.message);
         } finally {
@@ -1594,12 +1878,14 @@
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
+      ensureInvitePasswordFieldsInDom();
+      const isAccountPage = (window.location.pathname || '').toLowerCase().startsWith('/account');
       let wantsAdminUrl = false;
       try {
         const params = new URLSearchParams(window.location.search);
         const inv = params.get('invite');
         if (inv && inv.trim()) {
-          pendingInviteCode = inv.trim();
+          pendingInviteCode = normalizeInviteCode(inv.trim());
           const invInput = document.getElementById('sheesh-register-invite');
           if (invInput) invInput.value = pendingInviteCode;
         }
@@ -1608,6 +1894,11 @@
         }
       } catch (_) {}
 
+      if (pendingInviteCode && !isAccountPage) {
+        openSheeshModal('register');
+        return null;
+      }
+
       try {
         const meRes = await apiRequest('/auth/me');
         if (meRes && meRes.user) {
@@ -1615,7 +1906,7 @@
           currentUser = meRes.user;
           updateGlobalIndicators('Synced');
           renderModalState();
-          if (wantsAdminUrl && currentUser.isAdmin) {
+          if (wantsAdminUrl && currentUser.isAdmin && !isAccountPage) {
             openAdminModal();
           }
           await pullCedarFromCloud();
@@ -1626,10 +1917,12 @@
         updateGlobalIndicators();
       }
 
-      if (pendingInviteCode) {
-        openSheeshModal('register');
-      } else if (wantsAdminUrl) {
-        openSheeshModal('login');
+      if (!isAccountPage) {
+        if (pendingInviteCode) {
+          openSheeshModal('register');
+        } else if (wantsAdminUrl) {
+          openSheeshModal('login');
+        }
       }
       return null;
     })();
