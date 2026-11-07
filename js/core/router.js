@@ -1565,6 +1565,20 @@
       return;
     }
 
+    if (isFtueOpen && !FTUE_ROUTES.includes(cleanHash)) {
+      const isAlreadyCompleted = (localStorage.getItem('cedar_ftue_completed') || localStorage.getItem('outpost_ftue_completed')) === '1';
+      if (isAlreadyCompleted) {
+        if ((window.CedarFTUE || window.OutpostFTUE) && typeof (window.CedarFTUE || window.OutpostFTUE).close === 'function') {
+          (window.CedarFTUE || window.OutpostFTUE).close();
+        } else {
+          modalFtue.style.display = 'none';
+        }
+      } else if (cleanHash === 'home' && window.history && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+    }
+
     const route = parseRoute(window.location.hash);
 
     // If leaving editor view, persist work first (or discard if actually blank page)

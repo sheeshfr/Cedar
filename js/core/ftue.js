@@ -1913,6 +1913,8 @@
     unsupported: 'unsupported'
   };
 
+  let ftueSubscreenPushed = false;
+
   function showScreen(screenId, updateHistory = true) {
     if (!isFsaSupported() && screenId !== 'unsupported') {
       screenId = 'unsupported';
@@ -1955,7 +1957,15 @@
     if (updateHistory) {
       const targetHash = '#' + (SCREEN_HASH_MAP[screenId] || 'welcome');
       if (window.location.hash !== targetHash) {
-        window.location.hash = targetHash;
+        if (updateHistory === 'replace' || screenId === 'choice') {
+          try {
+            window.history.replaceState(null, '', targetHash);
+          } catch (e) {
+            window.location.hash = targetHash;
+          }
+        } else {
+          window.location.hash = targetHash;
+        }
       }
     }
 
@@ -1968,6 +1978,9 @@
   function handleHashRoute(cleanHash) {
     const modalEl = document.getElementById('modal-ftue');
     const targetScreen = HASH_SCREEN_MAP[cleanHash] || (cleanHash === '' ? 'choice' : null);
+    if (targetScreen === 'choice') {
+      ftueSubscreenPushed = false;
+    }
     if (targetScreen) {
       if (!modalEl || modalEl.style.display === 'none') {
         openFTUE();
@@ -2267,6 +2280,7 @@
     if (cardNew) {
       cardNew.addEventListener('click', (e) => {
         e.stopPropagation();
+        ftueSubscreenPushed = true;
         showScreen('new', true);
         detectSystemTimezone();
         const titleInput = document.getElementById('ftue-site-title');
@@ -2284,12 +2298,14 @@
     if (cardImport) {
       cardImport.addEventListener('click', (e) => {
         e.stopPropagation();
+        ftueSubscreenPushed = true;
         resetImportUI('folder');
         showScreen('import', true);
       });
       cardImport.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
+          ftueSubscreenPushed = true;
           resetImportUI('folder');
           showScreen('import', true);
         }
@@ -2301,7 +2317,13 @@
     if (backFromNew) {
       backFromNew.addEventListener('click', (e) => {
         e.stopPropagation();
-        showScreen('choice', true);
+        if (ftueSubscreenPushed && window.history && window.history.length > 1) {
+          ftueSubscreenPushed = false;
+          window.history.back();
+        } else {
+          ftueSubscreenPushed = false;
+          showScreen('choice', 'replace');
+        }
       });
     }
 
@@ -2309,8 +2331,14 @@
     if (backFromImport) {
       backFromImport.addEventListener('click', (e) => {
         e.stopPropagation();
-        showScreen('choice', true);
         resetImportUI();
+        if (ftueSubscreenPushed && window.history && window.history.length > 1) {
+          ftueSubscreenPushed = false;
+          window.history.back();
+        } else {
+          ftueSubscreenPushed = false;
+          showScreen('choice', 'replace');
+        }
       });
     }
 
@@ -4008,7 +4036,7 @@
     modalEl.style.display = 'flex';
 
     if (!isFsaSupported()) {
-      showScreen('unsupported', true);
+      showScreen('unsupported', 'replace');
       const btnClose = document.getElementById('ftue-btn-close');
       if (btnClose) btnClose.style.display = 'none';
       return;
@@ -4021,7 +4049,7 @@
     cleanHash = cleanHash.split('?')[0];
 
     const initialScreen = HASH_SCREEN_MAP[cleanHash] || 'choice';
-    showScreen(initialScreen, true);
+    showScreen(initialScreen, 'replace');
 
     resetImportUI();
     detectSystemTimezone();
@@ -4067,6 +4095,11 @@
     if (isNuclearTriggered) {
       console.log('[FTUE] Nuclear trigger detected. Launching FTUE onboarding wizard...');
       openFTUE();
+      return;
+    }
+
+    // 1.5. Skip automatic blank-slate FTUE if user is signing in, claiming an invite, or already authenticated with SheeshCloud
+    if (window.SheeshCloud && typeof window.SheeshCloud.hasPendingCloudIntent === 'function' && window.SheeshCloud.hasPendingCloudIntent()) {
       return;
     }
 

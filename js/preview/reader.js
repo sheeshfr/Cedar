@@ -789,6 +789,22 @@
           });
         }
 
+        // Zero-Trust Preview Sanitizer: strip executable scripts, inline on* handlers, and dangerous URIs
+        if (window.SheeshSecurity && typeof window.SheeshSecurity.sanitizeDomTree === 'function') {
+          window.SheeshSecurity.sanitizeDomTree(proseEl);
+        } else {
+          proseEl.querySelectorAll('script, object, embed, applet, base, meta').forEach(n => n.remove());
+          proseEl.querySelectorAll('*').forEach(el => {
+            Array.from(el.attributes || []).forEach(attr => {
+              const name = attr.name.toLowerCase();
+              const val = (attr.value || '').replace(/\s+/g, '').toLowerCase();
+              if (name.startsWith('on') || name === 'srcdoc' || (['href', 'src', 'action', 'formaction'].includes(name) && (val.startsWith('javascript:') || val.startsWith('vbscript:') || val.startsWith('data:text/html')))) {
+                el.removeAttribute(attr.name);
+              }
+            });
+          });
+        }
+
         // Clean up any canvas editor UI artifacts from prose (preserving user-authored buttons)
         const canvasSelectorsToRemove = [
           '.figure-hover-actions',

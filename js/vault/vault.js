@@ -1112,6 +1112,12 @@
             if (Array.isArray(studioCfg.deletedSlugs)) {
               cfg.deletedSlugs = studioCfg.deletedSlugs;
             }
+            if (studioCfg.renamedCategories && typeof studioCfg.renamedCategories === 'object') {
+              cfg.renamedCategories = studioCfg.renamedCategories;
+            }
+            if (studioCfg.deletedCategoryPostMap && typeof studioCfg.deletedCategoryPostMap === 'object') {
+              cfg.deletedCategoryPostMap = studioCfg.deletedCategoryPostMap;
+            }
             if (studioCfg.createdAt) {
               cfg.createdAt = studioCfg.createdAt;
             }
@@ -1136,11 +1142,24 @@
         }
 
         if (cfg && typeof cfg === 'object') {
+          const localCfgTs = parseTs(window.projectConfig && window.projectConfig.lastUpdated);
+          const folderCfgTs = parseTs(cfg.lastUpdated);
+          if (localCfgTs > folderCfgTs && window.projectConfig) {
+            if (Array.isArray(window.projectConfig.categories)) cfg.categories = window.projectConfig.categories;
+            if (Array.isArray(window.projectConfig.deletedCategories)) cfg.deletedCategories = window.projectConfig.deletedCategories;
+            if (Array.isArray(window.projectConfig.deletedDraftIds)) cfg.deletedDraftIds = window.projectConfig.deletedDraftIds;
+            if (Array.isArray(window.projectConfig.deletedSlugs)) cfg.deletedSlugs = window.projectConfig.deletedSlugs;
+            if (window.projectConfig.renamedCategories && typeof window.projectConfig.renamedCategories === 'object') {
+              cfg.renamedCategories = window.projectConfig.renamedCategories;
+            }
+            if (window.projectConfig.deletedCategoryPostMap && typeof window.projectConfig.deletedCategoryPostMap === 'object') {
+              cfg.deletedCategoryPostMap = window.projectConfig.deletedCategoryPostMap;
+            }
+          }
           if (Array.isArray(cfg.deletedCategories) && Array.isArray(cfg.categories)) {
             const delCatsLower = new Set(cfg.deletedCategories.map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
             cfg.categories = cfg.categories.filter(c => !delCatsLower.has(String(c || '').trim().toLowerCase()));
           }
-          // Strictly use the folder's deletedDraftIds and deletedSlugs (never union stale browser cache tombstones)
           const folderDelIds = Array.isArray(cfg.deletedDraftIds) ? cfg.deletedDraftIds : [];
           const folderDelSlugs = Array.isArray(cfg.deletedSlugs) ? cfg.deletedSlugs : [];
           cfg.deletedDraftIds = folderDelIds;
@@ -1148,6 +1167,9 @@
           try {
             localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(folderDelIds));
             localStorage.setItem('cedar_deleted_slugs', JSON.stringify(folderDelSlugs));
+            if (Array.isArray(cfg.deletedCategories)) {
+              localStorage.setItem('cedar_deleted_categories', JSON.stringify(cfg.deletedCategories));
+            }
           } catch (e) {}
 
           if (cfg.design && window.projectConfig && window.projectConfig.design) {
@@ -1301,6 +1323,44 @@
           .map(c => String(c || '').trim().toLowerCase())
           .filter(c => Boolean(c) && !deletedCatsLowerSet.has(c))
       );
+      const renamedCatsMap = (window.projectConfig && window.projectConfig.renamedCategories && typeof window.projectConfig.renamedCategories === 'object')
+        ? window.projectConfig.renamedCategories
+        : {};
+      const sanitizePostCategories = (postItem) => {
+        if (!postItem || postItem.type === 'page' || postItem.isCategoryAggregate || String(postItem.id || '').startsWith('page_cat_')) return;
+        if (postItem.tag && typeof postItem.tag === 'string') {
+          const tLow = postItem.tag.trim().toLowerCase();
+          if (renamedCatsMap[tLow]) postItem.tag = renamedCatsMap[tLow];
+          if (deletedCatsLowerSet.has(String(postItem.tag).trim().toLowerCase())) postItem.tag = '';
+        }
+        if (postItem.category && typeof postItem.category === 'string') {
+          const cLow = postItem.category.trim().toLowerCase();
+          if (renamedCatsMap[cLow]) postItem.category = renamedCatsMap[cLow];
+          if (deletedCatsLowerSet.has(String(postItem.category).trim().toLowerCase())) postItem.category = '';
+        }
+        if (Array.isArray(postItem.categories)) {
+          const nextCats = [];
+          postItem.categories.forEach(c => {
+            let s = String(c || '').trim();
+            if (!s) return;
+            const low = s.toLowerCase();
+            if (renamedCatsMap[low]) s = renamedCatsMap[low];
+            if (!s || deletedCatsLowerSet.has(s.toLowerCase())) return;
+            if (!nextCats.some(nc => nc.toLowerCase() === s.toLowerCase())) nextCats.push(s);
+          });
+          postItem.categories = nextCats;
+        }
+        if (!postItem.tag && Array.isArray(postItem.categories) && postItem.categories.length > 0) {
+          postItem.tag = postItem.categories[0];
+        }
+        if (postItem.permalinkCat && typeof postItem.permalinkCat === 'string') {
+          const pLow = postItem.permalinkCat.trim().toLowerCase();
+          if (renamedCatsMap[pLow]) postItem.permalinkCat = renamedCatsMap[pLow];
+          if (deletedCatsLowerSet.has(String(postItem.permalinkCat).trim().toLowerCase())) {
+            postItem.permalinkCat = postItem.tag || 'uncategorized';
+          }
+        }
+      };
 
       // Filter loadedDrafts against deleted IDs, deleted slugs, and deleted/orphaned category aggregate pages
       loadedDrafts = loadedDrafts.filter(d => {
@@ -1312,6 +1372,8 @@
           if (deletedCatsLowerSet.has(catStr) || (activeCatsLowerSet.size > 0 && !activeCatsLowerSet.has(catStr))) {
             return false;
           }
+        } else {
+          sanitizePostCategories(d);
         }
         return true;
       });
@@ -1344,6 +1406,8 @@
             if (basePath && fallbackSlug) orphanedDirsToDelete.push(`${basePath}/${fallbackSlug}`);
             return;
           }
+        } else {
+          sanitizePostCategories(dJson);
         }
 
         const isFromPublishedTier = typeof basePath === 'string' && basePath.includes('published');
@@ -2032,8 +2096,47 @@
           let needsHydrate = false;
           const mergedDrafts = [...currentAll];
 
+          const deletedIdsSet = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+            ? window.CedarStore.getDeletedIdsSet()
+            : new Set((window.projectConfig && Array.isArray(window.projectConfig.deletedDraftIds)) ? window.projectConfig.deletedDraftIds.map(String) : []);
+          const deletedCatsLower = new Set(
+            ((window.projectConfig && Array.isArray(window.projectConfig.deletedCategories)) ? window.projectConfig.deletedCategories : [])
+              .map(c => String(c || '').trim().toLowerCase())
+              .filter(Boolean)
+          );
+          const activeCatsLower = new Set(
+            ((window.projectConfig && Array.isArray(window.projectConfig.categories)) ? window.projectConfig.categories : [])
+              .map(c => String(c || '').trim().toLowerCase())
+              .filter(Boolean)
+          );
+          const renamedMap = (window.projectConfig && window.projectConfig.renamedCategories && typeof window.projectConfig.renamedCategories === 'object')
+            ? window.projectConfig.renamedCategories
+            : {};
+
           vDrafts.forEach(vd => {
             if (!vd || !vd.id) return;
+            if (deletedIdsSet.has(String(vd.id))) return;
+            const isCatPage = Boolean(vd.isCategoryAggregate || String(vd.id || '').startsWith('page_cat_'));
+            if (isCatPage) {
+              const catTitleLower = String(vd.categoryAggregate || vd.title || '').trim().toLowerCase();
+              if (deletedCatsLower.has(catTitleLower) || !activeCatsLower.has(catTitleLower)) {
+                return;
+              }
+            } else if (vd.type !== 'page') {
+              if (vd.tag) {
+                const tagLow = String(vd.tag).trim().toLowerCase();
+                if (renamedMap[tagLow]) vd.tag = renamedMap[tagLow];
+                if (deletedCatsLower.has(String(vd.tag).trim().toLowerCase())) vd.tag = '';
+              }
+              if (Array.isArray(vd.categories)) {
+                vd.categories = vd.categories
+                  .map(c => {
+                    const cLow = String(c || '').trim().toLowerCase();
+                    return renamedMap[cLow] || c;
+                  })
+                  .filter(c => c && !deletedCatsLower.has(String(c).trim().toLowerCase()));
+              }
+            }
             // Register any embedded draft images with dataUrl into window.imageRegistry
             if (Array.isArray(vd.images)) {
               window.imageRegistry = window.imageRegistry || new Map();

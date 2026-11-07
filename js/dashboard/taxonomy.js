@@ -32,10 +32,33 @@
       return false;
     }
 
-    // 1. Update projectConfig.categories
+    // 1. Update projectConfig.categories & un-tombstone newTrimmed if it was previously deleted
+    if (window.CedarStore && typeof window.CedarStore.unmarkCategoryDeleted === 'function') {
+      window.CedarStore.unmarkCategoryDeleted(newTrimmed);
+    }
     if (Array.isArray(projectConfig.deletedCategories)) {
       projectConfig.deletedCategories = projectConfig.deletedCategories.filter(dc => String(dc || '').trim().toLowerCase() !== newTrimmed.toLowerCase());
+    } else {
+      projectConfig.deletedCategories = [];
     }
+    if (oldTrimmed.toLowerCase() !== newTrimmed.toLowerCase()) {
+      if (!projectConfig.deletedCategories.some(dc => String(dc || '').trim().toLowerCase() === oldTrimmed.toLowerCase())) {
+        projectConfig.deletedCategories.push(oldTrimmed);
+      }
+      if (!projectConfig.renamedCategories || typeof projectConfig.renamedCategories !== 'object') {
+        projectConfig.renamedCategories = {};
+      }
+      Object.keys(projectConfig.renamedCategories).forEach(k => {
+        if (String(projectConfig.renamedCategories[k] || '').trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+          projectConfig.renamedCategories[k] = newTrimmed;
+        }
+      });
+      projectConfig.renamedCategories[oldTrimmed.toLowerCase()] = newTrimmed;
+    }
+    try {
+      localStorage.setItem('cedar_deleted_categories', JSON.stringify(projectConfig.deletedCategories));
+    } catch (e) {}
+
     const catIndex = projectConfig.categories.findIndex(c => c.toLowerCase() === oldTrimmed.toLowerCase());
     if (catIndex >= 0) {
       projectConfig.categories[catIndex] = newTrimmed;
@@ -47,126 +70,184 @@
     }
     saveProjectToStorage();
 
-    // 2. Update post tags/categories across ALL post drafts
+    // 2. Update post tags/categories across ALL post drafts & CedarStore
     let draftsChanged = false;
     let pageToUpdate = null;
+    const oldSlug = typeof window.generateSlug === 'function' ? window.generateSlug(oldTrimmed) : oldTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const newSlug = typeof window.generateSlug === 'function' ? window.generateSlug(newTrimmed) : newTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+    const allKnownItems = [];
+    const seenObjRefs = new Set();
+    const collectItem = (item) => {
+      if (item && typeof item === 'object' && !seenObjRefs.has(item)) {
+        seenObjRefs.add(item);
+        allKnownItems.push(item);
+      }
+    };
+    if (window.CedarStore) {
+      if (typeof window.CedarStore.getPosts === 'function') window.CedarStore.getPosts().forEach(collectItem);
+      if (typeof window.CedarStore.getPages === 'function') window.CedarStore.getPages().forEach(collectItem);
+    }
     if (Array.isArray(window.drafts)) {
-      window.drafts.forEach(d => {
-        if (!d) return;
-        // Skip page items (handled below)
-        if (d.type === 'page' || d.isCategoryAggregate || (d.id && String(d.id).startsWith('page_cat_'))) return;
+      window.drafts.forEach(collectItem);
+    }
 
-        let itemChanged = false;
+    allKnownItems.forEach(d => {
+      if (!d) return;
+      // Skip page items (handled below)
+      if (d.type === 'page' || d.isCategoryAggregate || (d.id && String(d.id).startsWith('page_cat_'))) return;
 
-        // Check and update d.tag
-        if (d.tag && typeof d.tag === 'string' && d.tag.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
-          d.tag = newTrimmed;
-          itemChanged = true;
-        }
+      let itemChanged = false;
 
-        // Check and update d.permalinkCat
-        if (d.permalinkCat && typeof d.permalinkCat === 'string' && d.permalinkCat.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
-          d.permalinkCat = newTrimmed;
-          itemChanged = true;
-        }
+      // Check and update d.tag
+      if (d.tag && typeof d.tag === 'string' && d.tag.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+        d.tag = newTrimmed;
+        itemChanged = true;
+      }
 
-        // Check and update d.category (singular)
-        if (d.category && typeof d.category === 'string' && d.category.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
-          d.category = newTrimmed;
-          itemChanged = true;
-        }
+      // Check and update d.permalinkCat
+      if (d.permalinkCat && typeof d.permalinkCat === 'string' && d.permalinkCat.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+        d.permalinkCat = newTrimmed;
+        itemChanged = true;
+      }
 
-        // Check and update d.categories (array)
-        if (Array.isArray(d.categories)) {
-          let arrChanged = false;
-          d.categories = d.categories.map(c => {
-            if (c && typeof c === 'string' && c.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
-              arrChanged = true;
-              return newTrimmed;
-            }
-            return c;
-          });
-          if (arrChanged) itemChanged = true;
-        }
+      // Check and update d.category (singular)
+      if (d.category && typeof d.category === 'string' && d.category.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+        d.category = newTrimmed;
+        itemChanged = true;
+      }
 
-        // Check and update d.tags (array)
-        if (Array.isArray(d.tags)) {
-          let arrChanged = false;
-          d.tags = d.tags.map(t => {
-            if (t && typeof t === 'string' && t.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
-              arrChanged = true;
-              return newTrimmed;
-            }
-            return t;
-          });
-          if (arrChanged) itemChanged = true;
-        }
-
-        if (itemChanged) {
-          d.updatedAt = Date.now();
-          draftsChanged = true;
-        }
-      });
-
-      // 3. Update category aggregate page(s) in window.drafts
-      const oldSlug = typeof window.generateSlug === 'function' ? window.generateSlug(oldTrimmed) : oldTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const newSlug = typeof window.generateSlug === 'function' ? window.generateSlug(newTrimmed) : newTrimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-      window.drafts.forEach(d => {
-        if (!d) return;
-        const isCatPage = (d.type === 'page' || d.isCategoryAggregate || (d.id && String(d.id).startsWith('page_cat_')));
-        if (!isCatPage) return;
-
-        const matchTitle = (d.title || '').trim().toLowerCase() === oldTrimmed.toLowerCase();
-        const matchAggregate = (d.categoryAggregate && d.categoryAggregate.trim().toLowerCase() === oldTrimmed.toLowerCase());
-        const matchId = (d.id && d.id === `page_cat_${oldSlug}`);
-
-        if (matchTitle || matchAggregate || matchId) {
-          const prevId = d.id;
-          d.title = newTrimmed;
-          d.slug = newSlug;
-          d.categoryAggregate = newTrimmed;
-          d.id = `page_cat_${newSlug}`;
-          d.updatedAt = Date.now();
-          d.categoryRenamed = true;
-          d.oldCategoryName = oldTrimmed;
-          if (window.CedarStore) {
-            if (prevId && prevId !== d.id && typeof window.CedarStore.removePage === 'function') {
-              window.CedarStore.removePage(prevId);
-            }
-            if (typeof window.CedarStore.upsertPage === 'function') {
-              window.CedarStore.upsertPage(d);
-            }
+      // Check and update d.categories (array)
+      if (Array.isArray(d.categories)) {
+        let arrChanged = false;
+        d.categories = d.categories.map(c => {
+          if (c && typeof c === 'string' && c.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+            arrChanged = true;
+            return newTrimmed;
           }
-          pageToUpdate = d;
-          draftsChanged = true;
-        }
-      });
-
-      if (Array.isArray(projectConfig.pagesCustomOrder)) {
-        projectConfig.pagesCustomOrder = projectConfig.pagesCustomOrder.map(id => {
-          const low = String(id || '').trim().toLowerCase();
-          if (low === `page_cat_${oldSlug}` || low === oldSlug || low === oldTrimmed.toLowerCase()) {
-            return `page_cat_${newSlug}`;
-          }
-          return id;
+          return c;
         });
-        saveProjectToStorage();
+        if (arrChanged) itemChanged = true;
       }
 
-      // Also sync current active draft if loaded in editor
-      if (window.currentDraft && !window.currentDraft.type) {
-        if (window.currentDraft.tag && window.currentDraft.tag.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
-          window.currentDraft.tag = newTrimmed;
-        }
-        if (Array.isArray(window.currentDraft.categories)) {
-          window.currentDraft.categories = window.currentDraft.categories.map(c => (c && c.trim().toLowerCase() === oldTrimmed.toLowerCase()) ? newTrimmed : c);
-        }
+      // Check and update d.tags (array)
+      if (Array.isArray(d.tags)) {
+        let arrChanged = false;
+        d.tags = d.tags.map(t => {
+          if (t && typeof t === 'string' && t.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+            arrChanged = true;
+            return newTrimmed;
+          }
+          return t;
+        });
+        if (arrChanged) itemChanged = true;
       }
 
-      if (draftsChanged && typeof window.saveDraftsToStorage === 'function') {
-        window.saveDraftsToStorage();
+      if (itemChanged) {
+        d.updatedAt = Date.now();
+        draftsChanged = true;
       }
+    });
+
+    // 3. Update category aggregate page(s) across CedarStore & window.drafts
+    allKnownItems.forEach(d => {
+      if (!d) return;
+      const isCatPage = (d.type === 'page' || d.isCategoryAggregate || (d.id && String(d.id).startsWith('page_cat_')));
+      if (!isCatPage) return;
+
+      const matchTitle = (d.title || '').trim().toLowerCase() === oldTrimmed.toLowerCase();
+      const matchAggregate = (d.categoryAggregate && d.categoryAggregate.trim().toLowerCase() === oldTrimmed.toLowerCase());
+      const matchId = (d.id && d.id === `page_cat_${oldSlug}`);
+
+      if (matchTitle || matchAggregate || matchId) {
+        const prevId = d.id;
+        d.title = newTrimmed;
+        d.slug = newSlug;
+        d.categoryAggregate = newTrimmed;
+        d.id = `page_cat_${newSlug}`;
+        d.updatedAt = Date.now();
+        d.categoryRenamed = true;
+        d.oldCategoryName = oldTrimmed;
+        if (window.CedarStore) {
+          if (typeof window.CedarStore.unmarkIdDeleted === 'function') {
+            window.CedarStore.unmarkIdDeleted(d.id);
+          }
+          if (typeof window.CedarStore.unmarkSlugDeleted === 'function') {
+            window.CedarStore.unmarkSlugDeleted(newSlug);
+          }
+          if (prevId && prevId !== d.id) {
+            if (typeof window.CedarStore.removePage === 'function') window.CedarStore.removePage(prevId);
+            if (typeof window.CedarStore.markIdDeleted === 'function') window.CedarStore.markIdDeleted(prevId);
+          }
+          if (typeof window.CedarStore.upsertPage === 'function') {
+            window.CedarStore.upsertPage(d);
+          }
+        }
+        pageToUpdate = d;
+        draftsChanged = true;
+      }
+    });
+
+    if (oldSlug && oldSlug !== newSlug) {
+      if (window.CedarStore) {
+        if (typeof window.CedarStore.removePage === 'function') window.CedarStore.removePage(`page_cat_${oldSlug}`);
+        if (typeof window.CedarStore.markIdDeleted === 'function') window.CedarStore.markIdDeleted(`page_cat_${oldSlug}`);
+      }
+      const oldCandidatePaths = [`pages/published/${oldSlug}`, `pages/hidden/${oldSlug}`, `pages/${oldSlug}`];
+      const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+      if (vStorage && typeof vStorage.deleteFile === 'function') {
+        oldCandidatePaths.forEach(cp => {
+          try {
+            vStorage.deleteFile(cp).catch(() => {});
+            vStorage.deleteFile(`${cp}/draft.json`).catch(() => {});
+            vStorage.deleteFile(`${cp}/index.md`).catch(() => {});
+            vStorage.deleteFile(`${cp}/index.html`).catch(() => {});
+          } catch (e) {}
+        });
+      }
+      if (window.SheeshVault && typeof window.SheeshVault.deleteFile === 'function') {
+        oldCandidatePaths.forEach(cp => {
+          try { window.SheeshVault.deleteFile(cp).catch(() => {}); } catch (e) {}
+        });
+      }
+      const bridgeVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
+      if (bridgeVaultPath && (window.Cedar && window.Cedar.isLocalServer)) {
+        oldCandidatePaths.forEach(cp => {
+          fetch('/api/vault-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folderPath: bridgeVaultPath, filePath: cp, targetPath: cp })
+          }).catch(() => {});
+        });
+      }
+    }
+
+    if (Array.isArray(projectConfig.pagesCustomOrder)) {
+      projectConfig.pagesCustomOrder = projectConfig.pagesCustomOrder.map(id => {
+        const low = String(id || '').trim().toLowerCase();
+        if (low === `page_cat_${oldSlug}` || low === oldSlug || low === oldTrimmed.toLowerCase()) {
+          return `page_cat_${newSlug}`;
+        }
+        return id;
+      });
+      saveProjectToStorage();
+    }
+
+    // Also sync current active draft if loaded in editor
+    if (window.currentDraft && !window.currentDraft.type) {
+      if (window.currentDraft.tag && window.currentDraft.tag.trim().toLowerCase() === oldTrimmed.toLowerCase()) {
+        window.currentDraft.tag = newTrimmed;
+      }
+      if (Array.isArray(window.currentDraft.categories)) {
+        window.currentDraft.categories = window.currentDraft.categories.map(c => (c && c.trim().toLowerCase() === oldTrimmed.toLowerCase()) ? newTrimmed : c);
+      }
+    }
+
+    if (typeof window.syncCategoryPages === 'function') {
+      window.syncCategoryPages();
+    }
+    if (typeof window.saveDraftsToStorage === 'function') {
+      window.saveDraftsToStorage();
     }
 
     // 4. Update activityLog in projectConfig:
@@ -364,14 +445,27 @@
         if (!projectConfig.deletedCategories.some(dc => String(dc || '').trim().toLowerCase() === catLower)) {
           projectConfig.deletedCategories.push(catLower);
         }
+        if (projectConfig.renamedCategories && typeof projectConfig.renamedCategories === 'object') {
+          Object.keys(projectConfig.renamedCategories).forEach(k => {
+            if (String(projectConfig.renamedCategories[k] || '').trim().toLowerCase() === catLower) {
+              delete projectConfig.renamedCategories[k];
+            }
+          });
+        }
         try {
           localStorage.setItem('cedar_deleted_categories', JSON.stringify(projectConfig.deletedCategories));
         } catch (e) {}
 
+        if (window.CedarStore) {
+          if (typeof window.CedarStore.markIdDeleted === 'function') window.CedarStore.markIdDeleted(`page_cat_${catSlug}`);
+          if (typeof window.CedarStore.remove === 'function') window.CedarStore.remove(`page_cat_${catSlug}`);
+        }
+
         let draftsChanged = false;
         const targetDrafts = Array.isArray(window.drafts) ? window.drafts : (typeof drafts !== 'undefined' && Array.isArray(drafts) ? drafts : []);
-        const removedPageIds = [];
+        const removedPageIds = [`page_cat_${catSlug}`];
         const removedPageSlugs = new Set([catSlug]);
+        const affectedPostIds = [];
 
         for (let i = targetDrafts.length - 1; i >= 0; i--) {
           const d = targetDrafts[i];
@@ -420,9 +514,19 @@
             thisDraftChanged = true;
           }
           if (thisDraftChanged) {
+            if (d.id) affectedPostIds.push(String(d.id));
             d.updatedAt = Date.now();
             draftsChanged = true;
           }
+        }
+        if (affectedPostIds.length > 0) {
+          if (!projectConfig.deletedCategoryPostMap || typeof projectConfig.deletedCategoryPostMap !== 'object') {
+            projectConfig.deletedCategoryPostMap = {};
+          }
+          projectConfig.deletedCategoryPostMap[catLower] = Array.from(new Set([
+            ...(Array.isArray(projectConfig.deletedCategoryPostMap[catLower]) ? projectConfig.deletedCategoryPostMap[catLower] : []),
+            ...affectedPostIds
+          ]));
         }
 
         // Remove category page folders from physical Vault & Virtual Storage
@@ -457,9 +561,9 @@
           });
         }
 
-        if (draftsChanged) {
-          saveDraftsToStorage();
-          if (typeof renderPipelineGrid === 'function') renderPipelineGrid();
+        saveDraftsToStorage();
+        if (draftsChanged && typeof renderPipelineGrid === 'function') {
+          renderPipelineGrid();
         }
 
         const filterCatActivity = (item) => {
@@ -697,6 +801,9 @@
           return;
         }
         if (!projectConfig.categories.some(c => c && c.toLowerCase() === val.toLowerCase())) {
+          if (window.CedarStore && typeof window.CedarStore.unmarkCategoryDeleted === 'function') {
+            window.CedarStore.unmarkCategoryDeleted(val);
+          }
           if (Array.isArray(projectConfig.deletedCategories)) {
             projectConfig.deletedCategories = projectConfig.deletedCategories.filter(dc => String(dc || '').trim().toLowerCase() !== val.toLowerCase());
             try {
@@ -714,6 +821,9 @@
           }
           if (typeof window.syncCategoryPages === 'function') {
             window.syncCategoryPages();
+          }
+          if (typeof window.saveDraftsToStorage === 'function') {
+            window.saveDraftsToStorage();
           }
           if (typeof window.renderStaticPages === 'function') {
             window.renderStaticPages();

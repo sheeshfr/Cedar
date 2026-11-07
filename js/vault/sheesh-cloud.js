@@ -1,8 +1,9 @@
 /**
- * sheesh.gg — Unified Cloud Account, Invite System & Automatic Sync Engine
+ * sheesh.gg — Unified Cloud Account, Invite System, Hardened Sandbox & Automatic Sync Engine
  * - Menu 1 (#modal-sheesh-cloud): Simple, readable User Sign-In, Invite Claim & Auto-Sync status
  * - Menu 2 (#modal-sheesh-admin): Separate Admin Panel opened via /?admin URL
- * - Automatic 45KB chunking so large Cedar posts/images sync to Cloudflare D1 without size limits
+ * - Automatic 45KB chunking so large Cedar posts/images/branding sync to Cloudflare D1 without size limits
+ * - Zero-Trust Sandbox Hardening (window.SheeshSecurity) + Strict Multi-User Silo Isolation
  */
 (function () {
   'use strict';
@@ -11,8 +12,152 @@
   const STORAGE_KEY_API = 'sheesh_api_base_url';
   const STORAGE_KEY_TOKEN_PERSIST = 'sheesh_auth_token';
   const STORAGE_KEY_TOKEN_SESSION = 'sheesh_auth_token_session';
+  const STORAGE_KEY_ACTIVE_USER = 'sheesh_active_user_id';
   const STORAGE_KEY_LAST_SYNC = 'sheesh_cloud_last_sync';
   const CHUNK_SIZE = 45000;
+  const MAX_MEDIA_CHARS = 1500000; // ~1.5MB per synced image
+
+  // =========================================================================
+  // ZERO-TRUST SANDBOX & PROTOTYPE-POLLUTION HARDENING (window.SheeshSecurity)
+  // =========================================================================
+
+  const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+  const FORBIDDEN_TAGS = ['script', 'object', 'embed', 'applet', 'base', 'meta'];
+
+  function safeJsonParse(rawStr, fallback = null) {
+    if (typeof rawStr !== 'string' || !rawStr) return fallback;
+    try {
+      return JSON.parse(rawStr, (key, value) => {
+        if (DANGEROUS_KEYS.has(key)) return undefined;
+        return value;
+      });
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function isDangerousUri(val) {
+    if (typeof val !== 'string') return false;
+    const cleaned = val.replace(/[\u0000-\u001F\u007F-\u009F\s]+/g, '').toLowerCase();
+    return (
+      cleaned.startsWith('javascript:') ||
+      cleaned.startsWith('vbscript:') ||
+      cleaned.startsWith('data:text/html') ||
+      cleaned.startsWith('data:application/javascript') ||
+      cleaned.startsWith('data:text/javascript')
+    );
+  }
+
+  function sanitizeDomTree(rootEl) {
+    if (!rootEl || typeof rootEl.querySelectorAll !== 'function') return;
+    FORBIDDEN_TAGS.forEach(tag => {
+      rootEl.querySelectorAll(tag).forEach(node => node.remove());
+    });
+
+    const allEls = rootEl.querySelectorAll('*');
+    allEls.forEach(el => {
+      const attrs = Array.from(el.attributes || []);
+      for (const attr of attrs) {
+        const name = attr.name.toLowerCase();
+        const val = attr.value || '';
+        if (name.startsWith('on') || name === 'srcdoc') {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+        if (['href', 'src', 'xlink:href', 'action', 'formaction', 'data'].includes(name)) {
+          if (isDangerousUri(val)) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      }
+      if (el.tagName && el.tagName.toLowerCase() === 'iframe') {
+        const src = el.getAttribute('src') || '';
+        if (!src || isDangerousUri(src) || src.trim().toLowerCase().startsWith('data:')) {
+          el.remove();
+        } else {
+          el.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
+          el.setAttribute('referrerpolicy', 'no-referrer');
+        }
+      }
+    });
+  }
+
+  function sanitizeHtml(dirtyHtml) {
+    if (typeof dirtyHtml !== 'string' || !dirtyHtml) return '';
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(dirtyHtml, 'text/html');
+      if (!doc || !doc.body) return '';
+      sanitizeDomTree(doc.body);
+      return doc.body.innerHTML;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function sanitizePostObject(post) {
+    if (!post || typeof post !== 'object') return null;
+    const clean = Object.assign({}, post);
+    if (typeof clean.content === 'string' && clean.content) {
+      clean.content = sanitizeHtml(clean.content);
+    }
+    if (typeof clean.proseHtml === 'string' && clean.proseHtml) {
+      clean.proseHtml = sanitizeHtml(clean.proseHtml);
+    }
+    if (typeof clean.customHtml === 'string' && clean.customHtml) {
+      clean.customHtml = sanitizeHtml(clean.customHtml);
+    }
+    if (Array.isArray(clean.blocks)) {
+      clean.blocks = clean.blocks.map(b => {
+        if (!b || typeof b !== 'object') return b;
+        const cb = Object.assign({}, b);
+        if (typeof cb.html === 'string' && cb.html) cb.html = sanitizeHtml(cb.html);
+        if (typeof cb.content === 'string' && cb.content && (cb.type === 'html' || cb.type === 'embed' || cb.content.includes('<'))) {
+          cb.content = sanitizeHtml(cb.content);
+        }
+        return cb;
+      });
+    }
+    return clean;
+  }
+
+  function stripSecretsFromConfig(cfg) {
+    if (!cfg || typeof cfg !== 'object') return {};
+    const copy = safeJsonParse(JSON.stringify(cfg), {}) || {};
+    // Never upload personal GitHub PATs to cloud storage
+    delete copy.githubToken;
+    // Persist active theme preference inside config:main so theme travels across devices
+    try {
+      const activeTheme = localStorage.getItem('cedar_theme_preference') ||
+        document.documentElement.getAttribute('data-theme') ||
+        copy.cedarTheme ||
+        'forest-dark';
+      copy.cedarTheme = activeTheme;
+      copy.cedarThemePreference = activeTheme;
+    } catch (_) {}
+    // Strip inline dataUrl from mediaLibrary inside config:main (synced separately via media:<path>)
+    if (Array.isArray(copy.mediaLibrary)) {
+      copy.mediaLibrary = copy.mediaLibrary.map(item => {
+        if (!item || typeof item !== 'object') return item;
+        const { dataUrl, ...rest } = item;
+        return rest;
+      });
+    }
+    return copy;
+  }
+
+  window.SheeshSecurity = {
+    safeJsonParse,
+    sanitizeHtml,
+    sanitizeDomTree,
+    sanitizePostObject,
+    stripSecretsFromConfig,
+    isDangerousUri
+  };
+
+  // =========================================================================
+  // PASSWORDS & AUTH STATE
+  // =========================================================================
 
   const WORD_LIST_A = [
     'velvet', 'cosmic', 'lunar', 'golden', 'crimson', 'amber', 'cobalt', 'silver',
@@ -34,6 +179,9 @@
   let pendingInviteCode = '';
   let syncDebounceTimer = null;
   let isPullingFromCloud = false;
+  let isPushingToCloud = false;
+  let lastServerUpdatedAt = 0;
+  let initPromise = null;
   let lastSyncedFingerprints = new Map();
 
   function getApiBase() {
@@ -71,6 +219,49 @@
       } else {
         sessionStorage.setItem(STORAGE_KEY_TOKEN_SESSION, token);
       }
+    } catch (_) {}
+  }
+
+  async function wipeCedarLocalWorkspace() {
+    lastSyncedFingerprints.clear();
+    lastServerUpdatedAt = 0;
+    try {
+      const keysToRemove = [
+        'sheesh_static_writer_drafts_v2',
+        'sheesh_static_writer_active_id_v2',
+        'sheesh_static_writer_project_v1',
+        'sheesh_static_writer_drafts',
+        'sheesh_static_writer_active_id',
+        'cedar_user_domain',
+        'cedar_user_blog_path',
+        'cedar_rss_enabled',
+        'cedar_layout_override',
+        'cedar_project_config',
+        'cedar_drafts',
+        'cedar_branding_files_v1',
+        'cedar_theme_preference',
+        'cedar_ftue_completed',
+        'outpost_ftue_completed',
+        STORAGE_KEY_LAST_SYNC
+      ];
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (_) {}
+    try {
+      window.imageRegistry = {};
+      if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.clear === 'function') {
+        await window.CedarVirtualStorage.clear();
+      }
+    } catch (_) {}
+  }
+
+  async function ensureLocalUserIsolation(incomingUser) {
+    if (!incomingUser || !incomingUser.id) return;
+    try {
+      const prevUserId = localStorage.getItem(STORAGE_KEY_ACTIVE_USER);
+      if (prevUserId && prevUserId !== incomingUser.id) {
+        await wipeCedarLocalWorkspace();
+      }
+      localStorage.setItem(STORAGE_KEY_ACTIVE_USER, incomingUser.id);
     } catch (_) {}
   }
 
@@ -117,9 +308,11 @@
       method: options.method || 'GET',
       headers,
       credentials: 'include',
+      keepalive: Boolean(options.keepalive),
       body: options.body ? JSON.stringify(options.body) : undefined
     });
-    const data = await resp.json().catch(() => ({}));
+    const rawText = await resp.text().catch(() => '');
+    const data = safeJsonParse(rawText, {}) || {};
     if (!resp.ok) {
       throw new Error(data.error || `Request failed (${resp.status})`);
     }
@@ -258,7 +451,7 @@
   }
 
   // =========================================================================
-  // AUTOMATIC CHUNKED CLOUD SYNC FOR CEDAR (Supports Large Posts & Images)
+  // AUTOMATIC CHUNKED CLOUD SYNC FOR CEDAR (Posts, Theme, Branding & Media)
   // =========================================================================
 
   function encodeChunkedItem(logicalItems, key, rawStr) {
@@ -279,81 +472,138 @@
       if (k.includes('__part_')) continue;
       const val = rawItems[k];
       if (val && val.startsWith('{"__sheeshChunked":true,')) {
-        try {
-          const meta = JSON.parse(val);
-          if (meta && meta.__sheeshChunked && typeof meta.count === 'number') {
-            let joined = '';
-            for (let i = 0; i < meta.count; i++) {
-              joined += (rawItems[`${k}__part_${i}`] || '');
-            }
-            out[k] = joined;
-            continue;
+        const meta = safeJsonParse(val, null);
+        if (meta && meta.__sheeshChunked && typeof meta.count === 'number') {
+          let joined = '';
+          for (let i = 0; i < meta.count; i++) {
+            joined += (rawItems[`${k}__part_${i}`] || '');
           }
-        } catch (_) {}
+          out[k] = joined;
+          continue;
+        }
       }
       out[k] = val;
     }
     return out;
   }
 
+  function normalizeMediaSyncKey(rawPath) {
+    if (!rawPath || typeof rawPath !== 'string') return '';
+    const cleaned = rawPath.trim().replace(/[^a-zA-Z0-9:_./-]/g, '_');
+    if (!cleaned || cleaned.includes('..')) return '';
+    return `media:${cleaned}`;
+  }
+
   async function pushCedarToCloud(options = {}) {
-    if (!currentUser || isPullingFromCloud) return;
+    if (!currentUser || isPullingFromCloud || isPushingToCloud) return;
+    isPushingToCloud = true;
     const isDeltaOnly = Boolean(options.deltaOnly);
     const payloadMap = {};
-    let changedCount = 0;
-
-    // 1. Project Config
-    const cfgJson = JSON.stringify(window.projectConfig || {});
-    if (!isDeltaOnly || lastSyncedFingerprints.get('config:main') !== cfgJson) {
-      encodeChunkedItem(payloadMap, 'config:main', cfgJson);
-      lastSyncedFingerprints.set('config:main', cfgJson);
-      changedCount++;
-    }
-
-    // 2. Individual Posts / Pages / Drafts
-    const draftsArr = Array.isArray(window.drafts) ? window.drafts : [];
-    for (const post of draftsArr) {
-      if (!post || !post.id) continue;
-      const key = `post:${post.id}`;
-      const postJson = JSON.stringify(post);
-      if (!isDeltaOnly || lastSyncedFingerprints.get(key) !== postJson) {
-        encodeChunkedItem(payloadMap, key, postJson);
-        lastSyncedFingerprints.set(key, postJson);
-        changedCount++;
-      }
-    }
-
-    // 3. Post Index Manifest
-    const indexIds = JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id));
-    if (!isDeltaOnly || lastSyncedFingerprints.get('index:posts') !== indexIds) {
-      payloadMap['index:posts'] = indexIds;
-      lastSyncedFingerprints.set('index:posts', indexIds);
-      changedCount++;
-    }
-
-    const allKeys = Object.keys(payloadMap);
-    if (allKeys.length === 0) {
-      const headline = document.getElementById('sheesh-sync-headline');
-      if (headline) headline.textContent = 'Synced across your devices';
-      updateGlobalIndicators('Synced');
-      return;
-    }
+    const activeLogicalKeys = new Set(['config:main', 'index:posts']);
 
     try {
+      // 1. Project Config (stripped of githubToken and inline mediaLibrary dataUrls)
+      const safeCfg = stripSecretsFromConfig(window.projectConfig || {});
+      const cfgJson = JSON.stringify(safeCfg);
+      if (!isDeltaOnly || lastSyncedFingerprints.get('config:main') !== cfgJson) {
+        encodeChunkedItem(payloadMap, 'config:main', cfgJson);
+        lastSyncedFingerprints.set('config:main', cfgJson);
+      }
+
+      // 2. Branding Files (favicon, avatar, site logo data URLs)
+      try {
+        const brandingRaw = localStorage.getItem('cedar_branding_files_v1');
+        if (brandingRaw && brandingRaw.length < MAX_MEDIA_CHARS) {
+          activeLogicalKeys.add('branding:files');
+          if (!isDeltaOnly || lastSyncedFingerprints.get('branding:files') !== brandingRaw) {
+            encodeChunkedItem(payloadMap, 'branding:files', brandingRaw);
+            lastSyncedFingerprints.set('branding:files', brandingRaw);
+          }
+        }
+      } catch (_) {}
+
+      // 3. Individual Posts / Pages / Drafts
+      const draftsArr = Array.isArray(window.drafts) ? window.drafts : [];
+      for (const post of draftsArr) {
+        if (!post || !post.id) continue;
+        const key = `post:${String(post.id).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
+        activeLogicalKeys.add(key);
+        const postJson = JSON.stringify(post);
+        if (!isDeltaOnly || lastSyncedFingerprints.get(key) !== postJson) {
+          encodeChunkedItem(payloadMap, key, postJson);
+          lastSyncedFingerprints.set(key, postJson);
+        }
+      }
+
+      // 4. Post Index Manifest
+      const indexIds = JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id));
+      if (!isDeltaOnly || lastSyncedFingerprints.get('index:posts') !== indexIds) {
+        payloadMap['index:posts'] = indexIds;
+        lastSyncedFingerprints.set('index:posts', indexIds);
+      }
+
+      // 5. Uploaded Media Registry (window.imageRegistry)
+      const registry = (window.imageRegistry && typeof window.imageRegistry === 'object') ? window.imageRegistry : {};
+      for (const [mediaPath, dataUrl] of Object.entries(registry)) {
+        if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:') || dataUrl.length > MAX_MEDIA_CHARS) continue;
+        const mediaKey = normalizeMediaSyncKey(mediaPath);
+        if (!mediaKey) continue;
+        activeLogicalKeys.add(mediaKey);
+        if (!isDeltaOnly || lastSyncedFingerprints.get(mediaKey) !== dataUrl) {
+          encodeChunkedItem(payloadMap, mediaKey, dataUrl);
+          lastSyncedFingerprints.set(mediaKey, dataUrl);
+        }
+      }
+
+      // 6. Compute Deleted Keys (removed posts or removed media)
+      const deleteKeys = [];
+      for (const prevKey of Array.from(lastSyncedFingerprints.keys())) {
+        if ((prevKey.startsWith('post:') || prevKey.startsWith('media:')) && !activeLogicalKeys.has(prevKey)) {
+          deleteKeys.push(prevKey);
+          lastSyncedFingerprints.delete(prevKey);
+        }
+      }
+      const deletedDraftIds = (window.projectConfig && Array.isArray(window.projectConfig.deletedDraftIds))
+        ? window.projectConfig.deletedDraftIds
+        : [];
+      for (const delId of deletedDraftIds) {
+        const delKey = `post:${String(delId).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
+        if (!activeLogicalKeys.has(delKey) && !deleteKeys.includes(delKey)) {
+          deleteKeys.push(delKey);
+        }
+      }
+
+      const allKeys = Object.keys(payloadMap);
+      if (allKeys.length === 0 && deleteKeys.length === 0) {
+        const headline = document.getElementById('sheesh-sync-headline');
+        if (headline) headline.textContent = 'Synced across your devices';
+        updateGlobalIndicators('Synced');
+        return;
+      }
+
       updateGlobalIndicators('Saving...');
       const headline = document.getElementById('sheesh-sync-headline');
       if (headline) headline.textContent = 'Syncing changes...';
 
       // Send in small batches of 6 chunks per request so D1 never hits payload limits
       const BATCH_SIZE = 6;
-      for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
-        const batchKeys = allKeys.slice(i, i + BATCH_SIZE);
+      const totalBatches = Math.max(1, Math.ceil(allKeys.length / BATCH_SIZE));
+      for (let b = 0; b < totalBatches; b++) {
+        const batchKeys = allKeys.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
         const batchObj = {};
         for (const k of batchKeys) batchObj[k] = payloadMap[k];
-        await apiRequest('/sync/cedar', {
+        const reqBody = { items: batchObj };
+        if (b === 0 && deleteKeys.length > 0) {
+          reqBody.deleteKeys = deleteKeys.slice(0, 64);
+        }
+        const putRes = await apiRequest('/sync/cedar', {
           method: 'PUT',
-          body: { items: batchObj }
+          keepalive: Boolean(options.keepalive),
+          body: reqBody
         });
+        if (putRes && putRes.updatedAt) {
+          lastServerUpdatedAt = Math.max(lastServerUpdatedAt, Number(putRes.updatedAt));
+        }
       }
 
       localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
@@ -364,17 +614,30 @@
       updateGlobalIndicators('Synced');
       const headline = document.getElementById('sheesh-sync-headline');
       if (headline) headline.textContent = 'Synced across your devices';
+    } finally {
+      isPushingToCloud = false;
     }
   }
 
   async function pullCedarFromCloud() {
-    if (!currentUser) return;
+    if (!currentUser || isPullingFromCloud) return;
     try {
       isPullingFromCloud = true;
       const res = await apiRequest('/sync/cedar');
+      if (res && res.updatedAt) {
+        lastServerUpdatedAt = Math.max(lastServerUpdatedAt, Number(res.updatedAt));
+      }
       const rawItems = (res && res.items) ? res.items : {};
       const items = decodeChunkedItems(rawItems);
       const keys = Object.keys(items);
+
+      // Suppress FTUE wizard for authenticated cloud users
+      try {
+        localStorage.setItem('cedar_ftue_completed', '1');
+        if (window.CedarFTUE && typeof window.CedarFTUE.close === 'function') {
+          window.CedarFTUE.close();
+        }
+      } catch (_) {}
 
       if (keys.length === 0) {
         isPullingFromCloud = false;
@@ -382,62 +645,189 @@
         return;
       }
 
-      if (items['config:main']) {
+      // 1. Restore Media Blobs into window.imageRegistry & CedarVirtualStorage first
+      window.imageRegistry = window.imageRegistry || {};
+      for (const k of keys) {
+        if (k.startsWith('media:')) {
+          const mediaPath = k.slice('media:'.length);
+          const dataUrl = items[k];
+          if (mediaPath && typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+            window.imageRegistry[mediaPath] = dataUrl;
+            lastSyncedFingerprints.set(k, dataUrl);
+            try {
+              if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
+                await window.CedarVirtualStorage.writeFile(mediaPath, dataUrl);
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      // 2. Restore Branding Files (favicon, avatar, logo)
+      if (items['branding:files']) {
         try {
-          const parsedCfg = JSON.parse(items['config:main']);
-          if (parsedCfg && typeof parsedCfg === 'object') {
-            window.projectConfig = Object.assign(window.projectConfig || {}, parsedCfg);
-            lastSyncedFingerprints.set('config:main', items['config:main']);
+          const parsedBrand = safeJsonParse(items['branding:files'], null);
+          if (parsedBrand && typeof parsedBrand === 'object') {
+            localStorage.setItem('cedar_branding_files_v1', JSON.stringify(parsedBrand));
+            lastSyncedFingerprints.set('branding:files', items['branding:files']);
           }
         } catch (_) {}
       }
 
+      // 3. Restore Project Config & Theme
+      if (items['config:main']) {
+        const parsedCfg = safeJsonParse(items['config:main'], null);
+        if (parsedCfg && typeof parsedCfg === 'object') {
+          const localCfg = window.projectConfig || {};
+          const preservedGithubToken = localCfg.githubToken || '';
+          const localTime = localCfg.lastUpdated ? new Date(localCfg.lastUpdated).getTime() : 0;
+          const cloudTime = parsedCfg.lastUpdated ? new Date(parsedCfg.lastUpdated).getTime() : 0;
+          const mergedDelIds = Array.from(new Set([
+            ...(Array.isArray(localCfg.deletedDraftIds) ? localCfg.deletedDraftIds : []),
+            ...(Array.isArray(parsedCfg.deletedDraftIds) ? parsedCfg.deletedDraftIds : [])
+          ]));
+          const mergedDelCats = Array.from(new Set([
+            ...(Array.isArray(localCfg.deletedCategories) ? localCfg.deletedCategories : []),
+            ...(Array.isArray(parsedCfg.deletedCategories) ? parsedCfg.deletedCategories : [])
+          ]));
+          const mergedRenamedCats = Object.assign({}, parsedCfg.renamedCategories || {}, localCfg.renamedCategories || {});
+          const preservedCats = (localTime > cloudTime && Array.isArray(localCfg.categories))
+            ? localCfg.categories
+            : (Array.isArray(parsedCfg.categories) ? parsedCfg.categories : (localCfg.categories || []));
+          const activeCatsLowerSet = new Set(preservedCats.map(c => String(c || '').trim().toLowerCase()).filter(Boolean));
+          const cleanDelCats = mergedDelCats.filter(dc => !activeCatsLowerSet.has(String(dc || '').trim().toLowerCase()));
+
+          window.projectConfig = Object.assign(localCfg, parsedCfg, {
+            categories: preservedCats,
+            deletedDraftIds: mergedDelIds,
+            deletedCategories: cleanDelCats,
+            renamedCategories: mergedRenamedCats
+          });
+          if (preservedGithubToken) {
+            window.projectConfig.githubToken = preservedGithubToken;
+          }
+
+          // Re-link mediaLibrary entries with restored imageRegistry dataUrls
+          if (Array.isArray(window.projectConfig.mediaLibrary)) {
+            window.projectConfig.mediaLibrary.forEach(item => {
+              if (!item || typeof item !== 'object') return;
+              const lookupKey = item.path || item.name || item.id;
+              if (lookupKey && window.imageRegistry[lookupKey]) {
+                item.dataUrl = window.imageRegistry[lookupKey];
+              }
+            });
+          }
+
+          // Apply synced theme across devices
+          const resolvedTheme = parsedCfg.cedarThemePreference || parsedCfg.cedarTheme || parsedCfg.theme;
+          if (resolvedTheme && typeof resolvedTheme === 'string') {
+            try {
+              localStorage.setItem('cedar_theme_preference', resolvedTheme);
+              if (window.CedarFTUE && typeof window.CedarFTUE.applyLiveTheme === 'function') {
+                window.CedarFTUE.applyLiveTheme(resolvedTheme, false);
+              } else {
+                document.documentElement.setAttribute('data-theme', resolvedTheme);
+              }
+            } catch (_) {}
+          }
+
+          lastSyncedFingerprints.set('config:main', items['config:main']);
+        }
+      }
+
+      // 4. Restore & Sanitize Posts / Pages / Drafts
       const postMap = new Map();
       for (const k of keys) {
         if (k.startsWith('post:')) {
-          try {
-            const p = JSON.parse(items[k]);
-            if (p && p.id) {
-              postMap.set(String(p.id), p);
-              lastSyncedFingerprints.set(k, items[k]);
-            }
-          } catch (_) {}
+          const rawPost = safeJsonParse(items[k], null);
+          const p = sanitizePostObject(rawPost);
+          if (p && p.id) {
+            postMap.set(String(p.id), p);
+            lastSyncedFingerprints.set(k, items[k]);
+          }
         }
       }
 
-      if (postMap.size > 0) {
+      if (postMap.size > 0 || items['index:posts']) {
         let orderedPosts = [];
+        let hasValidIndex = false;
         if (items['index:posts']) {
-          try {
-            const orderIds = JSON.parse(items['index:posts']);
-            lastSyncedFingerprints.set('index:posts', items['index:posts']);
-            if (Array.isArray(orderIds)) {
-              for (const id of orderIds) {
-                if (postMap.has(String(id))) {
-                  orderedPosts.push(postMap.get(String(id)));
-                  postMap.delete(String(id));
-                }
+          const orderIds = safeJsonParse(items['index:posts'], null);
+          lastSyncedFingerprints.set('index:posts', items['index:posts']);
+          if (Array.isArray(orderIds)) {
+            hasValidIndex = true;
+            for (const id of orderIds) {
+              if (postMap.has(String(id))) {
+                orderedPosts.push(postMap.get(String(id)));
+                postMap.delete(String(id));
               }
             }
-          } catch (_) {}
+            for (const remaining of postMap.values()) {
+              orderedPosts.push(remaining);
+            }
+          }
         }
-        for (const remaining of postMap.values()) {
-          orderedPosts.push(remaining);
+        if (!hasValidIndex) {
+          for (const remaining of postMap.values()) {
+            orderedPosts.push(remaining);
+          }
         }
-        window.drafts = orderedPosts;
+        const delIds = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+          ? window.CedarStore.getDeletedIdsSet()
+          : new Set((window.projectConfig && window.projectConfig.deletedDraftIds) || []);
+        const delCatsLower = new Set(
+          ((window.projectConfig && window.projectConfig.deletedCategories) || [])
+            .map(c => String(c || '').trim().toLowerCase())
+            .filter(Boolean)
+        );
+        orderedPosts = orderedPosts.filter(p => {
+          if (!p || !p.id || delIds.has(String(p.id))) return false;
+          if (p.isCategoryAggregate || String(p.id).startsWith('page_cat_')) {
+            const cName = String(p.categoryAggregate || p.title || '').trim().toLowerCase();
+            if (delCatsLower.has(cName)) return false;
+          }
+          return true;
+        });
+        if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
+          window.CedarStore.hydrateFromList(orderedPosts);
+        } else {
+          window.drafts = orderedPosts;
+        }
+        if (typeof window.syncCategoryPages === 'function') {
+          window.syncCategoryPages();
+        }
       }
 
+      // 5. Persist & Re-hydrate All Cedar UI Views
       if (typeof window.saveProjectToStorage === 'function') {
         window.saveProjectToStorage({ silent: true });
       }
       if (typeof window.saveDraftsToStorage === 'function') {
         await window.saveDraftsToStorage();
       }
+      if (typeof window.updateCedarTitle === 'function') {
+        window.updateCedarTitle();
+      }
+      if (typeof window.renderProjectSettings === 'function') {
+        window.renderProjectSettings();
+      }
+      if (typeof window.renderSettingsAuthorProfile === 'function') {
+        window.renderSettingsAuthorProfile();
+      }
+      if (typeof window.renderTaxonomy === 'function') {
+        window.renderTaxonomy();
+      }
       if (typeof window.renderDashboard === 'function') {
         window.renderDashboard();
       }
+      if (typeof window.renderStaticPages === 'function') {
+        window.renderStaticPages();
+      }
       if (typeof window.renderHomeDashboard === 'function') {
         window.renderHomeDashboard();
+      }
+      if (typeof window.updateAllPreviewFrames === 'function') {
+        window.updateAllPreviewFrames();
       }
 
       localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
@@ -450,10 +840,22 @@
     }
   }
 
+  async function checkRemoteMetaAndPullIfNewer() {
+    if (!currentUser || isPullingFromCloud || isPushingToCloud || syncDebounceTimer) return;
+    try {
+      const meta = await apiRequest('/sync/cedar?meta=1');
+      const remoteTs = Number(meta && meta.updatedAt) || 0;
+      if (remoteTs > 0 && remoteTs > lastServerUpdatedAt) {
+        await pullCedarFromCloud();
+      }
+    } catch (_) {}
+  }
+
   function scheduleAutoSync() {
     if (!currentUser || isPullingFromCloud) return;
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
     syncDebounceTimer = setTimeout(() => {
+      syncDebounceTimer = null;
       pushCedarToCloud({ deltaOnly: true });
     }, 900);
   }
@@ -479,6 +881,24 @@
       };
       wrappedSaveProj._sheeshHooked = true;
       window.saveProjectToStorage = wrappedSaveProj;
+    }
+
+    if (!window.__sheeshLifecycleBound) {
+      window.__sheeshLifecycleBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          if (syncDebounceTimer) {
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = null;
+            pushCedarToCloud({ deltaOnly: true, keepalive: true });
+          }
+        } else if (document.visibilityState === 'visible') {
+          checkRemoteMetaAndPullIfNewer();
+        }
+      });
+      window.addEventListener('focus', () => {
+        checkRemoteMetaAndPullIfNewer();
+      });
     }
   }
 
@@ -779,6 +1199,7 @@
             method: 'POST',
             body: { username, passphrase, persistent: remember }
           });
+          await ensureLocalUserIsolation(res.user);
           storeToken(res.token, remember);
           currentUser = res.user;
           updateGlobalIndicators('Synced');
@@ -834,12 +1255,13 @@
             }
           } catch (_) {}
 
+          await ensureLocalUserIsolation(res.user);
           storeToken(res.token, remember);
           currentUser = res.user;
           updateGlobalIndicators('Synced');
           renderModalState();
           showAlert(`Welcome, ${getSafeDisplayName(currentUser)}! Your passphrase is ${passphrase}`, true);
-          pushCedarToCloud({ deltaOnly: false });
+          await pushCedarToCloud({ deltaOnly: false });
         } catch (err) {
           showAlert(err.message);
         } finally {
@@ -851,13 +1273,23 @@
     const logoutBtn = document.getElementById('btn-sheesh-logout');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
+        if (syncDebounceTimer) {
+          clearTimeout(syncDebounceTimer);
+          syncDebounceTimer = null;
+        }
         try {
           await apiRequest('/auth/logout', { method: 'POST' });
         } catch (_) {}
         storeToken(null, false);
+        try {
+          localStorage.removeItem(STORAGE_KEY_ACTIVE_USER);
+        } catch (_) {}
         currentUser = null;
+        await wipeCedarLocalWorkspace();
         updateGlobalIndicators();
         renderModalState();
+        closeSheeshModal();
+        window.location.reload();
       });
     }
 
@@ -1031,42 +1463,61 @@
     bindEvents();
     hookCedarSaveFunctions();
 
-    let wantsAdminUrl = false;
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+      let wantsAdminUrl = false;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const inv = params.get('invite');
+        if (inv && inv.trim()) {
+          pendingInviteCode = inv.trim();
+          const invInput = document.getElementById('sheesh-register-invite');
+          if (invInput) invInput.value = pendingInviteCode;
+        }
+        if (params.has('admin') || window.location.hash === '#admin') {
+          wantsAdminUrl = true;
+        }
+      } catch (_) {}
+
+      try {
+        const meRes = await apiRequest('/auth/me');
+        if (meRes && meRes.user) {
+          await ensureLocalUserIsolation(meRes.user);
+          currentUser = meRes.user;
+          updateGlobalIndicators('Synced');
+          renderModalState();
+          if (wantsAdminUrl && currentUser.isAdmin) {
+            openAdminModal();
+          }
+          await pullCedarFromCloud();
+          return currentUser;
+        }
+      } catch (_) {
+        currentUser = null;
+        updateGlobalIndicators();
+      }
+
+      if (pendingInviteCode) {
+        openSheeshModal('register');
+      } else if (wantsAdminUrl) {
+        openSheeshModal('login');
+      }
+      return null;
+    })();
+
+    return initPromise;
+  }
+
+  function hasPendingCloudIntent() {
     try {
       const params = new URLSearchParams(window.location.search);
-      const inv = params.get('invite');
-      if (inv && inv.trim()) {
-        pendingInviteCode = inv.trim();
-        const invInput = document.getElementById('sheesh-register-invite');
-        if (invInput) invInput.value = pendingInviteCode;
+      if (params.has('invite') || params.has('admin') || window.location.hash === '#admin') {
+        return true;
       }
-      if (params.has('admin') || window.location.hash === '#admin') {
-        wantsAdminUrl = true;
-      }
+      if (getStoredToken()) return true;
     } catch (_) {}
-
-    try {
-      const meRes = await apiRequest('/auth/me');
-      if (meRes && meRes.user) {
-        currentUser = meRes.user;
-        updateGlobalIndicators('Synced');
-        renderModalState();
-        if (wantsAdminUrl && currentUser.isAdmin) {
-          openAdminModal();
-        }
-        await pullCedarFromCloud();
-        return;
-      }
-    } catch (_) {
-      currentUser = null;
-      updateGlobalIndicators();
-    }
-
-    if (pendingInviteCode) {
-      openSheeshModal('register');
-    } else if (wantsAdminUrl) {
-      openSheeshModal('login');
-    }
+    return Boolean(currentUser);
   }
 
   window.SheeshCloud = {
@@ -1077,7 +1528,8 @@
     pushNow: () => pushCedarToCloud({ deltaOnly: false }),
     pullNow: () => pullCedarFromCloud(),
     rollPassphrase,
-    getUser: () => currentUser
+    getUser: () => currentUser,
+    hasPendingCloudIntent
   };
 
   if (document.readyState === 'loading') {

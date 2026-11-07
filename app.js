@@ -47,7 +47,7 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '6.6.88';
+    let staticVersion = '6.6.89';
     try {
       const compareSemver = (a, b) => {
         const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -167,7 +167,8 @@
         }
         hasExternalVault = hasExternalVault || Boolean(savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath));
 
-      if (savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath)) {
+      const isAlreadyConnectedToVault = Boolean(window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected());
+      if (!isAlreadyConnectedToVault && savedVaultPath && !isDisconnect && !/[\\/]website[\\/]cedar[\\/]?$/i.test(savedVaultPath)) {
         const draftsKey = window.STORAGE_KEY_DRAFTS || 'sheesh_static_writer_drafts_v2';
         try {
           let res = await fetch(`/api/vault-read?folder=${encodeURIComponent(savedVaultPath)}&file=${encodeURIComponent('editor/drafts.json')}&as=json`, { cache: 'no-cache' });
@@ -438,7 +439,11 @@
       const urlParams = new URLSearchParams(window.location.search || '');
       const queryTab = urlParams.get('tab');
       const bootTab = (queryTab && ['home', 'posts', 'pages', 'media', 'categories', 'designer', 'export', 'settings', 'preview'].includes(queryTab)) ? queryTab : 'home';
-      window.location.hash = '#' + bootTab;
+      try {
+        window.history.replaceState(null, '', '#' + bootTab);
+      } catch (e) {
+        window.location.hash = '#' + bootTab;
+      }
       handleRoute();
     } else {
       handleRoute();
@@ -462,21 +467,22 @@
       }
     } catch (_) {}
 
-    // 3. First Time User Experience (FTUE) Blank Slate & Nuclear Reset Trigger Check
+    // 3. Initialize Cloud Account & Sync BEFORE checking Blank-Slate FTUE
+    if (window.SheeshCloud && typeof window.SheeshCloud.init === 'function') {
+      try {
+        await window.SheeshCloud.init();
+      } catch (e) {
+        console.warn('[Cedar] SheeshCloud init notice:', e);
+      }
+    }
+
+    // 4. First Time User Experience (FTUE) Blank Slate & Nuclear Reset Trigger Check
     if (ftue) {
       if (typeof ftue.init === 'function') {
         ftue.init();
       }
       if (typeof ftue.checkAndLaunch === 'function') {
         ftue.checkAndLaunch();
-      }
-    }
-
-    if (window.SheeshCloud && typeof window.SheeshCloud.init === 'function') {
-      try {
-        window.SheeshCloud.init();
-      } catch (e) {
-        console.warn('[Cedar] SheeshCloud init notice:', e);
       }
     }
 

@@ -1745,7 +1745,11 @@
           console.warn('[NuclearReset] Error executing nuclear reset:', e);
         }
 
-        window.location.href = window.location.pathname + '#welcome';
+        try {
+          window.history.replaceState(null, '', window.location.pathname + '#welcome');
+        } catch (e) {
+          window.location.href = window.location.pathname + '#welcome';
+        }
         window.location.reload();
       });
     }

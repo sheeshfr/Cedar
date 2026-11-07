@@ -443,8 +443,32 @@
           if (data && data.project && activeProj) {
             if (Array.isArray(data.project.categories) && data.project.categories.length > 0) {
               if (!Array.isArray(activeProj.categories) || activeProj.categories.length === 0) {
-                activeProj.categories = [...data.project.categories];
-                changed = true;
+                const deletedCatsLower = new Set(
+                  (Array.isArray(activeProj.deletedCategories) ? activeProj.deletedCategories : [])
+                    .map(c => String(c || '').trim().toLowerCase())
+                    .filter(Boolean)
+                );
+                const renamedCats = (activeProj.renamedCategories && typeof activeProj.renamedCategories === 'object')
+                  ? activeProj.renamedCategories
+                  : {};
+                const filteredServerCats = [];
+                data.project.categories.forEach(rawCat => {
+                  let cName = String(rawCat || '').trim();
+                  if (!cName) return;
+                  let guard = 0;
+                  while (renamedCats[cName.toLowerCase()] && guard < 10) {
+                    cName = String(renamedCats[cName.toLowerCase()]).trim();
+                    guard++;
+                  }
+                  if (deletedCatsLower.has(cName.toLowerCase())) return;
+                  if (!filteredServerCats.some(existing => existing.toLowerCase() === cName.toLowerCase())) {
+                    filteredServerCats.push(cName);
+                  }
+                });
+                if (filteredServerCats.length > 0) {
+                  activeProj.categories = filteredServerCats;
+                  changed = true;
+                }
               }
             }
             if (Array.isArray(data.project.authors)) {

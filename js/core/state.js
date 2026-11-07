@@ -1852,6 +1852,28 @@
 
       }
 
+      if (!Array.isArray(projectConfig.deletedCategories)) {
+        projectConfig.deletedCategories = [];
+      }
+      try {
+        const lsDelCats = localStorage.getItem('cedar_deleted_categories');
+        if (lsDelCats) {
+          const parsedDelCats = JSON.parse(lsDelCats);
+          if (Array.isArray(parsedDelCats)) {
+            projectConfig.deletedCategories = Array.from(new Set([
+              ...projectConfig.deletedCategories.map(c => String(c || '').trim()).filter(Boolean),
+              ...parsedDelCats.map(c => String(c || '').trim()).filter(Boolean)
+            ]));
+          }
+        }
+      } catch (e) {}
+      if (!projectConfig.renamedCategories || typeof projectConfig.renamedCategories !== 'object') {
+        projectConfig.renamedCategories = {};
+      }
+      if (!projectConfig.deletedCategoryPostMap || typeof projectConfig.deletedCategoryPostMap !== 'object') {
+        projectConfig.deletedCategoryPostMap = {};
+      }
+
 
       if (!projectConfig.defaultCategory) {
 
@@ -2167,7 +2189,6 @@
         projectConfig.categories = [];
 
       }
-
 
       // Never allow "Uncategorized" or "Posts" in projectConfig.categories
 
@@ -4877,6 +4898,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       for (let i = 0; i < all.length; i++) {
         drafts.push(all[i]);
       }
+      if (typeof window !== 'undefined' && window.drafts !== drafts) {
+        if (Array.isArray(window.drafts)) {
+          window.drafts.length = 0;
+          for (let i = 0; i < all.length; i++) {
+            window.drafts.push(all[i]);
+          }
+        }
+        window.drafts = drafts;
+      }
     },
 
     _ensureBuiltInPages() {
@@ -5055,6 +5085,122 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       } catch (e) {}
       if (window.projectConfig) {
         window.projectConfig.deletedDraftIds = arr;
+      }
+    },
+
+    unmarkIdDeleted(id) {
+      if (!id) return;
+      const targetLower = String(id).trim().toLowerCase();
+      if (!targetLower) return;
+      const set = this.getDeletedIdsSet();
+      const filtered = Array.from(set).filter(item => String(item || '').trim().toLowerCase() !== targetLower);
+      try {
+        localStorage.setItem('cedar_deleted_draft_ids', JSON.stringify(filtered));
+      } catch (e) {}
+      if (window.projectConfig) {
+        window.projectConfig.deletedDraftIds = filtered;
+      }
+      if (typeof projectConfig !== 'undefined' && projectConfig) {
+        projectConfig.deletedDraftIds = filtered;
+      }
+    },
+
+    unmarkSlugDeleted(slug) {
+      if (!slug) return;
+      const targetLower = String(slug).trim().toLowerCase();
+      if (!targetLower) return;
+      const existing = [];
+      try {
+        const raw = localStorage.getItem('cedar_deleted_slugs');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) existing.push(...parsed);
+        }
+      } catch (e) {}
+      if (window.projectConfig && Array.isArray(window.projectConfig.deletedSlugs)) {
+        existing.push(...window.projectConfig.deletedSlugs);
+      }
+      const filtered = Array.from(new Set(existing.filter(s => s && String(s).trim().toLowerCase() !== targetLower)));
+      try {
+        localStorage.setItem('cedar_deleted_slugs', JSON.stringify(filtered));
+      } catch (e) {}
+      if (window.projectConfig) {
+        window.projectConfig.deletedSlugs = filtered;
+      }
+      if (typeof projectConfig !== 'undefined' && projectConfig) {
+        projectConfig.deletedSlugs = filtered;
+      }
+    },
+
+    unmarkCategoryDeleted(catName) {
+      if (!catName) return;
+      const cleanName = String(catName).trim();
+      const catLower = cleanName.toLowerCase();
+      if (!catLower) return;
+      const catSlug = (typeof window.generateSlug === 'function')
+        ? window.generateSlug(cleanName)
+        : catLower.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+      const existingDelCats = [];
+      try {
+        const raw = localStorage.getItem('cedar_deleted_categories');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) existingDelCats.push(...parsed);
+        }
+      } catch (e) {}
+      if (window.projectConfig && Array.isArray(window.projectConfig.deletedCategories)) {
+        existingDelCats.push(...window.projectConfig.deletedCategories);
+      }
+      const filteredDelCats = Array.from(new Set(
+        existingDelCats
+          .map(dc => String(dc || '').trim())
+          .filter(dc => dc && dc.toLowerCase() !== catLower && dc.toLowerCase() !== catSlug)
+      ));
+      try {
+        localStorage.setItem('cedar_deleted_categories', JSON.stringify(filteredDelCats));
+      } catch (e) {}
+      if (window.projectConfig) {
+        window.projectConfig.deletedCategories = filteredDelCats;
+        if (window.projectConfig.renamedCategories && typeof window.projectConfig.renamedCategories === 'object') {
+          delete window.projectConfig.renamedCategories[catLower];
+        }
+      }
+      if (typeof projectConfig !== 'undefined' && projectConfig) {
+        projectConfig.deletedCategories = filteredDelCats;
+        if (projectConfig.renamedCategories && typeof projectConfig.renamedCategories === 'object') {
+          delete projectConfig.renamedCategories[catLower];
+        }
+      }
+
+      if (catSlug) {
+        this.unmarkIdDeleted(`page_cat_${catSlug}`);
+        this.unmarkSlugDeleted(catSlug);
+      }
+
+      const cfg = window.projectConfig || (typeof projectConfig !== 'undefined' ? projectConfig : null);
+      if (cfg && cfg.deletedCategoryPostMap && typeof cfg.deletedCategoryPostMap === 'object') {
+        const affectedPostIds = cfg.deletedCategoryPostMap[catLower];
+        if (Array.isArray(affectedPostIds) && affectedPostIds.length > 0) {
+          const affectedSet = new Set(affectedPostIds.map(id => String(id)));
+          const allPosts = this.getPosts();
+          allPosts.forEach(p => {
+            if (!p || !p.id || !affectedSet.has(String(p.id))) return;
+            if (!Array.isArray(p.categories)) p.categories = [];
+            if (!p.categories.some(c => String(c || '').trim().toLowerCase() === catLower)) {
+              p.categories.push(cleanName);
+            }
+            if (!p.tag || String(p.tag).trim().toLowerCase() === 'uncategorized') {
+              p.tag = cleanName;
+            }
+            if (!p.permalinkCat || String(p.permalinkCat).trim().toLowerCase() === 'uncategorized') {
+              p.permalinkCat = cleanName;
+            }
+            p.updatedAt = Date.now();
+          });
+          delete cfg.deletedCategoryPostMap[catLower];
+          this._syncWindowDrafts();
+        }
       }
     },
 
@@ -6303,6 +6449,17 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     if (isSheeshVaultConnected || hasBridgeVault) savedInVault = true;
 
     if (canWriteVaultDrafts && (hasVirtualVault || isSheeshVaultConnected || hasBridgeVault)) {
+      if (hasVirtualVault) {
+        try {
+          const vStoreImmediate = window.CedarVirtualStorage || window.OutpostVirtualStorage;
+          const immediateDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+            ? window.CedarStore.getAllDrafts()
+            : (Array.isArray(window.drafts) ? window.drafts : drafts);
+          const immediatePayload = JSON.stringify(immediateDrafts);
+          vStoreImmediate.writeFile('editor/drafts.json', immediatePayload).catch(() => {});
+          vStoreImmediate.writeFile('writer/drafts.json', immediatePayload).catch(() => {});
+        } catch (e) {}
+      }
       if (window.__cedarVaultFlushTimer) {
         clearTimeout(window.__cedarVaultFlushTimer);
       }
@@ -6324,6 +6481,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           if (window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected()) {
             // SheeshVault.writeFile writes to physical disk AND mirrors to CedarVirtualStorage automatically
             await window.SheeshVault.writeFile('editor/drafts.json', payloadStr);
+            await window.SheeshVault.writeFile('writer/drafts.json', payloadStr).catch(() => {});
             if (rssXml) {
               try {
                 await window.SheeshVault.writeFile('feed.xml', rssXml);
@@ -6334,6 +6492,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             const vStore = window.CedarVirtualStorage || window.OutpostVirtualStorage;
             if (vStore && typeof vStore.writeFile === 'function') {
               await vStore.writeFile('editor/drafts.json', payloadStr);
+              await vStore.writeFile('writer/drafts.json', payloadStr).catch(() => {});
               if (rssXml) {
                 try {
                   await vStore.writeFile('feed.xml', rssXml);

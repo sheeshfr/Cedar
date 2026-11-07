@@ -384,17 +384,98 @@
       window.drafts = [];
     }
 
-    // Purge test categories and explicitly deleted categories from window.projectConfig.categories
+    let changed = false;
+
+    // Reconcile deletedCategories from projectConfig + localStorage
     const deletedCatsLower = new Set(
       (Array.isArray(window.projectConfig.deletedCategories) ? window.projectConfig.deletedCategories : [])
         .map(c => String(c || '').trim().toLowerCase())
         .filter(Boolean)
     );
+    try {
+      const lsDelCats = localStorage.getItem('cedar_deleted_categories');
+      if (lsDelCats) {
+        const parsed = JSON.parse(lsDelCats);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(c => {
+            const s = String(c || '').trim().toLowerCase();
+            if (s) deletedCatsLower.add(s);
+          });
+        }
+      }
+    } catch (e) {}
+
+    // Build renamedCategories map (lowercase old -> new) and self-heal any legacy category pages with oldCategoryName
+    if (!window.projectConfig.renamedCategories || typeof window.projectConfig.renamedCategories !== 'object') {
+      window.projectConfig.renamedCategories = {};
+    }
+    const renamedMap = new Map();
+    Object.keys(window.projectConfig.renamedCategories).forEach(k => {
+      const lowKey = String(k || '').trim().toLowerCase();
+      const targetVal = String(window.projectConfig.renamedCategories[k] || '').trim();
+      if (lowKey && targetVal && lowKey !== targetVal.toLowerCase()) {
+        renamedMap.set(lowKey, targetVal);
+        deletedCatsLower.add(lowKey);
+      }
+    });
+
+    window.drafts.forEach(d => {
+      if (!d) return;
+      if ((d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) && d.oldCategoryName && d.title) {
+        const oldLow = String(d.oldCategoryName).trim().toLowerCase();
+        const newTitle = String(d.title).trim();
+        if (oldLow && newTitle && oldLow !== newTitle.toLowerCase() && !deletedCatsLower.has(newTitle.toLowerCase())) {
+          renamedMap.set(oldLow, newTitle);
+          deletedCatsLower.add(oldLow);
+          window.projectConfig.renamedCategories[oldLow] = newTitle;
+          if (!Array.isArray(window.projectConfig.deletedCategories)) window.projectConfig.deletedCategories = [];
+          if (!window.projectConfig.deletedCategories.some(dc => String(dc || '').trim().toLowerCase() === oldLow)) {
+            window.projectConfig.deletedCategories.push(d.oldCategoryName.trim());
+            try {
+              localStorage.setItem('cedar_deleted_categories', JSON.stringify(window.projectConfig.deletedCategories));
+            } catch (e) {}
+          }
+        }
+      }
+    });
+
+    // Also self-heal from activityLog rename history if an old category was resurrected alongside its renamed target
+    if (Array.isArray(window.projectConfig.activityLog)) {
+      const currentCatsLowerCheck = new Set(
+        (Array.isArray(window.projectConfig.categories) ? window.projectConfig.categories : [])
+          .map(c => String(c || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
+      window.projectConfig.activityLog.forEach(item => {
+        if (item && item.type === 'category' && item.data && item.data.action === 'renamed' && item.data.oldName && item.data.newName) {
+          const oldLow = String(item.data.oldName).trim().toLowerCase();
+          const newTitle = String(item.data.newName).trim();
+          const newLow = newTitle.toLowerCase();
+          if (oldLow && newLow && oldLow !== newLow && currentCatsLowerCheck.has(newLow) && !deletedCatsLower.has(newLow)) {
+            renamedMap.set(oldLow, newTitle);
+            deletedCatsLower.add(oldLow);
+            window.projectConfig.renamedCategories[oldLow] = newTitle;
+            if (!Array.isArray(window.projectConfig.deletedCategories)) window.projectConfig.deletedCategories = [];
+            if (!window.projectConfig.deletedCategories.some(dc => String(dc || '').trim().toLowerCase() === oldLow)) {
+              window.projectConfig.deletedCategories.push(String(item.data.oldName).trim());
+              try {
+                localStorage.setItem('cedar_deleted_categories', JSON.stringify(window.projectConfig.deletedCategories));
+              } catch (e) {}
+            }
+          }
+        }
+      });
+    }
+
     if (Array.isArray(window.projectConfig.categories)) {
+      const beforeCatsLen = window.projectConfig.categories.length;
       window.projectConfig.categories = window.projectConfig.categories.filter(c => {
         const s = String(c || '').trim().toLowerCase();
         return Boolean(s) && !deletedCatsLower.has(s);
       });
+      if (window.projectConfig.categories.length !== beforeCatsLen) {
+        changed = true;
+      }
     }
 
     // 1. Gather all active categories from projectConfig.categories + post tags/categories
@@ -409,7 +490,7 @@
       });
     }
 
-    // Also check drafts for any assigned categories
+    // Also check drafts for any assigned categories (migrating renamed categories & stripping deleted categories)
     window.drafts.forEach(d => {
       if (!d) return;
       if (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) {
@@ -418,25 +499,50 @@
       }
       if (d.type === 'page' || d.type === 'note' || d.status === 'idea') return;
       if (d.tag) {
-        const str = String(d.tag).trim();
+        let str = String(d.tag).trim();
+        const low = str.toLowerCase();
+        if (renamedMap.has(low)) {
+          const mapped = renamedMap.get(low);
+          if (deletedCatsLower.has(mapped.toLowerCase())) {
+            d.tag = '';
+            str = '';
+          } else {
+            d.tag = mapped;
+            str = mapped;
+          }
+          changed = true;
+        }
         if (str && deletedCatsLower.has(str.toLowerCase())) {
           d.tag = '';
+          changed = true;
         } else if (str && !forbiddenPageNames.has(str.toLowerCase())) {
           categorySet.add(str);
         }
       }
       if (Array.isArray(d.categories)) {
-        d.categories = d.categories.filter(c => !deletedCatsLower.has(String(c || '').trim().toLowerCase()));
+        const origJoined = d.categories.join('\u0000');
+        const nextCats = [];
         d.categories.forEach(c => {
-          const str = String(c || '').trim();
-          if (str && !forbiddenPageNames.has(str.toLowerCase()) && !deletedCatsLower.has(str.toLowerCase())) {
-            categorySet.add(str);
+          let str = String(c || '').trim();
+          if (!str) return;
+          const low = str.toLowerCase();
+          if (renamedMap.has(low)) {
+            str = renamedMap.get(low);
           }
+          if (!str || deletedCatsLower.has(str.toLowerCase()) || forbiddenPageNames.has(str.toLowerCase())) {
+            return;
+          }
+          if (!nextCats.some(nc => nc.toLowerCase() === str.toLowerCase())) {
+            nextCats.push(str);
+          }
+          categorySet.add(str);
         });
+        d.categories = nextCats;
+        if (d.categories.join('\u0000') !== origJoined) {
+          changed = true;
+        }
       }
     });
-
-    let changed = false;
 
     if (!Array.isArray(window.projectConfig.categories)) {
       window.projectConfig.categories = [];
@@ -450,14 +556,18 @@
 
     // Purge any phantom posts in window.drafts that share a slug with a category,
     // and purge any accidental auto-generated category pages with built-in slugs like 'rss' or 'about'
+    // Mutate window.drafts in-place so its reference stays bound to CedarStore's drafts array!
     const categorySlugs = new Set([...categorySet].map(c => (typeof window.generateSlug === 'function' ? window.generateSlug(c) : c.toLowerCase().replace(/[^a-z0-9]+/g, '-'))));
     const preCount = window.drafts.length;
-    window.drafts = window.drafts.filter(d => {
+    for (let i = window.drafts.length - 1; i >= 0; i--) {
+      const d = window.drafts[i];
       if (d && d.type === 'post' && (d.isCategoryAggregate || String(d.id || '').startsWith('page_')) && d.slug && categorySlugs.has(d.slug.toLowerCase())) {
         if (window.CedarStore && d.id && typeof window.CedarStore.removePost === 'function') {
           window.CedarStore.removePost(d.id);
         }
-        return false;
+        const idx = window.drafts.indexOf(d);
+        if (idx !== -1) window.drafts.splice(idx, 1);
+        continue;
       }
       if (d && (d.isCategoryAggregate || String(d.id).startsWith('page_cat_'))) {
         const s = (d.slug || '').trim().toLowerCase();
@@ -468,11 +578,13 @@
             if (typeof window.CedarStore.markIdDeleted === 'function') window.CedarStore.markIdDeleted(d.id);
             if (typeof window.CedarStore.removePage === 'function') window.CedarStore.removePage(d.id);
           }
+          const idx = window.drafts.indexOf(d);
+          if (idx !== -1) window.drafts.splice(idx, 1);
           if (s && window.SheeshVault && window.SheeshVault.isSupported && window.SheeshVault.dirHandle) {
             window.SheeshVault.deleteFile(`pages/published/${s}`).catch(() => {});
             window.SheeshVault.deleteFile(`pages/hidden/${s}`).catch(() => {});
           }
-          return false;
+          continue;
         }
         // Purge orphan category pages whose category is no longer in categorySet
         const match = [...categorySet].some(validCat => validCat.toLowerCase() === catStr || validCat.toLowerCase() === t);
@@ -481,15 +593,16 @@
             if (typeof window.CedarStore.markIdDeleted === 'function') window.CedarStore.markIdDeleted(d.id);
             if (typeof window.CedarStore.removePage === 'function') window.CedarStore.removePage(d.id);
           }
+          const idx = window.drafts.indexOf(d);
+          if (idx !== -1) window.drafts.splice(idx, 1);
           if (s && window.SheeshVault && window.SheeshVault.isSupported && window.SheeshVault.dirHandle) {
             window.SheeshVault.deleteFile(`pages/published/${s}`).catch(() => {});
             window.SheeshVault.deleteFile(`pages/hidden/${s}`).catch(() => {});
           }
-          return false;
+          continue;
         }
       }
-      return true;
-    });
+    }
     if (window.drafts.length !== preCount) {
       changed = true;
     }
@@ -501,9 +614,20 @@
       if (forbiddenPageNames.has(lower)) return;
       const catSlug = typeof window.generateSlug === 'function' ? window.generateSlug(catName) : lower.replace(/[^a-z0-9]+/g, '-');
       if (forbiddenPageNames.has(catSlug)) return;
+
+      // Ensure an active category's aggregate page ID and slug are never blocked by a stale tombstone
+      if (window.CedarStore) {
+        if (typeof window.CedarStore.unmarkIdDeleted === 'function') {
+          window.CedarStore.unmarkIdDeleted(`page_cat_${catSlug}`);
+        }
+        if (typeof window.CedarStore.unmarkSlugDeleted === 'function') {
+          window.CedarStore.unmarkSlugDeleted(catSlug);
+        }
+      }
+
       const existing = window.drafts.find(d => {
-        if (d.type !== 'page') return false;
-        return (d.title || '').trim().toLowerCase() === lower || (d.slug || '').trim().toLowerCase() === catSlug;
+        if (!d || d.type !== 'page') return false;
+        return (d.title || '').trim().toLowerCase() === lower || (d.slug || '').trim().toLowerCase() === catSlug || d.id === `page_cat_${catSlug}`;
       });
 
       if (!existing) {
@@ -980,27 +1104,38 @@
 
       const catSlug = (page && page.slug) || (typeof window.generateSlug === 'function' ? window.generateSlug(targetCatName) : targetCatName.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
       const catPageId = (page && page.id) || `page_cat_${catSlug}`;
+      const targetCatLower = targetCatName.trim().toLowerCase();
       if (window.projectConfig) {
         if (Array.isArray(window.projectConfig.categories)) {
-          window.projectConfig.categories = window.projectConfig.categories.filter(c => String(c).toLowerCase() !== targetCatName.toLowerCase());
+          window.projectConfig.categories = window.projectConfig.categories.filter(c => String(c).toLowerCase() !== targetCatLower);
         }
         if (!Array.isArray(window.projectConfig.deletedCategories)) {
           window.projectConfig.deletedCategories = [];
         }
-        if (!window.projectConfig.deletedCategories.some(dc => String(dc).trim().toLowerCase() === targetCatName.toLowerCase())) {
+        if (!window.projectConfig.deletedCategories.some(dc => String(dc).trim().toLowerCase() === targetCatLower)) {
           window.projectConfig.deletedCategories.push(targetCatName);
         }
+        if (window.projectConfig.renamedCategories && typeof window.projectConfig.renamedCategories === 'object') {
+          Object.keys(window.projectConfig.renamedCategories).forEach(k => {
+            if (String(window.projectConfig.renamedCategories[k] || '').trim().toLowerCase() === targetCatLower) {
+              delete window.projectConfig.renamedCategories[k];
+            }
+          });
+        }
+        try {
+          localStorage.setItem('cedar_deleted_categories', JSON.stringify(window.projectConfig.deletedCategories));
+        } catch (e) {}
         if (Array.isArray(window.projectConfig.activityLog)) {
           window.projectConfig.activityLog = window.projectConfig.activityLog.filter(a => {
             if (!a) return false;
             if (a.type === 'category') {
               const aCat = String(a.data?.categoryName || a.data?.newName || a.data?.category || '').trim().toLowerCase();
-              if (aCat === targetCatName.toLowerCase() || a.id === 'synth-cat-' + targetCatName) return false;
+              if (aCat === targetCatLower || a.id === 'synth-cat-' + targetCatName) return false;
             }
             if (a.type === 'page') {
               const aPageId = String(a.data?.pageId || a.data?.id || '').trim();
               const aTitle = String(a.data?.title || '').trim().toLowerCase();
-              if (aPageId === catPageId || aPageId === page.id || aTitle === targetCatName.toLowerCase()) return false;
+              if (aPageId === catPageId || aPageId === page.id || aTitle === targetCatLower) return false;
             }
             return true;
           });
@@ -1043,29 +1178,48 @@
         });
       }
       if (Array.isArray(window.drafts)) {
-        window.drafts = window.drafts.filter(d => d && d.id !== page.id && d.id !== catPageId);
+        for (let i = window.drafts.length - 1; i >= 0; i--) {
+          const item = window.drafts[i];
+          if (!item || item.id === page.id || item.id === catPageId) {
+            window.drafts.splice(i, 1);
+          }
+        }
+        const affectedPostIds = [];
         window.drafts.forEach(d => {
           if (!d || d.type === 'page') return;
           let postChanged = false;
-          if (d.tag && d.tag.trim().toLowerCase() === targetCatName.toLowerCase()) {
+          if (d.tag && d.tag.trim().toLowerCase() === targetCatLower) {
             d.tag = '';
             postChanged = true;
           }
           if (Array.isArray(d.categories)) {
             const origLen = d.categories.length;
-            d.categories = d.categories.filter(c => c && c.trim().toLowerCase() !== targetCatName.toLowerCase());
+            d.categories = d.categories.filter(c => c && c.trim().toLowerCase() !== targetCatLower);
             if (d.categories.length !== origLen) postChanged = true;
           }
           if (!d.tag && Array.isArray(d.categories) && d.categories.length > 0) {
             d.tag = d.categories[0];
             postChanged = true;
           }
-          if (d.permalinkCat && d.permalinkCat.trim().toLowerCase() === targetCatName.toLowerCase()) {
+          if (d.permalinkCat && d.permalinkCat.trim().toLowerCase() === targetCatLower) {
             d.permalinkCat = d.tag || 'uncategorized';
             postChanged = true;
           }
-          if (postChanged) d.updatedAt = Date.now();
+          if (postChanged) {
+            if (d.id) affectedPostIds.push(String(d.id));
+            d.updatedAt = Date.now();
+          }
         });
+        if (affectedPostIds.length > 0 && window.projectConfig) {
+          if (!window.projectConfig.deletedCategoryPostMap || typeof window.projectConfig.deletedCategoryPostMap !== 'object') {
+            window.projectConfig.deletedCategoryPostMap = {};
+          }
+          window.projectConfig.deletedCategoryPostMap[targetCatLower] = Array.from(new Set([
+            ...(Array.isArray(window.projectConfig.deletedCategoryPostMap[targetCatLower]) ? window.projectConfig.deletedCategoryPostMap[targetCatLower] : []),
+            ...affectedPostIds
+          ]));
+          if (typeof saveProjectToStorage === 'function') saveProjectToStorage();
+        }
         if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
           window.CedarStore.hydrateFromList(window.drafts);
         }
@@ -2031,8 +2185,17 @@
         }
         window.renameCategory(oldCatName, newTitle);
       }
+      const newCatSlug = typeof window.generateSlug === 'function' ? window.generateSlug(newTitle) : newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const newCatPageId = `page_cat_${newCatSlug}`;
+      page.id = newCatPageId;
+      page.slug = newCatSlug;
       page.title = newTitle;
       page.categoryAggregate = newTitle;
+      const resolvedCatPage = (window.CedarStore && typeof window.CedarStore.getPage === 'function' && window.CedarStore.getPage(newCatPageId))
+        || (Array.isArray(window.drafts) && window.drafts.find(d => d && d.id === newCatPageId));
+      if (resolvedCatPage && resolvedCatPage !== page) {
+        editingPageTarget = resolvedCatPage;
+      }
     } else {
       page.title = newTitle;
       page.updatedAt = nowTs;
@@ -2481,6 +2644,19 @@
         return;
       }
 
+      // Un-tombstone category and its aggregate page before adding to projectConfig.categories
+      if (window.CedarStore && typeof window.CedarStore.unmarkCategoryDeleted === 'function') {
+        window.CedarStore.unmarkCategoryDeleted(rawVal);
+      }
+      if (Array.isArray(window.projectConfig.deletedCategories)) {
+        window.projectConfig.deletedCategories = window.projectConfig.deletedCategories.filter(
+          dc => String(dc || '').trim().toLowerCase() !== rawVal.toLowerCase()
+        );
+        try {
+          localStorage.setItem('cedar_deleted_categories', JSON.stringify(window.projectConfig.deletedCategories));
+        } catch (e) {}
+      }
+
       // Add to projectConfig.categories
       window.projectConfig.categories.push(rawVal);
       if (typeof window.saveProjectToStorage === 'function') {
@@ -2490,6 +2666,12 @@
       // Sync category aggregate pages (creates draft page)
       if (typeof window.syncCategoryPages === 'function') {
         window.syncCategoryPages();
+      }
+      if (typeof window.saveDraftsToStorage === 'function') {
+        window.saveDraftsToStorage();
+      }
+      if (typeof window.saveProjectToStorage === 'function') {
+        window.saveProjectToStorage();
       }
 
       // ONLY log category creation activity — DO NOT log page creation!
