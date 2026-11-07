@@ -177,6 +177,7 @@
   let isPersistentSession = true;
   let needsBootstrap = false;
   let pendingInviteCode = '';
+  let pendingInviteLabel = '';
   let syncDebounceTimer = null;
   let isPullingFromCloud = false;
   let isPushingToCloud = false;
@@ -416,7 +417,11 @@
         if (calloutDesc) calloutDesc.textContent = 'Create your Owner account to lock the server to invite-only.';
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account';
       } else {
-        if (calloutTitle) calloutTitle.textContent = "You're Invited! Create Your Account";
+        if (calloutTitle) {
+          calloutTitle.textContent = pendingInviteLabel
+            ? `Welcome, ${pendingInviteLabel}! You're Invited — Create Your Account`
+            : "You're Invited! Create Your Account";
+        }
         if (calloutDesc) calloutDesc.textContent = "Pick a username and roll a 3-word passphrase you'll remember.";
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account & Sign In';
       }
@@ -912,6 +917,7 @@
     const invitesList = document.getElementById('sheesh-admin-invites-list');
     const usersList = document.getElementById('sheesh-admin-users-list');
     const fbList = document.getElementById('sheesh-admin-feedback-list');
+    const delList = document.getElementById('sheesh-admin-deleted-list');
 
     try {
       const data = await apiRequest('/admin/overview');
@@ -921,6 +927,7 @@
         ? data.users.filter(u => !(Array.isArray(u.roles) && u.roles.includes('admin')))
         : [];
       const feedback = Array.isArray(data.feedback) ? data.feedback : [];
+      const deletedAccounts = Array.isArray(data.deletedAccounts) ? data.deletedAccounts : [];
 
       const inviteBaseUrl = `${window.location.origin}/?invite=`;
 
@@ -933,8 +940,8 @@
             return `
               <div class="sheesh-admin-row">
                 <div>
-                  <strong style="font-size: 0.84rem;">${escapeHtml(inv.label || 'Friend Invite')}</strong>
-                  <div style="font-size: 0.73rem; color: var(--text-muted);">Link ready to send</div>
+                  <strong style="font-size: 0.84rem;">Invite for: ${escapeHtml(inv.label || 'Unnamed')}</strong>
+                  <div style="font-size: 0.73rem; color: var(--text-muted);">Link ready to send &middot; Created ${formatRelativeTime(inv.created_at)}</div>
                 </div>
                 <div style="display: flex; gap: 6px;">
                   <button type="button" class="btn btn-sm btn-secondary" data-copy-invite="${escapeHtml(fullUrl)}" style="font-size: 0.73rem; padding: 3px 9px;">Copy Link</button>
@@ -969,7 +976,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
                   <div>
                     <strong style="font-size: 0.88rem;">@${escapeHtml(u.username)}</strong>
-                    ${u.label ? `<span style="font-size: 0.78rem; color: var(--text-muted);"> — ${escapeHtml(u.label)}</span>` : ''}
+                    ${u.label ? `<span style="font-size: 0.78rem; color: var(--text-muted);"> — Invited: <strong>${escapeHtml(u.label)}</strong></span>` : ''}
                     ${isPaused ? `<span class="sheesh-role-pill" style="color: #f87171; border-color: #f87171;">Paused</span>` : ''}
                     <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
                       Last online: ${formatRelativeTime(u.last_active_at)}
@@ -1007,6 +1014,23 @@
                 <div style="font-size: 0.84rem; color: var(--text-primary); white-space: pre-wrap;">${escapeHtml(f.message)}</div>
               </div>
               <button type="button" class="btn btn-sm btn-secondary" data-dismiss-feedback="${escapeHtml(f.id)}" style="font-size: 0.72rem; padding: 3px 8px;">Done</button>
+            </div>
+          `).join('');
+        }
+      }
+
+      if (delList) {
+        if (deletedAccounts.length === 0) {
+          delList.innerHTML = `<div class="sheesh-empty-row">No deleted accounts.</div>`;
+        } else {
+          delList.innerHTML = deletedAccounts.map(d => `
+            <div class="sheesh-admin-row">
+              <div>
+                <strong style="font-size: 0.84rem; color: #fca5a5;">@${escapeHtml(d.username)}</strong>
+                ${d.label ? `<span style="font-size: 0.76rem; color: var(--text-muted);"> — Invite given to: <strong>${escapeHtml(d.label)}</strong></span>` : ''}
+                <div style="font-size: 0.72rem; color: var(--text-muted);">Deleted ${formatRelativeTime(d.deleted_at)}</div>
+              </div>
+              <span class="sheesh-role-pill" style="color: #f87171; border-color: rgba(239,68,68,0.35);">Deleted</span>
             </div>
           `).join('');
         }
@@ -1146,9 +1170,13 @@
         needsBootstrap = Boolean(st && st.needsBootstrap);
         if (pendingInviteCode && st && st.inviteValid === false) {
           pendingInviteCode = '';
+          pendingInviteLabel = '';
           switchAuthMode('login');
           showAlert('This invite link is invalid or has already been claimed.');
         } else if (needsBootstrap || pendingInviteCode) {
+          if (pendingInviteCode && st && st.inviteLabel) {
+            pendingInviteLabel = String(st.inviteLabel).trim();
+          }
           switchAuthMode('register');
         } else {
           switchAuthMode('login');
@@ -1330,8 +1358,10 @@
             method: 'POST',
             body: { inviteCode, username, passphrase, persistent: remember }
           });
+          const greetedLabel = pendingInviteLabel || (res.user && res.user.label) || '';
           needsBootstrap = false;
           pendingInviteCode = '';
+          pendingInviteLabel = '';
           try {
             const url = new URL(window.location.href);
             if (url.searchParams.has('invite')) {
@@ -1345,7 +1375,10 @@
           currentUser = res.user;
           updateGlobalIndicators('Synced');
           renderModalState();
-          showAlert(`Welcome, ${getSafeDisplayName(currentUser)}! Your passphrase is ${passphrase}`, true);
+          const welcomeName = greetedLabel && !currentUser.isAdmin
+            ? `${greetedLabel} (${getSafeDisplayName(currentUser)})`
+            : getSafeDisplayName(currentUser);
+          showAlert(`Welcome, ${welcomeName}! Your passphrase is ${passphrase}`, true);
           await pushCedarToCloud({ deltaOnly: false });
         } catch (err) {
           showAlert(err.message);
@@ -1409,18 +1442,28 @@
       createInviteBtn.addEventListener('click', async () => {
         const labelInp = document.getElementById('sheesh-admin-invite-label');
         const label = (labelInp?.value || '').trim();
+        if (!label) {
+          showAlert('Please enter a name to associate with this invite link so it greets them and records who you gave it to.', false, 'sheesh-admin-alert');
+          if (labelInp) labelInp.focus();
+          return;
+        }
         const roleChecks = document.querySelectorAll('#modal-sheesh-admin .sheesh-role-check input[type="checkbox"]:checked');
         const roles = Array.from(roleChecks).map(c => c.value);
 
         createInviteBtn.disabled = true;
         try {
+          showAlert('', false, 'sheesh-admin-alert');
           const res = await apiRequest('/admin/invites', {
             method: 'POST',
             body: { label, roles }
           });
           const fullUrl = `${window.location.origin}/?invite=${encodeURIComponent(res.invite.code)}`;
           const box = document.getElementById('sheesh-generated-invite-box');
+          const boxTitle = document.getElementById('sheesh-generated-invite-title');
           const urlInp = document.getElementById('sheesh-generated-invite-url');
+          if (boxTitle) {
+            boxTitle.innerHTML = `✓ Invite link for <strong>${escapeHtml(res.invite.label || label)}</strong> copied! Send this URL to them:`;
+          }
           if (urlInp) urlInp.value = fullUrl;
           if (box) box.style.display = 'block';
           if (labelInp) labelInp.value = '';

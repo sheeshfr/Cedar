@@ -1867,9 +1867,9 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
         <!-- 1. Invite Someone -->
         <div class="sheesh-admin-section">
           <h4 class="sheesh-admin-heading">1. Invite Someone</h4>
-          <p style="margin: 0 0 0.65rem 0; font-size: 0.78rem; color: var(--text-muted);">Creates a one-time link you can text or DM to a friend.</p>
+          <p style="margin: 0 0 0.65rem 0; font-size: 0.78rem; color: var(--text-muted);">Enter your friend's name to create a personalized single-use invite link that greets them and records who received it.</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0.65rem;">
-            <input type="text" id="sheesh-admin-invite-label" class="form-input" placeholder="Who is this for? (e.g. Girlfriend, Sam)" style="flex: 1; min-width: 180px;">
+            <input type="text" id="sheesh-admin-invite-label" class="form-input" placeholder="Recipient's name (Required — e.g. Sam, Alex)" required style="flex: 1; min-width: 180px;">
             <button type="button" class="btn btn-primary btn-sm popout-3d" id="btn-sheesh-create-invite" style="white-space: nowrap;">
               <span>+ Create Invite Link</span>
             </button>
@@ -1885,7 +1885,7 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
 
           <!-- Newly Generated Link Output -->
           <div class="sheesh-generated-invite-box" id="sheesh-generated-invite-box" style="display: none;">
-            <div style="font-size: 0.76rem; color: var(--text-primary); font-weight: 600; margin-bottom: 4px;">✓ Invite link copied! Send this URL to your friend:</div>
+            <div id="sheesh-generated-invite-title" style="font-size: 0.76rem; color: var(--text-primary); font-weight: 600; margin-bottom: 4px;">✓ Invite link copied! Send this URL to your friend:</div>
             <div style="display: flex; gap: 6px; align-items: center;">
               <input type="text" id="sheesh-generated-invite-url" class="form-input" readonly style="font-family: var(--font-mono, monospace); font-size: 0.78rem; flex: 1;">
               <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-copy-invite-url">Copy</button>
@@ -1914,10 +1914,18 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
         </div>
 
         <!-- 4. Bug & Idea Inbox -->
-        <div class="sheesh-admin-section" style="margin-bottom: 0;">
+        <div class="sheesh-admin-section">
           <h4 class="sheesh-admin-heading">4. Notes &amp; Bug Reports from Friends</h4>
           <div id="sheesh-admin-feedback-list" class="sheesh-admin-list">
             <div class="sheesh-empty-row">No notes yet.</div>
+          </div>
+        </div>
+
+        <!-- 5. Deleted Accounts Bucket -->
+        <div class="sheesh-admin-section" style="margin-bottom: 0;">
+          <h4 class="sheesh-admin-heading">5. Deleted Accounts Bucket</h4>
+          <div id="sheesh-admin-deleted-list" class="sheesh-admin-list">
+            <div class="sheesh-empty-row">No deleted accounts.</div>
           </div>
         </div>
       </div>
