@@ -1303,6 +1303,112 @@ body.sidebar-collapsed .dash-main-wrap {
   font-weight: 600;
 }
 
+#modal-sheesh-cloud .sheesh-modal-header {
+  display: none !important;
+}
+
+#btn-sheesh-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.46rem 0.92rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-primary, #e4e4e7);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#btn-sheesh-logout:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+.sheesh-visit-account-btn,
+#btn-sheesh-visit-account {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.68rem 1rem;
+  margin: 0 0 0.95rem 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-primary, #f4f4f5);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sheesh-visit-account-btn:hover,
+#btn-sheesh-visit-account:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.26);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+#btn-sheesh-submit-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.62rem 1rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text-primary, #f4f4f5);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#btn-sheesh-submit-feedback:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+#sheesh-secret-admin-entry {
+  margin-top: 0.95rem !important;
+  padding-top: 0.2rem !important;
+  border-top: none !important;
+  text-align: center;
+}
+
+#btn-sheesh-open-admin-url {
+  display: inline-block;
+  font-size: 0.96rem !important;
+  font-weight: 600;
+  color: var(--text-secondary, #a1a1aa) !important;
+  text-decoration: none;
+  padding: 2px 8px;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+#btn-sheesh-open-admin-url:hover {
+  color: var(--text-primary, #ffffff) !important;
+}
+
 .sheesh-profile-bar {
   display: flex;
   align-items: center;
