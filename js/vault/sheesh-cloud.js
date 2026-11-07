@@ -614,12 +614,31 @@
     if (authTabs) authTabs.style.display = 'none';
     const secretAdminEntry = document.getElementById('sheesh-secret-admin-entry');
     const openAdminUrlBtn = document.getElementById('btn-sheesh-open-admin-url');
+    const cloudHeader = document.querySelector('#modal-sheesh-cloud .sheesh-modal-header');
+    if (cloudHeader) cloudHeader.remove();
+    const legacySyncMeta = document.getElementById('sheesh-sync-meta');
+    if (legacySyncMeta) {
+      const visitBtn = document.createElement('a');
+      visitBtn.id = 'btn-sheesh-visit-account';
+      visitBtn.className = 'sheesh-visit-account-btn';
+      visitBtn.href = 'https://sheesh.gg/account/';
+      visitBtn.textContent = 'Visit Account Page';
+      legacySyncMeta.replaceWith(visitBtn);
+    }
+    const visitAccountBtn = document.getElementById('btn-sheesh-visit-account');
+    if (visitAccountBtn) {
+      visitAccountBtn.setAttribute('href', 'https://sheesh.gg/account/');
+    }
     if (secretAdminEntry) {
       secretAdminEntry.style.display = 'block';
+      secretAdminEntry.style.borderTop = 'none';
+      secretAdminEntry.style.paddingTop = '0.2rem';
     }
     if (openAdminUrlBtn) {
       openAdminUrlBtn.textContent = 'See More...';
       openAdminUrlBtn.setAttribute('href', 'https://sheesh.gg/account/');
+      openAdminUrlBtn.style.fontSize = '0.96rem';
+      openAdminUrlBtn.style.fontWeight = '600';
     }
 
     if (!currentUser) {

@@ -1706,23 +1706,8 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
   <!-- =========================================================================
        MODAL 1: Clean User Account Menu (Sign In, Claim Invite & Auto-Sync Status)
        ========================================================================= -->
-  <div class="modal-overlay" id="modal-sheesh-cloud" style="display: none; z-index: 100050;" role="dialog" aria-modal="true" aria-labelledby="sheesh-modal-title">
+  <div class="modal-overlay" id="modal-sheesh-cloud" style="display: none; z-index: 100050;" role="dialog" aria-modal="true" aria-label="My Account">
     <div class="modal-card sheesh-modal-card" style="max-width: 460px;">
-      <!-- Header -->
-      <div class="modal-header sheesh-modal-header">
-        <div class="sheesh-modal-title-row">
-          <img src="images/sheesh.png" alt="sheesh.gg" class="sheesh-modal-logo">
-          <div>
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <h2 class="modal-title" id="sheesh-modal-title" style="margin: 0; font-size: 1.05rem;">My Account</h2>
-              <span class="sheesh-conn-badge" id="sheesh-modal-conn-badge">Local Mode</span>
-            </div>
-            <p class="modal-desc" id="sheesh-modal-subtitle" style="margin: 2px 0 0 0; font-size: 0.78rem;">Pick up right where you left off on any computer or phone.</p>
-          </div>
-        </div>
-        <button type="button" class="modal-close-btn" id="btn-sheesh-modal-close" title="Close">&times;</button>
-      </div>
-
       <!-- Body -->
       <div class="modal-body sheesh-modal-body">
         <div class="sheesh-alert-banner" id="sheesh-modal-alert" style="display: none;"></div>
@@ -1824,9 +1809,9 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
             <button type="button" class="btn btn-sm btn-secondary" id="btn-sheesh-logout">Sign Out</button>
           </div>
 
-          <p id="sheesh-sync-meta" style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 1.1rem 0; line-height: 1.45;">
-            Everything you write or change is saved automatically to your account so you can continue on your phone or any other computer.
-          </p>
+          <a href="https://sheesh.gg/account/" class="sheesh-visit-account-btn" id="btn-sheesh-visit-account">
+            Visit Account Page
+          </a>
 
           <!-- Simple Bug / Idea Box -->
           <div class="sheesh-sync-card" style="margin-bottom: 0;">
@@ -1837,8 +1822,8 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
           </div>
         </div>
 
-        <div id="sheesh-secret-admin-entry" style="display: block; margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border-color, rgba(255,255,255,0.08)); text-align: center;">
-          <a href="https://sheesh.gg/account/" id="btn-sheesh-open-admin-url" style="font-size: 0.78rem; color: var(--text-muted); text-decoration: none;">
+        <div id="sheesh-secret-admin-entry" style="display: block; margin-top: 0.95rem; padding-top: 0.2rem; border-top: none; text-align: center;">
+          <a href="https://sheesh.gg/account/" id="btn-sheesh-open-admin-url" style="font-size: 0.96rem; font-weight: 600; color: var(--text-muted); text-decoration: none;">
             See More...
           </a>
         </div>
