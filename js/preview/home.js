@@ -1747,8 +1747,45 @@
                 window.activeCategoryFilter = 'ALL';
               }
 
-              // Show strictly 1:1 what categories exist in projectConfig.categories (never harvest phantom categories)
-              const orderedCats = [...configuredCats];
+              // Show strictly 1:1 what categories exist in projectConfig.categories, sorted to match the curated top navigation bar order
+              const draftsForCatSort = (typeof getDrafts === 'function' ? getDrafts() : window.drafts) || [];
+              const cfgForCatSort = (typeof getConfig === 'function' ? getConfig() : {}) || {};
+              const catSortOrderMap = new Map();
+              if (cfgForCatSort.pagesCustomOrderUserSet && Array.isArray(cfgForCatSort.pagesCustomOrder) && cfgForCatSort.pagesCustomOrder.length > 0) {
+                cfgForCatSort.pagesCustomOrder.forEach((id, idx) => catSortOrderMap.set(String(id).toLowerCase(), idx));
+              }
+              const orderedCats = configuredCats
+                .map(catName => {
+                  const cleanName = String(catName || '').trim();
+                  const catSlug = encodeURIComponent(cleanName.toLowerCase().replace(/\s+/g, '-'));
+                  const matchedDraft = draftsForCatSort.find(d => d && (d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) && String(d.categoryAggregate || d.title || '').trim().toLowerCase() === cleanName.toLowerCase());
+                  const id = matchedDraft ? matchedDraft.id : `page_cat_${catSlug}`;
+                  let createdAt = matchedDraft ? (matchedDraft.createdAt || matchedDraft.updatedAt || 1) : 1;
+                  if (createdAt <= 1) {
+                    const m = String(id || '').match(/^page_(\d+)_/);
+                    if (m && m[1]) createdAt = Number(m[1]);
+                  }
+                  const idLower = String(id || '').toLowerCase();
+                  const slugLower = String(catSlug || '').toLowerCase();
+                  const titleLower = cleanName.toLowerCase();
+                  let customIdx = 99999;
+                  if (catSortOrderMap.size > 0) {
+                    if (catSortOrderMap.has(idLower)) customIdx = catSortOrderMap.get(idLower);
+                    else if (catSortOrderMap.has(slugLower)) customIdx = catSortOrderMap.get(slugLower);
+                    else if (catSortOrderMap.has(titleLower)) customIdx = catSortOrderMap.get(titleLower);
+                  }
+                  return { name: cleanName, customIdx, createdAt };
+                })
+                .sort((a, b) => {
+                  if (catSortOrderMap.size > 0 && a.customIdx !== b.customIdx) {
+                    return a.customIdx - b.customIdx;
+                  }
+                  if (b.createdAt !== a.createdAt) {
+                    return b.createdAt - a.createdAt;
+                  }
+                  return 0;
+                })
+                .map(item => item.name);
 
               if (orderedCats.length === 0) {
                 feedCatWrap.style.display = 'none';

@@ -708,12 +708,31 @@
           projectConfig.categories.splice(insertIndex, 0, removed);
         }
 
+        if (Array.isArray(projectConfig.pagesCustomOrder) && projectConfig.pagesCustomOrder.length > 0) {
+          const catSlugOrder = projectConfig.categories.map(c => {
+            const s = (typeof window.generateSlug === 'function')
+              ? window.generateSlug(c)
+              : String(c || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            return `page_cat_${s}`;
+          });
+          const catIdSet = new Set(catSlugOrder.map(id => id.toLowerCase()));
+          let catPtr = 0;
+          projectConfig.pagesCustomOrder = projectConfig.pagesCustomOrder.map(id => {
+            if (catIdSet.has(String(id || '').toLowerCase()) && catPtr < catSlugOrder.length) {
+              return catSlugOrder[catPtr++];
+            }
+            return id;
+          });
+          projectConfig.pagesCustomOrderUserSet = true;
+        }
+
         saveProjectToStorage();
         renderTaxonomy();
         if (typeof window.updateCategorySelectUI === 'function') window.updateCategorySelectUI();
         if (typeof window.renderStaticPages === 'function') window.renderStaticPages();
         if (typeof window.renderPipelineGrid === 'function') window.renderPipelineGrid();
         if (typeof window.updateDashboardCounts === 'function') window.updateDashboardCounts();
+        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
         if (typeof window.showToast === 'function') window.showToast(`Reordered category "${draggedCat}"`);
       });
     }
@@ -854,7 +873,7 @@
             } catch (e) {}
           }
           if (!alreadyInConfig) {
-            projectConfig.categories.push(val);
+            projectConfig.categories.unshift(val);
           }
           saveProjectToStorage();
           if (typeof window.logActivity === 'function') {

@@ -1776,6 +1776,7 @@
         slug: catSlug,
         title: catName,
         type: 'category',
+        createdAt: matchedDraft ? (matchedDraft.createdAt || matchedDraft.updatedAt || 1) : 1,
         name: catName,
         href: `/${catSlug}/`,
         html: `<a href="/${catSlug}/" class="nav-item">${escapeHtml(catName)}</a>\n        `
@@ -1888,12 +1889,35 @@
       });
     }
 
-    // Sort navigation items based on pagesSortMode:
-    const compilerSortMode = (window.projectConfig && window.projectConfig.pagesSortMode) || (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.pagesSortMode) || 'type';
+    // Sort navigation items to match preview.html updateNavLinks:
+    const activeCfgForNav = (window.projectConfig || (typeof projectConfig !== 'undefined' ? projectConfig : {})) || {};
+    const getCompilerNavRank = (item) => {
+      if (item.type === 'category' || item.type === 'all') return 1;
+      if (item.type === 'static') return 2;
+      if (item.type === 'redirect') return 3;
+      return 4;
+    };
+    const getCompilerNavTime = (item) => {
+      if (!item || item.type === 'all') return 0;
+      if (typeof item.createdAt === 'number' && item.createdAt > 0) return item.createdAt;
+      const m = String(item.id || '').match(/^page_(\d+)_/);
+      if (m && m[1]) return Number(m[1]);
+      return 0;
+    };
+    const compareCompilerNavDefault = (a, b) => {
+      const rA = getCompilerNavRank(a);
+      const rB = getCompilerNavRank(b);
+      if (rA !== rB) return rA - rB;
+      const tA = getCompilerNavTime(a);
+      const tB = getCompilerNavTime(b);
+      if (tA !== tB) return tB - tA;
+      return 0;
+    };
+    const compilerSortMode = activeCfgForNav.pagesSortMode || 'type';
     if (compilerSortMode === 'alphabetical') {
       navItems.sort((a, b) => (a.title || '').trim().toLowerCase().localeCompare((b.title || '').trim().toLowerCase()));
-    } else if (compilerSortMode === 'custom') {
-      const customOrder = (window.projectConfig && Array.isArray(window.projectConfig.pagesCustomOrder)) ? window.projectConfig.pagesCustomOrder : (typeof projectConfig !== 'undefined' && Array.isArray(projectConfig?.pagesCustomOrder) ? projectConfig.pagesCustomOrder : []);
+    } else if ((activeCfgForNav.pagesCustomOrderUserSet && Array.isArray(activeCfgForNav.pagesCustomOrder) && activeCfgForNav.pagesCustomOrder.length > 0) || compilerSortMode === 'custom') {
+      const customOrder = Array.isArray(activeCfgForNav.pagesCustomOrder) ? activeCfgForNav.pagesCustomOrder : [];
       const orderMap = new Map();
       customOrder.forEach((id, idx) => orderMap.set(String(id).toLowerCase(), idx));
       navItems.sort((a, b) => {
@@ -1902,8 +1926,10 @@
         const aIdx = orderMap.has(aKey) ? orderMap.get(aKey) : (a.slug && orderMap.has(a.slug.toLowerCase()) ? orderMap.get(a.slug.toLowerCase()) : 99999);
         const bIdx = orderMap.has(bKey) ? orderMap.get(bKey) : (b.slug && orderMap.has(b.slug.toLowerCase()) ? orderMap.get(b.slug.toLowerCase()) : 99999);
         if (aIdx !== bIdx) return aIdx - bIdx;
-        return (a.title || '').localeCompare(b.title || '');
+        return compareCompilerNavDefault(a, b);
       });
+    } else {
+      navItems.sort(compareCompilerNavDefault);
     }
 
     compiledNavItemsHtml = navItems.map(item => item.html).join('');

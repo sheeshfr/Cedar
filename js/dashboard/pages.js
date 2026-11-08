@@ -1812,6 +1812,31 @@
 
     // 2. Category pages (All + user category aggregate pages)
     const userCategoryPages = allPages.filter(p => !isBuiltInPage(p) && isCategoryPageItem(p, currentCatsLower));
+    if (window.projectConfig && Array.isArray(window.projectConfig.categories) && userCategoryPages.length > 0) {
+      const sortedCatNames = [];
+      const seenCatLower = new Set();
+      userCategoryPages.forEach(p => {
+        const cName = String(p.categoryAggregate || p.title || '').trim();
+        const cLow = cName.toLowerCase();
+        if (cName && cLow !== 'all' && !seenCatLower.has(cLow)) {
+          const canon = window.projectConfig.categories.find(c => String(c || '').trim().toLowerCase() === cLow) || cName;
+          sortedCatNames.push(canon);
+          seenCatLower.add(cLow);
+        }
+      });
+      window.projectConfig.categories.forEach(c => {
+        const cName = String(c || '').trim();
+        const cLow = cName.toLowerCase();
+        if (cName && cLow !== 'all' && !seenCatLower.has(cLow)) {
+          sortedCatNames.push(cName);
+          seenCatLower.add(cLow);
+        }
+      });
+      if (JSON.stringify(sortedCatNames) !== JSON.stringify(window.projectConfig.categories)) {
+        window.projectConfig.categories = sortedCatNames;
+        if (typeof window.saveProjectToStorage === 'function') window.saveProjectToStorage({ silent: true });
+      }
+    }
     const categoryPages = [...userCategoryPages];
     const allPage = allPages.find(p => isAllPage(p));
     if (allPage && !categoryPages.includes(allPage)) {
@@ -2726,9 +2751,9 @@
         } catch (e) {}
       }
 
-      // Add to projectConfig.categories (deduplicated)
+      // Add to projectConfig.categories (newest first to match curated top nav & pages order)
       if (!exists) {
-        window.projectConfig.categories.push(rawVal);
+        window.projectConfig.categories.unshift(rawVal);
       }
       if (typeof window.saveProjectToStorage === 'function') {
         window.saveProjectToStorage();
