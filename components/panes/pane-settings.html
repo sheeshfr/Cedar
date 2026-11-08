@@ -31,7 +31,7 @@
                 <li class="settings-toc-item">
                   <a href="#settings-sec-import-backup" class="settings-toc-link" data-target="settings-sec-import-backup">
                     <svg class="settings-toc-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                    <span class="settings-toc-text">Import .zip</span>
+                    <span class="settings-toc-text">Import Site Backup</span>
                   </a>
                 </li>
               </ul>
@@ -251,34 +251,32 @@
                 <div class="form-row" style="margin-bottom: 0;">
                   <div class="form-group flex-1">
                     <label for="setting-restore-builtin-select" class="form-label">Built-In Page</label>
-                    <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin: 0 0 0.45rem 0; line-height: 1.4;">Restore any built-in page back to its default options and content if something breaks or you want the original version back.</p>
-                    <select id="setting-restore-builtin-select" class="form-input">
-                      <option value="" selected>Select one</option>
-                      <hr>
-                      <optgroup label="Built-In Options">
+                    <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin: 0 0 0.65rem 0; line-height: 1.4;">Restore any built-in page back to its default options and content if something breaks or you want the original version back.</p>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.65rem; flex-wrap: wrap; width: 100%;">
+                      <select id="setting-restore-builtin-select" class="form-input" style="width: 220px; max-width: 100%;">
+                        <option value="" selected>Select one</option>
+                        <hr>
                         <option value="page_all">All</option>
                         <option value="page_about">About</option>
                         <option value="page_links">Links</option>
                         <option value="page_rss">RSS</option>
-                      </optgroup>
-                    </select>
-                    <div class="settings-validation-error" id="setting-restore-builtin-error" style="display: none; color: var(--accent-red, #ef4444); font-size: 0.8rem; margin-top: 0.35rem;">
-                      Please choose a built-in page from the dropdown to restore.
+                      </select>
+                      <button type="button" class="btn btn-sm btn-secondary" id="btn-restore-builtin-page" style="height: 36px; padding: 0 1rem; flex-shrink: 0;">Restore Page</button>
                     </div>
-                    <div style="margin-top: 0.85rem;">
-                      <button type="button" class="btn btn-sm btn-secondary" id="btn-restore-builtin-page">Restore Page</button>
+                    <div class="settings-validation-error" id="setting-restore-builtin-error" style="display: none; color: var(--accent-red, #ef4444); font-size: 0.8rem; margin-top: 0.45rem; text-align: center;">
+                      Please choose a built-in page from the dropdown to restore.
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Section 6: Import .zip -->
+            <!-- Section 6: Import Site Backup -->
             <div class="settings-section-group" id="settings-sec-import-backup">
               <div class="settings-section-header">
                 <div class="settings-section-title-wrap">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                  <h4>Import .zip</h4>
+                  <h4>Import Site Backup</h4>
                 </div>
               </div>
               <div class="project-settings-card">
@@ -286,7 +284,7 @@
                   <div class="form-group flex-1">
                     <label class="form-label">Restore from Backup (.ZIP)</label>
                     <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin: 0 0 0.75rem 0; line-height: 1.4;">Restore your blog's posts, drafts, pages, media files, and site settings from a previously exported Raw Backup (<code>.zip</code>).</p>
-                    <div>
+                    <div style="display: flex; justify-content: center; width: 100%;">
                       <label class="btn btn-sm btn-secondary popout-3d" id="btn-trigger-import-zip" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 8px;" title="Restore blog from backup (.ZIP)">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                         <span>Restore from Backup (.ZIP)</span>

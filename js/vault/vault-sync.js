@@ -2408,33 +2408,21 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
     const zipTargetMeta = {
       github: {
-        title: 'Standalone Production Static Website',
-        subtitle: 'Pre-built static website for <strong>GitHub Pages</strong> (<code>.nojekyll</code>, <code>404.html</code> router, <code>CNAME</code>, and GitHub Actions workflow). Zero drafts or internal data.',
         btnLabel: 'Export for GitHub Pages (.ZIP)'
       },
       gitlab: {
-        title: 'Standalone Production Static Website',
-        subtitle: 'Pre-built static website for <strong>GitLab Pages</strong> with a ready-to-run <code>.gitlab-ci.yml</code> publishing pipeline, <code>_redirects</code>, and <code>404.html</code>. Zero drafts or internal data.',
         btnLabel: 'Export for GitLab Pages (.ZIP)'
       },
       codeberg: {
-        title: 'Standalone Production Static Website',
-        subtitle: 'Pre-built static website for <strong>Codeberg Pages</strong> (<code>codeberg.page</code>) with <code>.domains</code>, <code>_redirects</code>, and <code>404.html</code>. Zero drafts or internal data.',
         btnLabel: 'Export for Codeberg Pages (.ZIP)'
       },
       cloudflare: {
-        title: 'Standalone Production Static Website',
-        subtitle: 'Pre-built static website for <strong>Cloudflare Pages</strong> (Direct Upload or Git sync) with <code>_headers</code>, <code>_redirects</code>, and <code>wrangler.jsonc</code>. Zero drafts or internal data.',
         btnLabel: 'Export for Cloudflare Pages (.ZIP)'
       },
       netlify: {
-        title: 'Standalone Production Static Website',
-        subtitle: 'Pre-built static website for <strong>Netlify</strong> (Netlify Drop <code>.zip</code> upload or Git sync) with <code>netlify.toml</code>, <code>_headers</code>, and <code>_redirects</code>. Zero drafts or internal data.',
         btnLabel: 'Export for Netlify (.ZIP)'
       },
       raw_backup: {
-        title: 'Workspace Raw Backup (.ZIP)',
-        subtitle: 'Complete workspace backup containing all published posts, unpublished drafts, pages, media files, and site settings. Can be restored anytime in <strong>Site Info</strong>.',
         btnLabel: 'Export Raw Backup (.ZIP)'
       }
     };
@@ -2444,11 +2432,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
       if (!selectWebZipTarget) return;
       const target = selectWebZipTarget.value || 'github';
       const meta = zipTargetMeta[target] || zipTargetMeta.github;
-      const titleEl = document.getElementById('export-zip-card-title');
-      const subtitleEl = document.getElementById('export-zip-card-subtitle');
       const btnLabelEl = document.getElementById('btn-export-web-zip-label');
-      if (titleEl) titleEl.textContent = meta.title;
-      if (subtitleEl) subtitleEl.innerHTML = meta.subtitle;
       if (btnLabelEl) btnLabelEl.textContent = meta.btnLabel;
     };
 
