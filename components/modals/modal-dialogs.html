@@ -1718,13 +1718,13 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
           <form id="sheesh-form-login" class="sheesh-auth-form" autocomplete="on">
             <div class="sheesh-field-group">
               <label class="form-label" for="sheesh-login-username">Username</label>
-              <input type="text" id="sheesh-login-username" class="form-input" placeholder="your_username" spellcheck="false" autocomplete="username">
+              <input type="text" id="sheesh-login-username" class="form-input" spellcheck="false" autocomplete="username">
             </div>
 
             <div class="sheesh-field-group">
               <label class="form-label" for="sheesh-login-passphrase">3-Word Passphrase</label>
               <div style="position: relative; display: flex; align-items: center;">
-                <input type="password" id="sheesh-login-passphrase" class="form-input" placeholder="word-word-00" spellcheck="false" autocomplete="current-password" style="padding-right: 2.6rem; font-family: var(--font-mono, monospace);">
+                <input type="password" id="sheesh-login-passphrase" class="form-input" spellcheck="false" autocomplete="current-password" style="padding-right: 2.6rem; font-family: var(--font-mono, monospace);">
                 <button type="button" id="btn-sheesh-toggle-login-pass" class="btn-link" title="Show/hide passphrase" style="position: absolute; right: 8px; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 0.75rem;">Show</button>
               </div>
             </div>
@@ -1733,7 +1733,6 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
               <input type="checkbox" id="sheesh-login-remember" checked>
               <div>
                 <strong>Keep me signed in on this device</strong>
-                <span>Uncheck on public or library computers so closing this tab signs you out immediately.</span>
               </div>
             </label>
 
@@ -1745,18 +1744,17 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
           <!-- Claim Invite Form -->
           <form id="sheesh-form-register" class="sheesh-auth-form" style="display: none;" autocomplete="off">
             <div class="sheesh-invite-callout" id="sheesh-register-callout">
-              <strong id="sheesh-register-callout-title">You're Invited! Create Your Account</strong>
-              <p id="sheesh-register-callout-desc">Pick a username and roll a 3-word passphrase you'll remember.</p>
+              <strong id="sheesh-register-callout-title" style="margin-bottom: 0;">You're Invited! Create Your Account</strong>
             </div>
 
             <div class="sheesh-field-group" id="sheesh-invite-code-group" style="display: none;">
               <label class="form-label" for="sheesh-register-invite">Invite Code</label>
-              <input type="text" id="sheesh-register-invite" class="form-input" placeholder="sh_..." readonly spellcheck="false" style="font-family: var(--font-mono, monospace);">
+              <input type="text" id="sheesh-register-invite" class="form-input" readonly spellcheck="false" style="font-family: var(--font-mono, monospace);">
             </div>
 
             <div class="sheesh-field-group">
               <label class="form-label" for="sheesh-register-username">Pick a Username</label>
-              <input type="text" id="sheesh-register-username" class="form-input" placeholder="e.g. cozy_frog" spellcheck="false" maxlength="24">
+              <input type="text" id="sheesh-register-username" class="form-input" spellcheck="false" maxlength="24">
             </div>
 
             <div class="sheesh-field-group">
@@ -1783,7 +1781,6 @@ Mozilla Firefox does not allow web pages to invoke browser directory pickers dir
               <input type="checkbox" id="sheesh-register-remember" checked>
               <div>
                 <strong>Keep me signed in on this device</strong>
-                <span>Uncheck on public or library computers.</span>
               </div>
             </label>
 

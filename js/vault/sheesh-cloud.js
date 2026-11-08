@@ -470,7 +470,7 @@
       passGroup.id = 'sheesh-invite-password-group';
       passGroup.innerHTML = `
         <label class="form-label" for="sheesh-register-invite-password">Invite Password</label>
-        <input type="text" id="sheesh-register-invite-password" class="form-input" placeholder="Enter short password given with this invite" spellcheck="false" autocomplete="off" style="font-family: var(--font-mono, monospace);">
+        <input type="text" id="sheesh-register-invite-password" class="form-input" spellcheck="false" autocomplete="off" style="font-family: var(--font-mono, monospace);">
       `;
       if (userGroup && userGroup.parentNode) {
         userGroup.parentNode.insertBefore(passGroup, userGroup);
@@ -659,7 +659,7 @@
 
       if (needsBootstrap) {
         if (calloutTitle) calloutTitle.textContent = 'First-Time Server Setup';
-        if (calloutDesc) calloutDesc.textContent = 'Create your Owner account to lock the server to invite-only.';
+        if (calloutDesc) calloutDesc.remove();
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account';
       } else {
         if (calloutTitle) {
@@ -667,7 +667,7 @@
             ? `Welcome, ${pendingInviteLabel}! You're Invited — Create Your Account`
             : "You're Invited! Create Your Account";
         }
-        if (calloutDesc) calloutDesc.textContent = "Enter your short invite password, pick a username, and roll a 3-word passphrase you'll remember.";
+        if (calloutDesc) calloutDesc.remove();
         if (submitRegLabel) submitRegLabel.textContent = 'Create Account & Sign In';
       }
       return;
