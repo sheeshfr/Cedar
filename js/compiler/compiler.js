@@ -5971,16 +5971,144 @@ ${socialMeta.metaLines}
 
   // 3.6 Standalone Web Production Export (Zero drafts, zero internal files, 1:1 with Preview)
   let isExportingWebZip = false;
-  async function exportWebProductionZip() {
+  async function exportWebProductionZip(targetPlatform = 'github') {
+    const target = String(targetPlatform || 'github').trim().toLowerCase();
+    if (target === 'raw_backup') {
+      return await exportMasterSliceZip();
+    }
     if (isExportingWebZip) {
       console.warn('[Export] Web production zip export already in progress.');
       return;
     }
     isExportingWebZip = true;
-    if (typeof window.showToast === 'function') window.showToast('Packaging Web Site (.ZIP)...');
+
+    const platformNames = {
+      github: 'GitHub Pages',
+      gitlab: 'GitLab Pages',
+      codeberg: 'Codeberg Pages',
+      cloudflare: 'Cloudflare Pages',
+      netlify: 'Netlify'
+    };
+    const platformLabel = platformNames[target] || 'Web Site';
+    if (typeof window.showToast === 'function') window.showToast(`Packaging ${platformLabel} (.ZIP)...`);
 
     try {
-      const files = await buildProductionSiteFiles({ includeEngineAssets: true });
+      let files = await buildProductionSiteFiles({ includeEngineAssets: true, targetPlatform: target });
+
+      const removeFile = (name) => {
+        files = files.filter(f => f && f.name !== name);
+      };
+      const upsertFile = (name, data) => {
+        removeFile(name);
+        files.push({ name, data });
+      };
+
+      const rawDom = (window.projectConfig && typeof window.projectConfig.domain === 'string')
+        ? window.projectConfig.domain
+        : ((typeof resolveProjectDomain === 'function' ? resolveProjectDomain() : '') || '');
+      const cleanDom = String(rawDom || '').trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+
+      if (target === 'github') {
+        removeFile('wrangler.jsonc');
+        removeFile('.assetsignore');
+        upsertFile('.nojekyll', '');
+        if (cleanDom && cleanDom.includes('.')) {
+          upsertFile('CNAME', cleanDom + '\n');
+        }
+        upsertFile('.github/workflows/pages.yml', [
+          'name: Deploy Cedar Site to GitHub Pages',
+          '',
+          'on:',
+          '  push:',
+          '    branches: ["main", "master"]',
+          '  workflow_dispatch:',
+          '',
+          'permissions:',
+          '  contents: read',
+          '  pages: write',
+          '  id-token: write',
+          '',
+          'concurrency:',
+          '  group: "pages"',
+          '  cancel-in-progress: false',
+          '',
+          'jobs:',
+          '  deploy:',
+          '    environment:',
+          '      name: github-pages',
+          '      url: ${{ steps.deployment.outputs.page_url }}',
+          '    runs-on: ubuntu-latest',
+          '    steps:',
+          '      - name: Checkout',
+          '        uses: actions/checkout@v4',
+          '      - name: Setup Pages',
+          '        uses: actions/configure-pages@v5',
+          '      - name: Upload artifact',
+          '        uses: actions/upload-pages-artifact@v3',
+          '        with:',
+          '          path: "."',
+          '      - name: Deploy to GitHub Pages',
+          '        id: deployment',
+          '        uses: actions/deploy-pages@v4',
+          ''
+        ].join('\n'));
+      } else if (target === 'gitlab') {
+        removeFile('wrangler.jsonc');
+        removeFile('.assetsignore');
+        removeFile('CNAME');
+        removeFile('.nojekyll');
+        upsertFile('_redirects', '/* /404.html 404\n');
+        upsertFile('.gitlab-ci.yml', [
+          '# GitLab Pages Built-In Static Publisher',
+          'pages:',
+          '  stage: deploy',
+          '  script:',
+          '    - mkdir -p .public',
+          '    - cp -r * .public || true',
+          '    - mv .public public',
+          '  artifacts:',
+          '    paths:',
+          '      - public',
+          '  rules:',
+          '    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH',
+          ''
+        ].join('\n'));
+      } else if (target === 'codeberg') {
+        removeFile('wrangler.jsonc');
+        removeFile('.assetsignore');
+        removeFile('CNAME');
+        if (cleanDom && cleanDom.includes('.')) {
+          upsertFile('.domains', cleanDom + '\n');
+        }
+        upsertFile('_redirects', '/* /404.html 404\n');
+      } else if (target === 'cloudflare') {
+        removeFile('CNAME');
+        removeFile('.nojekyll');
+        upsertFile('_redirects', '/* /404.html 404\n');
+      } else if (target === 'netlify') {
+        removeFile('wrangler.jsonc');
+        removeFile('.assetsignore');
+        removeFile('CNAME');
+        removeFile('.nojekyll');
+        upsertFile('_redirects', '/* /404.html 404\n');
+        upsertFile('netlify.toml', [
+          '[build]',
+          '  publish = "."',
+          '',
+          '[[headers]]',
+          '  for = "/feed.xml"',
+          '  [headers.values]',
+          '    Access-Control-Allow-Origin = "*"',
+          '    Content-Type = "application/xml; charset=utf-8"',
+          '',
+          '[[headers]]',
+          '  for = "/blog/feed.xml"',
+          '  [headers.values]',
+          '    Access-Control-Allow-Origin = "*"',
+          '    Content-Type = "application/xml; charset=utf-8"',
+          ''
+        ].join('\n'));
+      }
 
       const zipUint8 = await createMultiFileZip(files);
       const zipBlob = (zipUint8 instanceof Blob) ? zipUint8 : new Blob([zipUint8], { type: 'application/zip' });
@@ -5988,14 +6116,22 @@ ${socialMeta.metaLines}
       const a = document.createElement('a');
       a.href = zipUrl;
       const safeProject = (typeof generateSlug === 'function' ? generateSlug(window.projectConfig?.name) : 'cedar') || 'cedar-web';
-      a.download = `${safeProject}-web-${new Date().toISOString().split('T')[0]}.zip`;
+      const suffixMap = {
+        github: 'github-pages',
+        gitlab: 'gitlab-pages',
+        codeberg: 'codeberg-pages',
+        cloudflare: 'cloudflare-pages',
+        netlify: 'netlify'
+      };
+      const fileSuffix = suffixMap[target] || 'web';
+      a.download = `${safeProject}-${fileSuffix}-${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(zipUrl);
 
       if (typeof window.showToast === 'function') {
-        window.showToast('Exported Web Site (.ZIP)! Ready for hosting.');
+        window.showToast(`Exported ${platformLabel} package (.ZIP)!`);
       }
     } catch (err) {
       console.error('Failed to export web zip:', err);
@@ -6014,7 +6150,7 @@ ${socialMeta.metaLines}
       return;
     }
     isExportingMasterZip = true;
-    if (typeof window.showToast === 'function') window.showToast('Packaging Local Storage (.ZIP)...');
+    if (typeof window.showToast === 'function') window.showToast('Packaging Raw Backup (.ZIP)...');
     try {
       const files = [];
 
@@ -6436,11 +6572,14 @@ ${page.markdown || ''}`;
       const a = document.createElement('a');
       a.href = zipUrl;
       const safeProject = generateSlug(projectConfig.name) || 'cedar-vault';
-      a.download = `${safeProject}-local-backup-${new Date().toISOString().split('T')[0]}.zip`;
+      a.download = `${safeProject}-raw-backup-${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(zipUrl);
+      if (typeof window.showToast === 'function') {
+        window.showToast('Exported Raw Backup (.ZIP)!');
+      }
     } catch (err) {
       console.error('Failed to export vault zip:', err);
       if (typeof window.showToast === 'function') window.showToast('Error exporting storage: ' + err.message);

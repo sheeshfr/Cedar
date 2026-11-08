@@ -1149,14 +1149,14 @@
       window.SheeshCloud.getUser()
     );
 
-    const exportSecLocalHeading = document.querySelector('#export-sec-local .settings-section-title-wrap h4');
-    if (exportSecLocalHeading) {
-      exportSecLocalHeading.textContent = isCloudLoggedIn ? 'Workspace Backups (.ZIP)' : 'Local Storage & Backups';
+    const exportSecLocal = document.getElementById('export-sec-local');
+    if (exportSecLocal) {
+      exportSecLocal.style.display = isCloudLoggedIn ? 'none' : '';
     }
 
-    const masterZipSpan = document.querySelector('#btn-download-master-zip span');
-    if (masterZipSpan) {
-      masterZipSpan.textContent = isCloudLoggedIn ? 'Export Workspace Backup (.ZIP)' : 'Export Local Backup (.ZIP)';
+    const exportSecLocalHeading = document.querySelector('#export-sec-local .settings-section-title-wrap h4');
+    if (exportSecLocalHeading) {
+      exportSecLocalHeading.textContent = 'Local Storage';
     }
 
     const dangerActionNote = document.querySelector('#export-sec-danger .danger-action-note');
@@ -2406,12 +2406,82 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
     // Export Pane: Universal Export & Import
 
-        const btnWebZip = document.getElementById('btn-export-web-zip');
+    const zipTargetMeta = {
+      github: {
+        title: 'Standalone Production Static Website',
+        subtitle: 'Pre-built static website for <strong>GitHub Pages</strong> (<code>.nojekyll</code>, <code>404.html</code> router, <code>CNAME</code>, and GitHub Actions workflow). Zero drafts or internal data.',
+        btnLabel: 'Export for GitHub Pages (.ZIP)'
+      },
+      gitlab: {
+        title: 'Standalone Production Static Website',
+        subtitle: 'Pre-built static website for <strong>GitLab Pages</strong> with a ready-to-run <code>.gitlab-ci.yml</code> publishing pipeline, <code>_redirects</code>, and <code>404.html</code>. Zero drafts or internal data.',
+        btnLabel: 'Export for GitLab Pages (.ZIP)'
+      },
+      codeberg: {
+        title: 'Standalone Production Static Website',
+        subtitle: 'Pre-built static website for <strong>Codeberg Pages</strong> (<code>codeberg.page</code>) with <code>.domains</code>, <code>_redirects</code>, and <code>404.html</code>. Zero drafts or internal data.',
+        btnLabel: 'Export for Codeberg Pages (.ZIP)'
+      },
+      cloudflare: {
+        title: 'Standalone Production Static Website',
+        subtitle: 'Pre-built static website for <strong>Cloudflare Pages</strong> (Direct Upload or Git sync) with <code>_headers</code>, <code>_redirects</code>, and <code>wrangler.jsonc</code>. Zero drafts or internal data.',
+        btnLabel: 'Export for Cloudflare Pages (.ZIP)'
+      },
+      netlify: {
+        title: 'Standalone Production Static Website',
+        subtitle: 'Pre-built static website for <strong>Netlify</strong> (Netlify Drop <code>.zip</code> upload or Git sync) with <code>netlify.toml</code>, <code>_headers</code>, and <code>_redirects</code>. Zero drafts or internal data.',
+        btnLabel: 'Export for Netlify (.ZIP)'
+      },
+      raw_backup: {
+        title: 'Workspace Raw Backup (.ZIP)',
+        subtitle: 'Complete workspace backup containing all published posts, unpublished drafts, pages, media files, and site settings. Can be restored anytime in <strong>Site Info</strong>.',
+        btnLabel: 'Export Raw Backup (.ZIP)'
+      }
+    };
+
+    const selectWebZipTarget = document.getElementById('export-zip-target-select');
+    const updateWebZipTargetUI = () => {
+      if (!selectWebZipTarget) return;
+      const target = selectWebZipTarget.value || 'github';
+      const meta = zipTargetMeta[target] || zipTargetMeta.github;
+      const titleEl = document.getElementById('export-zip-card-title');
+      const subtitleEl = document.getElementById('export-zip-card-subtitle');
+      const btnLabelEl = document.getElementById('btn-export-web-zip-label');
+      if (titleEl) titleEl.textContent = meta.title;
+      if (subtitleEl) subtitleEl.innerHTML = meta.subtitle;
+      if (btnLabelEl) btnLabelEl.textContent = meta.btnLabel;
+    };
+
+    if (selectWebZipTarget && !selectWebZipTarget._hasZipTargetListener) {
+      selectWebZipTarget._hasZipTargetListener = true;
+      try {
+        const savedTarget = localStorage.getItem('cedar_export_zip_target');
+        if (savedTarget && zipTargetMeta[savedTarget]) {
+          selectWebZipTarget.value = savedTarget;
+        }
+      } catch (e) {}
+      updateWebZipTargetUI();
+      selectWebZipTarget.addEventListener('change', () => {
+        try {
+          localStorage.setItem('cedar_export_zip_target', selectWebZipTarget.value || 'github');
+        } catch (e) {}
+        updateWebZipTargetUI();
+      });
+    } else {
+      updateWebZipTargetUI();
+    }
+
+    const btnWebZip = document.getElementById('btn-export-web-zip');
     if (btnWebZip && !btnWebZip._hasWebZipListener) {
       btnWebZip._hasWebZipListener = true;
       btnWebZip.addEventListener('click', () => {
+        const target = (selectWebZipTarget && selectWebZipTarget.value) || 'github';
+        if (target === 'raw_backup') {
+          exportBlogAsZip();
+          return;
+        }
         if (typeof window.exportWebProductionZip === 'function') {
-          window.exportWebProductionZip();
+          window.exportWebProductionZip(target);
         } else if (typeof window.showToast === 'function') {
           window.showToast('Web export engine initializing...');
         }
@@ -2419,13 +2489,9 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
     }
 
     const btnExportZip = document.getElementById('btn-download-master-zip');
-
     if (btnExportZip && !btnExportZip._hasExportListener) {
-
       btnExportZip._hasExportListener = true;
-
       btnExportZip.addEventListener('click', exportBlogAsZip);
-
     }
 
     const btnExportSidebarAction = document.getElementById('btn-export-sidebar-action');
@@ -2572,7 +2638,9 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
 
     const inputPaneImportZip = document.getElementById('input-pane-import-zip');
 
-    if (inputPaneImportZip) {
+    if (inputPaneImportZip && !inputPaneImportZip._hasImportZipListener) {
+
+      inputPaneImportZip._hasImportZipListener = true;
 
       inputPaneImportZip.addEventListener('change', (e) => {
 
