@@ -560,7 +560,8 @@
     await disconnectCedarLocalFolder();
     updateGlobalIndicators('Synced');
 
-    if (hadUnauthenticatedLocalContent && incomingUser && incomingUser.id && !incomingUser.isAdmin) {
+    const isMonkeyMan = Boolean(incomingUser && !incomingUser.isAdmin && String(incomingUser.username || '').trim().toLowerCase() === 'monkey_man');
+    if (hadUnauthenticatedLocalContent && incomingUser && incomingUser.id && !isMonkeyMan) {
       const choice = await promptLocalContentImportChoice();
       try {
         localStorage.setItem(STORAGE_KEY_ACTIVE_USER, incomingUser.id);
@@ -1369,8 +1370,19 @@
         }
       } catch (_) {}
 
-      // Ensure the Admin account's SHEESH! blog is backed up and hydrated in the Cloud Vault
-      if (currentUser && currentUser.isAdmin && !items['post:post_1790376615849_9ux3t0']) {
+      // Keep the SHEESH! blog backup exclusive to @monkey_man (never on the Admin account)
+      const isMonkeyMan = Boolean(
+        currentUser &&
+        !currentUser.isAdmin &&
+        String(currentUser.username || '').trim().toLowerCase() === 'monkey_man'
+      );
+      if (currentUser && currentUser.isAdmin && items['post:post_1790376615849_9ux3t0']) {
+        await apiRequest('/sync/cedar', { method: 'DELETE' }).catch(() => {});
+        items = {};
+        keys = [];
+      }
+
+      if (isMonkeyMan && !items['post:post_1790376615849_9ux3t0']) {
         const hasLocalAdminPosts = Array.isArray(window.drafts) &&
           window.drafts.some(d => d && d.id === 'post_1790376615849_9ux3t0');
         if (hasLocalAdminPosts) {
