@@ -997,7 +997,7 @@
         const isCopyBtn = /\brss-copy-btn\b/i.test(attrs);
         const btnClasses = isCopyBtn ? 'popout-3d btn-rss-subscribe rss-copy-btn' : 'popout-3d btn-rss-subscribe';
         const btnTitle = isCopyBtn ? 'Copy RSS feed link to clipboard' : 'Subscribe';
-        return `<button type="button" class="${btnClasses}" title="${btnTitle}" data-feed-url="/feed.xml" onclick="if(window.CedarPreview&&window.CedarPreview.handleRssButtonClick){return;} (function(btn,e){if(e){e.preventDefault();e.stopPropagation();} const cardCode=btn.closest('.rss-feed-showcase-card')&&btn.closest('.rss-feed-showcase-card').querySelector('code.rss-live-feed-url'); const u=(cardCode&&cardCode.textContent&&cardCode.textContent.trim())?cardCode.textContent.trim():(window.location.origin+'/feed.xml'); if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);}else{const t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();} const sp=btn.querySelector('span'); if(sp){if(!btn.dataset.origLabel)btn.dataset.origLabel=sp.textContent; sp.textContent=btn.classList.contains('rss-copy-btn')?'✓ Copied!':'✓ RSS Link Copied!'; setTimeout(()=>{sp.textContent=btn.dataset.origLabel||(btn.classList.contains('rss-copy-btn')?'Copy Link':'Subscribe');},2000);} if(typeof window.showPreviewToast==='function'){window.showPreviewToast('Copied RSS feed URL to clipboard');}else{let c=document.getElementById('preview-toast-container');if(!c){c=document.createElement('div');c.id='preview-toast-container';c.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:100050;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;';document.body.appendChild(c);}c.innerHTML='';const el=document.createElement('div');el.style.cssText='background:var(--bg-card,#18181b);color:var(--text-primary,#fafafa);border:1px solid var(--accent-primary,#71717a);padding:10px 18px;border-radius:999px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,0.35);transition:all 0.25s ease;';el.textContent='✓ Copied RSS feed URL to clipboard';c.appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(8px)';setTimeout(()=>el.remove(),250);},2600);}})(this,event);">${inner}</button>`;
+        return `<button type="button" class="${btnClasses}" title="${btnTitle}" data-feed-url="/feed.xml" onclick="if(window.CedarPreview&&window.CedarPreview.handleRssButtonClick){return;} (function(btn,e){if(e){e.preventDefault();e.stopPropagation();} const cardCode=btn.closest('.rss-feed-showcase-card')&&btn.closest('.rss-feed-showcase-card').querySelector('code.rss-live-feed-url'); let u=(cardCode&&cardCode.textContent&&cardCode.textContent.trim())?cardCode.textContent.trim():((typeof window.resolvePermanentRssFeedUrl==='function')?window.resolvePermanentRssFeedUrl():(window.location.origin+'/feed.xml')); if(u&&u.startsWith('/')){u=window.location.origin+u;} if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u);}else{const t=document.createElement('textarea');t.value=u;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();} const sp=btn.querySelector('span'); if(sp){if(!btn.dataset.origLabel)btn.dataset.origLabel=sp.textContent; sp.textContent=btn.classList.contains('rss-copy-btn')?'✓ Copied!':'✓ RSS Link Copied!'; setTimeout(()=>{sp.textContent=btn.dataset.origLabel||(btn.classList.contains('rss-copy-btn')?'Copy Link':'Subscribe');},2000);} if(typeof window.showPreviewToast==='function'){window.showPreviewToast('Copied RSS feed URL to clipboard');}else{let c=document.getElementById('preview-toast-container');if(!c){c=document.createElement('div');c.id='preview-toast-container';c.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:100050;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;';document.body.appendChild(c);}c.innerHTML='';const el=document.createElement('div');el.style.cssText='background:var(--bg-card,#18181b);color:var(--text-primary,#fafafa);border:1px solid var(--accent-primary,#71717a);padding:10px 18px;border-radius:999px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,0.35);transition:all 0.25s ease;';el.textContent='✓ Copied RSS feed URL to clipboard';c.appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(8px)';setTimeout(()=>el.remove(),250);},2600);}})(this,event);">${inner}</button>`;
       });
 
       return clean;
@@ -1187,7 +1187,12 @@
     }
     try {
       const ghRepo = (cfg && cfg.githubRepo) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_github_repo')) || '';
-      const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '');
+      const repoParts = String(ghRepo).split('/').filter(Boolean);
+      const repoOwner = (repoParts[0] || '').trim().toLowerCase();
+      const repoSlug = (repoParts[repoParts.length - 1] || '').trim().replace(/\.git$/i, '');
+      if (repoSlug.toLowerCase() === 'blog' && (repoOwner === 'sheeshfr' || (typeof window !== 'undefined' && window.location && String(window.location.hostname || '').toLowerCase().endsWith('sheesh.gg')))) {
+        return 'sheesh.gg';
+      }
       if (repoSlug.includes('.') && !isLocalOrInvalidHost(repoSlug)) {
         return repoSlug.toLowerCase();
       }
@@ -1196,6 +1201,9 @@
         return `${tldMatch[1].toLowerCase()}.${tldMatch[2].toLowerCase()}`;
       }
     } catch (e) {}
+    if (cfg && String(cfg.name || '').trim().toUpperCase().startsWith('SHEESH')) {
+      return 'sheesh.gg';
+    }
     const postList = (options && Array.isArray(options.publishedPosts))
       ? options.publishedPosts
       : ((typeof window !== 'undefined' && Array.isArray(window.drafts)) ? window.drafts : []);
@@ -4501,8 +4509,18 @@ ${draft.markdown || ''}`;
     const validAutoBase = (cleanAutoBase && !/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?(?:\/|$)/i.test(cleanAutoBase))
       ? cleanAutoBase
       : '';
-    const siteUrl = domain ? `https://${domain}` : validAutoBase;
-    const feedUrl = `${siteUrl}/feed.xml`;
+    let isSubpathBlog = false;
+    try {
+      const ghRepo = (cfg && cfg.githubRepo) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_github_repo')) || '';
+      const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '').toLowerCase();
+      if (repoSlug === 'blog' || domain === 'sheesh.gg' || domain.endsWith('/blog') || validAutoBase.endsWith('/blog') || String(cfg.name || '').trim().toUpperCase().startsWith('SHEESH')) {
+        isSubpathBlog = true;
+      }
+    } catch (e) {}
+    const rawSiteUrl = domain ? `https://${domain}` : validAutoBase;
+    const siteUrl = rawSiteUrl.replace(/\/blog$/i, '');
+    const blogBaseUrl = isSubpathBlog ? `${siteUrl}/blog` : siteUrl;
+    const feedUrl = `${blogBaseUrl}/feed.xml`;
     const fallbackDateIso = cfg.lastUpdated || cfg.createdAt || '2026-01-01T00:00:00.000Z';
 
     const escapeCdata = (str) => String(str || '').replace(/\]\]>/g, ']]]]><![CDATA[>');
@@ -4564,7 +4582,7 @@ ${draft.markdown || ''}`;
     const allItems = [];
     (publishedPosts || []).forEach(p => {
       const slug = p.slug || generateSlug(p.title || 'untitled');
-      const postUrl = `${siteUrl}/p/${slug}/`;
+      const postUrl = `${blogBaseUrl}/p/${slug}/`;
       const postDateRaw = p.publishedAt || p.publishedDate || p.createdAt || p.date || fallbackDateIso;
       if (!p.id || !String(p.id).trim()) {
         p.id = 'post_' + (new Date(postDateRaw).getTime() || 0) + '_' + (p.publishedSlug || slug);
@@ -5626,7 +5644,8 @@ ${socialMeta.metaLines}
         if (typeof window.generateRssPageData === 'function') {
           const rssData = window.generateRssPageData(publicProject);
           const curRssMd = String(pageClone.markdown || '').trim();
-          if ((!curRssMd && !pageClone.proseHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+          const curRssHtml = String(pageClone.proseHtml || '').trim();
+          if ((!curRssMd && !curRssHtml) || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssMd.includes('netnewswire.com') || curRssHtml.includes(':::rss-box') || curRssHtml.includes('netnewswire.com') || curRssHtml.includes('rss-feed-showcase-card')) {
             pageClone.subtitle = rssData.subtitle;
             pageClone.markdown = rssData.markdown;
             pageClone.proseHtml = rssData.proseHtml;
@@ -5872,6 +5891,23 @@ ${socialMeta.metaLines}
         const rssFeed = generateRssFeedXml(sanitizedPublishedPosts.length > 0 ? sanitizedPublishedPosts : publishedPosts, publicProject);
         addFile('feed.xml', rssFeed);
         addFile('blog/feed.xml', rssFeed);
+        addFile('_headers', [
+          '/feed.xml',
+          '  Access-Control-Allow-Origin: *',
+          '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
+          '  Content-Type: application/xml; charset=utf-8',
+          '',
+          '/blog/feed.xml',
+          '  Access-Control-Allow-Origin: *',
+          '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
+          '  Content-Type: application/xml; charset=utf-8',
+          '',
+          '/*/feed.xml',
+          '  Access-Control-Allow-Origin: *',
+          '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
+          '  Content-Type: application/xml; charset=utf-8',
+          ''
+        ].join('\n'));
       }
 
       // 10. Subpath Mirroring (when repository/worker is named 'blog' and mounted at domain.com/blog/)
@@ -5886,7 +5922,7 @@ ${socialMeta.metaLines}
         for (const entry of snapshot) {
           if (!entry || !entry.name) continue;
           const p = entry.name;
-          if (p === 'wrangler.jsonc' || p === 'CNAME' || p === '.nojekyll' || p === '.assetsignore' || p === '.gitignore' || p === 'sync.json') continue;
+          if (p === 'wrangler.jsonc' || p === 'CNAME' || p === '.nojekyll' || p === '.assetsignore' || p === '.gitignore' || p === '_headers' || p === 'sync.json') continue;
           if (p === 'blog/index.html' || p === 'blog/feed.xml') continue;
           if (p.startsWith('blog/images/') || p.startsWith('blog/published/')) continue;
           addFile(`blog/${p}`, entry.data);
@@ -6397,6 +6433,35 @@ ${page.markdown || ''}`;
   window.generateFullHtml = generateFullHtml;
   window.generateBlogCardHtml = generateBlogCardHtml;
   window.generateFeaturedCardHtml = generateFeaturedCardHtml;
+  let _cachedCompilerSiteSubpath = null;
+  function getInitialCompilerSiteSubpath() {
+    if (_cachedCompilerSiteSubpath !== null) return _cachedCompilerSiteSubpath;
+    if (typeof window === 'undefined' || !window.location) return '';
+    try {
+      const pathname = String(window.location.pathname || '');
+      if (typeof document !== 'undefined') {
+        const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
+        if (markerScript) {
+          const srcAttr = markerScript.getAttribute('src') || '';
+          if (srcAttr.startsWith('./') && (pathname === '/blog' || pathname === '/blog/')) {
+            _cachedCompilerSiteSubpath = '/blog';
+            return _cachedCompilerSiteSubpath;
+          }
+          if (markerScript.src) {
+            const u = new URL(markerScript.src, window.location.origin);
+            const m = u.pathname.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+            if (m) {
+              _cachedCompilerSiteSubpath = (m[1] || '').replace(/\/+$/, '');
+              return _cachedCompilerSiteSubpath;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
+  getInitialCompilerSiteSubpath();
+
   function resolveAutoDetectedSiteBaseUrl(config) {
     if (typeof window !== 'undefined' && typeof window.resolveAutoDetectedSiteBaseUrl === 'function' && window.resolveAutoDetectedSiteBaseUrl !== resolveAutoDetectedSiteBaseUrl) {
       return window.resolveAutoDetectedSiteBaseUrl(config);
@@ -6406,6 +6471,14 @@ ${page.markdown || ''}`;
     const validDomain = (!isLocalOrInvalidHost(rawDomain))
       ? rawDomain
       : '';
+    let inferredSubpath = '';
+    try {
+      const ghRepo = (cfg && cfg.githubRepo) || (typeof window !== 'undefined' && window.projectConfig && window.projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem('cedar_github_repo')) || '';
+      const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '').toLowerCase();
+      if (repoSlug === 'blog' || validDomain === 'sheesh.gg' || String(cfg.name || '').trim().toUpperCase().startsWith('SHEESH')) {
+        inferredSubpath = '/blog';
+      }
+    } catch (e) {}
 
     if (typeof window !== 'undefined' && window.location && /^https?:$/i.test(window.location.protocol)) {
       const host = String(window.location.hostname || '').toLowerCase();
@@ -6418,29 +6491,25 @@ ${page.markdown || ''}`;
         Boolean(typeof document !== 'undefined' && document.getElementById('view-dashboard'))
       );
 
-      let subpath = pathname
-        .replace(/\/index\.html$/i, '')
-        .replace(/\/preview\.html(?:\/.*)?$/i, '')
-        .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
-        .replace(/\/p\/[^/]+\/?$/i, '')
-        .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
-
-      if (typeof document !== 'undefined') {
-        const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
-        if (markerScript) {
-          if (markerScript.src) {
-            try {
-              const u = new URL(markerScript.src, window.location.origin);
-              const m = u.pathname.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
-              if (m) subpath = m[1] || '';
-            } catch (_) {}
-          } else {
-            const srcAttr = markerScript.getAttribute('src') || '';
-            if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
-              const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
-              if (m) subpath = m[1] || '';
-            }
-          }
+      let subpath = '';
+      if (!isEditorOrPreviewShell && typeof window.getSiteBasePrefix === 'function') {
+        const prodPrefix = String(window.getSiteBasePrefix() || '').replace(/\/preview\.html(?:\/.*)?$/i, '').replace(/\/+$/, '');
+        if (prodPrefix) subpath = prodPrefix;
+      }
+      if (!subpath) {
+        const initSub = getInitialCompilerSiteSubpath();
+        if (initSub) subpath = initSub;
+      }
+      if (!subpath && !isEditorOrPreviewShell) {
+        if (pathname === '/blog' || pathname.startsWith('/blog/')) {
+          subpath = '/blog';
+        } else {
+          subpath = pathname
+            .replace(/\/index\.html$/i, '')
+            .replace(/\/preview\.html(?:\/.*)?$/i, '')
+            .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
+            .replace(/\/p\/[^/]+\/?$/i, '')
+            .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
         }
       }
       subpath = subpath.replace(/\/+$/, '');
@@ -6450,16 +6519,18 @@ ${page.markdown || ''}`;
         return `${window.location.origin}${subpath}`;
       }
       if (validDomain) {
-        return `https://${validDomain}`;
+        const finalSub = validDomain.includes('/') ? '' : (inferredSubpath || '');
+        return `https://${validDomain}${finalSub}`;
       }
-      if (host === 'cedar.sheesh.gg' || host === 'www.cedar.sheesh.gg' || host === 'cedar.sheesh.gg') {
-        return '';
+      if (host === 'cedar.sheesh.gg' || host === 'www.cedar.sheesh.gg' || host === 'cedar.pub' || host === 'www.cedar.pub') {
+        return inferredSubpath ? `https://sheesh.gg${inferredSubpath}` : '';
       }
       return `${window.location.origin}${subpath}`;
     }
 
     if (validDomain) {
-      return `https://${validDomain}`;
+      const finalSub = validDomain.includes('/') ? '' : (inferredSubpath || '');
+      return `https://${validDomain}${finalSub}`;
     }
     return '';
   }
@@ -6477,7 +6548,7 @@ ${page.markdown || ''}`;
     let markdown = `### How It Works
 
 1. **Copy the feed link** below.
-2. **Paste it into any RSS reader**—like [NetNewsWire](https://netnewswire.com), [Feedly](https://feedly.com), [Reeder](https://reederapp.com), or [Inoreader](https://www.inoreader.com).
+2. **Paste it into any RSS reader**—like [Loudmouth](https://loudmouth.sheesh.gg)!
 3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.
 
 :::rss-box ${postsUrl}:::`.trim();
@@ -6526,7 +6597,8 @@ ${page.markdown || ''}`;
 
       // Refresh default RSS page template while preserving custom user edits
       const curRssMd = String(rssDraft.markdown || '').trim();
-      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box')) {
+      const curRssHtml = String(rssDraft.proseHtml || '').trim();
+      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssMd.includes('netnewswire.com') || curRssHtml.includes(':::rss-box') || curRssHtml.includes('netnewswire.com') || curRssHtml.includes('rss-feed-showcase-card')) {
         if (rssDraft.subtitle !== rssData.subtitle || rssDraft.markdown !== rssData.markdown) {
           rssDraft.updatedAt = Date.now();
         }

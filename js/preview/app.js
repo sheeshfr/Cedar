@@ -53,15 +53,22 @@
     function getProductionBasePrefix() {
       if (_cachedProdBasePrefix !== null) return _cachedProdBasePrefix;
       try {
+        const pathname = (window.location && window.location.pathname) || '';
         const scripts = document.querySelectorAll('script[src]');
         for (let i = 0; i < scripts.length; i++) {
           const rawSrc = scripts[i].getAttribute('src') || '';
-          if (rawSrc.includes('site-data.js') && scripts[i].src) {
-            const u = new URL(scripts[i].src, window.location.origin);
-            const idx = u.pathname.indexOf('/site-data.js');
-            if (idx !== -1) {
-              _cachedProdBasePrefix = u.pathname.slice(0, idx).replace(/\/+$/, '');
+          if (rawSrc.includes('site-data.js')) {
+            if (rawSrc.startsWith('./') && (pathname === '/blog' || pathname === '/blog/')) {
+              _cachedProdBasePrefix = '/blog';
               return _cachedProdBasePrefix;
+            }
+            if (scripts[i].src) {
+              const u = new URL(scripts[i].src, window.location.origin);
+              const idx = u.pathname.indexOf('/site-data.js');
+              if (idx !== -1) {
+                _cachedProdBasePrefix = u.pathname.slice(0, idx).replace(/\/+$/, '');
+                return _cachedProdBasePrefix;
+              }
             }
           }
         }
@@ -74,6 +81,9 @@
       } catch (_) {}
       _cachedProdBasePrefix = '';
       return _cachedProdBasePrefix;
+    }
+    if (window.__CEDAR_PRODUCTION__ || window.__CEDAR_STATIC_DATA__) {
+      getProductionBasePrefix();
     }
     function getSiteBasePrefix() {
       if (isPreviewSubpathMode()) {

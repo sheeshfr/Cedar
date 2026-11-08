@@ -621,7 +621,7 @@
           const rssData = window.generateRssPageData(getConfig());
           const rawMd = String(item.markdown || '').trim();
           const rawHtml = String(item.proseHtml || '').trim();
-          if ((!rawMd && !rawHtml) || rawMd.includes('### Available Feeds') || rawMd.includes('## RSS Syndication') || rawMd.includes(':::rss-box') || rawHtml.includes(':::rss-box')) {
+          if ((!rawMd && !rawHtml) || rawMd.includes('### Available Feeds') || rawMd.includes('## RSS Syndication') || rawMd.includes(':::rss-box') || rawMd.includes('netnewswire.com') || rawHtml.includes(':::rss-box') || rawHtml.includes('netnewswire.com') || rawHtml.includes('rss-feed-showcase-card')) {
             item.subtitle = rssData.subtitle;
             item.markdown = rssData.markdown;
             item.proseHtml = rssData.proseHtml;
@@ -846,9 +846,12 @@
           const liveFeedUrl = resolvePermanentRssFeedUrl();
           proseEl.querySelectorAll('code.rss-live-feed-url, code').forEach(codeEl => {
             const txt = (codeEl.textContent || '').trim();
-            if (codeEl.classList.contains('rss-live-feed-url') || txt === '/feed.xml' || txt === 'feed.xml' || /^https?:\/\/localhost(?::\d+)?\/.*feed\.xml$/i.test(txt)) {
+            if (codeEl.classList.contains('rss-live-feed-url') || txt === '/feed.xml' || txt === 'feed.xml' || /\/feed\.xml$/i.test(txt)) {
               codeEl.textContent = liveFeedUrl;
             }
+          });
+          proseEl.querySelectorAll('.btn-rss-subscribe').forEach(btnEl => {
+            btnEl.setAttribute('data-feed-url', liveFeedUrl);
           });
         }
         proseEl.querySelectorAll('a.btn-rss-subscribe').forEach(a => {
@@ -1218,15 +1221,17 @@
     if (typeof window.resolveAutoDetectedSiteBaseUrl === 'function') {
       const detectedBase = window.resolveAutoDetectedSiteBaseUrl(cfg);
       if (detectedBase) {
-        return `${detectedBase}/feed.xml`;
+        return `${detectedBase.replace(/\/+$/, '')}/feed.xml`;
       }
     }
     const rawDomain = String(cfg.domain || cfg.detectedDomain || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain)) ? rawDomain : '';
     if (validDomain) {
-      return `https://${validDomain}/feed.xml`;
+      const isSubpath = (validDomain === 'sheesh.gg' || String(cfg.name || '').trim().toUpperCase().startsWith('SHEESH')) && !validDomain.includes('/');
+      return `https://${validDomain}${isSubpath ? '/blog' : ''}/feed.xml`;
     }
-    const prefix = (typeof window.getSiteBasePrefix === 'function') ? window.getSiteBasePrefix() : '';
+    const rawPrefix = (typeof window.getSiteBasePrefix === 'function') ? window.getSiteBasePrefix() : '';
+    const prefix = String(rawPrefix || '').replace(/\/preview\.html(?:\/.*)?$/i, '').replace(/\/+$/, '');
     return `${window.location.origin}${prefix}/feed.xml`;
   }
 
@@ -1258,9 +1263,12 @@
     const cardCode = btn && btn.closest('.rss-feed-showcase-card')
       ? btn.closest('.rss-feed-showcase-card').querySelector('code.rss-live-feed-url')
       : null;
-    const feedUrl = (cardCode && cardCode.textContent && cardCode.textContent.trim())
+    let feedUrl = (cardCode && cardCode.textContent && cardCode.textContent.trim())
       ? cardCode.textContent.trim()
       : resolvePermanentRssFeedUrl();
+    if (feedUrl && feedUrl.startsWith('/')) {
+      feedUrl = `${window.location.origin}${feedUrl}`;
+    }
     copyTextToClipboard(feedUrl);
     if (btn) {
       const sp = btn.querySelector('span');
