@@ -13,8 +13,9 @@
   const STORAGE_KEY_TOKEN_PERSIST = 'sheesh_auth_token';
   const STORAGE_KEY_TOKEN_SESSION = 'sheesh_auth_token_session';
   const STORAGE_KEY_ACTIVE_USER = 'sheesh_active_user_id';
+  const COOKIE_ACTIVE_USER = 'sheesh_active_uid';
+  const COOKIE_SHARED_TOKEN = 'sheesh_shared_tok';
   const STORAGE_KEY_LAST_SYNC = 'sheesh_cloud_last_sync';
-  const STORAGE_KEY_SERVER_UPDATED_AT = 'sheesh_cloud_server_updated_at';
   const STORAGE_KEY_INVITE_PASSWORDS = 'sheesh_invite_passwords_map';
   const STORAGE_KEY_USERNAME_CASING = 'sheesh_username_casing_map';
   const STORAGE_KEY_FLASH_POPUP = 'sheesh_flash_top_popup';
@@ -210,21 +211,38 @@
   let syncDebounceTimer = null;
   let isPullingFromCloud = false;
   let isPushingToCloud = false;
-  let lastServerUpdatedAt = (() => {
-    try { return Number(localStorage.getItem(STORAGE_KEY_SERVER_UPDATED_AT)) || 0; } catch (_) { return 0; }
-  })();
+  let lastServerUpdatedAt = 0;
   let initPromise = null;
   let lastSyncedFingerprints = new Map();
+  let boundTabUserId = '';
+  let boundTabToken = '';
+  let hasInitializedTabSession = false;
+  let isHandlingCrossTabSwitch = false;
+  let authBroadcastChannel = null;
 
-  function setLastServerUpdatedAt(ts) {
-    const num = Number(ts) || 0;
-    if (num <= 0) {
-      lastServerUpdatedAt = 0;
-      try { localStorage.removeItem(STORAGE_KEY_SERVER_UPDATED_AT); } catch (_) {}
-      return;
+  function getSharedCookie(name) {
+    try {
+      const m = (document.cookie || '').match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (_) {
+      return '';
     }
-    lastServerUpdatedAt = Math.max(lastServerUpdatedAt, num);
-    try { localStorage.setItem(STORAGE_KEY_SERVER_UPDATED_AT, String(lastServerUpdatedAt)); } catch (_) {}
+  }
+
+  function setSharedCookie(name, value, persistent = true) {
+    try {
+      const host = (window.location.hostname || '').toLowerCase();
+      const isSheeshDomain = host === 'sheesh.gg' || host.endsWith('.sheesh.gg');
+      const domainAttr = isSheeshDomain ? '; Domain=.sheesh.gg' : '';
+      const secureAttr = window.location.protocol === 'https:' ? '; Secure' : '';
+      if (!value) {
+        document.cookie = `${name}=; Path=/${domainAttr}; Max-Age=0; SameSite=Lax${secureAttr}`;
+      } else if (persistent) {
+        document.cookie = `${name}=${encodeURIComponent(value)}; Path=/${domainAttr}; Max-Age=7776000; SameSite=Lax${secureAttr}`;
+      } else {
+        document.cookie = `${name}=${encodeURIComponent(value)}; Path=/${domainAttr}; SameSite=Lax${secureAttr}`;
+      }
+    } catch (_) {}
   }
 
   function getApiBase() {
@@ -237,6 +255,22 @@
 
   function getStoredToken() {
     try {
+      const sharedUid = getSharedCookie(COOKIE_ACTIVE_USER);
+      const sharedTok = getSharedCookie(COOKIE_SHARED_TOKEN);
+      if (sharedUid === 'logged_out') {
+        sessionStorage.removeItem(STORAGE_KEY_TOKEN_SESSION);
+        localStorage.removeItem(STORAGE_KEY_TOKEN_PERSIST);
+        return null;
+      }
+      if (sharedTok) {
+        const localPersist = localStorage.getItem(STORAGE_KEY_TOKEN_PERSIST);
+        const localSession = sessionStorage.getItem(STORAGE_KEY_TOKEN_SESSION);
+        if (localPersist !== sharedTok && localSession !== sharedTok) {
+          localStorage.setItem(STORAGE_KEY_TOKEN_PERSIST, sharedTok);
+          sessionStorage.removeItem(STORAGE_KEY_TOKEN_SESSION);
+        }
+        return sharedTok;
+      }
       const sessionTok = sessionStorage.getItem(STORAGE_KEY_TOKEN_SESSION);
       if (sessionTok) {
         isPersistentSession = false;
@@ -256,7 +290,13 @@
     try {
       sessionStorage.removeItem(STORAGE_KEY_TOKEN_SESSION);
       localStorage.removeItem(STORAGE_KEY_TOKEN_PERSIST);
-      if (!token) return;
+      if (!token) {
+        setSharedCookie(COOKIE_SHARED_TOKEN, '', false);
+        setSharedCookie(COOKIE_ACTIVE_USER, 'logged_out', true);
+        localStorage.setItem(STORAGE_KEY_ACTIVE_USER, 'logged_out');
+        return;
+      }
+      setSharedCookie(COOKIE_SHARED_TOKEN, token, persistent);
       if (persistent) {
         localStorage.setItem(STORAGE_KEY_TOKEN_PERSIST, token);
       } else {
@@ -265,9 +305,177 @@
     } catch (_) {}
   }
 
+  function bindTabToCurrentUser(user) {
+    ensureCrossTabSessionListeners();
+    const prevBoundUid = boundTabUserId;
+    boundTabUserId = (user && user.id) ? String(user.id) : '';
+    boundTabToken = getStoredToken() || '';
+    hasInitializedTabSession = true;
+
+    try {
+      if (boundTabUserId) {
+        localStorage.setItem(STORAGE_KEY_ACTIVE_USER, boundTabUserId);
+        setSharedCookie(COOKIE_ACTIVE_USER, boundTabUserId, isPersistentSession);
+        if (boundTabToken) {
+          setSharedCookie(COOKIE_SHARED_TOKEN, boundTabToken, isPersistentSession);
+        }
+      }
+      if (authBroadcastChannel && prevBoundUid !== boundTabUserId) {
+        authBroadcastChannel.postMessage({
+          type: 'auth_change',
+          userId: boundTabUserId || 'logged_out',
+          ts: Date.now()
+        });
+      }
+    } catch (_) {}
+  }
+
+  function hasSessionChangedInAnotherTab() {
+    if (!hasInitializedTabSession || isHandlingCrossTabSwitch) return '';
+    try {
+      const activeTok = getStoredToken() || '';
+      const activeUid = getSharedCookie(COOKIE_ACTIVE_USER) || localStorage.getItem(STORAGE_KEY_ACTIVE_USER) || '';
+      if (boundTabUserId) {
+        if (!activeTok || activeUid === 'logged_out') {
+          return 'logged_out';
+        }
+        if ((boundTabToken && activeTok !== boundTabToken) || (activeUid && activeUid !== boundTabUserId)) {
+          return 'switched_user';
+        }
+      } else if (!pendingInviteCode && !needsBootstrap) {
+        if (activeTok && activeUid && activeUid !== 'logged_out') {
+          return 'logged_in';
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  function triggerCrossTabSessionRedirect(reason) {
+    if (isHandlingCrossTabSwitch) return;
+    isHandlingCrossTabSwitch = true;
+    if (syncDebounceTimer) {
+      clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = null;
+    }
+    try {
+      const msg = reason === 'logged_out'
+        ? 'You signed out in another tab.'
+        : (reason === 'logged_in' ? 'Signed in from another tab.' : 'Account switched in another tab — loaded active account.');
+      sessionStorage.setItem(STORAGE_KEY_FLASH_POPUP, JSON.stringify({
+        msg,
+        isSuccess: true
+      }));
+    } catch (_) {}
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('admin') || url.hash === '#admin') {
+        url.searchParams.delete('admin');
+        url.hash = '';
+        window.location.replace(url.toString());
+        return;
+      }
+    } catch (_) {}
+    window.location.reload();
+  }
+
+  let isVerifyingFocusSession = false;
+  async function verifyServerSessionOnTabFocus() {
+    if ((window.location.pathname || '').toLowerCase().startsWith('/account')) return;
+    if (!hasInitializedTabSession || isHandlingCrossTabSwitch || isVerifyingFocusSession) return;
+    const localChange = hasSessionChangedInAnotherTab();
+    if (localChange) {
+      triggerCrossTabSessionRedirect(localChange);
+      return;
+    }
+    if (!boundTabUserId && !getStoredToken()) return;
+
+    isVerifyingFocusSession = true;
+    try {
+      const base = getApiBase();
+      const token = getStoredToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch(`${base}/auth/me`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      if (resp.status === 401) {
+        if (boundTabUserId) {
+          storeToken(null, false);
+          triggerCrossTabSessionRedirect('logged_out');
+        }
+        return;
+      }
+      if (resp.ok) {
+        const data = await resp.json().catch(() => null);
+        const serverUid = (data && data.user && data.user.id) ? String(data.user.id) : '';
+        if (boundTabUserId && (!serverUid || serverUid !== boundTabUserId)) {
+          triggerCrossTabSessionRedirect(serverUid ? 'switched_user' : 'logged_out');
+        } else if (!boundTabUserId && serverUid && !pendingInviteCode && !needsBootstrap) {
+          triggerCrossTabSessionRedirect('logged_in');
+        }
+      }
+    } catch (_) {
+    } finally {
+      isVerifyingFocusSession = false;
+    }
+  }
+
+  let crossTabListenersBound = false;
+  function ensureCrossTabSessionListeners() {
+    if (crossTabListenersBound) return;
+    crossTabListenersBound = true;
+    if ((window.location.pathname || '').toLowerCase().startsWith('/account')) return;
+
+    try {
+      if (typeof BroadcastChannel === 'function') {
+        authBroadcastChannel = new BroadcastChannel('sheesh_auth_sync');
+        authBroadcastChannel.onmessage = () => {
+          const reason = hasSessionChangedInAnotherTab();
+          if (reason) triggerCrossTabSessionRedirect(reason);
+        };
+      }
+    } catch (_) {}
+
+    window.addEventListener('storage', (e) => {
+      if (!e || !e.key || e.key === STORAGE_KEY_TOKEN_PERSIST || e.key === STORAGE_KEY_ACTIVE_USER) {
+        const reason = hasSessionChangedInAnotherTab();
+        if (reason) triggerCrossTabSessionRedirect(reason);
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      verifyServerSessionOnTabFocus();
+    });
+
+    window.addEventListener('pageshow', () => {
+      verifyServerSessionOnTabFocus();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        verifyServerSessionOnTabFocus();
+      }
+    });
+
+    const interceptStaleTabAction = (e) => {
+      if (!boundTabUserId) return;
+      const reason = hasSessionChangedInAnotherTab();
+      if (reason) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        triggerCrossTabSessionRedirect(reason);
+      }
+    };
+    document.addEventListener('click', interceptStaleTabAction, true);
+    document.addEventListener('submit', interceptStaleTabAction, true);
+  }
+
   async function wipeCedarLocalWorkspace() {
     lastSyncedFingerprints.clear();
-    setLastServerUpdatedAt(0);
+    lastServerUpdatedAt = 0;
     try {
       const keysToRemove = [
         'sheesh_static_writer_drafts_v2',
@@ -285,8 +493,7 @@
         'cedar_theme_preference',
         'cedar_ftue_completed',
         'outpost_ftue_completed',
-        STORAGE_KEY_LAST_SYNC,
-        STORAGE_KEY_SERVER_UPDATED_AT
+        STORAGE_KEY_LAST_SYNC
       ];
       keysToRemove.forEach(k => localStorage.removeItem(k));
     } catch (_) {}
@@ -426,7 +633,7 @@
     await wipeCedarLocalWorkspace();
     await apiRequest('/sync/cedar', { method: 'DELETE' }).catch(() => {});
     lastSyncedFingerprints.clear();
-    setLastServerUpdatedAt(0);
+    lastServerUpdatedAt = 0;
 
     try {
       localStorage.setItem('cedar_ftue_completed', '1');
@@ -644,6 +851,13 @@
   }
 
   async function apiRequest(path, options = {}) {
+    if (boundTabUserId && !String(path || '').startsWith('/auth/logout')) {
+      const reason = hasSessionChangedInAnotherTab();
+      if (reason) {
+        triggerCrossTabSessionRedirect(reason);
+        throw new Error('Session changed in another tab.');
+      }
+    }
     const base = getApiBase();
     const token = getStoredToken();
     const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -659,6 +873,11 @@
     });
     const rawText = await resp.text().catch(() => '');
     const data = safeJsonParse(rawText, {}) || {};
+    if (resp.status === 401 && boundTabUserId && !String(path || '').startsWith('/auth/')) {
+      storeToken(null, false);
+      triggerCrossTabSessionRedirect('logged_out');
+      throw new Error('Your session ended in another tab.');
+    }
     if (!resp.ok) {
       throw new Error(data.error || `Request failed (${resp.status})`);
     }
@@ -957,6 +1176,7 @@
   }
 
   function renderModalState() {
+    bindTabToCurrentUser(currentUser);
     if (isAwaitingLocalImportChoice) return;
     const choiceView = document.getElementById('sheesh-view-local-import-choice');
     if (choiceView) choiceView.style.display = 'none';
@@ -1190,92 +1410,21 @@
           body: batches[idx]
         });
         if (putRes && putRes.updatedAt) {
-          setLastServerUpdatedAt(putRes.updatedAt);
+          lastServerUpdatedAt = Math.max(lastServerUpdatedAt, Number(putRes.updatedAt));
         }
       }
     }));
   }
 
-  function primeFingerprintsFromLocalState() {
-    try {
-      const safeCfg = stripSecretsFromConfig(window.projectConfig || {});
-      lastSyncedFingerprints.set('config:main', JSON.stringify(safeCfg));
-    } catch (_) {}
-
-    try {
-      let brandingRaw = localStorage.getItem('cedar_branding_files_v1');
-      if (!brandingRaw && window.brandingFiles && typeof window.brandingFiles === 'object') {
-        brandingRaw = JSON.stringify(window.brandingFiles);
-      }
-      if (brandingRaw && brandingRaw.length < MAX_MEDIA_CHARS) {
-        lastSyncedFingerprints.set('branding:files', brandingRaw);
-      }
-    } catch (_) {}
-
-    const defaultAuthorAvatar = (window.projectConfig && Array.isArray(window.projectConfig.authors) && window.projectConfig.authors[0] && window.projectConfig.authors[0].avatar) || '';
-    const draftsArr = Array.isArray(window.drafts) ? window.drafts : [];
-    const embeddedMediaPaths = new Set();
-
-    for (const post of draftsArr) {
-      if (!post || !post.id) continue;
-      const key = `post:${String(post.id).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
-      const postCopy = safeJsonParse(JSON.stringify(post), null) || Object.assign({}, post);
-      if (postCopy.authorAvatar && String(postCopy.authorAvatar).startsWith('data:') && defaultAuthorAvatar && postCopy.authorAvatar === defaultAuthorAvatar) {
-        postCopy.authorAvatar = '__useProjectAuthorAvatar__';
-      }
-      if (Array.isArray(postCopy.images)) {
-        postCopy.images.forEach(im => {
-          if (!im || typeof im !== 'object') return;
-          delete im.blob;
-          delete im.objectUrl;
-          if (!im.dataUrl && im.src && String(im.src).startsWith('data:')) {
-            im.dataUrl = im.src;
-          }
-          if (!im.dataUrl) {
-            const regData = getImageRegistryValue(im.relativePath) || getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.filename) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
-            if (regData && regData.startsWith('data:')) {
-              im.dataUrl = regData;
-            }
-          }
-          if (im.src && im.dataUrl && im.src === im.dataUrl) {
-            delete im.src;
-          }
-          if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
-          if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
-          if (im.filename) embeddedMediaPaths.add(String(im.filename));
-          if (im.id) embeddedMediaPaths.add(String(im.id));
-          if (im.name) embeddedMediaPaths.add(String(im.name));
-        });
-      }
-      lastSyncedFingerprints.set(key, JSON.stringify(postCopy));
-    }
-
-    lastSyncedFingerprints.set('index:posts', JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id)));
-
-    const regEntries = (window.imageRegistry instanceof Map)
-      ? Array.from(window.imageRegistry.entries())
-      : (window.imageRegistry && typeof window.imageRegistry === 'object' ? Object.entries(window.imageRegistry) : []);
-
-    for (const [mediaPath, rawEntry] of regEntries) {
-      const dataUrl = extractRegistryDataUrl(rawEntry);
-      if (!mediaPath || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:') || dataUrl.length > MAX_MEDIA_CHARS) continue;
-      const cleanPath = String(mediaPath).replace(/\\/g, '/').replace(/^\/+/, '');
-      if (!cleanPath.startsWith('media/links/') && !cleanPath.startsWith('media/library/')) {
-        continue;
-      }
-      const fileName = cleanPath.split('/').pop() || '';
-      if (embeddedMediaPaths.has(cleanPath) || embeddedMediaPaths.has(String(mediaPath)) || (fileName && embeddedMediaPaths.has(fileName))) {
-        continue;
-      }
-      const mediaKey = normalizeMediaSyncKey(cleanPath);
-      if (mediaKey) {
-        lastSyncedFingerprints.set(mediaKey, dataUrl);
-      }
-    }
-  }
-
   async function pushCedarToCloud(options = {}) {
     if (!currentUser || isPullingFromCloud || isPushingToCloud) return;
+    if (boundTabUserId) {
+      const reason = hasSessionChangedInAnotherTab();
+      if (reason) {
+        triggerCrossTabSessionRedirect(reason);
+        return;
+      }
+    }
     isPushingToCloud = true;
     const isDeltaOnly = Boolean(options.deltaOnly);
     const payloadMap = {};
@@ -1327,7 +1476,7 @@
               im.dataUrl = im.src;
             }
             if (!im.dataUrl) {
-              const regData = getImageRegistryValue(im.relativePath) || getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.filename) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+              const regData = getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
               if (regData && regData.startsWith('data:')) {
                 im.dataUrl = regData;
               }
@@ -1335,9 +1484,7 @@
             if (im.src && im.dataUrl && im.src === im.dataUrl) {
               delete im.src;
             }
-            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
             if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
-            if (im.filename) embeddedMediaPaths.add(String(im.filename));
             if (im.id) embeddedMediaPaths.add(String(im.id));
             if (im.name) embeddedMediaPaths.add(String(im.name));
           });
@@ -1443,11 +1590,19 @@
     return null;
   }
 
-  async function pullCedarFromCloud(options = {}) {
+  async function pullCedarFromCloud() {
     if (!currentUser || isPullingFromCloud) return;
     try {
       isPullingFromCloud = true;
       await disconnectCedarLocalFolder();
+
+      const res = await apiRequest('/sync/cedar');
+      if (res && res.updatedAt) {
+        lastServerUpdatedAt = Math.max(lastServerUpdatedAt, Number(res.updatedAt));
+      }
+      const rawItems = (res && res.items) ? res.items : {};
+      let items = decodeChunkedItems(rawItems);
+      let keys = Object.keys(items);
 
       // Suppress FTUE wizard for authenticated cloud users
       try {
@@ -1457,69 +1612,30 @@
         }
       } catch (_) {}
 
+      // Keep the SHEESH! blog backup exclusive to @monkey_man (never on the Admin account)
       const isMonkeyMan = Boolean(
         currentUser &&
         !currentUser.isAdmin &&
         String(currentUser.username || '').trim().toLowerCase() === 'monkey_man'
       );
-      const hasLocalMonkeyPosts = Array.isArray(window.drafts) &&
-        window.drafts.some(d => d && d.id === 'post_1790376615849_9ux3t0');
-
-      // Fast path: if local workspace already has the user's posts and server timestamp hasn't changed, skip 8.7MB download
-      if (
-        !options.force &&
-        lastServerUpdatedAt > 0 &&
-        hasLocalCedarContent() &&
-        (!isMonkeyMan || hasLocalMonkeyPosts) &&
-        !(currentUser && currentUser.isAdmin && hasLocalMonkeyPosts)
-      ) {
-        try {
-          const meta = await apiRequest('/sync/cedar?meta=1');
-          const remoteTs = Number(meta && meta.updatedAt) || 0;
-          if (remoteTs > 0 && remoteTs <= lastServerUpdatedAt) {
-            primeFingerprintsFromLocalState();
-            updateGlobalIndicators('Synced');
-            renderModalState();
-            return;
-          }
-        } catch (_) {}
-      }
-
-      // If @monkey_man has no local posts yet, prefetch the seed in parallel with the cloud request so UI never stalls
-      const seedPrefetchPromise = (isMonkeyMan && !hasLocalMonkeyPosts)
-        ? fetchAdminCedarSeedItems()
-        : null;
-
-      const res = await apiRequest('/sync/cedar');
-      if (res && res.updatedAt) {
-        setLastServerUpdatedAt(res.updatedAt);
-      }
-      const rawItems = (res && res.items) ? res.items : {};
-      let items = decodeChunkedItems(rawItems);
-      let keys = Object.keys(items);
-
-      // Keep the SHEESH! blog backup exclusive to @monkey_man (never on the Admin account)
       if (currentUser && currentUser.isAdmin && items['post:post_1790376615849_9ux3t0']) {
         await apiRequest('/sync/cedar', { method: 'DELETE' }).catch(() => {});
-        setLastServerUpdatedAt(0);
         items = {};
         keys = [];
       }
 
-      let pendingSeedRawItemsToUpload = null;
-      const hasValidCloudMonkeyPost = Boolean(
-        items['post:post_1790376615849_9ux3t0'] &&
-        safeJsonParse(items['post:post_1790376615849_9ux3t0'], null)
-      );
-      if (isMonkeyMan && !hasValidCloudMonkeyPost) {
-        if (hasLocalMonkeyPosts) {
+      if (isMonkeyMan && !items['post:post_1790376615849_9ux3t0']) {
+        const hasLocalAdminPosts = Array.isArray(window.drafts) &&
+          window.drafts.some(d => d && d.id === 'post_1790376615849_9ux3t0');
+        if (hasLocalAdminPosts) {
           isPullingFromCloud = false;
           await pushCedarToCloud({ deltaOnly: false });
           return;
         }
-        const seedRawItems = await (seedPrefetchPromise || fetchAdminCedarSeedItems());
+        const seedRawItems = await fetchAdminCedarSeedItems();
         if (seedRawItems) {
-          pendingSeedRawItemsToUpload = seedRawItems;
+          updateGlobalIndicators('Saving...');
+          await uploadBatchedItemsToCedarCloud(seedRawItems, [], false);
           items = decodeChunkedItems(seedRawItems);
           keys = Object.keys(items);
         }
@@ -1531,19 +1647,7 @@
         return;
       }
 
-      const virtualWriteTasks = [];
-      const queueVirtualWrite = (filePath, content) => {
-        if (!filePath || !content) return;
-        try {
-          if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
-            virtualWriteTasks.push(
-              window.CedarVirtualStorage.writeFile(filePath, content).catch(() => {})
-            );
-          }
-        } catch (_) {}
-      };
-
-      // 1. Restore Media Blobs into window.imageRegistry (Map) synchronously & queue CedarVirtualStorage writes
+      // 1. Restore Media Blobs into window.imageRegistry (Map) & CedarVirtualStorage first
       ensureImageRegistryMap();
       for (const k of keys) {
         if (k.startsWith('media:')) {
@@ -1554,7 +1658,11 @@
             const fileName = mediaPath.split('/').pop();
             if (fileName) setImageRegistryValue(fileName, dataUrl);
             lastSyncedFingerprints.set(k, dataUrl);
-            queueVirtualWrite(mediaPath, dataUrl);
+            try {
+              if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
+                await window.CedarVirtualStorage.writeFile(mediaPath, dataUrl);
+              }
+            } catch (_) {}
           }
         }
       }
@@ -1652,7 +1760,7 @@
           if (Array.isArray(window.projectConfig.mediaLibrary)) {
             window.projectConfig.mediaLibrary.forEach(item => {
               if (!item || typeof item !== 'object') return;
-              const lookupKey = item.path || item.filename || item.name || item.id;
+              const lookupKey = item.path || item.name || item.id;
               const regVal = getImageRegistryValue(lookupKey);
               if (regVal) {
                 item.dataUrl = regVal;
@@ -1695,7 +1803,7 @@
                   im.dataUrl = im.src;
                 }
                 if (!im.dataUrl) {
-                  const regData = getImageRegistryValue(im.relativePath) || getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.filename) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+                  const regData = getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
                   if (regData) im.dataUrl = regData;
                 }
                 if (im.dataUrl && !im.src) {
@@ -1704,12 +1812,13 @@
                 if (im.dataUrl && String(im.dataUrl).startsWith('data:')) {
                   if (im.id) setImageRegistryValue(im.id, im.dataUrl);
                   if (im.name) setImageRegistryValue(im.name, im.dataUrl);
-                  if (im.filename) setImageRegistryValue(im.filename, im.dataUrl);
-                  if (im.relativePath) setImageRegistryValue(im.relativePath, im.dataUrl);
-                  if (im.savedRelPath) setImageRegistryValue(im.savedRelPath, im.dataUrl);
-                  const virtualPath = (im.savedRelPath || im.relativePath || (im.filename ? `blog/images/${im.filename}` : '')).replace(/^\/+/, '');
-                  if (virtualPath) {
-                    queueVirtualWrite(virtualPath, im.dataUrl);
+                  if (im.savedRelPath) {
+                    setImageRegistryValue(im.savedRelPath, im.dataUrl);
+                    try {
+                      if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
+                        await window.CedarVirtualStorage.writeFile(im.savedRelPath, im.dataUrl);
+                      }
+                    } catch (_) {}
                   }
                 }
               }
@@ -1770,7 +1879,13 @@
         }
       }
 
-      // 5. Render All Cedar UI Views IMMEDIATELY (never block UI on storage or cloud upload)
+      // 5. Persist & Re-hydrate All Cedar UI Views
+      if (typeof window.saveProjectToStorage === 'function') {
+        window.saveProjectToStorage({ silent: true });
+      }
+      if (typeof window.saveDraftsToStorage === 'function') {
+        await window.saveDraftsToStorage();
+      }
       if (typeof window.updateCedarTitle === 'function') {
         window.updateCedarTitle();
       }
@@ -1796,29 +1911,6 @@
         window.updateAllPreviewFrames();
       }
 
-      // 6. Persist to localStorage / Virtual Storage & upload any pending seed in the background
-      if (typeof window.saveProjectToStorage === 'function') {
-        window.saveProjectToStorage({ silent: true });
-        try {
-          lastSyncedFingerprints.set('config:main', JSON.stringify(stripSecretsFromConfig(window.projectConfig || {})));
-        } catch (_) {}
-      }
-      if (typeof window.saveDraftsToStorage === 'function') {
-        await window.saveDraftsToStorage().catch(() => {});
-      }
-      if (virtualWriteTasks.length > 0) {
-        Promise.all(virtualWriteTasks).catch(() => {});
-      }
-      if (pendingSeedRawItemsToUpload) {
-        uploadBatchedItemsToCedarCloud(pendingSeedRawItemsToUpload, [], false)
-          .then(() => {
-            try { localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now())); } catch (_) {}
-          })
-          .catch((e) => {
-            console.warn('[SheeshCloud] Background seed upload notice:', e);
-          });
-      }
-
       localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
       updateGlobalIndicators('Synced');
       renderModalState();
@@ -1835,7 +1927,7 @@
       const meta = await apiRequest('/sync/cedar?meta=1');
       const remoteTs = Number(meta && meta.updatedAt) || 0;
       if (remoteTs > 0 && remoteTs > lastServerUpdatedAt) {
-        await pullCedarFromCloud({ force: true });
+        await pullCedarFromCloud();
       }
     } catch (_) {}
   }
@@ -2620,6 +2712,18 @@
     initPromise = (async () => {
       ensureInvitePasswordFieldsInDom();
       const isAccountPage = (window.location.pathname || '').toLowerCase().startsWith('/account');
+      if (!isAccountPage) {
+        try {
+          const rawFlash = sessionStorage.getItem(STORAGE_KEY_FLASH_POPUP);
+          if (rawFlash) {
+            sessionStorage.removeItem(STORAGE_KEY_FLASH_POPUP);
+            const parsedFlash = safeJsonParse(rawFlash, null);
+            if (parsedFlash && parsedFlash.msg) {
+              showTopBrowserPopup(parsedFlash.msg, Boolean(parsedFlash.isSuccess));
+            }
+          }
+        } catch (_) {}
+      }
       let wantsAdminUrl = false;
       try {
         const params = new URLSearchParams(window.location.search);
@@ -2643,6 +2747,7 @@
         const meRes = await apiRequest('/auth/me');
         if (meRes && meRes.user) {
           currentUser = meRes.user;
+          bindTabToCurrentUser(currentUser);
           await handlePostAuthCedarSync(meRes.user);
           if (wantsAdminUrl && currentUser.isAdmin && !isAccountPage) {
             openAdminModal();
@@ -2651,8 +2756,10 @@
         }
       } catch (_) {
         currentUser = null;
+        bindTabToCurrentUser(null);
         updateGlobalIndicators();
       }
+      bindTabToCurrentUser(currentUser);
 
       if (!isAccountPage) {
         if (pendingInviteCode) {
@@ -2684,7 +2791,7 @@
     closeModal: closeSheeshModal,
     openAdmin: openAdminModal,
     pushNow: () => pushCedarToCloud({ deltaOnly: false }),
-    pullNow: () => pullCedarFromCloud({ force: true }),
+    pullNow: () => pullCedarFromCloud(),
     scheduleSync: scheduleAutoSync,
     rollPassphrase,
     getUser: () => currentUser,
