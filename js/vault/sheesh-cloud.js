@@ -215,35 +215,27 @@
   let initPromise = null;
   let lastSyncedFingerprints = new Map();
   let boundTabUserId = '';
-  let boundTabToken = '';
   let hasInitializedTabSession = false;
-  let isHandlingCrossTabSwitch = false;
   let authBroadcastChannel = null;
+  let lastFocusCheckAt = 0;
 
-  function getSharedCookie(name) {
+  function cleanupLegacyCrossTabState() {
     try {
-      const m = (document.cookie || '').match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-      return m ? decodeURIComponent(m[1]) : '';
-    } catch (_) {
-      return '';
-    }
-  }
-
-  function setSharedCookie(name, value, persistent = true) {
-    try {
-      const host = (window.location.hostname || '').toLowerCase();
-      const isSheeshDomain = host === 'sheesh.gg' || host.endsWith('.sheesh.gg');
-      const domainAttr = isSheeshDomain ? '; Domain=.sheesh.gg' : '';
       const secureAttr = window.location.protocol === 'https:' ? '; Secure' : '';
-      if (!value) {
-        document.cookie = `${name}=; Path=/${domainAttr}; Max-Age=0; SameSite=Lax${secureAttr}`;
-      } else if (persistent) {
-        document.cookie = `${name}=${encodeURIComponent(value)}; Path=/${domainAttr}; Max-Age=7776000; SameSite=Lax${secureAttr}`;
-      } else {
-        document.cookie = `${name}=${encodeURIComponent(value)}; Path=/${domainAttr}; SameSite=Lax${secureAttr}`;
+      ['sheesh_active_uid', 'sheesh_shared_tok'].forEach((name) => {
+        document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax${secureAttr}`;
+        document.cookie = `${name}=; Path=/; Domain=.sheesh.gg; Max-Age=0; SameSite=Lax${secureAttr}`;
+      });
+      if (localStorage.getItem(STORAGE_KEY_ACTIVE_USER) === 'logged_out') {
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_USER);
+      }
+      const rawFlash = sessionStorage.getItem(STORAGE_KEY_FLASH_POPUP);
+      if (rawFlash && (rawFlash.includes('another tab') || rawFlash.includes('signed out in another'))) {
+        sessionStorage.removeItem(STORAGE_KEY_FLASH_POPUP);
       }
     } catch (_) {}
   }
+  cleanupLegacyCrossTabState();
 
   function getApiBase() {
     try {
@@ -255,22 +247,6 @@
 
   function getStoredToken() {
     try {
-      const sharedUid = getSharedCookie(COOKIE_ACTIVE_USER);
-      const sharedTok = getSharedCookie(COOKIE_SHARED_TOKEN);
-      if (sharedUid === 'logged_out') {
-        sessionStorage.removeItem(STORAGE_KEY_TOKEN_SESSION);
-        localStorage.removeItem(STORAGE_KEY_TOKEN_PERSIST);
-        return null;
-      }
-      if (sharedTok) {
-        const localPersist = localStorage.getItem(STORAGE_KEY_TOKEN_PERSIST);
-        const localSession = sessionStorage.getItem(STORAGE_KEY_TOKEN_SESSION);
-        if (localPersist !== sharedTok && localSession !== sharedTok) {
-          localStorage.setItem(STORAGE_KEY_TOKEN_PERSIST, sharedTok);
-          sessionStorage.removeItem(STORAGE_KEY_TOKEN_SESSION);
-        }
-        return sharedTok;
-      }
       const sessionTok = sessionStorage.getItem(STORAGE_KEY_TOKEN_SESSION);
       if (sessionTok) {
         isPersistentSession = false;
@@ -290,13 +266,7 @@
     try {
       sessionStorage.removeItem(STORAGE_KEY_TOKEN_SESSION);
       localStorage.removeItem(STORAGE_KEY_TOKEN_PERSIST);
-      if (!token) {
-        setSharedCookie(COOKIE_SHARED_TOKEN, '', false);
-        setSharedCookie(COOKIE_ACTIVE_USER, 'logged_out', true);
-        localStorage.setItem(STORAGE_KEY_ACTIVE_USER, 'logged_out');
-        return;
-      }
-      setSharedCookie(COOKIE_SHARED_TOKEN, token, persistent);
+      if (!token) return;
       if (persistent) {
         localStorage.setItem(STORAGE_KEY_TOKEN_PERSIST, token);
       } else {
@@ -309,86 +279,31 @@
     ensureCrossTabSessionListeners();
     const prevBoundUid = boundTabUserId;
     boundTabUserId = (user && user.id) ? String(user.id) : '';
-    boundTabToken = getStoredToken() || '';
+    const wasInitialized = hasInitializedTabSession;
     hasInitializedTabSession = true;
 
     try {
       if (boundTabUserId) {
         localStorage.setItem(STORAGE_KEY_ACTIVE_USER, boundTabUserId);
-        setSharedCookie(COOKIE_ACTIVE_USER, boundTabUserId, isPersistentSession);
-        if (boundTabToken) {
-          setSharedCookie(COOKIE_SHARED_TOKEN, boundTabToken, isPersistentSession);
-        }
       }
-      if (authBroadcastChannel && prevBoundUid !== boundTabUserId) {
+      if (wasInitialized && authBroadcastChannel && prevBoundUid !== boundTabUserId) {
         authBroadcastChannel.postMessage({
           type: 'auth_change',
-          userId: boundTabUserId || 'logged_out',
+          userId: boundTabUserId,
           ts: Date.now()
         });
       }
     } catch (_) {}
   }
 
-  function hasSessionChangedInAnotherTab() {
-    if (!hasInitializedTabSession || isHandlingCrossTabSwitch) return '';
-    try {
-      const activeTok = getStoredToken() || '';
-      const activeUid = getSharedCookie(COOKIE_ACTIVE_USER) || localStorage.getItem(STORAGE_KEY_ACTIVE_USER) || '';
-      if (boundTabUserId) {
-        if (!activeTok || activeUid === 'logged_out') {
-          return 'logged_out';
-        }
-        if ((boundTabToken && activeTok !== boundTabToken) || (activeUid && activeUid !== boundTabUserId)) {
-          return 'switched_user';
-        }
-      } else if (!pendingInviteCode && !needsBootstrap) {
-        if (activeTok && activeUid && activeUid !== 'logged_out') {
-          return 'logged_in';
-        }
-      }
-    } catch (_) {}
-    return '';
-  }
-
-  function triggerCrossTabSessionRedirect(reason) {
-    if (isHandlingCrossTabSwitch) return;
-    isHandlingCrossTabSwitch = true;
-    if (syncDebounceTimer) {
-      clearTimeout(syncDebounceTimer);
-      syncDebounceTimer = null;
-    }
-    try {
-      const msg = reason === 'logged_out'
-        ? 'You signed out in another tab.'
-        : (reason === 'logged_in' ? 'Signed in from another tab.' : 'Account switched in another tab — loaded active account.');
-      sessionStorage.setItem(STORAGE_KEY_FLASH_POPUP, JSON.stringify({
-        msg,
-        isSuccess: true
-      }));
-    } catch (_) {}
-    try {
-      const url = new URL(window.location.href);
-      if (url.searchParams.has('admin') || url.hash === '#admin') {
-        url.searchParams.delete('admin');
-        url.hash = '';
-        window.location.replace(url.toString());
-        return;
-      }
-    } catch (_) {}
-    window.location.reload();
-  }
-
   let isVerifyingFocusSession = false;
-  async function verifyServerSessionOnTabFocus() {
+  async function syncTabSessionInPlace(force = false) {
     if ((window.location.pathname || '').toLowerCase().startsWith('/account')) return;
-    if (!hasInitializedTabSession || isHandlingCrossTabSwitch || isVerifyingFocusSession) return;
-    const localChange = hasSessionChangedInAnotherTab();
-    if (localChange) {
-      triggerCrossTabSessionRedirect(localChange);
-      return;
-    }
-    if (!boundTabUserId && !getStoredToken()) return;
+    if (!hasInitializedTabSession || isVerifyingFocusSession) return;
+    if (pendingInviteCode || needsBootstrap) return;
+    const now = Date.now();
+    if (!force && now - lastFocusCheckAt < 3000) return;
+    lastFocusCheckAt = now;
 
     isVerifyingFocusSession = true;
     try {
@@ -402,19 +317,38 @@
         credentials: 'include'
       });
       if (resp.status === 401) {
-        if (boundTabUserId) {
+        if (currentUser) {
+          if (syncDebounceTimer) {
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = null;
+          }
           storeToken(null, false);
-          triggerCrossTabSessionRedirect('logged_out');
+          currentUser = null;
+          closeAdminModal();
+          updateGlobalIndicators();
+          renderModalState();
         }
         return;
       }
       if (resp.ok) {
         const data = await resp.json().catch(() => null);
-        const serverUid = (data && data.user && data.user.id) ? String(data.user.id) : '';
-        if (boundTabUserId && (!serverUid || serverUid !== boundTabUserId)) {
-          triggerCrossTabSessionRedirect(serverUid ? 'switched_user' : 'logged_out');
-        } else if (!boundTabUserId && serverUid && !pendingInviteCode && !needsBootstrap) {
-          triggerCrossTabSessionRedirect('logged_in');
+        const serverUser = (data && data.user) ? data.user : null;
+        const serverUid = (serverUser && serverUser.id) ? String(serverUser.id) : '';
+        const localUid = (currentUser && currentUser.id) ? String(currentUser.id) : '';
+        if (serverUid !== localUid) {
+          if (syncDebounceTimer) {
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = null;
+          }
+          currentUser = serverUser;
+          if (!currentUser || !currentUser.isAdmin) {
+            closeAdminModal();
+          }
+          updateGlobalIndicators();
+          renderModalState();
+          if (currentUser) {
+            await handlePostAuthCedarSync(currentUser);
+          }
         }
       }
     } catch (_) {
@@ -433,44 +367,20 @@
       if (typeof BroadcastChannel === 'function') {
         authBroadcastChannel = new BroadcastChannel('sheesh_auth_sync');
         authBroadcastChannel.onmessage = () => {
-          const reason = hasSessionChangedInAnotherTab();
-          if (reason) triggerCrossTabSessionRedirect(reason);
+          syncTabSessionInPlace(true);
         };
       }
     } catch (_) {}
 
-    window.addEventListener('storage', (e) => {
-      if (!e || !e.key || e.key === STORAGE_KEY_TOKEN_PERSIST || e.key === STORAGE_KEY_ACTIVE_USER) {
-        const reason = hasSessionChangedInAnotherTab();
-        if (reason) triggerCrossTabSessionRedirect(reason);
-      }
-    });
-
     window.addEventListener('focus', () => {
-      verifyServerSessionOnTabFocus();
-    });
-
-    window.addEventListener('pageshow', () => {
-      verifyServerSessionOnTabFocus();
+      syncTabSessionInPlace(false);
     });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        verifyServerSessionOnTabFocus();
+        syncTabSessionInPlace(false);
       }
     });
-
-    const interceptStaleTabAction = (e) => {
-      if (!boundTabUserId) return;
-      const reason = hasSessionChangedInAnotherTab();
-      if (reason) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        triggerCrossTabSessionRedirect(reason);
-      }
-    };
-    document.addEventListener('click', interceptStaleTabAction, true);
-    document.addEventListener('submit', interceptStaleTabAction, true);
   }
 
   async function wipeCedarLocalWorkspace() {
@@ -516,6 +426,68 @@
     const style = document.createElement('style');
     style.id = 'sheesh-cloud-logged-in-styles';
     style.textContent = `
+      .sheesh-top-browser-popup {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-18px);
+        z-index: 2147483640;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        max-width: min(92vw, 560px);
+        padding: 10px 14px 10px 12px;
+        border-radius: 10px;
+        font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+        font-size: 0.84rem;
+        font-weight: 500;
+        line-height: 1.4;
+        color: #fecaca;
+        background: rgba(24, 15, 18, 0.96);
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(12px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+      }
+      .sheesh-top-browser-popup.is-visible {
+        display: inline-flex;
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateX(-50%) translateY(0);
+      }
+      .sheesh-top-browser-popup.is-success {
+        color: #bbf7d0;
+        background: rgba(13, 26, 20, 0.96);
+        border-color: rgba(34, 197, 94, 0.45);
+      }
+      .sheesh-top-popup-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .sheesh-top-popup-text {
+        word-break: break-word;
+      }
+      .sheesh-top-popup-close {
+        appearance: none;
+        background: transparent;
+        border: none;
+        color: inherit;
+        opacity: 0.65;
+        cursor: pointer;
+        font-size: 1.05rem;
+        line-height: 1;
+        padding: 2px 4px;
+        margin-left: 4px;
+        border-radius: 4px;
+      }
+      .sheesh-top-popup-close:hover {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.08);
+      }
       .sheesh-local-import-box {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -851,13 +823,6 @@
   }
 
   async function apiRequest(path, options = {}) {
-    if (boundTabUserId && !String(path || '').startsWith('/auth/logout')) {
-      const reason = hasSessionChangedInAnotherTab();
-      if (reason) {
-        triggerCrossTabSessionRedirect(reason);
-        throw new Error('Session changed in another tab.');
-      }
-    }
     const base = getApiBase();
     const token = getStoredToken();
     const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
@@ -873,10 +838,13 @@
     });
     const rawText = await resp.text().catch(() => '');
     const data = safeJsonParse(rawText, {}) || {};
-    if (resp.status === 401 && boundTabUserId && !String(path || '').startsWith('/auth/')) {
+    if (resp.status === 401 && currentUser && !String(path || '').startsWith('/auth/')) {
       storeToken(null, false);
-      triggerCrossTabSessionRedirect('logged_out');
-      throw new Error('Your session ended in another tab.');
+      currentUser = null;
+      closeAdminModal();
+      updateGlobalIndicators();
+      renderModalState();
+      throw new Error('Please sign in to continue.');
     }
     if (!resp.ok) {
       throw new Error(data.error || `Request failed (${resp.status})`);
@@ -1052,6 +1020,7 @@
   }
 
   function showTopBrowserPopup(msg, isSuccess = false) {
+    ensureLoggedInStylesInjected();
     let popup = document.getElementById('sheesh-top-toast-popup');
     if (!msg) {
       if (popup) popup.classList.remove('is-visible');
@@ -1418,13 +1387,6 @@
 
   async function pushCedarToCloud(options = {}) {
     if (!currentUser || isPullingFromCloud || isPushingToCloud) return;
-    if (boundTabUserId) {
-      const reason = hasSessionChangedInAnotherTab();
-      if (reason) {
-        triggerCrossTabSessionRedirect(reason);
-        return;
-      }
-    }
     isPushingToCloud = true;
     const isDeltaOnly = Boolean(options.deltaOnly);
     const payloadMap = {};
