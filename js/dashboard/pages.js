@@ -409,10 +409,19 @@
     if (!window.projectConfig.renamedCategories || typeof window.projectConfig.renamedCategories !== 'object') {
       window.projectConfig.renamedCategories = {};
     }
+    const explicitActiveCatsLower = new Set(
+      (Array.isArray(window.projectConfig.categories) ? window.projectConfig.categories : [])
+        .map(c => String(c || '').trim().toLowerCase())
+        .filter(c => c && !deletedCatsLower.has(c))
+    );
     const renamedMap = new Map();
     Object.keys(window.projectConfig.renamedCategories).forEach(k => {
       const lowKey = String(k || '').trim().toLowerCase();
       const targetVal = String(window.projectConfig.renamedCategories[k] || '').trim();
+      if (explicitActiveCatsLower.has(lowKey)) {
+        delete window.projectConfig.renamedCategories[k];
+        return;
+      }
       if (lowKey && targetVal && lowKey !== targetVal.toLowerCase()) {
         renamedMap.set(lowKey, targetVal);
         deletedCatsLower.add(lowKey);
@@ -424,6 +433,11 @@
       if ((d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')) && d.oldCategoryName && d.title) {
         const oldLow = String(d.oldCategoryName).trim().toLowerCase();
         const newTitle = String(d.title).trim();
+        if (explicitActiveCatsLower.has(oldLow)) {
+          delete d.oldCategoryName;
+          delete d.categoryRenamed;
+          return;
+        }
         if (oldLow && newTitle && oldLow !== newTitle.toLowerCase() && !deletedCatsLower.has(newTitle.toLowerCase())) {
           renamedMap.set(oldLow, newTitle);
           deletedCatsLower.add(oldLow);
@@ -451,6 +465,9 @@
           const oldLow = String(item.data.oldName).trim().toLowerCase();
           const newTitle = String(item.data.newName).trim();
           const newLow = newTitle.toLowerCase();
+          if (explicitActiveCatsLower.has(oldLow)) {
+            return;
+          }
           if (oldLow && newLow && oldLow !== newLow && currentCatsLowerCheck.has(newLow) && !deletedCatsLower.has(newLow)) {
             renamedMap.set(oldLow, newTitle);
             deletedCatsLower.add(oldLow);
@@ -625,8 +642,14 @@
         }
       }
 
+      const deletedIdsSet = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+        ? window.CedarStore.getDeletedIdsSet()
+        : new Set();
+
       const existing = window.drafts.find(d => {
         if (!d || d.type !== 'page') return false;
+        if (d.id && d.id !== `page_cat_${catSlug}` && deletedIdsSet.has(String(d.id))) return false;
+        if (typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(d)) return false;
         return (d.title || '').trim().toLowerCase() === lower || (d.slug || '').trim().toLowerCase() === catSlug || d.id === `page_cat_${catSlug}`;
       });
 
@@ -650,12 +673,16 @@
           createdAt: Date.now(),
           updatedAt: Date.now()
         };
-        window.drafts.push(newPage);
         if (window.CedarStore && typeof window.CedarStore.upsertPage === 'function') {
           window.CedarStore.upsertPage(newPage);
+        } else {
+          window.drafts.push(newPage);
         }
         changed = true;
       } else {
+        if (window.CedarStore && existing.id && typeof window.CedarStore.unmarkIdDeleted === 'function') {
+          window.CedarStore.unmarkIdDeleted(existing.id);
+        }
         if (existing.title !== catName) {
           existing.title = catName;
           changed = true;
@@ -2175,13 +2202,38 @@
     // 1. Handle Name / Category rename
     if (isCat && !isAll) {
       if (newTitle !== oldCatName && typeof window.renameCategory === 'function') {
-        const exists = (window.projectConfig?.categories || []).some(
-          c => String(c).trim().toLowerCase() === newTitle.toLowerCase() && String(c).trim().toLowerCase() !== oldCatName.toLowerCase()
+        const newTitleLower = newTitle.toLowerCase();
+        const oldCatLower = oldCatName.toLowerCase();
+        const targetSlug = typeof window.generateSlug === 'function'
+          ? window.generateSlug(newTitle)
+          : newTitleLower.replace(/[^a-z0-9]+/g, '-');
+        const deletedIdsSet = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+          ? window.CedarStore.getDeletedIdsSet()
+          : new Set();
+        const allVisiblePages = ((window.CedarStore && typeof window.CedarStore.getPages === 'function')
+          ? window.CedarStore.getPages()
+          : (Array.isArray(window.drafts) ? window.drafts.filter(d => d && d.type === 'page') : [])
+        ).filter(d => d && d !== page && d.id !== page.id && (!d.id || !deletedIdsSet.has(String(d.id))) && !(typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(d)));
+
+        const hasVisiblePageForTarget = allVisiblePages.some(d =>
+          (d.title || '').trim().toLowerCase() === newTitleLower ||
+          (d.categoryAggregate || '').trim().toLowerCase() === newTitleLower ||
+          d.id === `page_cat_${targetSlug}`
         );
-        if (exists) {
+
+        const existsInConfig = (window.projectConfig?.categories || []).some(
+          c => String(c).trim().toLowerCase() === newTitleLower && String(c).trim().toLowerCase() !== oldCatLower
+        );
+        if (existsInConfig && hasVisiblePageForTarget) {
           if (typeof window.showToast === 'function') window.showToast(`Category "${newTitle}" already exists.`);
           if (inputEditTitle) inputEditTitle.focus();
           return false;
+        }
+        if (existsInConfig && !hasVisiblePageForTarget && Array.isArray(window.projectConfig?.categories)) {
+          // Clean up orphan category entry that has no visible page so rename can proceed cleanly
+          window.projectConfig.categories = window.projectConfig.categories.filter(
+            c => String(c).trim().toLowerCase() !== newTitleLower || String(c).trim().toLowerCase() === oldCatLower
+          );
         }
         window.renameCategory(oldCatName, newTitle);
       }
@@ -2638,8 +2690,25 @@
       if (!window.projectConfig) window.projectConfig = {};
       if (!Array.isArray(window.projectConfig.categories)) window.projectConfig.categories = [];
 
-      const exists = window.projectConfig.categories.some(c => String(c).trim().toLowerCase() === rawVal.toLowerCase());
-      if (exists) {
+      const rawLower = rawVal.toLowerCase();
+      const rawSlug = typeof window.generateSlug === 'function'
+        ? window.generateSlug(rawVal)
+        : rawLower.replace(/[^a-z0-9]+/g, '-');
+      const deletedIdsSet = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+        ? window.CedarStore.getDeletedIdsSet()
+        : new Set();
+      const visiblePages = ((window.CedarStore && typeof window.CedarStore.getPages === 'function')
+        ? window.CedarStore.getPages()
+        : (Array.isArray(window.drafts) ? window.drafts.filter(d => d && d.type === 'page') : [])
+      ).filter(d => d && (!d.id || !deletedIdsSet.has(String(d.id))) && !(typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(d)));
+
+      const hasVisiblePage = visiblePages.some(d =>
+        (d.title || '').trim().toLowerCase() === rawLower ||
+        (d.categoryAggregate || '').trim().toLowerCase() === rawLower ||
+        d.id === `page_cat_${rawSlug}`
+      );
+      const exists = window.projectConfig.categories.some(c => String(c).trim().toLowerCase() === rawLower);
+      if (exists && hasVisiblePage) {
         if (typeof window.showToast === 'function') window.showToast(`Category "${rawVal}" already exists.`);
         return;
       }
@@ -2650,15 +2719,17 @@
       }
       if (Array.isArray(window.projectConfig.deletedCategories)) {
         window.projectConfig.deletedCategories = window.projectConfig.deletedCategories.filter(
-          dc => String(dc || '').trim().toLowerCase() !== rawVal.toLowerCase()
+          dc => String(dc || '').trim().toLowerCase() !== rawLower
         );
         try {
           localStorage.setItem('cedar_deleted_categories', JSON.stringify(window.projectConfig.deletedCategories));
         } catch (e) {}
       }
 
-      // Add to projectConfig.categories
-      window.projectConfig.categories.push(rawVal);
+      // Add to projectConfig.categories (deduplicated)
+      if (!exists) {
+        window.projectConfig.categories.push(rawVal);
+      }
       if (typeof window.saveProjectToStorage === 'function') {
         window.saveProjectToStorage();
       }

@@ -47,7 +47,7 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '6.6.93';
+    let staticVersion = '6.6.94';
     try {
       const compareSemver = (a, b) => {
         const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -454,7 +454,8 @@
       const currentPostCount = (window.CedarStore && typeof window.CedarStore.getPosts === 'function')
         ? window.CedarStore.getPosts().length
         : (Array.isArray(window.drafts) ? window.drafts.filter(d => d && (d.type === 'post' || String(d.id || '').startsWith('post_'))).length : 0);
-      if (typeof window.saveDraftsToStorage === 'function' && (currentPostCount > 0 || !hasExternalVault)) {
+      const hasCloudSession = Boolean(window.SheeshCloud && typeof window.SheeshCloud.hasPendingCloudIntent === 'function' && window.SheeshCloud.hasPendingCloudIntent());
+      if (typeof window.saveDraftsToStorage === 'function' && currentPostCount > 0 && !hasCloudSession) {
         window.saveDraftsToStorage();
       }
       if (typeof window.renderDashboard === 'function') {
@@ -471,6 +472,12 @@
     if (window.SheeshCloud && typeof window.SheeshCloud.init === 'function') {
       try {
         await window.SheeshCloud.init();
+        if (typeof window.renderDashboard === 'function') {
+          window.renderDashboard();
+        }
+        if (typeof window.updateAllPreviewFrames === 'function') {
+          window.updateAllPreviewFrames();
+        }
       } catch (e) {
         console.warn('[Cedar] SheeshCloud init notice:', e);
       }

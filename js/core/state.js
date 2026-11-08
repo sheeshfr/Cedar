@@ -4942,15 +4942,6 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       for (let i = 0; i < all.length; i++) {
         drafts.push(all[i]);
       }
-      if (typeof window !== 'undefined' && window.drafts !== drafts) {
-        if (Array.isArray(window.drafts)) {
-          window.drafts.length = 0;
-          for (let i = 0; i < all.length; i++) {
-            window.drafts.push(all[i]);
-          }
-        }
-        window.drafts = drafts;
-      }
     },
 
     _ensureBuiltInPages() {
@@ -5209,6 +5200,13 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         if (window.projectConfig.renamedCategories && typeof window.projectConfig.renamedCategories === 'object') {
           delete window.projectConfig.renamedCategories[catLower];
         }
+        if (Array.isArray(window.projectConfig.activityLog)) {
+          window.projectConfig.activityLog.forEach(item => {
+            if (item && item.type === 'category' && item.data && item.data.action === 'renamed' && String(item.data.oldName || '').trim().toLowerCase() === catLower) {
+              delete item.data.oldName;
+            }
+          });
+        }
       }
       if (typeof projectConfig !== 'undefined' && projectConfig) {
         projectConfig.deletedCategories = filteredDelCats;
@@ -5216,6 +5214,13 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           delete projectConfig.renamedCategories[catLower];
         }
       }
+
+      this._pages.forEach(p => {
+        if (p && p.oldCategoryName && String(p.oldCategoryName).trim().toLowerCase() === catLower) {
+          delete p.oldCategoryName;
+          delete p.categoryRenamed;
+        }
+      });
 
       if (catSlug) {
         this.unmarkIdDeleted(`page_cat_${catSlug}`);
@@ -5566,6 +5571,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       } finally {
         this._isHydrating = false;
       }
+      this.notify();
     },
 
     reconcileDiskDrafts(diskDrafts) {
@@ -7174,6 +7180,30 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     // 2. Remove from projectConfig.activityLog and window.activityLog
 
     const proj = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
+
+    // If deleting a category aggregate page, also remove its category from projectConfig.categories
+    const isCatPageItem = Boolean(
+      item && (item.isCategoryAggregate || String(item.id || '').startsWith('page_cat_') || String(realId || '').startsWith('page_cat_'))
+    );
+    if (isCatPageItem && proj) {
+      const catNameToDelete = String(item.categoryAggregate || item.title || '').trim();
+      const catLow = catNameToDelete.toLowerCase();
+      if (catLow) {
+        if (Array.isArray(proj.categories)) {
+          proj.categories = proj.categories.filter(c => String(c || '').trim().toLowerCase() !== catLow);
+        }
+        if (!Array.isArray(proj.deletedCategories)) proj.deletedCategories = [];
+        if (!proj.deletedCategories.some(dc => String(dc || '').trim().toLowerCase() === catLow)) {
+          proj.deletedCategories.push(catNameToDelete);
+          try {
+            localStorage.setItem('cedar_deleted_categories', JSON.stringify(proj.deletedCategories));
+          } catch (e) {}
+        }
+        if (proj.defaultCategory && String(proj.defaultCategory).trim().toLowerCase() === catLow) {
+          proj.defaultCategory = proj.categories?.[0] || '';
+        }
+      }
+    }
 
     if (proj && Array.isArray(proj.activityLog)) {
 

@@ -25,11 +25,39 @@
     }
 
     if (!Array.isArray(projectConfig.categories)) projectConfig.categories = [];
-    const existsOther = projectConfig.categories.some(c => c.toLowerCase() === newTrimmed.toLowerCase() && c.toLowerCase() !== oldTrimmed.toLowerCase());
-    if (existsOther) {
+    const oldLower = oldTrimmed.toLowerCase();
+    const newLower = newTrimmed.toLowerCase();
+    const oldSlugCheck = typeof window.generateSlug === 'function' ? window.generateSlug(oldTrimmed) : oldLower.replace(/[^a-z0-9]+/g, '-');
+    const newSlugCheck = typeof window.generateSlug === 'function' ? window.generateSlug(newTrimmed) : newLower.replace(/[^a-z0-9]+/g, '-');
+    const deletedIdsSet = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+      ? window.CedarStore.getDeletedIdsSet()
+      : new Set();
+    const visiblePages = ((window.CedarStore && typeof window.CedarStore.getPages === 'function')
+      ? window.CedarStore.getPages()
+      : (Array.isArray(window.drafts) ? window.drafts.filter(d => d && d.type === 'page') : [])
+    ).filter(d => {
+      if (!d) return false;
+      if (d.id && deletedIdsSet.has(String(d.id))) return false;
+      if (typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(d)) return false;
+      const dTitleLow = (d.title || '').trim().toLowerCase();
+      const dCatLow = (d.categoryAggregate || '').trim().toLowerCase();
+      if (dTitleLow === oldLower || dCatLow === oldLower || d.id === `page_cat_${oldSlugCheck}`) return false;
+      return true;
+    });
+    const hasVisibleTargetPage = visiblePages.some(d =>
+      (d.title || '').trim().toLowerCase() === newLower ||
+      (d.categoryAggregate || '').trim().toLowerCase() === newLower ||
+      d.id === `page_cat_${newSlugCheck}`
+    );
+
+    const existsOther = projectConfig.categories.some(c => String(c || '').trim().toLowerCase() === newLower && String(c || '').trim().toLowerCase() !== oldLower);
+    if (existsOther && hasVisibleTargetPage) {
       if (typeof window.showToast === 'function') window.showToast(`Category "${newTrimmed}" already exists.`);
       renderTaxonomy();
       return false;
+    }
+    if (existsOther && !hasVisibleTargetPage) {
+      projectConfig.categories = projectConfig.categories.filter(c => String(c || '').trim().toLowerCase() !== newLower || String(c || '').trim().toLowerCase() === oldLower);
     }
 
     // 1. Update projectConfig.categories & un-tombstone newTrimmed if it was previously deleted
@@ -800,17 +828,34 @@
           showToast("Woah! That's a reserved name - pick something else.");
           return;
         }
-        if (!projectConfig.categories.some(c => c && c.toLowerCase() === val.toLowerCase())) {
+        const valLower = val.toLowerCase();
+        const valSlug = typeof window.generateSlug === 'function' ? window.generateSlug(val) : valLower.replace(/[^a-z0-9]+/g, '-');
+        const deletedIdsSet = (window.CedarStore && typeof window.CedarStore.getDeletedIdsSet === 'function')
+          ? window.CedarStore.getDeletedIdsSet()
+          : new Set();
+        const visiblePages = ((window.CedarStore && typeof window.CedarStore.getPages === 'function')
+          ? window.CedarStore.getPages()
+          : (Array.isArray(window.drafts) ? window.drafts.filter(d => d && d.type === 'page') : [])
+        ).filter(d => d && (!d.id || !deletedIdsSet.has(String(d.id))) && !(typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(d)));
+        const hasVisiblePage = visiblePages.some(d =>
+          (d.title || '').trim().toLowerCase() === valLower ||
+          (d.categoryAggregate || '').trim().toLowerCase() === valLower ||
+          d.id === `page_cat_${valSlug}`
+        );
+        const alreadyInConfig = projectConfig.categories.some(c => c && c.toLowerCase() === valLower);
+        if (!alreadyInConfig || !hasVisiblePage) {
           if (window.CedarStore && typeof window.CedarStore.unmarkCategoryDeleted === 'function') {
             window.CedarStore.unmarkCategoryDeleted(val);
           }
           if (Array.isArray(projectConfig.deletedCategories)) {
-            projectConfig.deletedCategories = projectConfig.deletedCategories.filter(dc => String(dc || '').trim().toLowerCase() !== val.toLowerCase());
+            projectConfig.deletedCategories = projectConfig.deletedCategories.filter(dc => String(dc || '').trim().toLowerCase() !== valLower);
             try {
               localStorage.setItem('cedar_deleted_categories', JSON.stringify(projectConfig.deletedCategories));
             } catch (e) {}
           }
-          projectConfig.categories.push(val);
+          if (!alreadyInConfig) {
+            projectConfig.categories.push(val);
+          }
           saveProjectToStorage();
           if (typeof window.logActivity === 'function') {
             window.logActivity('category', { action: 'added', categoryName: val });
