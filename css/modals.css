@@ -5579,33 +5579,17 @@
   color: #ffffff;
 }
 
-.ftue-folder-target-badge {
-  margin-top: 0.5rem;
-  padding: 0.55rem 0.85rem;
-  border-radius: 8px;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  font-size: 0.8rem;
-  color: #93c5fd;
+.ftue-folder-login-wrap {
+  margin-top: 0.6rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  line-height: 1.4;
-  transition: all 0.2s ease;
+  justify-content: flex-start;
 }
 
-.ftue-folder-target-badge strong {
-  color: #ffffff;
-}
-
-.ftue-folder-target-badge.is-selected {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.25);
-  color: #6ee7b7;
-}
-
-.ftue-folder-target-badge.is-selected strong {
-  color: #a7f3d0;
+.ftue-folder-login-btn {
+  padding: 0.48rem 1rem;
+  font-size: 0.82rem;
+  border-radius: 8px;
 }
 
 .ftue-modal-content.ftue-theme-light .ftue-folder-input:hover {
@@ -5624,24 +5608,17 @@
   color: #09090b;
 }
 
-.ftue-modal-content.ftue-theme-light .ftue-folder-target-badge {
-  background: rgba(37, 99, 235, 0.06) !important;
-  border-color: rgba(37, 99, 235, 0.2) !important;
-  color: #1d4ed8 !important;
+.ftue-modal-content.ftue-theme-light .ftue-folder-login-btn {
+  background: #f4f4f5;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #3f3f46;
 }
 
-.ftue-modal-content.ftue-theme-light .ftue-folder-target-badge strong {
-  color: #0f172a !important;
-}
-
-.ftue-modal-content.ftue-theme-light .ftue-folder-target-badge.is-selected {
-  background: rgba(16, 185, 129, 0.08) !important;
-  border-color: rgba(16, 185, 129, 0.3) !important;
-  color: #047857 !important;
-}
-
-.ftue-modal-content.ftue-theme-light .ftue-folder-target-badge.is-selected strong {
-  color: #064e3b !important;
+.ftue-modal-content.ftue-theme-light .ftue-folder-login-btn:hover,
+.ftue-modal-content.ftue-theme-light .ftue-folder-login-btn:focus-visible {
+  background: #e4e4e7;
+  border-color: rgba(0, 0, 0, 0.22);
+  color: #09090b;
 }
 
 /* Segmented Pills Control */

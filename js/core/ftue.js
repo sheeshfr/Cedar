@@ -1760,12 +1760,54 @@
     return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
   }
 
+  let isSheeshLoggedInFlag = false;
+
   function isCloudLoggedIn() {
-    return Boolean(
-      window.SheeshCloud &&
-      typeof window.SheeshCloud.getUser === 'function' &&
-      window.SheeshCloud.getUser()
-    );
+    if (window.SheeshCloud) {
+      if (typeof window.SheeshCloud.isLoggedIn === 'function' && window.SheeshCloud.isLoggedIn()) {
+        return true;
+      }
+      if (typeof window.SheeshCloud.getUser === 'function' && window.SheeshCloud.getUser()) {
+        return true;
+      }
+    }
+    if (document.documentElement && document.documentElement.classList.contains('sheesh-logged-in')) {
+      return true;
+    }
+    if (document.body && document.body.classList.contains('sheesh-logged-in')) {
+      return true;
+    }
+    try {
+      const hasToken = Boolean(
+        localStorage.getItem('sheesh_auth_token') ||
+        (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sheesh_auth_token_session')) ||
+        localStorage.getItem('sheesh_active_user_id')
+      );
+      if (hasToken) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  function syncSheeshLoginFlag() {
+    isSheeshLoggedInFlag = isCloudLoggedIn();
+    const modalEl = document.getElementById('modal-ftue');
+    if (modalEl) {
+      modalEl.setAttribute('data-sheesh-logged-in', isSheeshLoggedInFlag ? 'true' : 'false');
+      modalEl.classList.toggle('is-sheesh-logged-in', isSheeshLoggedInFlag);
+    }
+    const folderGroup = document.getElementById('ftue-folder-group');
+    if (folderGroup) {
+      folderGroup.style.display = isSheeshLoggedInFlag ? 'none' : '';
+    }
+    const folderLoginWrap = document.getElementById('ftue-folder-login-wrap');
+    if (folderLoginWrap) {
+      folderLoginWrap.style.display = isSheeshLoggedInFlag ? 'none' : '';
+    }
+    const signinFooter = document.querySelector('#ftue-screen-choice .ftue-signin-footer');
+    if (signinFooter) {
+      signinFooter.style.display = isSheeshLoggedInFlag ? 'none' : '';
+    }
+    return isSheeshLoggedInFlag;
   }
 
   async function pickDirectorySafe() {
@@ -1784,9 +1826,7 @@
 
   function updateFolderPreview() {
     const titleInput = document.getElementById('ftue-site-title');
-    const previewEl = document.getElementById('ftue-preview-folder-name');
     const locationInput = document.getElementById('ftue-folder-location-input');
-    const badgeEl = document.getElementById('ftue-folder-target-badge');
 
     const val = titleInput ? titleInput.value.trim() : '';
     const safe = val.replace(/[/\\?%*:|"<>]/g, '').trim() || '[Title]';
@@ -1799,25 +1839,11 @@
           locationInput.title = `Blog workspace destination: ${selectedParentDirectoryHandle.name}`;
           locationInput.classList.remove('ftue-input-error');
         }
-        if (badgeEl) {
-          badgeEl.classList.add('is-selected');
-          badgeEl.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span>Cedar will save your blog directly inside empty folder: <strong id="ftue-preview-folder-name" style="color: inherit;">${selectedParentDirectoryHandle.name}</strong></span>
-          `;
-        }
       } else {
         if (locationInput) {
           locationInput.value = `${selectedParentDirectoryHandle.name}/${folderName}`;
           locationInput.title = `Blog workspace destination: ${selectedParentDirectoryHandle.name}/${folderName}`;
           locationInput.classList.remove('ftue-input-error');
-        }
-        if (badgeEl) {
-          badgeEl.classList.add('is-selected');
-          badgeEl.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span>Cedar will create: <strong id="ftue-preview-folder-name" style="color: inherit;">${folderName}</strong> inside <strong>${selectedParentDirectoryHandle.name}</strong></span>
-          `;
         }
       }
     } else {
@@ -1825,13 +1851,6 @@
         locationInput.value = '';
         locationInput.placeholder = 'Select a folder on your computer...';
         locationInput.title = 'Blog workspace destination';
-      }
-      if (badgeEl) {
-        badgeEl.classList.remove('is-selected');
-        badgeEl.innerHTML = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-          <span>Cedar will create: <strong id="ftue-preview-folder-name" style="color: #ffffff;">${folderName}</strong> in chosen folder</span>
-        `;
       }
     }
   }
@@ -1924,7 +1943,8 @@
   let ftueSubscreenPushed = false;
 
   function showScreen(screenId, updateHistory = true) {
-    if (!isFsaSupported() && !isCloudLoggedIn() && screenId !== 'unsupported') {
+    const loggedIn = syncSheeshLoginFlag();
+    if (!isFsaSupported() && !loggedIn && screenId !== 'unsupported') {
       screenId = 'unsupported';
     }
 
@@ -1940,13 +1960,9 @@
     }
 
     if (screenId === 'new') {
-      const folderGroup = document.getElementById('ftue-folder-group');
-      if (folderGroup) {
-        folderGroup.style.display = isCloudLoggedIn() ? 'none' : '';
-      }
       detectSystemTimezone();
       syncBioPlaceholder();
-      if (!isCloudLoggedIn()) {
+      if (!loggedIn) {
         updateFolderPreview();
       }
       const uploadSub = document.querySelector('#ftue-logo-dropzone .ftue-upload-sub');
@@ -1957,8 +1973,6 @@
         const el = document.getElementById(id);
         if (el) el.placeholder = '';
       });
-      const badge = document.getElementById('ftue-folder-target-badge');
-      if (badge) badge.style.display = 'flex';
       const folderErr = document.getElementById('ftue-folder-error');
       if (folderErr) folderErr.style.display = 'none';
       const locationInput = document.getElementById('ftue-folder-location-input');
@@ -2252,6 +2266,7 @@
     } catch (e) {}
     const modalEl = document.getElementById('modal-ftue');
     if (!modalEl) return false;
+    syncSheeshLoginFlag();
     if (ftueInitialized) {
       const uploadSub = document.querySelector('#ftue-logo-dropzone .ftue-upload-sub');
       if (uploadSub) uploadSub.textContent = 'Supports images up to 1200x1200';
@@ -2326,16 +2341,18 @@
       });
     }
 
-    const btnSheeshSignIn = document.getElementById('ftue-btn-sheesh-signin');
-    if (btnSheeshSignIn) {
-      btnSheeshSignIn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (window.SheeshCloud && typeof window.SheeshCloud.openModal === 'function') {
-          window.SheeshCloud.openModal('login');
-        }
-      });
-    }
+    ['ftue-btn-sheesh-signin', 'ftue-btn-folder-login'].forEach(btnId => {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (window.SheeshCloud && typeof window.SheeshCloud.openModal === 'function') {
+            window.SheeshCloud.openModal('login');
+          }
+        });
+      }
+    });
 
     // 2. Back buttons
     const backFromNew = document.getElementById('ftue-back-from-new');
@@ -4084,8 +4101,9 @@
     if (!modalEl) return;
 
     modalEl.style.display = 'flex';
+    const loggedIn = syncSheeshLoginFlag();
 
-    if (!isFsaSupported() && !isCloudLoggedIn()) {
+    if (!isFsaSupported() && !loggedIn) {
       showScreen('unsupported', 'replace');
       const btnClose = document.getElementById('ftue-btn-close');
       if (btnClose) btnClose.style.display = 'none';
@@ -4186,6 +4204,9 @@
     applyLiveTheme: applyLiveTheme,
     resolvePopout3dTokens: resolvePopout3dTokens,
     checkAndLaunch: checkAndLaunchFTUE,
+    isCloudLoggedIn: isCloudLoggedIn,
+    syncSheeshLoginFlag: syncSheeshLoginFlag,
+    isSheeshLoggedIn: function () { return isSheeshLoggedInFlag; },
     getSortedTimezoneList: getSortedTimezoneList,
     getTimezoneOffsetInfo: getTimezoneOffsetInfo,
     THEME_PALETTES: THEME_PALETTES,

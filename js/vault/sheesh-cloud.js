@@ -544,6 +544,14 @@
       body.sheesh-logged-in #danger-divider-disconnect,
       html.sheesh-logged-in #ftue-folder-group,
       body.sheesh-logged-in #ftue-folder-group,
+      #modal-ftue[data-sheesh-logged-in="true"] #ftue-folder-group,
+      #modal-ftue.is-sheesh-logged-in #ftue-folder-group,
+      html.sheesh-logged-in #ftue-folder-login-wrap,
+      body.sheesh-logged-in #ftue-folder-login-wrap,
+      #modal-ftue[data-sheesh-logged-in="true"] #ftue-folder-login-wrap,
+      html.sheesh-logged-in .ftue-signin-footer,
+      body.sheesh-logged-in .ftue-signin-footer,
+      #modal-ftue[data-sheesh-logged-in="true"] .ftue-signin-footer,
       html.sheesh-logged-in #ftue-tab-import-folder,
       body.sheesh-logged-in #ftue-tab-import-folder,
       html.sheesh-logged-in #ftue-folder-dropzone,
@@ -738,6 +746,16 @@
 
     const ftueModal = document.getElementById('modal-ftue');
     const wasFtueOpen = Boolean(ftueModal && ftueModal.style.display && ftueModal.style.display !== 'none');
+    const ftueScreenNew = document.getElementById('ftue-screen-new');
+    const wasFtueOnNewScreen = Boolean(wasFtueOpen && ftueScreenNew && ftueScreenNew.style.display !== 'none');
+    const isFtueNuclearTrigger = (() => {
+      try {
+        return (localStorage.getItem('cedar_trigger_ftue') || localStorage.getItem('outpost_trigger_ftue')) === '1';
+      } catch (_) {
+        return false;
+      }
+    })();
+    const shouldKeepFtueOpen = Boolean(wasFtueOnNewScreen || isFtueNuclearTrigger);
     const hadUnauthenticatedLocalContent = !prevUserId && hasLocalCedarContent();
 
     if (prevUserId && incomingUser && incomingUser.id && prevUserId !== incomingUser.id) {
@@ -745,14 +763,29 @@
     }
 
     try {
-      localStorage.setItem('cedar_ftue_completed', '1');
-      if (window.CedarFTUE && typeof window.CedarFTUE.close === 'function') {
-        window.CedarFTUE.close();
+      if (!shouldKeepFtueOpen) {
+        localStorage.setItem('cedar_ftue_completed', '1');
+        if (window.CedarFTUE && typeof window.CedarFTUE.close === 'function') {
+          window.CedarFTUE.close();
+        }
+      } else if (window.CedarFTUE && typeof window.CedarFTUE.syncSheeshLoginFlag === 'function') {
+        window.CedarFTUE.syncSheeshLoginFlag();
       }
     } catch (_) {}
 
     await disconnectCedarLocalFolder();
     updateGlobalIndicators('Synced');
+
+    if (wasFtueOnNewScreen) {
+      if (incomingUser && incomingUser.id) {
+        try {
+          localStorage.setItem(STORAGE_KEY_ACTIVE_USER, incomingUser.id);
+        } catch (_) {}
+      }
+      renderModalState();
+      closeSheeshModal();
+      return;
+    }
 
     const isMonkeyMan = Boolean(incomingUser && !incomingUser.isAdmin && String(incomingUser.username || '').trim().toLowerCase() === 'monkey_man');
     if (hadUnauthenticatedLocalContent && incomingUser && incomingUser.id && !isMonkeyMan) {
@@ -781,7 +814,9 @@
       } catch (_) {}
     }
     renderModalState();
-    await pullCedarFromCloud();
+    if (!shouldKeepFtueOpen) {
+      await pullCedarFromCloud();
+    }
     if (wasFtueOpen || options.closeModalAfterPull) {
       closeSheeshModal();
     }
@@ -847,7 +882,9 @@
       throw new Error('Please sign in to continue.');
     }
     if (!resp.ok) {
-      throw new Error(data.error || `Request failed (${resp.status})`);
+      const err = new Error(data.error || `Request failed (${resp.status})`);
+      err.status = resp.status;
+      throw err;
     }
     return data;
   }
@@ -1141,6 +1178,9 @@
 
     if (window.Cedar && window.Cedar.vaultSync && typeof window.Cedar.vaultSync.updateSyncStatusUI === 'function') {
       try { window.Cedar.vaultSync.updateSyncStatusUI(); } catch (_) {}
+    }
+    if (window.CedarFTUE && typeof window.CedarFTUE.syncSheeshLoginFlag === 'function') {
+      try { window.CedarFTUE.syncSheeshLoginFlag(); } catch (_) {}
     }
   }
 
@@ -1566,11 +1606,18 @@
       let items = decodeChunkedItems(rawItems);
       let keys = Object.keys(items);
 
-      // Suppress FTUE wizard for authenticated cloud users
+      // Suppress FTUE wizard for authenticated cloud users unless actively creating a new blog
       try {
-        localStorage.setItem('cedar_ftue_completed', '1');
-        if (window.CedarFTUE && typeof window.CedarFTUE.close === 'function') {
-          window.CedarFTUE.close();
+        const ftueScreenNew = document.getElementById('ftue-screen-new');
+        const isFtueOnNew = Boolean(ftueScreenNew && ftueScreenNew.style.display !== 'none');
+        const isNuclear = (localStorage.getItem('cedar_trigger_ftue') || localStorage.getItem('outpost_trigger_ftue')) === '1';
+        if (!isFtueOnNew && !isNuclear) {
+          localStorage.setItem('cedar_ftue_completed', '1');
+          if (window.CedarFTUE && typeof window.CedarFTUE.close === 'function') {
+            window.CedarFTUE.close();
+          }
+        } else if (window.CedarFTUE && typeof window.CedarFTUE.syncSheeshLoginFlag === 'function') {
+          window.CedarFTUE.syncSheeshLoginFlag();
         }
       } catch (_) {}
 
@@ -2666,6 +2713,18 @@
   }
 
   async function initSheeshCloud() {
+    ensureLoggedInStylesInjected();
+    try {
+      const hasStoredSession = Boolean(getStoredToken() || localStorage.getItem(STORAGE_KEY_ACTIVE_USER));
+      if (hasStoredSession) {
+        if (document.documentElement) document.documentElement.classList.add('sheesh-logged-in');
+        if (document.body) document.body.classList.add('sheesh-logged-in');
+      }
+      if (window.CedarFTUE && typeof window.CedarFTUE.syncSheeshLoginFlag === 'function') {
+        window.CedarFTUE.syncSheeshLoginFlag();
+      }
+    } catch (_) {}
+
     bindEvents();
     hookCedarSaveFunctions();
 
@@ -2715,8 +2774,18 @@
             openAdminModal();
           }
           return currentUser;
+        } else {
+          storeToken(null, false);
+          try { localStorage.removeItem(STORAGE_KEY_ACTIVE_USER); } catch (_) {}
+          currentUser = null;
+          bindTabToCurrentUser(null);
+          updateGlobalIndicators();
         }
-      } catch (_) {
+      } catch (err) {
+        if (err && err.status === 401) {
+          storeToken(null, false);
+          try { localStorage.removeItem(STORAGE_KEY_ACTIVE_USER); } catch (_) {}
+        }
         currentUser = null;
         bindTabToCurrentUser(null);
         updateGlobalIndicators();
@@ -2747,6 +2816,16 @@
     return Boolean(currentUser);
   }
 
+  function isLoggedIn() {
+    if (currentUser) return true;
+    try {
+      if (getStoredToken() || localStorage.getItem(STORAGE_KEY_ACTIVE_USER)) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   window.SheeshCloud = {
     init: initSheeshCloud,
     openModal: openSheeshModal,
@@ -2757,6 +2836,7 @@
     scheduleSync: scheduleAutoSync,
     rollPassphrase,
     getUser: () => currentUser,
+    isLoggedIn,
     hasPendingCloudIntent
   };
 

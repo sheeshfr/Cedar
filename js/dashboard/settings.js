@@ -1719,9 +1719,27 @@
             } catch (e) {}
           }
 
-          // 6. Clear localStorage & sessionStorage
+          // 6. Clear localStorage & sessionStorage (while preserving sheesh.gg login session)
+          const preservedSheeshLocal = {};
+          const preservedSheeshSession = {};
+          try {
+            ['sheesh_auth_token', 'sheesh_active_user_id', 'sheesh_api_base_url', 'sheesh_username_casing_map', 'sheesh_invite_passwords_map'].forEach(k => {
+              const v = localStorage.getItem(k);
+              if (v !== null) preservedSheeshLocal[k] = v;
+            });
+            ['sheesh_auth_token_session'].forEach(k => {
+              const v = sessionStorage.getItem(k);
+              if (v !== null) preservedSheeshSession[k] = v;
+            });
+          } catch (e) {}
+
           localStorage.clear();
           try { sessionStorage.clear(); } catch (e) {}
+
+          try {
+            Object.entries(preservedSheeshLocal).forEach(([k, v]) => localStorage.setItem(k, v));
+            Object.entries(preservedSheeshSession).forEach(([k, v]) => sessionStorage.setItem(k, v));
+          } catch (e) {}
 
           // 7. Seed fresh minimal factory state with explicit disconnect
           localStorage.setItem('cedar_vault_disconnected', '1');
