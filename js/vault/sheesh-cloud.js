@@ -14,6 +14,7 @@
   const STORAGE_KEY_TOKEN_SESSION = 'sheesh_auth_token_session';
   const STORAGE_KEY_ACTIVE_USER = 'sheesh_active_user_id';
   const STORAGE_KEY_LAST_SYNC = 'sheesh_cloud_last_sync';
+  const STORAGE_KEY_SERVER_UPDATED_AT = 'sheesh_cloud_server_updated_at';
   const STORAGE_KEY_INVITE_PASSWORDS = 'sheesh_invite_passwords_map';
   const STORAGE_KEY_USERNAME_CASING = 'sheesh_username_casing_map';
   const STORAGE_KEY_FLASH_POPUP = 'sheesh_flash_top_popup';
@@ -209,9 +210,22 @@
   let syncDebounceTimer = null;
   let isPullingFromCloud = false;
   let isPushingToCloud = false;
-  let lastServerUpdatedAt = 0;
+  let lastServerUpdatedAt = (() => {
+    try { return Number(localStorage.getItem(STORAGE_KEY_SERVER_UPDATED_AT)) || 0; } catch (_) { return 0; }
+  })();
   let initPromise = null;
   let lastSyncedFingerprints = new Map();
+
+  function setLastServerUpdatedAt(ts) {
+    const num = Number(ts) || 0;
+    if (num <= 0) {
+      lastServerUpdatedAt = 0;
+      try { localStorage.removeItem(STORAGE_KEY_SERVER_UPDATED_AT); } catch (_) {}
+      return;
+    }
+    lastServerUpdatedAt = Math.max(lastServerUpdatedAt, num);
+    try { localStorage.setItem(STORAGE_KEY_SERVER_UPDATED_AT, String(lastServerUpdatedAt)); } catch (_) {}
+  }
 
   function getApiBase() {
     try {
@@ -253,7 +267,7 @@
 
   async function wipeCedarLocalWorkspace() {
     lastSyncedFingerprints.clear();
-    lastServerUpdatedAt = 0;
+    setLastServerUpdatedAt(0);
     try {
       const keysToRemove = [
         'sheesh_static_writer_drafts_v2',
@@ -271,7 +285,8 @@
         'cedar_theme_preference',
         'cedar_ftue_completed',
         'outpost_ftue_completed',
-        STORAGE_KEY_LAST_SYNC
+        STORAGE_KEY_LAST_SYNC,
+        STORAGE_KEY_SERVER_UPDATED_AT
       ];
       keysToRemove.forEach(k => localStorage.removeItem(k));
     } catch (_) {}
@@ -411,7 +426,7 @@
     await wipeCedarLocalWorkspace();
     await apiRequest('/sync/cedar', { method: 'DELETE' }).catch(() => {});
     lastSyncedFingerprints.clear();
-    lastServerUpdatedAt = 0;
+    setLastServerUpdatedAt(0);
 
     try {
       localStorage.setItem('cedar_ftue_completed', '1');
@@ -1175,10 +1190,88 @@
           body: batches[idx]
         });
         if (putRes && putRes.updatedAt) {
-          lastServerUpdatedAt = Math.max(lastServerUpdatedAt, Number(putRes.updatedAt));
+          setLastServerUpdatedAt(putRes.updatedAt);
         }
       }
     }));
+  }
+
+  function primeFingerprintsFromLocalState() {
+    try {
+      const safeCfg = stripSecretsFromConfig(window.projectConfig || {});
+      lastSyncedFingerprints.set('config:main', JSON.stringify(safeCfg));
+    } catch (_) {}
+
+    try {
+      let brandingRaw = localStorage.getItem('cedar_branding_files_v1');
+      if (!brandingRaw && window.brandingFiles && typeof window.brandingFiles === 'object') {
+        brandingRaw = JSON.stringify(window.brandingFiles);
+      }
+      if (brandingRaw && brandingRaw.length < MAX_MEDIA_CHARS) {
+        lastSyncedFingerprints.set('branding:files', brandingRaw);
+      }
+    } catch (_) {}
+
+    const defaultAuthorAvatar = (window.projectConfig && Array.isArray(window.projectConfig.authors) && window.projectConfig.authors[0] && window.projectConfig.authors[0].avatar) || '';
+    const draftsArr = Array.isArray(window.drafts) ? window.drafts : [];
+    const embeddedMediaPaths = new Set();
+
+    for (const post of draftsArr) {
+      if (!post || !post.id) continue;
+      const key = `post:${String(post.id).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
+      const postCopy = safeJsonParse(JSON.stringify(post), null) || Object.assign({}, post);
+      if (postCopy.authorAvatar && String(postCopy.authorAvatar).startsWith('data:') && defaultAuthorAvatar && postCopy.authorAvatar === defaultAuthorAvatar) {
+        postCopy.authorAvatar = '__useProjectAuthorAvatar__';
+      }
+      if (Array.isArray(postCopy.images)) {
+        postCopy.images.forEach(im => {
+          if (!im || typeof im !== 'object') return;
+          delete im.blob;
+          delete im.objectUrl;
+          if (!im.dataUrl && im.src && String(im.src).startsWith('data:')) {
+            im.dataUrl = im.src;
+          }
+          if (!im.dataUrl) {
+            const regData = getImageRegistryValue(im.relativePath) || getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.filename) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+            if (regData && regData.startsWith('data:')) {
+              im.dataUrl = regData;
+            }
+          }
+          if (im.src && im.dataUrl && im.src === im.dataUrl) {
+            delete im.src;
+          }
+          if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
+          if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
+          if (im.filename) embeddedMediaPaths.add(String(im.filename));
+          if (im.id) embeddedMediaPaths.add(String(im.id));
+          if (im.name) embeddedMediaPaths.add(String(im.name));
+        });
+      }
+      lastSyncedFingerprints.set(key, JSON.stringify(postCopy));
+    }
+
+    lastSyncedFingerprints.set('index:posts', JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id)));
+
+    const regEntries = (window.imageRegistry instanceof Map)
+      ? Array.from(window.imageRegistry.entries())
+      : (window.imageRegistry && typeof window.imageRegistry === 'object' ? Object.entries(window.imageRegistry) : []);
+
+    for (const [mediaPath, rawEntry] of regEntries) {
+      const dataUrl = extractRegistryDataUrl(rawEntry);
+      if (!mediaPath || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:') || dataUrl.length > MAX_MEDIA_CHARS) continue;
+      const cleanPath = String(mediaPath).replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!cleanPath.startsWith('media/links/') && !cleanPath.startsWith('media/library/')) {
+        continue;
+      }
+      const fileName = cleanPath.split('/').pop() || '';
+      if (embeddedMediaPaths.has(cleanPath) || embeddedMediaPaths.has(String(mediaPath)) || (fileName && embeddedMediaPaths.has(fileName))) {
+        continue;
+      }
+      const mediaKey = normalizeMediaSyncKey(cleanPath);
+      if (mediaKey) {
+        lastSyncedFingerprints.set(mediaKey, dataUrl);
+      }
+    }
   }
 
   async function pushCedarToCloud(options = {}) {
@@ -1234,7 +1327,7 @@
               im.dataUrl = im.src;
             }
             if (!im.dataUrl) {
-              const regData = getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+              const regData = getImageRegistryValue(im.relativePath) || getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.filename) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
               if (regData && regData.startsWith('data:')) {
                 im.dataUrl = regData;
               }
@@ -1242,7 +1335,9 @@
             if (im.src && im.dataUrl && im.src === im.dataUrl) {
               delete im.src;
             }
+            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
             if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
+            if (im.filename) embeddedMediaPaths.add(String(im.filename));
             if (im.id) embeddedMediaPaths.add(String(im.id));
             if (im.name) embeddedMediaPaths.add(String(im.name));
           });
@@ -1348,19 +1443,11 @@
     return null;
   }
 
-  async function pullCedarFromCloud() {
+  async function pullCedarFromCloud(options = {}) {
     if (!currentUser || isPullingFromCloud) return;
     try {
       isPullingFromCloud = true;
       await disconnectCedarLocalFolder();
-
-      const res = await apiRequest('/sync/cedar');
-      if (res && res.updatedAt) {
-        lastServerUpdatedAt = Math.max(lastServerUpdatedAt, Number(res.updatedAt));
-      }
-      const rawItems = (res && res.items) ? res.items : {};
-      let items = decodeChunkedItems(rawItems);
-      let keys = Object.keys(items);
 
       // Suppress FTUE wizard for authenticated cloud users
       try {
@@ -1370,30 +1457,69 @@
         }
       } catch (_) {}
 
-      // Keep the SHEESH! blog backup exclusive to @monkey_man (never on the Admin account)
       const isMonkeyMan = Boolean(
         currentUser &&
         !currentUser.isAdmin &&
         String(currentUser.username || '').trim().toLowerCase() === 'monkey_man'
       );
+      const hasLocalMonkeyPosts = Array.isArray(window.drafts) &&
+        window.drafts.some(d => d && d.id === 'post_1790376615849_9ux3t0');
+
+      // Fast path: if local workspace already has the user's posts and server timestamp hasn't changed, skip 8.7MB download
+      if (
+        !options.force &&
+        lastServerUpdatedAt > 0 &&
+        hasLocalCedarContent() &&
+        (!isMonkeyMan || hasLocalMonkeyPosts) &&
+        !(currentUser && currentUser.isAdmin && hasLocalMonkeyPosts)
+      ) {
+        try {
+          const meta = await apiRequest('/sync/cedar?meta=1');
+          const remoteTs = Number(meta && meta.updatedAt) || 0;
+          if (remoteTs > 0 && remoteTs <= lastServerUpdatedAt) {
+            primeFingerprintsFromLocalState();
+            updateGlobalIndicators('Synced');
+            renderModalState();
+            return;
+          }
+        } catch (_) {}
+      }
+
+      // If @monkey_man has no local posts yet, prefetch the seed in parallel with the cloud request so UI never stalls
+      const seedPrefetchPromise = (isMonkeyMan && !hasLocalMonkeyPosts)
+        ? fetchAdminCedarSeedItems()
+        : null;
+
+      const res = await apiRequest('/sync/cedar');
+      if (res && res.updatedAt) {
+        setLastServerUpdatedAt(res.updatedAt);
+      }
+      const rawItems = (res && res.items) ? res.items : {};
+      let items = decodeChunkedItems(rawItems);
+      let keys = Object.keys(items);
+
+      // Keep the SHEESH! blog backup exclusive to @monkey_man (never on the Admin account)
       if (currentUser && currentUser.isAdmin && items['post:post_1790376615849_9ux3t0']) {
         await apiRequest('/sync/cedar', { method: 'DELETE' }).catch(() => {});
+        setLastServerUpdatedAt(0);
         items = {};
         keys = [];
       }
 
-      if (isMonkeyMan && !items['post:post_1790376615849_9ux3t0']) {
-        const hasLocalAdminPosts = Array.isArray(window.drafts) &&
-          window.drafts.some(d => d && d.id === 'post_1790376615849_9ux3t0');
-        if (hasLocalAdminPosts) {
+      let pendingSeedRawItemsToUpload = null;
+      const hasValidCloudMonkeyPost = Boolean(
+        items['post:post_1790376615849_9ux3t0'] &&
+        safeJsonParse(items['post:post_1790376615849_9ux3t0'], null)
+      );
+      if (isMonkeyMan && !hasValidCloudMonkeyPost) {
+        if (hasLocalMonkeyPosts) {
           isPullingFromCloud = false;
           await pushCedarToCloud({ deltaOnly: false });
           return;
         }
-        const seedRawItems = await fetchAdminCedarSeedItems();
+        const seedRawItems = await (seedPrefetchPromise || fetchAdminCedarSeedItems());
         if (seedRawItems) {
-          updateGlobalIndicators('Saving...');
-          await uploadBatchedItemsToCedarCloud(seedRawItems, [], false);
+          pendingSeedRawItemsToUpload = seedRawItems;
           items = decodeChunkedItems(seedRawItems);
           keys = Object.keys(items);
         }
@@ -1405,7 +1531,19 @@
         return;
       }
 
-      // 1. Restore Media Blobs into window.imageRegistry (Map) & CedarVirtualStorage first
+      const virtualWriteTasks = [];
+      const queueVirtualWrite = (filePath, content) => {
+        if (!filePath || !content) return;
+        try {
+          if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
+            virtualWriteTasks.push(
+              window.CedarVirtualStorage.writeFile(filePath, content).catch(() => {})
+            );
+          }
+        } catch (_) {}
+      };
+
+      // 1. Restore Media Blobs into window.imageRegistry (Map) synchronously & queue CedarVirtualStorage writes
       ensureImageRegistryMap();
       for (const k of keys) {
         if (k.startsWith('media:')) {
@@ -1416,11 +1554,7 @@
             const fileName = mediaPath.split('/').pop();
             if (fileName) setImageRegistryValue(fileName, dataUrl);
             lastSyncedFingerprints.set(k, dataUrl);
-            try {
-              if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
-                await window.CedarVirtualStorage.writeFile(mediaPath, dataUrl);
-              }
-            } catch (_) {}
+            queueVirtualWrite(mediaPath, dataUrl);
           }
         }
       }
@@ -1518,7 +1652,7 @@
           if (Array.isArray(window.projectConfig.mediaLibrary)) {
             window.projectConfig.mediaLibrary.forEach(item => {
               if (!item || typeof item !== 'object') return;
-              const lookupKey = item.path || item.name || item.id;
+              const lookupKey = item.path || item.filename || item.name || item.id;
               const regVal = getImageRegistryValue(lookupKey);
               if (regVal) {
                 item.dataUrl = regVal;
@@ -1561,7 +1695,7 @@
                   im.dataUrl = im.src;
                 }
                 if (!im.dataUrl) {
-                  const regData = getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+                  const regData = getImageRegistryValue(im.relativePath) || getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.filename) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
                   if (regData) im.dataUrl = regData;
                 }
                 if (im.dataUrl && !im.src) {
@@ -1570,13 +1704,12 @@
                 if (im.dataUrl && String(im.dataUrl).startsWith('data:')) {
                   if (im.id) setImageRegistryValue(im.id, im.dataUrl);
                   if (im.name) setImageRegistryValue(im.name, im.dataUrl);
-                  if (im.savedRelPath) {
-                    setImageRegistryValue(im.savedRelPath, im.dataUrl);
-                    try {
-                      if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
-                        await window.CedarVirtualStorage.writeFile(im.savedRelPath, im.dataUrl);
-                      }
-                    } catch (_) {}
+                  if (im.filename) setImageRegistryValue(im.filename, im.dataUrl);
+                  if (im.relativePath) setImageRegistryValue(im.relativePath, im.dataUrl);
+                  if (im.savedRelPath) setImageRegistryValue(im.savedRelPath, im.dataUrl);
+                  const virtualPath = (im.savedRelPath || im.relativePath || (im.filename ? `blog/images/${im.filename}` : '')).replace(/^\/+/, '');
+                  if (virtualPath) {
+                    queueVirtualWrite(virtualPath, im.dataUrl);
                   }
                 }
               }
@@ -1637,13 +1770,7 @@
         }
       }
 
-      // 5. Persist & Re-hydrate All Cedar UI Views
-      if (typeof window.saveProjectToStorage === 'function') {
-        window.saveProjectToStorage({ silent: true });
-      }
-      if (typeof window.saveDraftsToStorage === 'function') {
-        await window.saveDraftsToStorage();
-      }
+      // 5. Render All Cedar UI Views IMMEDIATELY (never block UI on storage or cloud upload)
       if (typeof window.updateCedarTitle === 'function') {
         window.updateCedarTitle();
       }
@@ -1669,6 +1796,29 @@
         window.updateAllPreviewFrames();
       }
 
+      // 6. Persist to localStorage / Virtual Storage & upload any pending seed in the background
+      if (typeof window.saveProjectToStorage === 'function') {
+        window.saveProjectToStorage({ silent: true });
+        try {
+          lastSyncedFingerprints.set('config:main', JSON.stringify(stripSecretsFromConfig(window.projectConfig || {})));
+        } catch (_) {}
+      }
+      if (typeof window.saveDraftsToStorage === 'function') {
+        await window.saveDraftsToStorage().catch(() => {});
+      }
+      if (virtualWriteTasks.length > 0) {
+        Promise.all(virtualWriteTasks).catch(() => {});
+      }
+      if (pendingSeedRawItemsToUpload) {
+        uploadBatchedItemsToCedarCloud(pendingSeedRawItemsToUpload, [], false)
+          .then(() => {
+            try { localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now())); } catch (_) {}
+          })
+          .catch((e) => {
+            console.warn('[SheeshCloud] Background seed upload notice:', e);
+          });
+      }
+
       localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
       updateGlobalIndicators('Synced');
       renderModalState();
@@ -1685,7 +1835,7 @@
       const meta = await apiRequest('/sync/cedar?meta=1');
       const remoteTs = Number(meta && meta.updatedAt) || 0;
       if (remoteTs > 0 && remoteTs > lastServerUpdatedAt) {
-        await pullCedarFromCloud();
+        await pullCedarFromCloud({ force: true });
       }
     } catch (_) {}
   }
@@ -2534,7 +2684,7 @@
     closeModal: closeSheeshModal,
     openAdmin: openAdminModal,
     pushNow: () => pushCedarToCloud({ deltaOnly: false }),
-    pullNow: () => pullCedarFromCloud(),
+    pullNow: () => pullCedarFromCloud({ force: true }),
     scheduleSync: scheduleAutoSync,
     rollPassphrase,
     getUser: () => currentUser,
