@@ -253,14 +253,19 @@
                     <label for="setting-restore-builtin-select" class="form-label">Built-In Page</label>
                     <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin: 0 0 0.65rem 0; line-height: 1.4;">Restore any built-in page back to its default options and content if something breaks or you want the original version back.</p>
                     <div style="display: flex; align-items: center; justify-content: center; gap: 0.65rem; flex-wrap: wrap; width: 100%;">
-                      <select id="setting-restore-builtin-select" class="form-input" style="width: 220px; max-width: 100%;">
-                        <option value="" selected>Select one</option>
-                        <hr>
-                        <option value="page_all">All</option>
-                        <option value="page_about">About</option>
-                        <option value="page_links">Links</option>
-                        <option value="page_rss">RSS</option>
-                      </select>
+                      <div class="cedar-custom-select-wrap" style="width: 165px; max-width: 100%;">
+                        <select id="setting-restore-builtin-select" class="form-input cedar-custom-select">
+                          <option value="" selected>Select one</option>
+                          <hr>
+                          <option value="page_all">All</option>
+                          <option value="page_about">About</option>
+                          <option value="page_links">Links</option>
+                          <option value="page_rss">RSS</option>
+                        </select>
+                        <svg class="cedar-custom-select-arrow" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </div>
                       <button type="button" class="btn btn-sm btn-secondary" id="btn-restore-builtin-page" style="height: 36px; padding: 0 1rem; flex-shrink: 0;">Restore Page</button>
                     </div>
                     <div class="settings-validation-error" id="setting-restore-builtin-error" style="display: none; color: var(--accent-red, #ef4444); font-size: 0.8rem; margin-top: 0.45rem; text-align: center;">

@@ -670,6 +670,49 @@ select.form-input.ftue-input-error:focus,
   margin: 4px 0;
 }
 
+.cedar-custom-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+select.cedar-custom-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  height: 36px;
+  line-height: normal;
+  padding: 0 28px 0 10px !important;
+  text-indent: 0 !important;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+select.cedar-custom-select option {
+  background: #18181b;
+  color: #fafafa;
+  padding: 6px 10px;
+}
+
+.app-theme-light select.cedar-custom-select option {
+  background: #ffffff;
+  color: #18181b;
+}
+
+.cedar-custom-select-arrow {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-secondary, #a1a1aa);
+  display: block;
+}
+
 .app-theme-light .form-label {
   color: #18181b !important;
 }

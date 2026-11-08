@@ -140,17 +140,22 @@
                       Choose from various places below to export your blog in a precompiled <code>.zip</code> format, or download a complete raw workspace backup.
                     </p>
                   </div>
-                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; width: 100%; max-width: 240px; margin: 0 auto;">
-                    <select id="export-zip-target-select" class="form-input" aria-label="Select .zip export target" style="width: 100%; text-align: left;">
-                      <option value="github" selected>GitHub Pages</option>
-                      <option value="gitlab">GitLab Pages</option>
-                      <option value="codeberg">Codeberg Pages</option>
-                      <option value="cloudflare">Cloudflare Pages</option>
-                      <option value="netlify">Netlify</option>
-                      <hr>
-                      <option value="raw_backup">Raw Backup</option>
-                    </select>
-                    <button type="button" class="btn btn-secondary popout-3d" id="btn-export-web-zip" title="Export .ZIP package" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;">
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; width: 100%; margin: 0 auto;">
+                    <div class="cedar-custom-select-wrap" style="width: 165px; max-width: 100%;">
+                      <select id="export-zip-target-select" class="form-input cedar-custom-select" aria-label="Select .zip export target">
+                        <option value="github" selected>GitHub Pages</option>
+                        <option value="gitlab">GitLab Pages</option>
+                        <option value="codeberg">Codeberg Pages</option>
+                        <option value="cloudflare">Cloudflare Pages</option>
+                        <option value="netlify">Netlify</option>
+                        <hr>
+                        <option value="raw_backup">Raw Backup</option>
+                      </select>
+                      <svg class="cedar-custom-select-arrow" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </div>
+                    <button type="button" class="btn btn-secondary popout-3d" id="btn-export-web-zip" title="Export .ZIP package" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 280px; padding: 0.55rem 1.65rem;">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                       <span id="btn-export-web-zip-label">Export for GitHub Pages (.ZIP)</span>
                     </button>
@@ -235,7 +240,7 @@
                   </div>
                 </div>
                 <div class="cedar-version-footer" style="text-align: center; margin-top: 1.35rem; padding-bottom: 0.5rem; font-size: 0.74rem; font-family: var(--font-mono, monospace); color: var(--text-dim, #71717a); opacity: 0.65; letter-spacing: 0.03em; user-select: none;">
-                  <span id="cedar-version-label">Cedar v6.6.99</span>
+                  <span id="cedar-version-label">Cedar v6.7.0</span>
                 </div>
               </div>
 
