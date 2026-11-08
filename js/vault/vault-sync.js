@@ -1143,9 +1143,49 @@
 
     }
 
+    const isCloudLoggedIn = Boolean(
+      window.SheeshCloud &&
+      typeof window.SheeshCloud.getUser === 'function' &&
+      window.SheeshCloud.getUser()
+    );
+
+    const exportSecLocalHeading = document.querySelector('#export-sec-local .settings-section-title-wrap h4');
+    if (exportSecLocalHeading) {
+      exportSecLocalHeading.textContent = isCloudLoggedIn ? 'Workspace Backups (.ZIP)' : 'Local Storage & Backups';
+    }
+
+    const masterZipSpan = document.querySelector('#btn-download-master-zip span');
+    if (masterZipSpan) {
+      masterZipSpan.textContent = isCloudLoggedIn ? 'Export Workspace Backup (.ZIP)' : 'Export Local Backup (.ZIP)';
+    }
+
+    const dangerActionNote = document.querySelector('#export-sec-danger .danger-action-note');
+    if (dangerActionNote) {
+      dangerActionNote.textContent = isCloudLoggedIn
+        ? 'Clears temporary browser cache on this device. Your online workspace stays safely synced in your sheesh.gg account.'
+        : "This doesn't erase your local folder, just the browser's connection to it.";
+    }
+
+    const pathLabelRow = document.querySelector('.export-path-label-row');
+    if (pathLabelRow) pathLabelRow.style.display = isCloudLoggedIn ? 'none' : '';
+    const topBarRow = document.querySelector('.export-storage-top-bar-row');
+    if (topBarRow) topBarRow.style.display = isCloudLoggedIn ? 'none' : '';
+
     const storageUnlinkedBanner = document.getElementById('storage-unlinked-banner');
     if (storageUnlinkedBanner) {
-      storageUnlinkedBanner.style.display = isConnected ? 'none' : 'flex';
+      storageUnlinkedBanner.style.display = (isConnected || isCloudLoggedIn) ? 'none' : 'flex';
+    }
+    if (isCloudLoggedIn) {
+      if (btnExportBrowse) btnExportBrowse.style.display = 'none';
+      if (btnExportPoint) btnExportPoint.style.display = 'none';
+      if (btnExportChange) btnExportChange.style.display = 'none';
+      if (btnExportRemove) btnExportRemove.style.display = 'none';
+      const dangerRowDisconnect = document.getElementById('danger-row-disconnect-vault');
+      if (dangerRowDisconnect) dangerRowDisconnect.style.display = 'none';
+      const dangerDividerDisconnect = document.getElementById('danger-divider-disconnect');
+      if (dangerDividerDisconnect) dangerDividerDisconnect.style.display = 'none';
+      initExportWebLinks();
+      return;
     }
 
     const btnBrowseLabel = document.getElementById('btn-export-browse-label');

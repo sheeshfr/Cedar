@@ -3245,6 +3245,10 @@
 
     }
 
+    if (window.SheeshCloud && typeof window.SheeshCloud.scheduleSync === 'function') {
+      window.SheeshCloud.scheduleSync();
+    }
+
   }
 
 
@@ -3721,13 +3725,50 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
+  let _cachedInitialSiteSubpath = null;
+  function getInitialSiteSubpath() {
+    if (_cachedInitialSiteSubpath !== null) return _cachedInitialSiteSubpath;
+    if (typeof window === 'undefined' || !window.location) return '';
+    try {
+      const pathname = String(window.location.pathname || '');
+      if (typeof document !== 'undefined') {
+        const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
+        if (markerScript) {
+          const srcAttr = markerScript.getAttribute('src') || '';
+          if (srcAttr.startsWith('./') && (pathname === '/blog' || pathname === '/blog/')) {
+            _cachedInitialSiteSubpath = '/blog';
+            return _cachedInitialSiteSubpath;
+          }
+          if (markerScript.src) {
+            const u = new URL(markerScript.src, window.location.origin);
+            const m = u.pathname.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
+            if (m) {
+              _cachedInitialSiteSubpath = (m[1] || '').replace(/\/+$/, '');
+              return _cachedInitialSiteSubpath;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
+  getInitialSiteSubpath();
+
   function resolveAutoDetectedSiteBaseUrl(config) {
     const cfg = config || (typeof projectConfig !== 'undefined' ? projectConfig : (typeof window !== 'undefined' && window.projectConfig ? window.projectConfig : {})) || {};
     let rawDomain = String(cfg.domain || cfg.detectedDomain || (typeof localStorage !== 'undefined' ? (localStorage.getItem(STORAGE_KEY_DOMAIN) || '') : '') || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    if (!rawDomain || /^localhost(?::\d+)?$/i.test(rawDomain) || /^127\.0\.0\.1(?::\d+)?$/.test(rawDomain)) {
-      try {
-        const ghRepo = (cfg && cfg.githubRepo) || (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY_REPO)) || '';
-        const repoSlug = (String(ghRepo).split('/').filter(Boolean).pop() || '').trim().replace(/\.git$/i, '');
+    let inferredSubpath = '';
+    try {
+      const ghRepo = (cfg && cfg.githubRepo) || (typeof projectConfig !== 'undefined' && projectConfig && projectConfig.githubRepo) || (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY_REPO)) || '';
+      const repoParts = String(ghRepo).split('/').filter(Boolean);
+      const repoOwner = (repoParts[0] || '').trim().toLowerCase();
+      const repoSlug = (repoParts[repoParts.length - 1] || '').trim().replace(/\.git$/i, '');
+      if (repoSlug.toLowerCase() === 'blog') {
+        inferredSubpath = '/blog';
+        if (!rawDomain && (repoOwner === 'sheeshfr' || (typeof window !== 'undefined' && window.location && String(window.location.hostname || '').toLowerCase().endsWith('sheesh.gg')))) {
+          rawDomain = 'sheesh.gg';
+        }
+      } else if (!rawDomain || /^localhost(?::\d+)?$/i.test(rawDomain) || /^127\.0\.0\.1(?::\d+)?$/.test(rawDomain)) {
         if (repoSlug.includes('.')) {
           rawDomain = repoSlug.toLowerCase();
         } else {
@@ -3736,8 +3777,12 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
             rawDomain = `${tldMatch[1].toLowerCase()}.${tldMatch[2].toLowerCase()}`;
           }
         }
-      } catch (e) {}
-    }
+      }
+      if (!rawDomain && String(cfg.name || '').trim().toUpperCase().startsWith('SHEESH')) {
+        rawDomain = 'sheesh.gg';
+        inferredSubpath = '/blog';
+      }
+    } catch (e) {}
     const validDomain = (rawDomain && rawDomain !== '[your domain]' && !rawDomain.includes('[') && !/^localhost(?::\d+)?$/i.test(rawDomain) && !/^127\.0\.0\.1(?::\d+)?$/.test(rawDomain))
       ? rawDomain
       : '';
@@ -3753,28 +3798,25 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         Boolean(typeof document !== 'undefined' && document.getElementById('view-dashboard'))
       );
 
-      let subpath = pathname
-        .replace(/\/index\.html$/i, '')
-        .replace(/\/preview\.html(?:\/.*)?$/i, '')
-        .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
-        .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
-
-      if (typeof document !== 'undefined') {
-        const markerScript = document.querySelector('script[src*="site-data.js"], script[src*="js/preview/reader.js"]');
-        if (markerScript) {
-          if (markerScript.src) {
-            try {
-              const u = new URL(markerScript.src, window.location.origin);
-              const m = u.pathname.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
-              if (m) subpath = m[1] || '';
-            } catch (_) {}
-          } else {
-            const srcAttr = markerScript.getAttribute('src') || '';
-            if (srcAttr.startsWith('/') && !srcAttr.startsWith('//')) {
-              const m = srcAttr.match(/^(.*)\/(?:site-data\.js|js\/preview\/reader\.js)/i);
-              if (m) subpath = m[1] || '';
-            }
-          }
+      let subpath = '';
+      if (!isEditorOrPreviewShell && typeof window.getSiteBasePrefix === 'function') {
+        const prodPrefix = String(window.getSiteBasePrefix() || '').replace(/\/preview\.html(?:\/.*)?$/i, '').replace(/\/+$/, '');
+        if (prodPrefix) subpath = prodPrefix;
+      }
+      if (!subpath) {
+        const initSub = getInitialSiteSubpath();
+        if (initSub) subpath = initSub;
+      }
+      if (!subpath && !isEditorOrPreviewShell) {
+        if (pathname === '/blog' || pathname.startsWith('/blog/')) {
+          subpath = '/blog';
+        } else {
+          subpath = pathname
+            .replace(/\/index\.html$/i, '')
+            .replace(/\/preview\.html(?:\/.*)?$/i, '')
+            .replace(/\/(?:pages|blog)\/(?:published|drafts|hidden)\/[^/]+\/?$/i, '')
+            .replace(/\/p\/[^/]+\/?$/i, '')
+            .replace(/\/(?:rss|feed|links|about-cedar|about|all|all-posts|posts|blog|help)\/?$/i, '');
         }
       }
       subpath = subpath.replace(/\/+$/, '');
@@ -3784,16 +3826,18 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         return `${window.location.origin}${subpath}`;
       }
       if (validDomain) {
-        return `https://${validDomain}`;
+        const finalSub = validDomain.includes('/') ? '' : (inferredSubpath || '');
+        return `https://${validDomain}${finalSub}`;
       }
       if (host === 'cedar.pub' || host === 'www.cedar.pub' || host === 'cedar.sheesh.gg') {
-        return '';
+        return inferredSubpath ? `https://sheesh.gg${inferredSubpath}` : '';
       }
       return `${window.location.origin}${subpath}`;
     }
 
     if (validDomain) {
-      return `https://${validDomain}`;
+      const finalSub = validDomain.includes('/') ? '' : (inferredSubpath || '');
+      return `https://${validDomain}${finalSub}`;
     }
     return '';
   }
@@ -3816,7 +3860,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     let markdown = `### How It Works
 
 1. **Copy the feed link** below.
-2. **Paste it into any RSS reader**—like [NetNewsWire](https://netnewswire.com), [Feedly](https://feedly.com), [Reeder](https://reederapp.com), or [Inoreader](https://www.inoreader.com).
+2. **Paste it into any RSS reader**—like [Loudmouth](https://loudmouth.sheesh.gg)!
 3. **Done.** Every time a new post goes live on **${siteName}**, it'll show up automatically in your feed.
 
 :::rss-box ${postsUrl}:::`.trim();
@@ -4457,7 +4501,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
       // Refresh default RSS page template while preserving custom user edits
       const curRssMd = String(rssDraft.markdown || '').trim();
       const curRssHtml = String(rssDraft.proseHtml || '').trim();
-      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssHtml.includes(':::rss-box')) {
+      if (!curRssMd || curRssMd.includes('### Available Feeds') || curRssMd.includes('## RSS Syndication') || curRssMd.includes(':::rss-box') || curRssMd.includes('netnewswire.com') || curRssHtml.includes(':::rss-box') || curRssHtml.includes('netnewswire.com') || curRssHtml.includes('rss-feed-showcase-card')) {
         if (rssDraft.subtitle !== rssData.subtitle || rssDraft.markdown !== rssData.markdown || rssDraft.proseHtml !== rssData.proseHtml) {
           rssDraft.updatedAt = Date.now();
         }
@@ -6540,6 +6584,10 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     if (typeof window.updateAllPreviewFrames === 'function') {
       window.updateAllPreviewFrames();
+    }
+
+    if (window.SheeshCloud && typeof window.SheeshCloud.scheduleSync === 'function') {
+      window.SheeshCloud.scheduleSync();
     }
 
 

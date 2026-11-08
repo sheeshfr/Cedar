@@ -1563,6 +1563,9 @@
     if (typeof window.renderSettingsAuthorProfile === 'function') window.renderSettingsAuthorProfile();
     if (typeof window.renderDesigner === 'function') window.renderDesigner();
     if (typeof window.updateAllPreviewFrames === 'function') window.updateAllPreviewFrames();
+    if (window.SheeshCloud && typeof window.SheeshCloud.pushNow === 'function') {
+      window.SheeshCloud.pushNow();
+    }
 
     return true;
   }
@@ -2716,6 +2719,18 @@
     },
 
     async reconnectIfPossible() {
+      try {
+        const hasCloudToken = Boolean(
+          localStorage.getItem('sheesh_auth_token') ||
+          sessionStorage.getItem('sheesh_auth_token_session') ||
+          (window.SheeshCloud && typeof window.SheeshCloud.getUser === 'function' && window.SheeshCloud.getUser())
+        );
+        if (hasCloudToken) {
+          await this.disconnect();
+          return false;
+        }
+      } catch (_) {}
+
       const isExplicitlyDisconnected = localStorage.getItem('cedar_vault_disconnected') === '1';
       if (isExplicitlyDisconnected) return false;
 

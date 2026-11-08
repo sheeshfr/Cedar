@@ -1760,6 +1760,14 @@
     return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
   }
 
+  function isCloudLoggedIn() {
+    return Boolean(
+      window.SheeshCloud &&
+      typeof window.SheeshCloud.getUser === 'function' &&
+      window.SheeshCloud.getUser()
+    );
+  }
+
   async function pickDirectorySafe() {
     try {
       return await window.showDirectoryPicker({
@@ -1916,7 +1924,7 @@
   let ftueSubscreenPushed = false;
 
   function showScreen(screenId, updateHistory = true) {
-    if (!isFsaSupported() && screenId !== 'unsupported') {
+    if (!isFsaSupported() && !isCloudLoggedIn() && screenId !== 'unsupported') {
       screenId = 'unsupported';
     }
 
@@ -1932,9 +1940,15 @@
     }
 
     if (screenId === 'new') {
+      const folderGroup = document.getElementById('ftue-folder-group');
+      if (folderGroup) {
+        folderGroup.style.display = isCloudLoggedIn() ? 'none' : '';
+      }
       detectSystemTimezone();
       syncBioPlaceholder();
-      updateFolderPreview();
+      if (!isCloudLoggedIn()) {
+        updateFolderPreview();
+      }
       const uploadSub = document.querySelector('#ftue-logo-dropzone .ftue-upload-sub');
       if (uploadSub) uploadSub.textContent = 'Supports images up to 1200x1200';
       const tzSub = document.querySelector('#ftue-tz-manual-box .ftue-tz-manual-sub');
@@ -3004,8 +3018,10 @@
       return;
     }
 
-    // Ensure browser supports File System Access API
-    if (!isFsaSupported()) {
+    const cloudMode = isCloudLoggedIn();
+
+    // Ensure browser supports File System Access API when in Local Mode
+    if (!cloudMode && !isFsaSupported()) {
       showScreen('unsupported', true);
       return;
     }
@@ -3018,100 +3034,107 @@
     const btnJumpIn = document.getElementById('ftue-btn-jump-in');
     const originalBtnHtml = btnJumpIn ? btnJumpIn.innerHTML : '';
 
-    let parentHandle = selectedParentDirectoryHandle;
+    const safeTitle = siteTitle.replace(/[/\\?%*:|"<>]/g, '').trim() || 'My Blog';
+    let folderName = `${safeTitle} - a Cedar blog`;
+    let blogDirHandle = null;
 
-    if (!parentHandle) {
-      if (btnJumpIn) {
-        btnJumpIn.disabled = true;
-        btnJumpIn.innerHTML = '<span>Selecting Folder...</span>';
-      }
+    if (!cloudMode) {
+      let parentHandle = selectedParentDirectoryHandle;
 
-      try {
-        parentHandle = await pickDirectorySafe();
-        if (parentHandle) {
-          selectedParentDirectoryHandle = parentHandle;
-          selectedParentIsEmpty = await checkIsDirectoryEmpty(parentHandle);
-          updateFolderPreview();
-        }
-      } catch (err) {
+      if (!parentHandle) {
         if (btnJumpIn) {
-          btnJumpIn.disabled = false;
-          btnJumpIn.innerHTML = originalBtnHtml;
+          btnJumpIn.disabled = true;
+          btnJumpIn.innerHTML = '<span>Selecting Folder...</span>';
         }
-        if (err.name === 'AbortError') {
+
+        try {
+          parentHandle = await pickDirectorySafe();
+          if (parentHandle) {
+            selectedParentDirectoryHandle = parentHandle;
+            selectedParentIsEmpty = await checkIsDirectoryEmpty(parentHandle);
+            updateFolderPreview();
+          }
+        } catch (err) {
+          if (btnJumpIn) {
+            btnJumpIn.disabled = false;
+            btnJumpIn.innerHTML = originalBtnHtml;
+          }
+          if (err.name === 'AbortError') {
+            if (folderErr) {
+              folderErr.textContent = 'A folder location on your computer is required to save your blog workspace.';
+              folderErr.style.display = 'block';
+            }
+            if (locationInput) locationInput.classList.add('ftue-input-error');
+            return;
+          }
+          console.error('[FTUE] Directory selection error:', err);
           if (folderErr) {
-            folderErr.textContent = 'A folder location on your computer is required to save your blog workspace.';
+            folderErr.textContent = `Could not access selected directory: ${err.message}`;
             folderErr.style.display = 'block';
           }
           if (locationInput) locationInput.classList.add('ftue-input-error');
           return;
         }
-        console.error('[FTUE] Directory selection error:', err);
+      }
+
+      if (btnJumpIn) {
+        btnJumpIn.disabled = true;
+        btnJumpIn.innerHTML = '<span>Creating Blog Folder...</span>';
+      }
+
+      // Verify permission on chosen parent directory if supported
+      if (parentHandle && typeof parentHandle.queryPermission === 'function') {
+        try {
+          const status = await parentHandle.queryPermission({ mode: 'readwrite' });
+          if (status !== 'granted' && typeof parentHandle.requestPermission === 'function') {
+            const reqStatus = await parentHandle.requestPermission({ mode: 'readwrite' });
+            if (reqStatus !== 'granted') {
+              if (btnJumpIn) {
+                btnJumpIn.disabled = false;
+                btnJumpIn.innerHTML = originalBtnHtml;
+              }
+              if (folderErr) {
+                folderErr.textContent = 'Write permission to the selected folder was denied.';
+                folderErr.style.display = 'block';
+              }
+              return;
+            }
+          }
+        } catch (permErr) {
+          console.warn('[FTUE] Permission verification warning:', permErr);
+        }
+      }
+
+      // Subfolder naming: safe title + ' - a Cedar blog' (or use parentHandle directly if it is already an empty folder created by the user)
+      const isEmptySelectedDir = await checkIsDirectoryEmpty(parentHandle);
+      folderName = isEmptySelectedDir ? parentHandle.name : `${safeTitle} - a Cedar blog`;
+
+      try {
+        blogDirHandle = isEmptySelectedDir
+          ? parentHandle
+          : await parentHandle.getDirectoryHandle(folderName, { create: true });
+      } catch (createErr) {
+        if (btnJumpIn) {
+          btnJumpIn.disabled = false;
+          btnJumpIn.innerHTML = originalBtnHtml;
+        }
         if (folderErr) {
-          folderErr.textContent = `Could not access selected directory: ${err.message}`;
+          folderErr.textContent = `Could not create folder "${folderName}": ${createErr.message}`;
           folderErr.style.display = 'block';
         }
         if (locationInput) locationInput.classList.add('ftue-input-error');
         return;
       }
-    }
 
-    if (btnJumpIn) {
+      if (locationInput) {
+        const destLabel = isEmptySelectedDir ? parentHandle.name : `${parentHandle.name}/${folderName}`;
+        locationInput.value = destLabel;
+        locationInput.title = `Blog workspace destination: ${destLabel}`;
+        locationInput.classList.remove('ftue-input-error');
+      }
+    } else if (btnJumpIn) {
       btnJumpIn.disabled = true;
-      btnJumpIn.innerHTML = '<span>Creating Blog Folder...</span>';
-    }
-
-    // Verify permission on chosen parent directory if supported
-    if (parentHandle && typeof parentHandle.queryPermission === 'function') {
-      try {
-        const status = await parentHandle.queryPermission({ mode: 'readwrite' });
-        if (status !== 'granted' && typeof parentHandle.requestPermission === 'function') {
-          const reqStatus = await parentHandle.requestPermission({ mode: 'readwrite' });
-          if (reqStatus !== 'granted') {
-            if (btnJumpIn) {
-              btnJumpIn.disabled = false;
-              btnJumpIn.innerHTML = originalBtnHtml;
-            }
-            if (folderErr) {
-              folderErr.textContent = 'Write permission to the selected folder was denied.';
-              folderErr.style.display = 'block';
-            }
-            return;
-          }
-        }
-      } catch (permErr) {
-        console.warn('[FTUE] Permission verification warning:', permErr);
-      }
-    }
-
-    // Subfolder naming: safe title + ' - a Cedar blog' (or use parentHandle directly if it is already an empty folder created by the user)
-    const safeTitle = siteTitle.replace(/[/\\?%*:|"<>]/g, '').trim() || 'My Blog';
-    const isEmptySelectedDir = await checkIsDirectoryEmpty(parentHandle);
-    const folderName = isEmptySelectedDir ? parentHandle.name : `${safeTitle} - a Cedar blog`;
-
-    let blogDirHandle;
-    try {
-      blogDirHandle = isEmptySelectedDir
-        ? parentHandle
-        : await parentHandle.getDirectoryHandle(folderName, { create: true });
-    } catch (createErr) {
-      if (btnJumpIn) {
-        btnJumpIn.disabled = false;
-        btnJumpIn.innerHTML = originalBtnHtml;
-      }
-      if (folderErr) {
-        folderErr.textContent = `Could not create folder "${folderName}": ${createErr.message}`;
-        folderErr.style.display = 'block';
-      }
-      if (locationInput) locationInput.classList.add('ftue-input-error');
-      return;
-    }
-
-    if (locationInput) {
-      const destLabel = isEmptySelectedDir ? parentHandle.name : `${parentHandle.name}/${folderName}`;
-      locationInput.value = destLabel;
-      locationInput.title = `Blog workspace destination: ${destLabel}`;
-      locationInput.classList.remove('ftue-input-error');
+      btnJumpIn.innerHTML = '<span>Creating Online Workspace...</span>';
     }
 
     // Subtitle removed from FTUE and site settings
@@ -3269,8 +3292,8 @@
       }
     }
 
-    // Connect Vault to the newly created blog folder handle
-    if (window.SheeshVault && typeof window.SheeshVault.setRootHandle === 'function') {
+    // Connect Vault to the newly created blog folder handle (when not in cloud mode)
+    if (!cloudMode && blogDirHandle && window.SheeshVault && typeof window.SheeshVault.setRootHandle === 'function') {
       try {
         localStorage.removeItem('cedar_vault_disconnected');
         try { localStorage.removeItem('outpost_vault_disconnected'); } catch (e) {}
@@ -3363,10 +3386,12 @@
       }
     }
 
-    try {
-      await writeFilesToDirectoryHandle(blogDirHandle, initialFiles);
-    } catch (writeErr) {
-      console.warn('[FTUE] Writing initial files to directory notice:', writeErr);
+    if (!cloudMode && blogDirHandle) {
+      try {
+        await writeFilesToDirectoryHandle(blogDirHandle, initialFiles);
+      } catch (writeErr) {
+        console.warn('[FTUE] Writing initial files to directory notice:', writeErr);
+      }
     }
 
     // Save to localStorage
@@ -3380,12 +3405,16 @@
       try { localStorage.setItem('outpost_ftue_completed', '1'); } catch (e) {}
       localStorage.removeItem('cedar_trigger_ftue');
       try { localStorage.removeItem('outpost_trigger_ftue'); } catch (e) {}
-      localStorage.removeItem('cedar_vault_disconnected');
-      try { localStorage.removeItem('outpost_vault_disconnected'); } catch (e) {}
-      localStorage.setItem('cedar_vault_connected', '1');
-      localStorage.setItem('cedar_vault_name', folderName);
-      try { localStorage.setItem('outpost_vault_connected', '1'); } catch (e) {}
-      try { localStorage.setItem('outpost_vault_name', folderName); } catch (e) {}
+      if (cloudMode) {
+        localStorage.setItem('cedar_vault_disconnected', '1');
+      } else {
+        localStorage.removeItem('cedar_vault_disconnected');
+        try { localStorage.removeItem('outpost_vault_disconnected'); } catch (e) {}
+        localStorage.setItem('cedar_vault_connected', '1');
+        localStorage.setItem('cedar_vault_name', folderName);
+        try { localStorage.setItem('outpost_vault_connected', '1'); } catch (e) {}
+        try { localStorage.setItem('outpost_vault_name', folderName); } catch (e) {}
+      }
       localStorage.removeItem('cedar_browser_backup_drafts');
       localStorage.removeItem('cedar_browser_backup_project');
       localStorage.removeItem('cedar_browser_backup_timestamp');
@@ -3450,6 +3479,9 @@
     }
     if (typeof window.renderDashboard === 'function') {
       window.renderDashboard();
+    }
+    if (cloudMode && window.SheeshCloud && typeof window.SheeshCloud.pushNow === 'function') {
+      window.SheeshCloud.pushNow();
     }
     if (typeof window.showToast === 'function') {
       window.showToast(`Welcome to ${siteTitle}! Your station is ready.`);
@@ -3836,6 +3868,7 @@
   }
 
   function resetImportUI(defaultType = 'folder') {
+    const cloudMode = isCloudLoggedIn();
     const zipDropzone = document.getElementById('ftue-zip-dropzone');
     const folderDropzone = document.getElementById('ftue-folder-dropzone');
     const zipFileInput = document.getElementById('ftue-zip-file-input');
@@ -3849,9 +3882,10 @@
     if (zipFileInput) zipFileInput.value = '';
     if (folderFileInput) folderFileInput.value = '';
 
-    if (typeBar) typeBar.style.display = 'flex';
+    if (typeBar) typeBar.style.display = cloudMode ? 'none' : 'flex';
+    if (tabFolder) tabFolder.style.display = cloudMode ? 'none' : '';
 
-    currentImportSourceType = defaultType || 'folder';
+    currentImportSourceType = cloudMode ? 'zip' : (defaultType || 'folder');
 
     if (currentImportSourceType === 'folder') {
       if (folderDropzone) folderDropzone.style.display = 'flex';
@@ -3889,7 +3923,9 @@
   async function executeImport(translate) {
     if (!currentExtractedFiles || (!window.CedarMigration && !window.OutpostMigration)) return;
 
-    if (!isFsaSupported()) {
+    const cloudMode = isCloudLoggedIn();
+
+    if (!cloudMode && !isFsaSupported()) {
       showScreen('unsupported', true);
       return;
     }
@@ -3898,12 +3934,12 @@
     const progressLabel = document.getElementById('ftue-progress-label');
     const inspectionActions = document.querySelector('.ftue-inspection-actions');
 
-    let targetFolderHandle = currentFolderHandle;
-    let targetFolderName = currentFolderName;
+    let targetFolderHandle = cloudMode ? null : currentFolderHandle;
+    let targetFolderName = currentFolderName || 'Online Workspace';
 
-    // If imported from a ZIP archive (or any source without an existing directory handle),
+    // If imported from a ZIP archive in Local Mode (without an existing directory handle),
     // ask the user where they want to unzip this blog folder.
-    if (!targetFolderHandle) {
+    if (!cloudMode && !targetFolderHandle) {
       let parentHandle;
       try {
         parentHandle = await pickDirectorySafe();
@@ -4015,6 +4051,9 @@
 
       if (progressLabel) progressLabel.textContent = 'Writing restored blog data to storage...';
       const result = await (window.CedarMigration || window.OutpostMigration).applyImport(filesToApply);
+      if (cloudMode && window.SheeshCloud && typeof window.SheeshCloud.pushNow === 'function') {
+        await window.SheeshCloud.pushNow().catch(() => {});
+      }
 
       closeFTUE();
 
@@ -4046,7 +4085,7 @@
 
     modalEl.style.display = 'flex';
 
-    if (!isFsaSupported()) {
+    if (!isFsaSupported() && !isCloudLoggedIn()) {
       showScreen('unsupported', 'replace');
       const btnClose = document.getElementById('ftue-btn-close');
       if (btnClose) btnClose.style.display = 'none';
