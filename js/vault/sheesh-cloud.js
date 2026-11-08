@@ -176,6 +176,18 @@
     'jacket', 'koala', 'lemon', 'muffin', 'nutmeg', 'orchard', 'penguin', 'quartz'
   ];
 
+  const WORD_LIST_C = [
+    'wanderer', 'voyager', 'pioneer', 'ranger', 'captain', 'guardian', 'seeker', 'runner',
+    'builder', 'dreamer', 'climber', 'drifter', 'hunter', 'keeper', 'maker', 'pilot',
+    'rider', 'sailor', 'scout', 'singer', 'skater', 'slider', 'spark', 'sprinter',
+    'starlight', 'strider', 'surfer', 'thinker', 'tracker', 'traveler', 'walker', 'whisper'
+  ];
+
+  function capitalizeWord(w) {
+    const s = String(w || '');
+    return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+  }
+
   let currentUser = null;
   let isPersistentSession = true;
   let needsBootstrap = false;
@@ -272,18 +284,21 @@
   }
 
   function rollPassphrase() {
-    const arr = new Uint32Array(3);
+    const arr = new Uint32Array(6);
     if (window.crypto && window.crypto.getRandomValues) {
       window.crypto.getRandomValues(arr);
     } else {
-      arr[0] = Math.floor(Math.random() * 10000);
-      arr[1] = Math.floor(Math.random() * 10000);
-      arr[2] = Math.floor(Math.random() * 10000);
+      for (let i = 0; i < 6; i++) {
+        arr[i] = Math.floor(Math.random() * 10000);
+      }
     }
-    const w1 = WORD_LIST_A[arr[0] % WORD_LIST_A.length];
-    const w2 = WORD_LIST_B[arr[1] % WORD_LIST_B.length];
-    const num = (arr[2] % 90) + 10;
-    return `${w1}-${w2}-${num}`;
+    const w1 = capitalizeWord(WORD_LIST_A[arr[0] % WORD_LIST_A.length]);
+    const w2 = capitalizeWord(WORD_LIST_B[arr[1] % WORD_LIST_B.length]);
+    const w3 = capitalizeWord(WORD_LIST_C[arr[2] % WORD_LIST_C.length]);
+    const n1 = arr[3] % 10;
+    const n2 = arr[4] % 10;
+    const n3 = arr[5] % 10;
+    return `${w1}${n1}-${w2}${n2}-${w3}${n3}`;
   }
 
   function escapeHtml(str) {
@@ -1605,7 +1620,7 @@
         const inviteCode = normalizeInviteCode(rawInviteCode);
         const rawUsername = (document.getElementById('sheesh-register-username')?.value || '').trim();
         const invitePassword = (document.getElementById('sheesh-register-invite-password')?.value || '').trim();
-        const passphrase = (document.getElementById('sheesh-rolled-passphrase')?.textContent || '').trim().toLowerCase();
+        const passphrase = (document.getElementById('sheesh-rolled-passphrase')?.textContent || '').trim();
         const confirmedSaved = Boolean(document.getElementById('sheesh-register-confirm-saved')?.checked);
         const remember = Boolean(document.getElementById('sheesh-register-remember')?.checked);
 
