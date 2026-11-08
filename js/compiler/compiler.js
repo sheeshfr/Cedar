@@ -5428,7 +5428,14 @@ ${socialMeta.metaLines}
       }
       return Boolean(p.hidden === true || p.retired === true);
     };
-    const publishedPosts = allDrafts.filter(d => d && (d.type === 'post' || !d.type) && d.type !== 'note' && d.status === 'published' && !d.hidden && !d.retired);
+    const publishedPosts = allDrafts
+      .filter(d => d && (d.type === 'post' || !d.type) && d.type !== 'note' && d.status === 'published' && !d.hidden && !d.retired)
+      .sort((a, b) => {
+        const tB = new Date(b.publishedDate || b.date || b.publishedAt || b.createdAt || 0).getTime() || 0;
+        const tA = new Date(a.publishedDate || a.date || a.publishedAt || a.createdAt || 0).getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return (Number(b.publishedAt || b.createdAt || b.updatedAt || 0) || 0) - (Number(a.publishedAt || a.createdAt || a.updatedAt || 0) || 0);
+      });
     const rawPages = allDrafts.filter(d => d && d.type === 'page' && (!isExportPageHidden(d) || d.slug === 'about-cedar' || d.id === 'page_about_cedar' || d.slug === 'all' || d.id === 'page_all' || d.isCategoryAggregate || String(d.id || '').startsWith('page_cat_')));
     const seenPageSlugs = new Set();
     const publishedPages = [];

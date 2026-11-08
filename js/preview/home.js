@@ -1316,6 +1316,28 @@
         return check(p.tag) || (Array.isArray(p.categories) && p.categories.some(check));
       }
 
+      function getPostSortTimestamp(p) {
+        if (!p) return 0;
+        const dateStr = p.publishedDate || p.date;
+        if (dateStr) {
+          const parsed = new Date(dateStr).getTime();
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+        const fallback = Number(p.publishedAt || p.createdAt || p.updatedAt || 0);
+        if (Number.isFinite(fallback) && fallback > 0) return fallback;
+        const parsedFallback = new Date(p.publishedAt || p.createdAt || p.updatedAt || 0).getTime();
+        return (!isNaN(parsedFallback) && parsedFallback > 0) ? parsedFallback : 0;
+      }
+
+      function comparePostsNewestFirst(a, b) {
+        const tB = getPostSortTimestamp(b);
+        const tA = getPostSortTimestamp(a);
+        if (tB !== tA) return tB - tA;
+        const pubB = Number(b?.publishedAt || b?.createdAt || b?.updatedAt || 0) || 0;
+        const pubA = Number(a?.publishedAt || a?.createdAt || a?.updatedAt || 0) || 0;
+        return pubB - pubA;
+      }
+
       function resolveFeaturedPost(publishedPosts, homeBlocks) {
         const design = getConfig().design || {};
         if (design.featured === false) return null;
@@ -1329,12 +1351,7 @@
           return null;
         }
 
-        const sorted = [...validCandidates].sort((a, b) => {
-          const tB = new Date(b.publishedDate || b.date || b.createdAt || 0).getTime() || 0;
-          const tA = new Date(a.publishedDate || a.date || a.createdAt || 0).getTime() || 0;
-          if (tB !== tA) return tB - tA;
-          return Number(b.createdAt || 0) - Number(a.createdAt || 0);
-        });
+        const sorted = [...validCandidates].sort(comparePostsNewestFirst);
 
         const pCfg = spotlightBlock.config || {};
         const rawMode = design.featuredMode || pCfg.featuredMode || 'latest';
@@ -1365,16 +1382,17 @@
 
         gridEl.className = `posts-grid cols-${cols}`;
 
-        let eligiblePosts = [...publishedPosts];
+        const sortedPublished = [...publishedPosts].sort(comparePostsNewestFirst);
+        let eligiblePosts = [...sortedPublished];
         const spotlightSec = document.getElementById('section-spotlight');
         const spotlightBlock = (homeBlocks || []).find(b => b.type === 'spotlight' && b.enabled !== false);
         const designCfg = (getConfig().design) || {};
         const isSpotlightActive = Boolean(spotlightBlock && designCfg.featured !== false);
 
         // Featured post in Spotlight must never appear in Recent Posts when Spotlight is showing
-        const featuredPost = isSpotlightActive ? resolveFeaturedPost(publishedPosts, homeBlocks) : null;
+        const featuredPost = isSpotlightActive ? resolveFeaturedPost(sortedPublished, homeBlocks) : null;
         if (featuredPost) {
-          eligiblePosts = publishedPosts.filter(p => {
+          eligiblePosts = sortedPublished.filter(p => {
             if (p === featuredPost) return false;
             if (featuredPost.id && p.id && String(p.id) === String(featuredPost.id)) return false;
             if (featuredPost.slug && p.slug && String(p.slug) === String(featuredPost.slug)) return false;
@@ -1382,14 +1400,14 @@
             return true;
           });
         }
-        eligiblePosts.sort((a, b) => new Date(b.publishedDate || b.date || 0) - new Date(a.publishedDate || a.date || 0));
 
         let filteredPosts = eligiblePosts;
         if (activeCategoryFilter !== 'ALL') {
-          filteredPosts = publishedPosts.filter(p => matchPostToCategory(p, activeCategoryFilter));
+          filteredPosts = sortedPublished.filter(p => matchPostToCategory(p, activeCategoryFilter));
         } else if (!isSpotlightActive || (!spotlightSec || spotlightSec.style.display === 'none')) {
-          filteredPosts = publishedPosts;
+          filteredPosts = sortedPublished;
         }
+        filteredPosts = [...filteredPosts].sort(comparePostsNewestFirst);
 
         const countEl = document.getElementById('grid-post-count');
         if (countEl) {
@@ -1523,7 +1541,9 @@
         updateNavLinks('home');
 
         const isLinks = (d) => Boolean(d && (d.id === 'page_links' || d.slug === 'links' || (d.title || '').trim().toLowerCase() === 'links' || d.linksData));
-        const publishedPosts = getDrafts().filter(d => (d.type === 'post' || !d.type) && d.type !== 'page' && d.type !== 'note' && d.status === 'published' && !d.hidden && !d.retired && !d.isCategoryAggregate && !String(d.id).startsWith('page_') && !isLinks(d));
+        const publishedPosts = getDrafts()
+          .filter(d => (d.type === 'post' || !d.type) && d.type !== 'page' && d.type !== 'note' && d.status === 'published' && !d.hidden && !d.retired && !d.isCategoryAggregate && !String(d.id).startsWith('page_') && !isLinks(d))
+          .sort(comparePostsNewestFirst);
         const pages = getDrafts().filter(d => (d.type === 'page' || isLinks(d)) && !d.hidden && !d.retired && d.slug !== 'about-cedar' && d.id !== 'page_about_cedar');
         const authors = (getConfig().authors || []).filter(a => typeof a === 'object' ? !a.retired : true);
         const designCfg = getConfig().design || {};

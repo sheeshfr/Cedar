@@ -7328,14 +7328,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
 
 
-    const exportModal = document.getElementById('modal-export');
-
-    if (exportModal) {
-
-      exportModal.style.display = 'none';
-
-      exportModal.classList.remove('active');
-
+    if (typeof window.closePublishDrawer === 'function') {
+      window.closePublishDrawer({ keepHistory: true });
+    } else {
+      const exportModal = document.getElementById('modal-export');
+      if (exportModal) {
+        exportModal.style.display = 'none';
+        exportModal.classList.remove('open', 'active');
+      }
+      document.body.classList.remove('publish-drawer-open');
     }
 
 

@@ -3845,9 +3845,87 @@
   }
 
 
+  let publishDrawerHistoryPushed = false;
+  let publishDrawerHistoryListenerBound = false;
+  let isClosingPublishDrawerViaHistory = false;
+  let suppressNextPublishDrawerHashChange = false;
+
+  function isPublishDrawerOpen() {
+    const el = document.getElementById('modal-export');
+    if (!el) return false;
+    return el.classList.contains('open') || Boolean(el.style.display && el.style.display !== 'none');
+  }
+
+  function ensurePublishDrawerHistoryListener() {
+    if (publishDrawerHistoryListenerBound) return;
+    publishDrawerHistoryListenerBound = true;
+
+    window.addEventListener('popstate', (e) => {
+      if (isClosingPublishDrawerViaHistory) {
+        isClosingPublishDrawerViaHistory = false;
+        suppressNextPublishDrawerHashChange = true;
+        setTimeout(() => { suppressNextPublishDrawerHashChange = false; }, 0);
+        if (window.currentView === 'editor' && window.currentDraft && window.currentDraft.slug && typeof window.updateEditorUrlSlug === 'function') {
+          window.updateEditorUrlSlug(window.currentDraft.slug);
+        }
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (isPublishDrawerOpen()) {
+        publishDrawerHistoryPushed = false;
+        suppressNextPublishDrawerHashChange = true;
+        setTimeout(() => { suppressNextPublishDrawerHashChange = false; }, 0);
+        closePublishDrawer({ fromPopState: true });
+        if (window.currentView === 'editor' && window.currentDraft && window.currentDraft.slug && typeof window.updateEditorUrlSlug === 'function') {
+          window.updateEditorUrlSlug(window.currentDraft.slug);
+        }
+        e.stopImmediatePropagation();
+      }
+    }, true);
+
+    window.addEventListener('hashchange', (e) => {
+      if (suppressNextPublishDrawerHashChange) {
+        suppressNextPublishDrawerHashChange = false;
+        e.stopImmediatePropagation();
+      }
+    }, true);
+  }
+
+  function pushPublishDrawerHistoryState() {
+    ensurePublishDrawerHistoryListener();
+    if (publishDrawerHistoryPushed) return;
+    try {
+      const baseState = (window.history && window.history.state && typeof window.history.state === 'object')
+        ? Object.assign({}, window.history.state)
+        : {};
+      baseState.__cedarPublishDrawerOpen = true;
+      window.history.pushState(baseState, document.title, window.location.href);
+      publishDrawerHistoryPushed = true;
+    } catch (_) {}
+  }
+
+  function popPublishDrawerHistoryStateIfNeeded(options) {
+    const fromPopState = Boolean(options && options.fromPopState);
+    const keepHistory = Boolean(options && options.keepHistory);
+    if (fromPopState || keepHistory) {
+      publishDrawerHistoryPushed = false;
+      return;
+    }
+    if (publishDrawerHistoryPushed) {
+      publishDrawerHistoryPushed = false;
+      isClosingPublishDrawerViaHistory = true;
+      try {
+        window.history.back();
+      } catch (_) {
+        isClosingPublishDrawerViaHistory = false;
+      }
+    }
+  }
+
   function openPublishDrawer() {
     const el = document.getElementById('modal-export');
     if (!el) return;
+    pushPublishDrawerHistoryState();
     if (typeof prepareExportModal === 'function') {
       try {
         prepareExportModal();
@@ -3877,16 +3955,25 @@
     });
   }
 
-  function closePublishDrawer() {
+  function closePublishDrawer(options) {
     const el = document.getElementById('modal-export');
     if (!el) return;
     el.classList.remove('open');
     document.body.classList.remove('publish-drawer-open');
+    const cropModal = document.getElementById('modal-crop-image');
+    if (cropModal && cropModal.style.display !== 'none') {
+      cropModal.style.display = 'none';
+    }
+    const lbModal = document.getElementById('modal-featured-img-lightbox');
+    if (lbModal && lbModal.style.display !== 'none') {
+      lbModal.style.display = 'none';
+    }
     setTimeout(() => {
       if (!el.classList.contains('open')) {
         el.style.display = 'none';
       }
     }, 320);
+    popPublishDrawerHistoryStateIfNeeded(options);
   }
 
   function openModal(modalId) {
