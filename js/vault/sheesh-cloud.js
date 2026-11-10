@@ -2258,7 +2258,30 @@
       });
     }
 
-    const sidebarBtn = document.getElementById('sheesh-sidebar-btn');
+    let sidebarBtn = document.getElementById('sheesh-sidebar-btn');
+    const cedarPreviewBtn = document.getElementById('btn-topbar-preview');
+    const cedarHeaderActions = document.querySelector('.dash-topbar .dash-header-actions, .dash-header-actions');
+    if (!sidebarBtn && cedarHeaderActions) {
+      sidebarBtn = document.createElement('button');
+      sidebarBtn.type = 'button';
+      sidebarBtn.className = 'sheesh-portal-btn is-local';
+      sidebarBtn.id = 'sheesh-sidebar-btn';
+      sidebarBtn.title = 'Account & Sync';
+      sidebarBtn.innerHTML =
+        '<span class="sheesh-portal-dot-inline" id="sheesh-sidebar-dot-inline"></span>' +
+        '<span class="sheesh-portal-status-text" id="sheesh-sidebar-status-text">Local</span>';
+      if (cedarPreviewBtn && cedarPreviewBtn.parentElement === cedarHeaderActions) {
+        cedarPreviewBtn.insertAdjacentElement('afterend', sidebarBtn);
+      } else {
+        cedarHeaderActions.appendChild(sidebarBtn);
+      }
+    } else if (sidebarBtn && sidebarBtn.closest('.sidebar-footer, .site-footer') && cedarHeaderActions) {
+      if (cedarPreviewBtn && cedarPreviewBtn.parentElement === cedarHeaderActions) {
+        cedarPreviewBtn.insertAdjacentElement('afterend', sidebarBtn);
+      } else {
+        cedarHeaderActions.appendChild(sidebarBtn);
+      }
+    }
     if (sidebarBtn && !sidebarBtn.dataset.bound) {
       sidebarBtn.dataset.bound = 'true';
       sidebarBtn.addEventListener('click', () => openSheeshModal());

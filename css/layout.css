@@ -962,7 +962,7 @@ body.sidebar-collapsed .dash-main-wrap {
 }
 
 /* ==========================================================================
-   sheesh.gg Sidebar Portal Button & Cloud Account Modal
+   sheesh.gg Top-Right Header Portal Button & Cloud Account Modal
    ========================================================================== */
 
 .sidebar-footer {
@@ -970,24 +970,34 @@ body.sidebar-collapsed .dash-main-wrap {
 }
 
 .sheesh-portal-btn {
-  width: 100%;
+  width: auto;
+  height: 34px;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 6px 12px;
+  padding: 0 13px;
   border-radius: 999px;
   text-decoration: none;
   cursor: pointer;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: transform 0.16s ease, filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
   box-sizing: border-box;
   background: rgba(161, 161, 170, 0.13);
   border: 1px solid rgba(161, 161, 170, 0.26);
-  color: var(--sidebar-text-primary, #e4e4e7);
+  color: var(--text-primary, var(--sidebar-text-primary, #e4e4e7));
+}
+
+.app-theme-light .sheesh-portal-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.2);
+  color: #18181b;
 }
 
 .sheesh-portal-btn.is-online {
@@ -1026,31 +1036,12 @@ body.sidebar-collapsed .dash-main-wrap {
   white-space: nowrap;
 }
 
-/* Collapsed Sidebar States for Account Status Pill */
-.sidebar.collapsed .sheesh-portal-btn,
-.dash-sidebar.collapsed .sheesh-portal-btn {
-  width: 52px;
-  padding: 5px 4px;
-  font-size: 0.64rem;
-  gap: 4px;
-}
-
-.sidebar.collapsed .sheesh-portal-dot-inline,
-.dash-sidebar.collapsed .sheesh-portal-dot-inline {
-  display: none;
-}
-
-@media (max-width: 870px) and (min-width: 769px) {
-  .sidebar:not(.manually-expanded) .sheesh-portal-btn,
-  .dash-sidebar:not(.manually-expanded) .sheesh-portal-btn {
-    width: 52px !important;
-    padding: 5px 4px !important;
-    font-size: 0.64rem !important;
-    gap: 4px !important;
-  }
-  .sidebar:not(.manually-expanded) .sheesh-portal-dot-inline,
-  .dash-sidebar:not(.manually-expanded) .sheesh-portal-dot-inline {
-    display: none !important;
+@media (max-width: 640px) {
+  .sheesh-portal-btn {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 0.74rem;
+    gap: 6px;
   }
 }
 
