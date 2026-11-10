@@ -98,8 +98,8 @@ body.sidebar-collapsed .dash-main-wrap {
 
 .brand-logo img,
 .brand-logo svg {
-  width: 26px;
-  height: 26px;
+  width: 27px;
+  height: 27px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -113,9 +113,10 @@ body.sidebar-collapsed .dash-main-wrap {
 }
 
 .brand-logo h1 {
-  font-size: 1.15rem;
+  font-size: 1.38rem;
   font-weight: 700;
   letter-spacing: -0.025em;
+  line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
