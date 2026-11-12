@@ -2,12 +2,12 @@
    Cedar Studio — Master Stylesheet Hub
    ========================================================================== */
 
-@import url('css/variables.css?v=6.7.7');
-@import url('css/base.css?v=6.7.7');
-@import url('css/layout.css?v=6.7.7');
-@import url('css/dashboard.css?v=6.7.7');
-@import url('css/dashboard-home.css?v=6.7.7');
-@import url('css/dashboard-settings.css?v=6.7.7');
-@import url('css/editor.css?v=6.7.7');
-@import url('css/modals.css?v=6.7.7');
-@import url('css/vault.css?v=6.7.7');
+@import url('css/variables.css?v=6.7.8');
+@import url('css/base.css?v=6.7.8');
+@import url('css/layout.css?v=6.7.8');
+@import url('css/dashboard.css?v=6.7.8');
+@import url('css/dashboard-home.css?v=6.7.8');
+@import url('css/dashboard-settings.css?v=6.7.8');
+@import url('css/editor.css?v=6.7.8');
+@import url('css/modals.css?v=6.7.8');
+@import url('css/vault.css?v=6.7.8');

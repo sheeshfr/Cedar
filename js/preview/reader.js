@@ -1301,6 +1301,7 @@
   let popoutBaseH = 480;
   let popoutLockedArrowSpanW = 640;
   let popoutZoomIndex = 0;
+  let popoutMobileScale = 1;
   let popoutPanX = 0;
   let popoutPanY = 0;
   let popoutIsDragging = false;
@@ -1309,6 +1310,40 @@
   let popoutDragOriginX = 0;
   let popoutDragOriginY = 0;
   let popoutDidDrag = false;
+
+  // Mobile touch gesture state (pinch-to-zoom, pan when zoomed, swipe left/right on 1x carousel)
+  let popoutTouchMode = 'none'; // 'none' | 'single' | 'pinch'
+  let popoutTouchStartX = 0;
+  let popoutTouchStartY = 0;
+  let popoutTouchLastX = 0;
+  let popoutTouchLastY = 0;
+  let popoutTouchOriginPanX = 0;
+  let popoutTouchOriginPanY = 0;
+  let popoutTouchMoved = false;
+  let popoutPinchStartDist = 0;
+  let popoutPinchStartScale = 1;
+  let popoutPinchStartPanX = 0;
+  let popoutPinchStartPanY = 0;
+  let popoutPinchCenterX = 0;
+  let popoutPinchCenterY = 0;
+
+  function isPopoutMobileView() {
+    const vw = window.innerWidth || 1280;
+    return vw <= 768 || Boolean(window.matchMedia && window.matchMedia('(max-width: 768px), (pointer: coarse)').matches);
+  }
+
+  function getActivePopoutScale() {
+    if (isPopoutMobileView()) {
+      return Math.max(1, Math.min(5, popoutMobileScale || 1));
+    }
+    return POPOUT_ZOOM_STEPS[popoutZoomIndex] || 1;
+  }
+
+  function getTouchDistance(t1, t2) {
+    const dx = t2.clientX - t1.clientX;
+    const dy = t2.clientY - t1.clientY;
+    return Math.hypot(dx, dy);
+  }
 
   function ensureImagePopoutDom() {
     if (popoutOverlayEl && document.body.contains(popoutOverlayEl)) {
@@ -1348,6 +1383,15 @@
       closeBlogImagePopout();
     });
 
+    overlay.addEventListener('click', (e) => {
+      if (e.target === popoutImgEl || e.target.closest('.cedar-popout-arrow')) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      closeBlogImagePopout();
+    });
+
     popoutPrevBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1360,11 +1404,12 @@
       stepPopoutImage(1);
     });
 
-    // Mouse wheel magnification (does not move Left/Right arrows)
+    // Mouse wheel magnification (desktop only; does not move Left/Right arrows)
     overlay.addEventListener('wheel', (e) => {
       if (!overlay.classList.contains('is-open')) return;
       e.preventDefault();
       e.stopPropagation();
+      if (isPopoutMobileView()) return;
       if (e.deltaY < 0) {
         stepPopoutZoom(1);
       } else if (e.deltaY > 0) {
@@ -1372,8 +1417,9 @@
       }
     }, { passive: false });
 
-    // Click to toggle big zoom in/out, or drag-to-pan when magnified
+    // Desktop click to toggle big zoom in/out, or drag-to-pan when magnified
     popoutImgEl.addEventListener('mousedown', (e) => {
+      if (isPopoutMobileView()) return;
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1389,6 +1435,8 @@
     popoutImgEl.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // On mobile view, zooming is done via two-finger pinch/pull (no click-to-magnify)
+      if (isPopoutMobileView()) return;
       if (popoutDidDrag) {
         popoutDidDrag = false;
         return;
@@ -1411,6 +1459,138 @@
         resetPopoutZoomAndPosition();
       }
     });
+
+    // Mobile Touch Support:
+    // - 2-finger pinch/pull zooms smoothly in & out
+    // - 1-finger drag pans when zoomed (> 1x), or swipes left/right between carousel images at 1x
+    // - Tapping outside the image closes the popout
+    overlay.addEventListener('touchstart', (e) => {
+      if (!overlay.classList.contains('is-open')) return;
+      if (e.touches.length >= 2) {
+        e.preventDefault();
+        popoutTouchMode = 'pinch';
+        popoutTouchMoved = true;
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        popoutPinchStartDist = Math.max(10, getTouchDistance(t1, t2));
+        popoutPinchStartScale = getActivePopoutScale();
+        popoutPinchStartPanX = popoutPanX;
+        popoutPinchStartPanY = popoutPanY;
+        popoutPinchCenterX = (t1.clientX + t2.clientX) / 2;
+        popoutPinchCenterY = (t1.clientY + t2.clientY) / 2;
+      } else if (e.touches.length === 1) {
+        const t = e.touches[0];
+        popoutTouchMode = 'single';
+        popoutTouchMoved = false;
+        popoutTouchStartX = t.clientX;
+        popoutTouchStartY = t.clientY;
+        popoutTouchLastX = t.clientX;
+        popoutTouchLastY = t.clientY;
+        popoutTouchOriginPanX = popoutPanX;
+        popoutTouchOriginPanY = popoutPanY;
+      }
+    }, { passive: false });
+
+    overlay.addEventListener('touchmove', (e) => {
+      if (!overlay.classList.contains('is-open')) return;
+      if (e.touches.length >= 2) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.max(10, getTouchDistance(t1, t2));
+        if (popoutTouchMode !== 'pinch') {
+          popoutTouchMode = 'pinch';
+          popoutPinchStartDist = dist;
+          popoutPinchStartScale = getActivePopoutScale();
+          popoutPinchStartPanX = popoutPanX;
+          popoutPinchStartPanY = popoutPanY;
+          popoutPinchCenterX = (t1.clientX + t2.clientX) / 2;
+          popoutPinchCenterY = (t1.clientY + t2.clientY) / 2;
+        }
+        popoutTouchMoved = true;
+        const nextScale = Math.max(1, Math.min(5, popoutPinchStartScale * (dist / popoutPinchStartDist)));
+        const midX = (t1.clientX + t2.clientX) / 2;
+        const midY = (t1.clientY + t2.clientY) / 2;
+        const vw = window.innerWidth || 390;
+        const vh = window.innerHeight || 844;
+        const cx = vw / 2;
+        const cy = vh / 2;
+        const scaleRatio = nextScale / Math.max(1, popoutPinchStartScale);
+        popoutMobileScale = nextScale;
+        if (nextScale <= 1.01) {
+          popoutMobileScale = 1;
+          popoutPanX = 0;
+          popoutPanY = 0;
+        } else {
+          popoutPanX = (midX - cx) - ((popoutPinchCenterX - cx - popoutPinchStartPanX) * scaleRatio);
+          popoutPanY = (midY - cy) - ((popoutPinchCenterY - cy - popoutPinchStartPanY) * scaleRatio);
+        }
+        applyPopoutTransform();
+      } else if (e.touches.length === 1 && popoutTouchMode === 'single') {
+        const t = e.touches[0];
+        const dx = t.clientX - popoutTouchStartX;
+        const dy = t.clientY - popoutTouchStartY;
+        popoutTouchLastX = t.clientX;
+        popoutTouchLastY = t.clientY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+          popoutTouchMoved = true;
+        }
+        const curScale = getActivePopoutScale();
+        if (curScale > 1.02) {
+          e.preventDefault();
+          popoutPanX = popoutTouchOriginPanX + dx;
+          popoutPanY = popoutTouchOriginPanY + dy;
+          applyPopoutTransform();
+        } else if (popoutGroupImgs && popoutGroupImgs.length > 1 && Math.abs(dx) > Math.abs(dy)) {
+          e.preventDefault();
+        }
+      }
+    }, { passive: false });
+
+    overlay.addEventListener('touchend', (e) => {
+      if (!overlay.classList.contains('is-open')) return;
+      if (e.touches.length === 1 && popoutTouchMode === 'pinch') {
+        // Transition cleanly from 2-finger pinch down to 1-finger pan
+        const t = e.touches[0];
+        popoutTouchMode = 'single';
+        popoutTouchStartX = t.clientX;
+        popoutTouchStartY = t.clientY;
+        popoutTouchLastX = t.clientX;
+        popoutTouchLastY = t.clientY;
+        popoutTouchOriginPanX = popoutPanX;
+        popoutTouchOriginPanY = popoutPanY;
+        return;
+      }
+      if (e.touches.length === 0) {
+        const curScale = getActivePopoutScale();
+        if (popoutTouchMode === 'single' && !popoutTouchMoved) {
+          // Single tap without dragging: if outside the image, close the viewer
+          const changed = e.changedTouches && e.changedTouches[0];
+          const tapTarget = changed ? document.elementFromPoint(changed.clientX, changed.clientY) : e.target;
+          if (tapTarget !== popoutImgEl && (!tapTarget || !tapTarget.closest || !tapTarget.closest('.cedar-popout-arrow'))) {
+            e.preventDefault();
+            closeBlogImagePopout();
+          }
+        } else if (popoutTouchMode === 'single' && curScale <= 1.04 && popoutGroupImgs && popoutGroupImgs.length > 1) {
+          // Organic horizontal swipe to step carousel images
+          const dx = popoutTouchLastX - popoutTouchStartX;
+          const dy = popoutTouchLastY - popoutTouchStartY;
+          if (Math.abs(dx) >= 42 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+            if (dx < 0) {
+              stepPopoutImage(1);
+            } else {
+              stepPopoutImage(-1);
+            }
+          }
+        } else if (curScale < 1.04) {
+          popoutMobileScale = 1;
+          popoutPanX = 0;
+          popoutPanY = 0;
+          applyPopoutTransform();
+        }
+        popoutTouchMode = 'none';
+      }
+    }, { passive: false });
 
     window.addEventListener('mousemove', (e) => {
       if (!popoutIsDragging) return;
@@ -1440,15 +1620,26 @@
   function getPopoutSafeMaxBounds() {
     const vw = window.innerWidth || 1280;
     const vh = window.innerHeight || 800;
-    // Reserve ample room on left/right so arrows sit off to the side and image never fullscreens on 1st click
+    if (isPopoutMobileView()) {
+      // On mobile: image fills left-to-right edge of the window
+      return {
+        vw,
+        vh,
+        sideReserve: 0,
+        maxW: vw,
+        maxH: Math.max(240, vh - 80),
+        isMobile: true
+      };
+    }
+    // Desktop: reserve ample room on left/right so arrows sit off to the side
     const sideReserve = vw < 640 ? 64 : 116;
     const maxW = Math.max(200, Math.min(vw - sideReserve * 2, Math.floor(vw * 0.70), 1080));
     const maxH = Math.max(180, Math.min(vh - 140, Math.floor(vh * 0.72), 800));
-    return { vw, vh, sideReserve, maxW, maxH };
+    return { vw, vh, sideReserve, maxW, maxH, isMobile: false };
   }
 
   function computeSingleImageBaseDimensions(sourceImgEl, loadedImgEl, isGalleryRow) {
-    const { maxW, maxH } = getPopoutSafeMaxBounds();
+    const { vw, maxW, maxH, isMobile } = getPopoutSafeMaxBounds();
 
     // Measure inline rendered size on the page (fallback to first visible item in gallery if hidden 5+ item)
     let rect = (sourceImgEl && sourceImgEl.getBoundingClientRect) ? sourceImgEl.getBoundingClientRect() : null;
@@ -1466,6 +1657,27 @@
     const natW = (loadedImgEl && loadedImgEl.naturalWidth) || (sourceImgEl && sourceImgEl.naturalWidth) || inlineW;
     const natH = (loadedImgEl && loadedImgEl.naturalHeight) || (sourceImgEl && sourceImgEl.naturalHeight) || inlineH;
     const aspect = (natW > 0 && natH > 0) ? (natW / natH) : (inlineW / Math.max(1, inlineH));
+
+    const isExplicitPixelated = Boolean(
+      sourceImgEl && (
+        sourceImgEl.getAttribute('data-pixelated') === 'true' ||
+        sourceImgEl.closest('[data-pixelated="true"]')
+      )
+    );
+
+    if (isMobile) {
+      let mobileW = vw;
+      let mobileH = Math.max(90, Math.round(mobileW / Math.max(0.1, aspect)));
+      if (mobileH > maxH) {
+        mobileH = maxH;
+        mobileW = Math.max(120, Math.round(mobileH * aspect));
+      }
+      return {
+        baseW: mobileW,
+        baseH: mobileH,
+        pixelated: isExplicitPixelated
+      };
+    }
 
     let baseW = 0;
     let baseH = 0;
@@ -1530,12 +1742,6 @@
       baseH = Math.max(90, Math.round(targetH));
     }
 
-    const isExplicitPixelated = Boolean(
-      sourceImgEl && (
-        sourceImgEl.getAttribute('data-pixelated') === 'true' ||
-        sourceImgEl.closest('[data-pixelated="true"]')
-      )
-    );
     const isIntegerUpscaledSmallImg = Boolean(natW > 0 && natW <= 640 && baseW >= natW * 2 && (baseW % natW === 0));
 
     return {
@@ -1548,11 +1754,20 @@
   function updatePopoutControlsVisibility() {
     if (!popoutPrevBtn || !popoutNextBtn) return;
     const isMulti = Boolean(popoutGroupImgs && popoutGroupImgs.length > 1);
-    const isMagnified = popoutZoomIndex > 0;
-    if (!isMulti || isMagnified) {
+    const isMobile = isPopoutMobileView();
+    const isMagnified = getActivePopoutScale() > 1.01;
+    // Never show Left/Right arrows on mobile view (users swipe organically)
+    if (!isMulti || isMagnified || isMobile) {
       popoutPrevBtn.style.display = 'none';
       popoutNextBtn.style.display = 'none';
-      if (popoutCounterEl) popoutCounterEl.style.display = isMulti && !isMagnified ? 'block' : 'none';
+      if (popoutCounterEl) {
+        if (isMulti && !isMagnified) {
+          popoutCounterEl.textContent = `${popoutCurrentIndex + 1} / ${popoutGroupImgs.length}`;
+          popoutCounterEl.style.display = 'block';
+        } else {
+          popoutCounterEl.style.display = 'none';
+        }
+      }
       return;
     }
     popoutPrevBtn.style.display = 'inline-flex';
@@ -1565,7 +1780,7 @@
 
   function positionPopoutSideArrows(spanW) {
     if (!popoutPrevBtn || !popoutNextBtn) return;
-    if (!popoutGroupImgs || popoutGroupImgs.length <= 1) {
+    if (!popoutGroupImgs || popoutGroupImgs.length <= 1 || isPopoutMobileView()) {
       updatePopoutControlsVisibility();
       return;
     }
@@ -1587,30 +1802,37 @@
 
   function applyPopoutTransform() {
     if (!popoutImgEl) return;
-    const zoom = POPOUT_ZOOM_STEPS[popoutZoomIndex] || 1;
+    const isMobile = isPopoutMobileView();
+    const zoom = getActivePopoutScale();
     updatePopoutControlsVisibility();
-    if (zoom <= 1) {
+    if (zoom <= 1.01) {
       popoutPanX = 0;
       popoutPanY = 0;
-      popoutImgEl.style.cursor = 'zoom-in';
+      popoutImgEl.style.cursor = isMobile ? 'default' : 'zoom-in';
       popoutImgEl.style.transform = 'translate3d(0px, 0px, 0px) scale(1)';
       return;
     }
 
-    const maxPanX = Math.max(0, Math.round((popoutBaseW * zoom - popoutBaseW) / 2));
-    const maxPanY = Math.max(0, Math.round((popoutBaseH * zoom - popoutBaseH) / 2));
+    const vw = window.innerWidth || popoutBaseW;
+    const vh = window.innerHeight || popoutBaseH;
+    const scaledW = popoutBaseW * zoom;
+    const scaledH = popoutBaseH * zoom;
+    const maxPanX = Math.max(0, Math.round((scaledW - Math.min(vw, popoutBaseW)) / 2));
+    const maxPanY = Math.max(0, Math.round((scaledH - Math.min(vh, popoutBaseH)) / 2));
     popoutPanX = Math.max(-maxPanX, Math.min(maxPanX, popoutPanX));
     popoutPanY = Math.max(-maxPanY, Math.min(maxPanY, popoutPanY));
 
-    popoutImgEl.style.cursor = (popoutIsDragging && popoutDidDrag) ? 'grabbing' : 'zoom-out';
+    popoutImgEl.style.cursor = isMobile ? 'default' : ((popoutIsDragging && popoutDidDrag) ? 'grabbing' : 'zoom-out');
     popoutImgEl.style.transform = `translate3d(${Math.round(popoutPanX)}px, ${Math.round(popoutPanY)}px, 0px) scale(${zoom})`;
   }
 
   function resetPopoutZoomAndPosition() {
     popoutZoomIndex = 0;
+    popoutMobileScale = 1;
     popoutPanX = 0;
     popoutPanY = 0;
     popoutIsDragging = false;
+    popoutTouchMode = 'none';
     if (popoutImgEl) popoutImgEl.classList.remove('is-dragging');
     applyPopoutTransform();
   }

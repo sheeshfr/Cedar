@@ -480,6 +480,13 @@
       overflow: hidden;
     }
 
+    @media (max-width: 768px), (pointer: coarse) {
+      .spotlight-carousel-nav,
+      .spotlight-carousel-arrow {
+        display: none !important;
+      }
+    }
+
     @media (max-width: 680px) {
       .posts-list-view .post-card {
         flex-direction: column;
@@ -491,8 +498,7 @@
         height: 200px;
       }
       .spotlight-carousel-nav {
-        top: 1rem;
-        right: 1rem;
+        display: none !important;
       }
     }
 

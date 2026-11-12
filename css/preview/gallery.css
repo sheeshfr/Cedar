@@ -335,14 +335,21 @@
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px), (pointer: coarse) {
       .cedar-popout-arrow {
-        width: 40px;
-        height: 40px;
+        display: none !important;
       }
-      .cedar-popout-arrow svg {
-        width: 18px;
-        height: 18px;
+      .cedar-image-popout-img {
+        border-radius: 0;
+        cursor: default;
+      }
+      .article-prose .figure-hover-actions,
+      #reader-prose .figure-hover-actions,
+      .article-prose .image-hover-pill-bar,
+      #reader-prose .image-hover-pill-bar,
+      .article-prose .figure-action-btn,
+      #reader-prose .figure-action-btn {
+        display: none !important;
       }
     }
 

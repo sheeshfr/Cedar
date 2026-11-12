@@ -1539,6 +1539,16 @@
   pointer-events: none !important;
 }
 
+@media (max-width: 768px), (pointer: coarse) {
+  .captioned-image-container .figure-hover-actions,
+  .btn-scale-img-down,
+  .btn-scale-img-up {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+}
+
 .figure-action-btn {
   background: rgba(24, 24, 27, 0.88);
   backdrop-filter: blur(8px);
