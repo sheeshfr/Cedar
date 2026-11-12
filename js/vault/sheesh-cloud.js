@@ -1438,7 +1438,11 @@
               im.dataUrl = im.src;
             }
             if (!im.dataUrl) {
-              const regData = getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+              const regData = getImageRegistryValue(im.relativePath)
+                || getImageRegistryValue(im.savedRelPath)
+                || getImageRegistryValue(im.filename)
+                || getImageRegistryValue(im.id)
+                || getImageRegistryValue(im.name);
               if (regData && regData.startsWith('data:')) {
                 im.dataUrl = regData;
               }
@@ -1446,7 +1450,9 @@
             if (im.src && im.dataUrl && im.src === im.dataUrl) {
               delete im.src;
             }
+            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
             if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
+            if (im.filename) embeddedMediaPaths.add(String(im.filename));
             if (im.id) embeddedMediaPaths.add(String(im.id));
             if (im.name) embeddedMediaPaths.add(String(im.name));
           });
@@ -1765,7 +1771,11 @@
                   im.dataUrl = im.src;
                 }
                 if (!im.dataUrl) {
-                  const regData = getImageRegistryValue(im.savedRelPath) || getImageRegistryValue(im.id) || getImageRegistryValue(im.name);
+                  const regData = getImageRegistryValue(im.relativePath)
+                    || getImageRegistryValue(im.savedRelPath)
+                    || getImageRegistryValue(im.filename)
+                    || getImageRegistryValue(im.id)
+                    || getImageRegistryValue(im.name);
                   if (regData) im.dataUrl = regData;
                 }
                 if (im.dataUrl && !im.src) {
@@ -1774,11 +1784,21 @@
                 if (im.dataUrl && String(im.dataUrl).startsWith('data:')) {
                   if (im.id) setImageRegistryValue(im.id, im.dataUrl);
                   if (im.name) setImageRegistryValue(im.name, im.dataUrl);
-                  if (im.savedRelPath) {
-                    setImageRegistryValue(im.savedRelPath, im.dataUrl);
+                  if (im.filename) {
+                    setImageRegistryValue(im.filename, im.dataUrl);
+                    setImageRegistryValue(`/blog/images/${im.filename}`, im.dataUrl);
+                    setImageRegistryValue(`blog/images/${im.filename}`, im.dataUrl);
+                  }
+                  if (im.relativePath) setImageRegistryValue(im.relativePath, im.dataUrl);
+                  if (im.savedRelPath) setImageRegistryValue(im.savedRelPath, im.dataUrl);
+                  if (typeof window.retainSessionLingeringImage === 'function') {
+                    window.retainSessionLingeringImage(im, p.id, false);
+                  }
+                  const storageRelPath = im.savedRelPath || im.relativePath || (im.filename ? `blog/images/${im.filename}` : '');
+                  if (storageRelPath) {
                     try {
                       if (window.CedarVirtualStorage && typeof window.CedarVirtualStorage.writeFile === 'function') {
-                        await window.CedarVirtualStorage.writeFile(im.savedRelPath, im.dataUrl);
+                        await window.CedarVirtualStorage.writeFile(storageRelPath.replace(/^\/+/, ''), im.dataUrl);
                       }
                     } catch (_) {}
                   }
@@ -1855,7 +1875,37 @@
               const remoteDraft = orderedPosts[rIdx];
               const remoteUpdated = Number(remoteDraft && (remoteDraft.updatedAt || remoteDraft.createdAt)) || 0;
               if (localUpdated > remoteUpdated) {
-                orderedPosts[rIdx] = Object.assign({}, remoteDraft, localDraft);
+                const mergedDraft = Object.assign({}, remoteDraft, localDraft);
+                // Preserve full base64 dataUrl/src from remoteDraft.images when localDraft came from slimmed localStorage
+                if (Array.isArray(remoteDraft.images) && remoteDraft.images.length > 0) {
+                  const remoteImgByKey = new Map();
+                  for (const rIm of remoteDraft.images) {
+                    if (!rIm || typeof rIm !== 'object') continue;
+                    const rFn = String(rIm.filename || rIm.name || rIm.id || '').trim().toLowerCase();
+                    const rRel = String(rIm.relativePath || rIm.savedRelPath || '').trim().toLowerCase();
+                    if (rFn) remoteImgByKey.set(rFn, rIm);
+                    if (rRel) remoteImgByKey.set(rRel, rIm);
+                  }
+                  if (Array.isArray(mergedDraft.images)) {
+                    mergedDraft.images = mergedDraft.images.map(lIm => {
+                      if (!lIm || typeof lIm !== 'object') return lIm;
+                      const lFn = String(lIm.filename || lIm.name || lIm.id || '').trim().toLowerCase();
+                      const lRel = String(lIm.relativePath || lIm.savedRelPath || '').trim().toLowerCase();
+                      const rMatch = (lFn && remoteImgByKey.get(lFn)) || (lRel && remoteImgByKey.get(lRel)) || null;
+                      if (rMatch) {
+                        const restoredDataUrl = lIm.dataUrl || rMatch.dataUrl || ((rMatch.src && String(rMatch.src).startsWith('data:')) ? rMatch.src : '');
+                        return Object.assign({}, rMatch, lIm, restoredDataUrl ? {
+                          dataUrl: restoredDataUrl,
+                          src: (lIm.src && String(lIm.src).startsWith('data:')) ? lIm.src : restoredDataUrl
+                        } : {});
+                      }
+                      return lIm;
+                    });
+                  } else {
+                    mergedDraft.images = remoteDraft.images.slice();
+                  }
+                }
+                orderedPosts[rIdx] = mergedDraft;
               }
             } else {
               const isRecentLocal = (localUpdated > 0 && (nowTs - localUpdated) < 10 * 60 * 1000) || (activeCurId && lid === activeCurId);

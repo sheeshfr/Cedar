@@ -799,6 +799,23 @@
   window.copyToClipboard = copyToClipboard;
   window.fallbackCopy = fallbackCopy;
   /**
+   * Returns the live DOM canvas element ONLY if it is currently active and loaded for the specified draft.
+   */
+  function _getActiveLiveCanvasForDraft(draft, explicitCanvas = null) {
+    if (explicitCanvas && typeof explicitCanvas.querySelectorAll === 'function') {
+      return explicitCanvas;
+    }
+    if (!draft || !draft.id) return null;
+    if (typeof window === 'undefined' || window.currentView !== 'editor') return null;
+    if ((window.activeMode || 'canvas') !== 'canvas') return null;
+    if (typeof currentDraft === 'undefined' || !currentDraft || String(currentDraft.id) !== String(draft.id)) return null;
+    const titleEl = document.getElementById('rich-canvas-title');
+    if (!titleEl || String(titleEl.dataset?.loadedDraftId || '') !== String(draft.id)) return null;
+    const canvas = document.getElementById('rich-canvas-prose');
+    return (canvas && typeof canvas.querySelectorAll === 'function') ? canvas : null;
+  }
+
+  /**
    * Checks whether an image is referenced in a draft's content, canvas, markdown, or cover
    */
   function isImageReferencedInDraft(img, draft, liveCanvasProse = null) {
@@ -807,24 +824,13 @@
     const relPath = img.relativePath || (filename ? `blog/images/${filename}` : '');
     const dataUrl = img.dataUrl || '';
 
-    // 1. If live DOM canvas is provided or currently active
-    const canvas = liveCanvasProse || ((typeof currentDraft !== 'undefined' && currentDraft && currentDraft.id === draft.id) ? document.getElementById('rich-canvas-prose') : null);
-    if (canvas && typeof canvas.querySelectorAll === 'function') {
-      const imgs = canvas.querySelectorAll('img');
-      for (let i = 0; i < imgs.length; i++) {
-        const el = imgs[i];
-        if (el.closest && el.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card')) continue;
-        const src = el.getAttribute('src') || '';
-        const origSrc = el.getAttribute('data-original-src') || '';
-        const imgName = el.getAttribute('data-img-name') || el.dataset?.imgName || el.dataset?.filename || '';
-
-        if (filename && (imgName === filename || src.includes(filename) || origSrc.includes(filename))) return true;
-        if (relPath && (origSrc === relPath || src.includes(relPath))) return true;
-        if (dataUrl && src === dataUrl) return true;
-      }
+    // Dedicated custom cover / cropped featured images belong to the draft's Featured Image
+    // slot even when the user cycles to another image or to the blank slot.
+    if (img.isCropped || img.isOriginal || /-featured-1280x720-/i.test(filename)) {
+      return true;
     }
 
-    // 2. Check draft.coverImage / coverImageOriginal / featuredImage
+    // 1. Check draft.coverImage / coverImageOriginal / featuredImage
     const coverFields = [draft.coverImage, draft.coverImageOriginal, draft.featuredImage];
     for (let j = 0; j < coverFields.length; j++) {
       const c = coverFields[j];
@@ -835,23 +841,42 @@
       }
     }
 
-    // 3. Check markdown
+    // 2. If live DOM canvas is provided or currently active AND loaded for this draft,
+    // treat the live DOM canvas as the authoritative source of truth for body images
+    // (so images just deleted from the live canvas aren't resurrected by stale proseHtml/markdown).
+    const canvas = _getActiveLiveCanvasForDraft(draft, liveCanvasProse);
+    if (canvas) {
+      const imgs = canvas.querySelectorAll('img');
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        if (el.closest && el.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card, .external-link-card')) continue;
+        if (el.classList && (el.classList.contains('external-card-favicon') || el.classList.contains('post-card-img'))) continue;
+        const src = el.getAttribute('src') || '';
+        const origSrc = el.getAttribute('data-original-src') || '';
+        const imgName = el.getAttribute('data-img-name') || el.dataset?.imgName || el.dataset?.filename || '';
+        const alt = el.getAttribute('alt') || '';
+
+        if (filename && (imgName === filename || src.includes(filename) || origSrc.includes(filename) || alt === filename)) return true;
+        if (relPath && (origSrc === relPath || src.includes(relPath))) return true;
+        if (dataUrl && src === dataUrl) return true;
+      }
+      return false;
+    }
+
+    // 3. Check markdown (when live canvas is not active for this draft)
     if (typeof draft.markdown === 'string' && draft.markdown) {
       if (filename && draft.markdown.includes(filename)) return true;
       if (relPath && draft.markdown.includes(relPath)) return true;
       if (dataUrl && draft.markdown.includes(dataUrl)) return true;
     }
 
-    // 4. Check proseHtml & html
+    // 4. Check proseHtml & html (when live canvas is not active for this draft)
     const htmlCombined = (draft.proseHtml || '') + (draft.html || '');
     if (htmlCombined) {
       if (filename && htmlCombined.includes(filename)) return true;
       if (relPath && htmlCombined.includes(relPath)) return true;
       if (dataUrl && htmlCombined.includes(dataUrl)) return true;
     }
-
-    // Note: tempImages is intentionally NOT checked here. Images that are removed from
-    // the canvas or markdown must be purged immediately so phantom images never linger.
 
     return false;
   }
@@ -1187,10 +1212,10 @@
       retainSessionLingeringImage(existing, draft.id, false);
     }
 
-    // 1a. Scan live DOM canvas if available
+    // 1a. Scan live DOM canvas ONLY if it is actively loaded for this draft
     let scannedLiveCanvas = false;
-    const canvas = liveCanvasProse || ((typeof currentDraft !== 'undefined' && currentDraft && currentDraft.id === draft.id) ? document.getElementById('rich-canvas-prose') : null);
-    if (canvas && typeof canvas.querySelectorAll === 'function') {
+    const canvas = _getActiveLiveCanvasForDraft(draft, liveCanvasProse);
+    if (canvas) {
       scannedLiveCanvas = true;
       const imgs = canvas.querySelectorAll('img');
       for (let i = 0; i < imgs.length; i++) {
@@ -1205,8 +1230,8 @@
       }
     }
 
-    // 1b. Scan draft.proseHtml and draft.html using lightweight tag regex (avoids full DOMParser allocation on every save)
-    const htmlCombined = (scannedLiveCanvas ? '' : (draft.proseHtml || '')) + (draft.html || '');
+    // 1b. Scan draft.proseHtml and draft.html using lightweight tag regex (only when live canvas wasn't scanned for this draft)
+    const htmlCombined = scannedLiveCanvas ? '' : ((draft.proseHtml || '') + (draft.html || ''));
     if (htmlCombined && htmlCombined.includes('<img')) {
       const imgTagRe = /<img\b[^>]*>/gi;
       let tagMatch;

@@ -399,6 +399,7 @@
 
     if (removedFn && typeof window.currentDraft !== 'undefined' && window.currentDraft) {
       const curDraft = window.currentDraft;
+      curDraft._headerSyncClean = false;
       if (typeof window.retainSessionLingeringImage === 'function') {
         const srcVal = removedImg ? (removedImg.getAttribute('src') || '') : '';
         const origVal = removedImg ? (removedImg.getAttribute('data-original-src') || `/blog/images/${removedFn}`) : `/blog/images/${removedFn}`;

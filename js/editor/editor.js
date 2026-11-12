@@ -402,13 +402,13 @@
     const canvasTitle = document.getElementById('rich-canvas-title');
     const setupTitle = document.getElementById('setup-post-title');
     const exportModal = document.getElementById('modal-export');
-    const isExportOpen = exportModal && (exportModal.style.display === 'flex' || exportModal.classList.contains('open'));
+    const isExportOpen = Boolean(exportModal && exportModal.classList.contains('open'));
 
     // Guard: Only scrape living canvas if canvas is bound to this curDraft!
     const isCanvasTitleBound = canvasTitle && (!canvasTitle.dataset.loadedDraftId || canvasTitle.dataset.loadedDraftId === curDraft.id);
 
     const prevDraftTitle = curDraft.title || '';
-    if (isExportOpen && setupTitle && setupTitle.value !== undefined) {
+    if (isExportOpen && setupTitle && setupTitle.dataset.boundDraftId === String(curDraft.id) && setupTitle.value !== undefined) {
       curDraft.title = setupTitle.value.trim();
       if (canvasTitle && isCanvasTitleBound) canvasTitle.textContent = curDraft.title;
     } else if (canvasTitle && canvasTitle.dataset.loadedDraftId === curDraft.id) {
@@ -449,7 +449,7 @@
     const setupSubtitle = document.getElementById('setup-post-subtitle');
     const isCanvasSubBound = canvasSubtitle && (!canvasSubtitle.dataset.loadedDraftId || canvasSubtitle.dataset.loadedDraftId === curDraft.id);
 
-    if (isExportOpen && setupSubtitle && setupSubtitle.value !== undefined) {
+    if (isExportOpen && setupSubtitle && setupSubtitle.dataset.boundDraftId === String(curDraft.id) && setupSubtitle.value !== undefined) {
       curDraft.subtitle = setupSubtitle.value.trim();
       if (canvasSubtitle && isCanvasSubBound) canvasSubtitle.textContent = curDraft.subtitle;
     } else if (canvasSubtitle && canvasSubtitle.dataset.loadedDraftId === curDraft.id) {

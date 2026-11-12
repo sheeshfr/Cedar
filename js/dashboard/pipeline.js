@@ -710,6 +710,10 @@
   }
 
   function getSectionViewMode(sectionName) {
+    const norm = String(sectionName || '').trim().toLowerCase();
+    if (norm === 'subpage' || norm === 'drafts' || norm === 'published' || norm === 'hidden') {
+      return 'list';
+    }
     return 'grid';
   }
 
@@ -736,22 +740,29 @@
       headerViewToggle.remove();
     }
 
-    // Posts are always rendered in Grid View
-    const targetGrids = [
+    // Main Posts overview renders in Grid View; 'Show More' subpage views render in List View
+    const overviewGrids = [
       'posts-cards-drafts',
       'posts-cards-published',
-      'posts-cards-hidden',
-      'posts-cards-subpage'
+      'posts-cards-hidden'
     ];
-    targetGrids.forEach(id => {
+    overviewGrids.forEach(id => {
       const gridEl = document.getElementById(id);
       if (gridEl) {
         gridEl.classList.remove('is-list-view');
       }
     });
 
-    document.querySelectorAll('#pane-posts .posts-horizontal-grid, #pane-posts .posts-subpage-grid').forEach(el => {
+    document.querySelectorAll('#posts-overview-container .posts-horizontal-grid').forEach(el => {
       el.classList.remove('is-list-view');
+    });
+
+    const subpageGrid = document.getElementById('posts-cards-subpage');
+    if (subpageGrid) {
+      subpageGrid.classList.add('is-list-view');
+    }
+    document.querySelectorAll('#posts-subpage-container .posts-horizontal-grid, #posts-subpage-container .posts-subpage-grid').forEach(el => {
+      el.classList.add('is-list-view');
     });
   }
 

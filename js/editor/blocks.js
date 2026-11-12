@@ -2372,10 +2372,28 @@
     }
 
     if (removedFilenames.length > 0 && typeof currentDraft !== 'undefined' && currentDraft) {
+      currentDraft._headerSyncClean = false;
       if (Array.isArray(currentDraft.images) && typeof window.retainSessionLingeringImage === 'function') {
         currentDraft.images.forEach(im => {
           if (im && removedFilenames.includes(im.filename)) {
             window.retainSessionLingeringImage(im, currentDraft.id, true);
+          }
+        });
+      }
+      // If currentDraft.coverImage was pointing to a deleted body image that no longer exists anywhere else in the canvas, clear it
+      if (currentDraft.coverImage) {
+        const remainingCanvasImgs = Array.from(canvasProse.querySelectorAll('img'));
+        removedFilenames.forEach(fn => {
+          if (!fn || !currentDraft.coverImage.includes(fn)) return;
+          const stillInCanvas = remainingCanvasImgs.some(el => {
+            const s = el.getAttribute('src') || '';
+            const o = el.getAttribute('data-original-src') || '';
+            const n = el.getAttribute('data-img-name') || el.dataset?.imgName || el.dataset?.filename || '';
+            return n === fn || s.includes(fn) || o.includes(fn);
+          });
+          if (!stillInCanvas) {
+            currentDraft.coverImage = '';
+            currentDraft.coverImageRemoved = false;
           }
         });
       }

@@ -276,81 +276,149 @@
   // Helper: Extract all available images in a draft (markdown, html, gallery, attached)
   function getDraftAvailableImages(draft, options = {}) {
     if (!draft) return [];
-    if (!options.skipReconcile && typeof window.reconcileDraftImages === 'function') {
+    if (options.reconcile === true && typeof window.reconcileDraftImages === 'function') {
       window.reconcileDraftImages(draft);
     }
     const found = [];
-    const md = draft.markdown || '';
+    const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
 
-    // 1. Standard markdown images: ![alt](url)
-    const mdRegex = /!\[.*?\]\(\s*<?([^\s\)>]+)>?(?:\s+["'].*?["'])?\s*\)/g;
-    let match;
-    while ((match = mdRegex.exec(md)) !== null) {
-      if (match[1]) found.push(match[1].trim());
-    }
-
-    // 2. HTML <img> tags in markdown
-    const htmlRegex = /<img[^>]+src=["']([^"']+)["']/gi;
-    while ((match = htmlRegex.exec(md)) !== null) {
-      if (match[1]) found.push(match[1].trim());
-    }
-
-    // 3. Custom gallery blocks: :::gallery ... :::
-    const galleryBlocks = md.match(/:::gallery[\s\S]*?:::/gi);
-    if (galleryBlocks) {
-      galleryBlocks.forEach(block => {
-        const lines = block.replace(/:::gallery|:::/gi, '').split('\n');
-        lines.forEach(line => {
-          const trimmed = line.trim();
-          if (!trimmed) return;
-          const m = trimmed.match(/!\[.*?\]\(\s*<?([^\s\)>]+)>?/);
-          if (m) found.push(m[1].trim());
-          else if (/\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('images/') || trimmed.startsWith('/blog/images/')) {
-            found.push(trimmed);
-          }
-        });
+    // 0. Dedicated custom uploaded/cropped Featured Image (if present in draft.images) comes first
+    const hasCroppedCoverInDraft = Array.isArray(draft.images) && draft.images.some(
+      im => im && (im.isCropped || /-featured-1280x720-/i.test(String(im.filename || '')))
+    );
+    if (Array.isArray(draft.images)) {
+      draft.images.forEach(img => {
+        if (!img) return;
+        const fn = String(img.filename || '');
+        const isCropped = Boolean(img.isCropped || /-featured-1280x720-/i.test(fn));
+        const isOrigBackup = Boolean(img.isOriginal || /-original-/i.test(fn));
+        if (isCropped || (isOrigBackup && !hasCroppedCoverInDraft)) {
+          const p = (img.relativePath && !img.relativePath.startsWith('data:') && !img.relativePath.startsWith('blob:'))
+            ? img.relativePath
+            : (fn && !fn.startsWith('data:') && !fn.startsWith('blob:') ? `/blog/images/${fn}` : '');
+          if (p) found.push(p);
+        }
       });
     }
 
-    // 4. HTML <img> tags in proseHtml and html (recovers gallery images and embedded media)
-    const htmlCombined = (draft.proseHtml || '') + (draft.html || '');
-    const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
-    if (htmlCombined) {
-      let hMatch;
-      const hImgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-      while ((hMatch = hImgRegex.exec(htmlCombined)) !== null) {
-        const fullTag = hMatch[0];
-        if (/class=["'][^"']*(?:post-card|external-card-favicon)/i.test(fullTag)) continue;
-        const srcAttr = hMatch[1];
-        const nameMatch = fullTag.match(/data-img-name=["']([^"']+)["']/i);
-        const origMatch = fullTag.match(/data-original-src=["']([^"']+)["']/i);
-        const altMatch = fullTag.match(/alt=["']([^"']+)["']/i);
-        let name = nameMatch ? nameMatch[1] : '';
-        const orig = origMatch ? origMatch[1] : '';
-        const altVal = altMatch ? altMatch[1].trim() : '';
-        if (isBogusFn && ((srcAttr && isBogusFn(srcAttr)) || (orig && isBogusFn(orig)) || (name && isBogusFn(name)))) {
-          continue;
-        }
-        if (!name && altVal && /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(altVal)) {
-          name = altVal.split('/').pop().split('\\').pop();
-        }
-        if (name && !name.startsWith('data:') && !name.startsWith('blob:')) {
-          found.push(`/blog/images/${name}`);
-        } else if (orig && !orig.startsWith('data:') && !orig.startsWith('blob:')) {
-          found.push(orig);
-        } else if (srcAttr && !srcAttr.startsWith('data:') && !srcAttr.startsWith('blob:')) {
-          found.push(srcAttr);
+    // Check if the live editor canvas is actively loaded for this draft
+    let usedLiveCanvas = false;
+    if (
+      typeof window !== 'undefined' &&
+      window.currentView === 'editor' &&
+      (window.activeMode || 'canvas') === 'canvas' &&
+      typeof currentDraft !== 'undefined' &&
+      currentDraft &&
+      String(currentDraft.id) === String(draft.id)
+    ) {
+      const titleEl = document.getElementById('rich-canvas-title');
+      const canvasProse = document.getElementById('rich-canvas-prose');
+      if (titleEl && String(titleEl.dataset?.loadedDraftId || '') === String(draft.id) && canvasProse) {
+        usedLiveCanvas = true;
+        const imgs = canvasProse.querySelectorAll('img');
+        for (let i = 0; i < imgs.length; i++) {
+          const el = imgs[i];
+          if (el.closest && el.closest('.page-recent-posts-block, .page-individual-post-block, [data-block-type="recent-posts"], [data-block-type="individual-post"], .post-card, .external-link-card')) continue;
+          if (el.classList && (el.classList.contains('external-card-favicon') || el.classList.contains('post-card-img'))) continue;
+          const srcAttr = el.getAttribute('src') || '';
+          const orig = el.getAttribute('data-original-src') || el.dataset?.originalSrc || '';
+          let name = el.getAttribute('data-img-name') || el.dataset?.imgName || el.dataset?.filename || '';
+          const altVal = (el.getAttribute('alt') || '').trim();
+          if (isBogusFn && ((srcAttr && isBogusFn(srcAttr)) || (orig && isBogusFn(orig)) || (name && isBogusFn(name)))) {
+            continue;
+          }
+          if (!name && altVal && /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(altVal)) {
+            name = altVal.split('/').pop().split('\\').pop();
+          }
+          if (name && !name.startsWith('data:') && !name.startsWith('blob:')) {
+            found.push(`/blog/images/${name}`);
+          } else if (orig && !orig.startsWith('data:') && !orig.startsWith('blob:')) {
+            found.push(orig);
+          } else if (srcAttr && !srcAttr.startsWith('data:') && !srcAttr.startsWith('blob:')) {
+            found.push(srcAttr);
+          }
         }
       }
     }
 
-    // 5. Valid images in draft.images (already reconciled and verified referenced)
+    if (!usedLiveCanvas) {
+      const md = draft.markdown || '';
+
+      // 1. Standard markdown images: ![alt](url)
+      const mdRegex = /!\[.*?\]\(\s*<?([^\s\)>]+)>?(?:\s+["'].*?["'])?\s*\)/g;
+      let match;
+      while ((match = mdRegex.exec(md)) !== null) {
+        if (match[1]) found.push(match[1].trim());
+      }
+
+      // 2. HTML <img> tags in markdown
+      const htmlRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+      while ((match = htmlRegex.exec(md)) !== null) {
+        if (match[1]) found.push(match[1].trim());
+      }
+
+      // 3. Custom gallery blocks: :::gallery ... :::
+      const galleryBlocks = md.match(/:::gallery[\s\S]*?:::/gi);
+      if (galleryBlocks) {
+        galleryBlocks.forEach(block => {
+          const lines = block.replace(/:::gallery|:::/gi, '').split('\n');
+          lines.forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+            const m = trimmed.match(/!\[.*?\]\(\s*<?([^\s\)>]+)>?/);
+            if (m) found.push(m[1].trim());
+            else if (/\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('images/') || trimmed.startsWith('/blog/images/')) {
+              found.push(trimmed);
+            }
+          });
+        });
+      }
+
+      // 4. HTML <img> tags in proseHtml and html (recovers gallery images and embedded media)
+      const htmlCombined = (draft.proseHtml || '') + (draft.html || '');
+      if (htmlCombined) {
+        let hMatch;
+        const hImgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+        while ((hMatch = hImgRegex.exec(htmlCombined)) !== null) {
+          const fullTag = hMatch[0];
+          if (/class=["'][^"']*(?:post-card|external-card-favicon)/i.test(fullTag)) continue;
+          const srcAttr = hMatch[1];
+          const nameMatch = fullTag.match(/data-img-name=["']([^"']+)["']/i);
+          const origMatch = fullTag.match(/data-original-src=["']([^"']+)["']/i);
+          const altMatch = fullTag.match(/alt=["']([^"']+)["']/i);
+          let name = nameMatch ? nameMatch[1] : '';
+          const orig = origMatch ? origMatch[1] : '';
+          const altVal = altMatch ? altMatch[1].trim() : '';
+          if (isBogusFn && ((srcAttr && isBogusFn(srcAttr)) || (orig && isBogusFn(orig)) || (name && isBogusFn(name)))) {
+            continue;
+          }
+          if (!name && altVal && /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(altVal)) {
+            name = altVal.split('/').pop().split('\\').pop();
+          }
+          if (name && !name.startsWith('data:') && !name.startsWith('blob:')) {
+            found.push(`/blog/images/${name}`);
+          } else if (orig && !orig.startsWith('data:') && !orig.startsWith('blob:')) {
+            found.push(orig);
+          } else if (srcAttr && !srcAttr.startsWith('data:') && !srcAttr.startsWith('blob:')) {
+            found.push(srcAttr);
+          }
+        }
+      }
+    }
+
+    // 5. Valid images in draft.images (skip internal uncropped original backup when a cropped cover exists,
+    // and when live canvas is active only include draft.images that are referenced in live canvas or cover)
     if (Array.isArray(draft.images)) {
       draft.images.forEach(img => {
         if (!img) return;
+        const fn = String(img.filename || '');
+        if ((img.isOriginal || /-original-/i.test(fn)) && hasCroppedCoverInDraft) return;
+        if (usedLiveCanvas && typeof window.isImageReferencedInDraft === 'function' && !window.isImageReferencedInDraft(img, draft)) {
+          return;
+        }
         const p = (img.relativePath && !img.relativePath.startsWith('data:') && !img.relativePath.startsWith('blob:'))
           ? img.relativePath
-          : (img.filename && !img.filename.startsWith('data:') && !img.filename.startsWith('blob:') ? `/blog/images/${img.filename}` : '');
+          : (fn && !fn.startsWith('data:') && !fn.startsWith('blob:') ? `/blog/images/${fn}` : '');
         if (p) found.push(p);
       });
     }
@@ -367,16 +435,32 @@
       const baseName = getImageBaseFilename(u).toLowerCase();
       if (baseName) {
         if (isBogusFn && isBogusFn(baseName)) return;
+        if (hasCroppedCoverInDraft && /-original-/i.test(baseName)) return;
         if (draft._brokenCoverUrls && draft._brokenCoverUrls instanceof Set && draft._brokenCoverUrls.has(baseName)) return;
         const mInDraft = (draft.images && Array.isArray(draft.images))
           ? draft.images.find(im => im && (String(im.filename || '').toLowerCase() === baseName || getImageBaseFilename(im.relativePath).toLowerCase() === baseName))
           : null;
+        const resolvedUrl = resolveImageDisplayUrl(u, draft);
+        const hasResolvedData = Boolean(
+          resolvedUrl && (
+            resolvedUrl.startsWith('data:image/') ||
+            resolvedUrl.startsWith('blob:') ||
+            /^https?:\/\//i.test(resolvedUrl)
+          )
+        );
         const hasRealData = Boolean(
-          (mInDraft && (mInDraft.dataUrl || mInDraft.blob || (mInDraft.src && mInDraft.src.startsWith('data:')))) ||
+          hasResolvedData ||
+          (mInDraft && (mInDraft.dataUrl || mInDraft.blob || mInDraft.objectUrl || (mInDraft.src && (mInDraft.src.startsWith('data:') || mInDraft.src.startsWith('blob:'))))) ||
           (window.imageRegistry && (window.imageRegistry.get(baseName)?.dataUrl || window.imageRegistry.get(u)?.dataUrl))
         );
         if (baseName === 'web-image.jpg' && !hasRealData) return;
         if (!/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(baseName) && !hasRealData) return;
+        // Skip dead/unbacked local /blog/images/... ghosts that have no backing dataUrl/blob/http source
+        // when we are in browser/cloud mode without a local vault folder attached.
+        const hasLocalVault = Boolean(typeof window !== 'undefined' && window.SheeshVault && window.SheeshVault.dirHandle);
+        if (!hasRealData && !hasLocalVault && (/^\/?blog\/images\//i.test(u) || /^images\//i.test(u))) {
+          return;
+        }
 
         if (!seenFilenames.has(baseName)) {
           seenFilenames.add(baseName);
@@ -392,7 +476,7 @@
     });
 
     // 6. If draft has an existing coverImage not in the list:
-    // Only include if it is NOT a duplicate of an existing image AND is actually resolvable and referenced
+    // Include if it is NOT a duplicate of an existing image AND is actually resolvable
     const activeCover = (draft.coverImage || '').trim();
     if (activeCover && !activeCover.startsWith('data:') && !activeCover.startsWith('blob:')) {
       const coverBase = getImageBaseFilename(activeCover).toLowerCase();
@@ -400,15 +484,9 @@
       if (!isAlreadyIncluded) {
         const resolved = resolveImageDisplayUrl(activeCover, draft);
         const isValid = resolved && (resolved.startsWith('data:image/') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved));
-        const isReferenced = (typeof window.isImageReferencedInDraft === 'function')
-          ? window.isImageReferencedInDraft({ filename: coverBase, relativePath: activeCover }, draft)
-          : false;
-        if (isValid && isReferenced) {
+        if (isValid) {
           unique.unshift(activeCover);
           if (coverBase) seenFilenames.add(coverBase);
-        } else {
-          // Stale / deleted cover image, clear it
-          draft.coverImage = '';
         }
       }
     }
@@ -968,11 +1046,16 @@
         const failedBase = getImageBaseFilename(cover);
         if (failedBase && typeof window.resolveMediaBlob === 'function' && imgEl.dataset.hydratedRetry !== failedBase) {
           imgEl.dataset.hydratedRetry = failedBase;
-          window.resolveMediaBlob(failedBase).then(blobUrl => {
-            if (blobUrl && currentDraft && (currentDraft.coverImage || '').trim() === cover) {
-              imgEl.src = blobUrl;
-              imgEl.style.display = 'block';
-              if (emptyEl) emptyEl.style.display = 'none';
+          window.resolveMediaBlob(failedBase, { src: cover, postSlug: currentDraft?.slug }).then(blobOrUrl => {
+            if (blobOrUrl && currentDraft && (currentDraft.coverImage || '').trim() === cover) {
+              const resolvedSrc = (typeof Blob !== 'undefined' && blobOrUrl instanceof Blob)
+                ? URL.createObjectURL(blobOrUrl)
+                : (typeof blobOrUrl === 'string' ? blobOrUrl : '');
+              if (resolvedSrc) {
+                imgEl.src = resolvedSrc;
+                imgEl.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = 'none';
+              }
             }
           }).catch(() => {});
           return;
@@ -1007,7 +1090,12 @@
       currentDraft._brokenCoverUrls.clear();
     }
     const available = getDraftAvailableImages(currentDraft);
-    if (available.length === 0) return;
+    if (available.length === 0) {
+      currentDraft.coverImage = '';
+      currentDraft.featuredImage = '';
+      renderSetupFeaturedImage();
+      return;
+    }
 
     // Slots 0..available.length-1 are real images; final slot (index = available.length) is 'No image available'
     const totalSlots = available.length + 1;
@@ -1032,12 +1120,10 @@
       currentDraft.coverImage = '';
       currentDraft.featuredImage = '';
       currentDraft.coverImageRemoved = true;
-      currentDraft.coverImageOriginal = '';
     } else {
       currentDraft.coverImage = available[idx];
       currentDraft.featuredImage = '';
       currentDraft.coverImageRemoved = false;
-      currentDraft.coverImageOriginal = '';
     }
 
     renderSetupFeaturedImage();
@@ -1056,12 +1142,10 @@
     if (available.length > 0) {
       currentDraft.coverImage = available[0];
       currentDraft.coverImageRemoved = false;
-      currentDraft.coverImageOriginal = '';
       if (typeof showToast === 'function') showToast('Reset to 1st image');
     } else {
       currentDraft.coverImage = '';
       currentDraft.coverImageRemoved = false;
-      currentDraft.coverImageOriginal = '';
       if (typeof showToast === 'function') showToast('No images available', 'info');
     }
 
@@ -1165,7 +1249,6 @@
       const selected = lightboxState.images[lightboxState.activeIndex];
       currentDraft.coverImage = selected;
       currentDraft.coverImageRemoved = false;
-      currentDraft.coverImageOriginal = '';
       renderSetupFeaturedImage();
       updateVisualCardPreviews();
       updateBackgroundCodeStrings();
@@ -1339,6 +1422,7 @@
 
   function prepareExportModal() {
     if (!currentDraft) return;
+    currentDraft._headerSyncClean = false;
     syncFormToDraft();
     showPublishMenu('setup');
 
@@ -1373,12 +1457,14 @@
     // 2. Post Title & Subtitle
     const titleInput = document.getElementById('setup-post-title');
     if (titleInput) {
+      titleInput.dataset.boundDraftId = String(currentDraft.id || '');
       titleInput.value = currentDraft.title || '';
       autoResizeSetupTextarea(titleInput);
     }
 
     const subtitleInput = document.getElementById('setup-post-subtitle');
     if (subtitleInput) {
+      subtitleInput.dataset.boundDraftId = String(currentDraft.id || '');
       subtitleInput.value = currentDraft.subtitle || '';
       autoResizeSetupTextarea(subtitleInput);
     }
