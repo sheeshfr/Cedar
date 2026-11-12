@@ -1903,16 +1903,38 @@
   function openBlogImagePopout(groupImgs, startIndex = 0, isGalleryRow = false) {
     if (!Array.isArray(groupImgs) || groupImgs.length === 0) return;
     ensureImagePopoutDom();
+    const wasOpen = popoutOverlayEl.classList.contains('is-open');
     popoutGroupImgs = groupImgs;
     popoutIsGalleryRow = Boolean(isGalleryRow || groupImgs.length > 1);
     popoutOverlayEl.classList.add('is-open');
+    if (!wasOpen && !window.__cedarImagePopoutHistoryPushed) {
+      window.__cedarImagePopoutHistoryPushed = true;
+      try {
+        const curState = (window.history && window.history.state && typeof window.history.state === 'object')
+          ? { ...window.history.state, __cedarImagePopout: true }
+          : { __cedarImagePopout: true };
+        window.history.pushState(curState, '', window.location.href);
+      } catch (e) {}
+    }
     showPopoutImageAtIndex(startIndex, true);
   }
 
-  function closeBlogImagePopout() {
+  function closeBlogImagePopout(options = {}) {
     if (!popoutOverlayEl) return;
+    const wasOpen = popoutOverlayEl.classList.contains('is-open');
     popoutOverlayEl.classList.remove('is-open');
     resetPopoutZoomAndPosition();
+    if (wasOpen && window.__cedarImagePopoutHistoryPushed && !options.fromPopState && !options.skipHistoryBack) {
+      window.__cedarImagePopoutHistoryPushed = false;
+      window.__cedarSuppressNextPopstateRoute = true;
+      try {
+        window.history.back();
+      } catch (e) {
+        window.__cedarSuppressNextPopstateRoute = false;
+      }
+    } else {
+      window.__cedarImagePopoutHistoryPushed = false;
+    }
   }
 
   if (!document._hasCedarPreviewProseButtonsBound) {

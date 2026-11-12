@@ -530,12 +530,13 @@
     curDraft.authorName = getVal('meta-author-name') || defaultAuthName;
     curDraft.authorInitial = getVal('meta-author-initial') || defaultAuthInit;
 
-    const exportModalEl = document.getElementById('modal-export');
-    if (exportModalEl && exportModalEl.style.display === 'flex') {
-      const metaCoverEl = document.getElementById('meta-cover-image');
-      if (metaCoverEl) metaCoverEl.value = curDraft.coverImage || '';
-    } else {
-      curDraft.coverImage = getVal('meta-cover-image');
+    const metaCoverEl = document.getElementById('meta-cover-image');
+    if (metaCoverEl) {
+      if (curDraft.coverImage !== undefined) {
+        metaCoverEl.value = curDraft.coverImage || '';
+      } else {
+        curDraft.coverImage = getVal('meta-cover-image');
+      }
     }
     curDraft.navPrevTitle = getVal('nav-prev-title');
     curDraft.navPrevSlug = getVal('nav-prev-slug');

@@ -597,6 +597,17 @@
       }
     }
 
+    if (r.view !== 'reader') {
+      const popoutOverlay = document.getElementById('cedar-image-popout-overlay');
+      if (popoutOverlay && popoutOverlay.classList.contains('is-open')) {
+        if (typeof window.closeBlogImagePopout === 'function') {
+          window.closeBlogImagePopout({ skipHistoryBack: true });
+        } else {
+          popoutOverlay.classList.remove('is-open');
+        }
+      }
+    }
+
     if (r.view === 'posts') {
       rememberNonPostRoute(r.canonicalHash);
       let pageTitle = `All Posts — ${siteTitle}`;
@@ -646,7 +657,18 @@
     }
     window.__cedarSearchHistoryPushed = false;
 
-    if (options.replace || hadSearchHistory) {
+    const popoutOverlay = document.getElementById('cedar-image-popout-overlay');
+    const hadPopoutHistory = Boolean(window.__cedarImagePopoutHistoryPushed || (window.history && window.history.state && window.history.state.__cedarImagePopout));
+    if (popoutOverlay && popoutOverlay.classList.contains('is-open')) {
+      if (typeof window.closeBlogImagePopout === 'function') {
+        window.closeBlogImagePopout({ skipHistoryBack: true });
+      } else {
+        popoutOverlay.classList.remove('is-open');
+      }
+    }
+    window.__cedarImagePopoutHistoryPushed = false;
+
+    if (options.replace || hadSearchHistory || hadPopoutHistory) {
       try {
         history.replaceState(null, '', previewUrl);
       } catch (e) {
@@ -829,6 +851,16 @@
   function handleHistoryNavigation() {
     if (window.__cedarSuppressNextPopstateRoute) {
       window.__cedarSuppressNextPopstateRoute = false;
+      return;
+    }
+    const popoutOverlay = document.getElementById('cedar-image-popout-overlay');
+    if (popoutOverlay && popoutOverlay.classList.contains('is-open')) {
+      if (typeof window.closeBlogImagePopout === 'function') {
+        window.closeBlogImagePopout({ fromPopState: true });
+      } else {
+        popoutOverlay.classList.remove('is-open');
+        window.__cedarImagePopoutHistoryPushed = false;
+      }
       return;
     }
     const searchModal = document.getElementById('search-modal');

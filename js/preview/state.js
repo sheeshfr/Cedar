@@ -1153,7 +1153,41 @@
           return '';
         }
 
-        // 3. Attached images that are actually referenced in the post's content
+        // 3. First HTML image syntax <img ... src="..." ...> in document order
+        if (prose || html) {
+          const match = (prose + ' ' + html).match(/<img[^>]+?(?:data-original-src|src)=["']([^"']+)["']/i);
+          if (match && match[1]) {
+            const r = resolvePostImage(match[1].trim(), post);
+            if (r) return r;
+          }
+        }
+
+        // 4. First markdown image or gallery item in document order
+        if (md) {
+          const mdOrderedRe = /:::gallery([\s\S]*?):::|!\[[^\]]*\]\(([^)]+)\)|<img[^>]+?(?:data-original-src|src)=["']([^"']+)["']/i;
+          const m = md.match(mdOrderedRe);
+          if (m) {
+            if (m[1] !== undefined) {
+              const cleanInner = m[1].replace(/:::caption[\s\S]*?:::/gi, '');
+              const lines = cleanInner.split('\n').map(l => l.trim()).filter(Boolean);
+              for (const line of lines) {
+                let src = line;
+                const imMatch = line.match(/!\[.*?\]\((.*?)\)/);
+                if (imMatch && imMatch[1]) src = imMatch[1];
+                const r = resolvePostImage(src.trim(), post);
+                if (r) return r;
+              }
+            } else if (m[2] !== undefined) {
+              const r = resolvePostImage(m[2].trim(), post);
+              if (r) return r;
+            } else if (m[3] !== undefined) {
+              const r = resolvePostImage(m[3].trim(), post);
+              if (r) return r;
+            }
+          }
+        }
+
+        // 5. Fallback: Attached images that are actually referenced in the post's content
         if (Array.isArray(post.images) && post.images.length > 0) {
           for (const im of post.images) {
             if (!im) continue;
@@ -1165,24 +1199,6 @@
               const r = resolvePostImage(im, post);
               if (r) return r;
             }
-          }
-        }
-
-        // 4. First markdown image syntax ![...](...)
-        if (md) {
-          const match = md.match(/!\[.*?\]\((.*?)\)/);
-          if (match && match[1]) {
-            const r = resolvePostImage(match[1].trim(), post);
-            if (r) return r;
-          }
-        }
-
-        // 5. First HTML image syntax <img ... src="..." ...>
-        if (prose || html) {
-          const match = (prose + ' ' + html).match(/<img[^>]+src=["']([^"']+)["']/i);
-          if (match && match[1]) {
-            const r = resolvePostImage(match[1].trim(), post);
-            if (r) return r;
           }
         }
 

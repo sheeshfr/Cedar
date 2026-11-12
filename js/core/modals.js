@@ -282,24 +282,9 @@
     const found = [];
     const isBogusFn = typeof window.isBogusOrExternalCardImageUrl === 'function' ? window.isBogusOrExternalCardImageUrl : null;
 
-    // 0. Dedicated custom uploaded/cropped Featured Image (if present in draft.images) comes first
     const hasCroppedCoverInDraft = Array.isArray(draft.images) && draft.images.some(
       im => im && (im.isCropped || /-featured-1280x720-/i.test(String(im.filename || '')))
     );
-    if (Array.isArray(draft.images)) {
-      draft.images.forEach(img => {
-        if (!img) return;
-        const fn = String(img.filename || '');
-        const isCropped = Boolean(img.isCropped || /-featured-1280x720-/i.test(fn));
-        const isOrigBackup = Boolean(img.isOriginal || /-original-/i.test(fn));
-        if (isCropped || (isOrigBackup && !hasCroppedCoverInDraft)) {
-          const p = (img.relativePath && !img.relativePath.startsWith('data:') && !img.relativePath.startsWith('blob:'))
-            ? img.relativePath
-            : (fn && !fn.startsWith('data:') && !fn.startsWith('blob:') ? `/blog/images/${fn}` : '');
-          if (p) found.push(p);
-        }
-      });
-    }
 
     // Check if the live editor canvas is actively loaded for this draft
     let usedLiveCanvas = false;
@@ -342,39 +327,7 @@
     }
 
     if (!usedLiveCanvas) {
-      const md = draft.markdown || '';
-
-      // 1. Standard markdown images: ![alt](url)
-      const mdRegex = /!\[.*?\]\(\s*<?([^\s\)>]+)>?(?:\s+["'].*?["'])?\s*\)/g;
-      let match;
-      while ((match = mdRegex.exec(md)) !== null) {
-        if (match[1]) found.push(match[1].trim());
-      }
-
-      // 2. HTML <img> tags in markdown
-      const htmlRegex = /<img[^>]+src=["']([^"']+)["']/gi;
-      while ((match = htmlRegex.exec(md)) !== null) {
-        if (match[1]) found.push(match[1].trim());
-      }
-
-      // 3. Custom gallery blocks: :::gallery ... :::
-      const galleryBlocks = md.match(/:::gallery[\s\S]*?:::/gi);
-      if (galleryBlocks) {
-        galleryBlocks.forEach(block => {
-          const lines = block.replace(/:::gallery|:::/gi, '').split('\n');
-          lines.forEach(line => {
-            const trimmed = line.trim();
-            if (!trimmed) return;
-            const m = trimmed.match(/!\[.*?\]\(\s*<?([^\s\)>]+)>?/);
-            if (m) found.push(m[1].trim());
-            else if (/\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('images/') || trimmed.startsWith('/blog/images/')) {
-              found.push(trimmed);
-            }
-          });
-        });
-      }
-
-      // 4. HTML <img> tags in proseHtml and html (recovers gallery images and embedded media)
+      // 1. HTML <img> tags in proseHtml and html in exact top-to-bottom document order (includes single images and galleries)
       const htmlCombined = (draft.proseHtml || '') + (draft.html || '');
       if (htmlCombined) {
         let hMatch;
@@ -404,9 +357,36 @@
           }
         }
       }
+
+      // 2. Single-pass top-to-bottom Markdown scan (preserves document order across :::gallery blocks, ![alt](url), and <img>)
+      const md = draft.markdown || '';
+      if (md) {
+        const mdTokenRegex = /:::gallery[\s\S]*?:::|!\[.*?\]\(\s*<?([^\s\)>]+)>?(?:\s+["'].*?["'])?\s*\)|<img[^>]+src=["']([^"']+)["']/gi;
+        let tokenMatch;
+        while ((tokenMatch = mdTokenRegex.exec(md)) !== null) {
+          const fullToken = tokenMatch[0];
+          if (/^:::gallery/i.test(fullToken)) {
+            const lines = fullToken.replace(/:::gallery|:::/gi, '').split('\n');
+            lines.forEach(line => {
+              const trimmed = line.trim();
+              if (!trimmed) return;
+              const m = trimmed.match(/!\[.*?\]\(\s*<?([^\s\)>]+)>?/);
+              if (m && m[1]) {
+                found.push(m[1].trim());
+              } else if (/\.(png|jpe?g|webp|gif|svg|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('images/') || trimmed.startsWith('/blog/images/')) {
+                found.push(trimmed);
+              }
+            });
+          } else if (tokenMatch[1]) {
+            found.push(tokenMatch[1].trim());
+          } else if (tokenMatch[2]) {
+            found.push(tokenMatch[2].trim());
+          }
+        }
+      }
     }
 
-    // 5. Valid images in draft.images (skip internal uncropped original backup when a cropped cover exists,
+    // 3. Valid images in draft.images (skip internal uncropped original backup when a cropped cover exists,
     // and when live canvas is active only include draft.images that are referenced in live canvas or cover)
     if (Array.isArray(draft.images)) {
       draft.images.forEach(img => {
@@ -455,12 +435,6 @@
         );
         if (baseName === 'web-image.jpg' && !hasRealData) return;
         if (!/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(baseName) && !hasRealData) return;
-        // Skip dead/unbacked local /blog/images/... ghosts that have no backing dataUrl/blob/http source
-        // when we are in browser/cloud mode without a local vault folder attached.
-        const hasLocalVault = Boolean(typeof window !== 'undefined' && window.SheeshVault && window.SheeshVault.dirHandle);
-        if (!hasRealData && !hasLocalVault && (/^\/?blog\/images\//i.test(u) || /^images\//i.test(u))) {
-          return;
-        }
 
         if (!seenFilenames.has(baseName)) {
           seenFilenames.add(baseName);
@@ -475,17 +449,20 @@
       }
     });
 
-    // 6. If draft has an existing coverImage not in the list:
-    // Include if it is NOT a duplicate of an existing image AND is actually resolvable
+    // 4. If draft has an existing coverImage not in the list (e.g. a custom uploaded/cropped cover):
+    // Include it if it is NOT a duplicate of an existing image and is not a deleted body image
     const activeCover = (draft.coverImage || '').trim();
     if (activeCover && !activeCover.startsWith('data:') && !activeCover.startsWith('blob:')) {
       const coverBase = getImageBaseFilename(activeCover).toLowerCase();
       const isAlreadyIncluded = coverBase ? seenFilenames.has(coverBase) : false;
-      if (!isAlreadyIncluded) {
+      if (!isAlreadyIncluded && !(isBogusFn && (isBogusFn(activeCover) || (coverBase && isBogusFn(coverBase))))) {
+        const isRef = typeof window.isImageReferencedInDraft === 'function'
+          ? window.isImageReferencedInDraft({ filename: coverBase, relativePath: activeCover }, draft)
+          : true;
         const resolved = resolveImageDisplayUrl(activeCover, draft);
-        const isValid = resolved && (resolved.startsWith('data:image/') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved));
+        const isValid = isRef || Boolean(resolved && (resolved.startsWith('data:image/') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved)));
         if (isValid) {
-          unique.unshift(activeCover);
+          unique.push(activeCover);
           if (coverBase) seenFilenames.add(coverBase);
         }
       }
@@ -971,7 +948,9 @@
           if (coverBase && getImageBaseFilename(u).toLowerCase() === coverBase) return true;
           return false;
         });
-        if (!existsInAvailable) {
+        const stillReferenced = typeof window.isImageReferencedInDraft === 'function'
+          && window.isImageReferencedInDraft({ filename: coverBase, relativePath: currentDraft.coverImage }, currentDraft);
+        if (!existsInAvailable && !stillReferenced) {
           currentDraft.coverImage = currentDraft.coverImageRemoved ? '' : availableImages[0];
         }
       }
@@ -1448,7 +1427,9 @@
         if (coverBase && getImageBaseFilename(u).toLowerCase() === coverBase) return true;
         return false;
       });
-      if (!existsInAvailable) {
+      const stillReferenced = typeof window.isImageReferencedInDraft === 'function'
+        && window.isImageReferencedInDraft({ filename: coverBase, relativePath: currentDraft.coverImage }, currentDraft);
+      if (!existsInAvailable && !stillReferenced) {
         currentDraft.coverImage = (!currentDraft.coverImageRemoved && autoImg) ? autoImg : '';
         if (typeof updateCoverPreview === 'function') updateCoverPreview();
       }
