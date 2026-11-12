@@ -1087,15 +1087,26 @@
           continue;
         }
 
-        if (typeof f.data === 'string' && f.data.length < 250000) {
-          treeEntries.push({
-            path: cleanPath,
-            mode: '100644',
-            type: 'blob',
-            content: f.data
+        if (typeof f.data === 'string') {
+          appendPublishLog(`[upload] ${cleanPath} (${(f.data.length / 1024).toFixed(1)} KB)...`, 'info', '+');
+          const blobRes = await apiRequest(`/repos/${repo}/git/blobs`, {
+            method: 'POST',
+            body: {
+              content: f.data,
+              encoding: 'utf-8'
+            }
           });
-          uploadedCount++;
-          appendPublishLog(`[stage] ${cleanPath} (${(f.data.length / 1024).toFixed(1)} KB)`, 'info', '+');
+          if (blobRes && blobRes.sha) {
+            knownRemoteBlobShas.add(blobRes.sha);
+            if (localSha) knownRemoteBlobShas.add(localSha);
+            treeEntries.push({
+              path: cleanPath,
+              mode: '100644',
+              type: 'blob',
+              sha: blobRes.sha
+            });
+            uploadedCount++;
+          }
         } else {
           const blobObj = (f.data instanceof Blob) ? f.data : new Blob([f.data]);
           appendPublishLog(`[upload] ${cleanPath} (${(blobObj.size / 1024).toFixed(1)} KB binary blob)...`, 'info', '↑');
@@ -1138,16 +1149,57 @@
       appendPublishLog(`Delta summary: ${uploadedCount} uploaded, ${reusedCount} reused, ${skippedCount} unchanged skipped, ${prunedCount} pruned.`, 'info', '>');
       console.info(`[GitHubSync] Delta publish: ${uploadedCount} changed/new files uploaded, ${skippedCount} unchanged files skipped.`);
 
-      // 3. Post Git Tree
-      appendPublishLog(`Creating Git tree (${treeEntries.length} tree delta entries)...`, 'info', '>');
-      const treeRes = await apiRequest(`/repos/${repo}/git/trees`, {
-        method: 'POST',
-        body: {
-          base_tree: baseTreeSha,
-          tree: treeEntries
+      // 3. Post Git Tree (incrementally in batches if large or on 422 timeout)
+      let currentBaseTreeSha = baseTreeSha;
+      const TREE_BATCH_SIZE = 25;
+      if (treeEntries.length <= TREE_BATCH_SIZE) {
+        appendPublishLog(`Creating Git tree (${treeEntries.length} tree delta entries)...`, 'info', '>');
+        try {
+          const treeRes = await apiRequest(`/repos/${repo}/git/trees`, {
+            method: 'POST',
+            body: {
+              base_tree: currentBaseTreeSha,
+              tree: treeEntries
+            }
+          });
+          currentBaseTreeSha = treeRes.sha;
+        } catch (treeErr) {
+          if (treeErr && (treeErr.status === 422 || treeErr.status === 502 || treeErr.status === 504) && treeEntries.length > 1) {
+            appendPublishLog(`Batching Git tree incrementally (${treeEntries.length} entries)...`, 'warn', '!');
+            const fallbackChunkSize = 10;
+            for (let i = 0; i < treeEntries.length; i += fallbackChunkSize) {
+              const chunk = treeEntries.slice(i, i + fallbackChunkSize);
+              const chunkRes = await apiRequest(`/repos/${repo}/git/trees`, {
+                method: 'POST',
+                body: {
+                  base_tree: currentBaseTreeSha,
+                  tree: chunk
+                }
+              });
+              currentBaseTreeSha = chunkRes.sha;
+            }
+          } else {
+            throw treeErr;
+          }
         }
-      });
-      const newTreeSha = treeRes.sha;
+      } else {
+        const totalBatches = Math.ceil(treeEntries.length / TREE_BATCH_SIZE);
+        appendPublishLog(`Creating Git tree incrementally (${treeEntries.length} entries across ${totalBatches} batches)...`, 'info', '>');
+        for (let i = 0; i < treeEntries.length; i += TREE_BATCH_SIZE) {
+          const chunk = treeEntries.slice(i, i + TREE_BATCH_SIZE);
+          const batchNum = Math.floor(i / TREE_BATCH_SIZE) + 1;
+          const chunkRes = await apiRequest(`/repos/${repo}/git/trees`, {
+            method: 'POST',
+            body: {
+              base_tree: currentBaseTreeSha,
+              tree: chunk
+            }
+          });
+          currentBaseTreeSha = chunkRes.sha;
+          appendPublishLog(`Built tree batch ${batchNum}/${totalBatches} -> ${String(currentBaseTreeSha).slice(0, 7)}`, 'dim', '>');
+        }
+      }
+      const newTreeSha = currentBaseTreeSha;
       appendPublishLog(`Created Git tree: ${String(newTreeSha).slice(0, 7)}`, 'info', '>');
 
       // 4. Create Git Commit

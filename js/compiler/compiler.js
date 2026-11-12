@@ -830,7 +830,7 @@
       if (body.querySelector('.page-recent-posts-block, .page-individual-post-block')) {
         const hydrator = (typeof window !== 'undefined' && (window.hydratePageBlocks || window.Cedar?.editor?.hydratePageBlocks));
         if (typeof hydrator === 'function') {
-          hydrator(body, draft || (typeof window !== 'undefined' ? window.currentDraft : null), { isEditor: false, initialPage: 1 });
+          hydrator(body, draft || (typeof window !== 'undefined' ? window.currentDraft : null), { isEditor: false, initialPage: 1, preferStaticPaths });
         }
       }
 
@@ -931,24 +931,32 @@
           }
         }
 
-        if (typeof imageRegistry !== 'undefined' && imageRegistry) {
-          if (src && imageRegistry.has(src)) {
-            img.src = imageRegistry.get(src).dataUrl;
-            return;
-          } else if (orig && imageRegistry.has(orig)) {
-            img.src = imageRegistry.get(orig).dataUrl;
-            return;
-          } else if (imgName && imageRegistry.has(imgName)) {
-            img.src = imageRegistry.get(imgName).dataUrl;
-            return;
+        if (!preferStaticPaths) {
+          if (typeof imageRegistry !== 'undefined' && imageRegistry) {
+            if (src && imageRegistry.has(src)) {
+              img.src = imageRegistry.get(src).dataUrl;
+              return;
+            } else if (orig && imageRegistry.has(orig)) {
+              img.src = imageRegistry.get(orig).dataUrl;
+              return;
+            } else if (imgName && imageRegistry.has(imgName)) {
+              img.src = imageRegistry.get(imgName).dataUrl;
+              return;
+            }
           }
         }
         if (typeof window !== 'undefined' && typeof window.resolvePostImage === 'function') {
           const ref = (orig && !orig.startsWith('blob:')) ? orig : (imgName || src);
           if (ref) {
             const resolved = window.resolvePostImage(ref, draft);
-            if (resolved && (resolved.startsWith('data:') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved) || (preferStaticPaths && resolved.startsWith('/')))) {
-              img.src = resolved;
+            if (resolved) {
+              if (preferStaticPaths) {
+                if (resolved.startsWith('/') && !resolved.startsWith('//')) {
+                  img.setAttribute('src', resolved);
+                }
+              } else if (resolved.startsWith('data:') || resolved.startsWith('blob:') || /^https?:\/\//i.test(resolved)) {
+                img.src = resolved;
+              }
             }
           }
         }
@@ -1490,7 +1498,7 @@
       : `By ${authorName}`;
     const authorInitial = draft.authorInitial || (authorName.charAt(0) || 'O').toUpperCase();
 
-    const pConfig = (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
+    const pConfig = (options && options.projectConfig) || (typeof window !== 'undefined' && window.projectConfig) || (typeof projectConfig !== 'undefined' ? projectConfig : null);
     let authorsPool = (pConfig && Array.isArray(pConfig.authors)) ? pConfig.authors : [];
     if (authorsPool.length === 0 && typeof localStorage !== 'undefined') {
       try {
@@ -1506,7 +1514,7 @@
 
     function findAuthorAvatar(nameOrObj) {
       if (!nameOrObj) return '';
-      if (typeof nameOrObj === 'object' && nameOrObj.avatar) return nameOrObj.avatar;
+      if (typeof nameOrObj === 'object' && nameOrObj.avatar && (!preferStaticPaths || !String(nameOrObj.avatar).startsWith('data:'))) return nameOrObj.avatar;
       const aName = (typeof window.getAuthorName === 'function')
         ? window.getAuthorName(nameOrObj)
         : (typeof nameOrObj === 'object' && nameOrObj ? nameOrObj.name : String(nameOrObj || ''));
@@ -1524,6 +1532,13 @@
       }
       if (!preferStaticPaths && av && typeof imageRegistry !== 'undefined' && imageRegistry.has(av)) {
         av = imageRegistry.get(av).dataUrl;
+      }
+      if (preferStaticPaths && av && av.startsWith('data:')) {
+        const authSlug = String(aName || 'author').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+        const avExt = /^data:image\/gif/i.test(av)
+          ? 'gif'
+          : (/^data:image\/webp/i.test(av) ? 'webp' : (/^data:image\/png/i.test(av) ? 'png' : 'jpg'));
+        av = `/media/authors/${authSlug}_avatar.${avExt}`;
       }
       if (av && !av.startsWith('data:') && !av.startsWith('http') && !av.startsWith('/')) {
         av = '/' + av;
@@ -5450,6 +5465,10 @@ ${socialMeta.metaLines}
 
     // Helper: Strip inline base64 images from proseHtml/featuredImage into static files & rewrite img[src] to static paths
     const sanitizeDraftMediaForStaticExport = (draftClone, slug, folder, cleanImgs) => {
+      delete draftClone.html;
+      if (draftClone.authorAvatar && String(draftClone.authorAvatar).startsWith('data:')) {
+        delete draftClone.authorAvatar;
+      }
       if (draftClone.coverImage && draftClone.coverImage.startsWith('data:')) {
         const covBlob = dataUrlToBlob(draftClone.coverImage);
         if (covBlob) {
@@ -5471,8 +5490,17 @@ ${socialMeta.metaLines}
 
       if (draftClone.proseHtml && typeof draftClone.proseHtml === 'string' && typeof DOMParser !== 'undefined') {
         try {
-          const pDoc = new DOMParser().parseFromString(`<body>${draftClone.proseHtml}</body>`, 'text/html');
+          // Run prepareProseForPublish first so any hydrated page blocks (.page-recent-posts-block, etc.) are expanded before stripping base64
+          const preppedHtml = prepareProseForPublish(draftClone.proseHtml, draftClone, { preferStaticPaths: true });
+          const pDoc = new DOMParser().parseFromString(`<body>${preppedHtml}</body>`, 'text/html');
           let inlineIdx = 0;
+          const allKnownCleanImgs = [...cleanImgs];
+          publicDrafts.forEach(pd => {
+            if (pd && Array.isArray(pd.images)) {
+              pd.images.forEach(im => { if (im) allKnownCleanImgs.push(im); });
+            }
+          });
+
           pDoc.body.querySelectorAll('img').forEach(imgEl => {
             const src = imgEl.getAttribute('src') || '';
             const orig = imgEl.dataset.originalSrc || '';
@@ -5480,10 +5508,41 @@ ${socialMeta.metaLines}
             if (orig && (orig.startsWith('data:') || orig.startsWith('blob:'))) {
               imgEl.removeAttribute('data-original-src');
             }
+
+            // 1. Author avatar inside hydrated post cards
+            if (src.startsWith('data:') && (imgEl.classList.contains('author-avatar') || imgEl.closest('.author-pill, .post-meta-author'))) {
+              const altName = (imgEl.getAttribute('alt') || publicProject.defaultAuthor || 'author').trim();
+              const matchedAuth = Array.isArray(publicProject.authors)
+                ? publicProject.authors.find(a => a && typeof a === 'object' && String(a.name || '').trim().toLowerCase() === altName.toLowerCase())
+                : null;
+              if (matchedAuth && matchedAuth.avatar && !matchedAuth.avatar.startsWith('data:')) {
+                imgEl.setAttribute('src', matchedAuth.avatar);
+                return;
+              }
+            }
+
+            // 2. Post card thumbnail inside hydrated category/recent-posts blocks
+            if (src.startsWith('data:')) {
+              const cardLink = imgEl.closest('a.post-card[href]');
+              if (cardLink) {
+                const href = cardLink.getAttribute('href') || '';
+                const matchedPost = publicDrafts.find(pd => pd && pd.slug && (href.includes(`/${pd.slug}`) || href.endsWith(pd.slug)));
+                if (matchedPost) {
+                  const staticCov = (matchedPost.coverImage && !matchedPost.coverImage.startsWith('data:'))
+                    ? matchedPost.coverImage
+                    : (Array.isArray(matchedPost.images) && matchedPost.images[0] && matchedPost.images[0].relativePath ? matchedPost.images[0].relativePath : '');
+                  if (staticCov) {
+                    imgEl.setAttribute('src', staticCov);
+                    return;
+                  }
+                }
+              }
+            }
+
             const candidateRef = imgName || ((!orig.startsWith('data:') && !orig.startsWith('blob:')) ? orig : '') || ((!src.startsWith('data:') && !src.startsWith('blob:')) ? src : '');
             const cleanCandidate = candidateRef ? candidateRef.split('?')[0].split('#')[0].split('/').pop().split('\\').pop() : '';
             if (cleanCandidate) {
-              const matched = cleanImgs.find(im => im && ((im.filename && im.filename === cleanCandidate) || (im.relativePath && (im.relativePath === candidateRef || im.relativePath.endsWith('/' + cleanCandidate)))));
+              const matched = allKnownCleanImgs.find(im => im && ((im.filename && im.filename === cleanCandidate) || (im.relativePath && (im.relativePath === candidateRef || im.relativePath.endsWith('/' + cleanCandidate)))));
               if (matched && matched.relativePath) {
                 imgEl.setAttribute('src', matched.relativePath);
                 return;
@@ -5511,7 +5570,19 @@ ${socialMeta.metaLines}
               }
             }
           });
-          draftClone.proseHtml = prepareProseForPublish(pDoc.body.innerHTML, draftClone, { preferStaticPaths: true });
+          pDoc.body.querySelectorAll('.post-card-img-ambient').forEach(ambEl => {
+            const st = ambEl.getAttribute('style') || '';
+            if (st.includes('data:')) {
+              const sibImg = ambEl.parentElement ? ambEl.parentElement.querySelector('img.post-card-img') : null;
+              const sibSrc = sibImg ? (sibImg.getAttribute('src') || '') : '';
+              if (sibSrc && !sibSrc.startsWith('data:')) {
+                ambEl.style.backgroundImage = `url('${sibSrc}')`;
+              } else {
+                ambEl.style.backgroundImage = 'none';
+              }
+            }
+          });
+          draftClone.proseHtml = pDoc.body.innerHTML;
         } catch (e) {}
       }
     };
@@ -5633,6 +5704,7 @@ ${socialMeta.metaLines}
       );
       addFile(`${folder}/index.html`, generateFullHtml(postClone, {
         preferStaticPaths: true,
+        projectConfig: publicProject,
         oembedPath: `/${folder}/oembed.json`,
         detectedSiteUrl: options.detectedSiteUrl
       }));
@@ -5744,6 +5816,7 @@ ${socialMeta.metaLines}
         );
         addFile(`${folder}/index.html`, generateFullHtml(pageClone, {
           preferStaticPaths: true,
+          projectConfig: publicProject,
           detectedSiteUrl: options.detectedSiteUrl
         }));
 

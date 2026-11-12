@@ -481,15 +481,28 @@
     return null;
   }
 
-  function resolveCardCoverImage(post) {
+  function resolveCardCoverImage(post, preferStaticPaths = false) {
     if (!post) return '';
+    const raw = (post.coverImage || post.featuredImage || '').trim();
+    if (preferStaticPaths) {
+      if (raw && !raw.startsWith('data:') && !raw.startsWith('blob:')) {
+        return raw.startsWith('http') || raw.startsWith('/') ? raw : '/' + raw;
+      }
+      if (Array.isArray(post.images)) {
+        const firstStatic = post.images.find(im => im && !im.isOriginal && (im.relativePath || im.filename));
+        if (firstStatic) {
+          const rel = firstStatic.relativePath || `/blog/images/${firstStatic.filename}`;
+          return rel.startsWith('/') ? rel : '/' + rel;
+        }
+      }
+      return '';
+    }
     if (typeof window.getPostFeaturedImage === 'function') {
       return window.getPostFeaturedImage(post);
     }
     if (typeof window.resolvePostImage === 'function') {
       return window.resolvePostImage(post.coverImage || post.featuredImage, post);
     }
-    const raw = (post.coverImage || post.featuredImage || '').trim();
     if (!raw) return '';
     if (/^(data:|blob:|https?:\/\/)/i.test(raw)) return raw;
     if (window.imageRegistry && typeof window.imageRegistry.get === 'function') {
@@ -505,9 +518,10 @@
     return raw;
   }
 
-  function renderPostCardForBlock(post, layoutStyle = 'vertical', idx = 0) {
+  function renderPostCardForBlock(post, layoutStyle = 'vertical', idx = 0, options = {}) {
     if (!post) return '';
-    if (typeof window.createPostCardHtml === 'function') {
+    const preferStaticPaths = Boolean(options && options.preferStaticPaths);
+    if (!preferStaticPaths && typeof window.createPostCardHtml === 'function') {
       return window.createPostCardHtml(post, {
         deferredImages: false,
         index: idx,
@@ -536,7 +550,7 @@
       ? window.formatAuthorsString(rawAuths)
       : rawAuths.map(a => (typeof a === 'object' && a ? a.name : a)).filter(Boolean).join(', ');
 
-    const resolvedCover = resolveCardCoverImage(post);
+    const resolvedCover = resolveCardCoverImage(post, preferStaticPaths);
     const categoryEyebrowHtml = '';
 
     const starBadge = (post.starred || post.featured || post.isFeatured)
@@ -605,13 +619,13 @@
     `;
   }
 
-  function renderPageCardForBlock(page, layoutStyle = 'vertical') {
+  function renderPageCardForBlock(page, layoutStyle = 'vertical', options = {}) {
     if (!page) return '';
     const esc = escapeBlockHtml;
     const isBuiltIn = (page.id === 'page_about' || page.slug === 'about' || page.id === 'page_links' || page.slug === 'links' || page.id === 'page_rss' || page.slug === 'rss' || page.id === 'page_all' || page.slug === 'all');
     const pageSlug = page.slug || (typeof window.generateSlug === 'function' ? window.generateSlug(page.title || '') : 'page');
     const href = isBuiltIn ? `#${pageSlug}` : `/${pageSlug}/`;
-    const resolvedCover = resolveCardCoverImage(page);
+    const resolvedCover = resolveCardCoverImage(page, Boolean(options && options.preferStaticPaths));
 
     let thumbWrapHtml = '';
     if (resolvedCover) {
@@ -933,11 +947,11 @@
       const cardLayoutMode = layout === 'list' ? 'horizontal' : 'vertical';
 
       if (itemType === 'page' && linkedPage) {
-        cardHtml = renderPageCardForBlock(linkedPage, cardLayoutMode);
+        cardHtml = renderPageCardForBlock(linkedPage, cardLayoutMode, options);
       } else if (itemType === 'external' && externalMeta) {
         cardHtml = renderExternalCardForBlock(externalMeta, cardLayoutMode);
       } else if (linkedPost) {
-        cardHtml = renderPostCardForBlock(linkedPost, cardLayoutMode, 0);
+        cardHtml = renderPostCardForBlock(linkedPost, cardLayoutMode, 0, options);
       }
 
       if (cardHtml) {
@@ -1090,7 +1104,7 @@
       html += `
         <div class="page-block-render-area">
           <div class="${gridClass}" style="margin-bottom: ${totalPages > 1 ? '1.5rem' : '0'};">
-            ${pagePosts.map((p, idx) => renderPostCardForBlock(p, cardStyle, idx)).join('')}
+            ${pagePosts.map((p, idx) => renderPostCardForBlock(p, cardStyle, idx, options)).join('')}
           </div>
           ${paginationHtml}
         </div>
