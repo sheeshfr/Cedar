@@ -10,7 +10,7 @@
   window.Cedar.editor = window.Cedar.editor || window.Outpost.editor || {};
   window.Outpost.editor = window.Cedar.editor;
 
-  const MAX_HISTORY = 60;
+  const MAX_HISTORY = 200;
   const MACRO_INACTIVITY_MS = 3500;
 
   let undoStack = [];
@@ -115,6 +115,7 @@
         const toRemove = [
           '#canvas-drop-indicator',
           '.canvas-drop-indicator',
+          '.image-sanitizing-placeholder',
           '.image-side-add-btn',
           '.image-add-caption-btn',
           '.gallery-item-controls',
@@ -194,9 +195,17 @@
           if (cleanFn === 'img' || (isBogusFn && isBogusFn(cleanFn))) cleanFn = '';
           if (cleanFn) {
             const relPath = `/blog/images/${cleanFn}`;
-            if (src.startsWith('data:image/')) {
-              if (window.imageRegistry) {
-                const regEntry = { dataUrl: src, filename: cleanFn, relativePath: relPath };
+            if (src.startsWith('data:image/') || src.startsWith('blob:')) {
+              const regEntry = {
+                filename: cleanFn,
+                relativePath: relPath,
+                dataUrl: src.startsWith('data:image/') ? src : '',
+                objectUrl: src.startsWith('blob:') ? src : '',
+                src: src
+              };
+              if (typeof window.retainSessionLingeringImage === 'function') {
+                window.retainSessionLingeringImage(regEntry, curDraft ? curDraft.id : null, false);
+              } else if (window.imageRegistry) {
                 window.imageRegistry.set(cleanFn, regEntry);
                 window.imageRegistry.set(relPath, regEntry);
                 window.imageRegistry.set(`blog/images/${cleanFn}`, regEntry);
@@ -204,10 +213,11 @@
               if (draftImages) {
                 const existing = draftImages.find(im => im && im.filename === cleanFn);
                 if (existing) {
-                  if (!existing.dataUrl) existing.dataUrl = src;
+                  if (!existing.dataUrl && regEntry.dataUrl) existing.dataUrl = regEntry.dataUrl;
+                  if (!existing.objectUrl && regEntry.objectUrl) existing.objectUrl = regEntry.objectUrl;
                   if (!existing.src || !String(existing.src).startsWith('data:')) existing.src = src;
                 } else {
-                  draftImages.push({ filename: cleanFn, relativePath: relPath, dataUrl: src, src });
+                  draftImages.push(regEntry);
                 }
               }
               img.setAttribute('src', relPath);
@@ -487,14 +497,16 @@
       clearTimeout(macroInactivityTimer);
       macroInactivityTimer = null;
     }
+    const hadUncommitted = hasUncommittedChanges;
     hasUncommittedChanges = false;
 
     const currentLive = getEditorSnapshot();
 
     // 1. If user has uncommitted changes in current macro session, revert back to checkpointState
-    if (checkpointState && !isSnapshotsEqual(currentLive, checkpointState)) {
+    if (hadUncommitted && checkpointState && !isSnapshotsEqual(currentLive, checkpointState)) {
       redoStack.push(currentLive);
       applyEditorSnapshot(checkpointState);
+      checkpointState = getEditorSnapshot();
       activeEditBlockNode = null;
       sessionSentenceCompleted = false;
       updateHistoryButtonsUI();
@@ -509,8 +521,8 @@
 
     redoStack.push(checkpointState);
     const targetState = undoStack.pop();
-    checkpointState = targetState;
     applyEditorSnapshot(targetState);
+    checkpointState = getEditorSnapshot();
     activeEditBlockNode = null;
     sessionSentenceCompleted = false;
     updateHistoryButtonsUI();
@@ -535,8 +547,8 @@
     }
 
     const targetState = redoStack.pop();
-    checkpointState = targetState;
     applyEditorSnapshot(targetState);
+    checkpointState = getEditorSnapshot();
     activeEditBlockNode = null;
     sessionSentenceCompleted = false;
     updateHistoryButtonsUI();
@@ -589,6 +601,9 @@
         if (typeof window.ensureImageCaptionElements === 'function') {
           window.ensureImageCaptionElements(canvasProse);
         }
+        if (currentDraft && typeof window.reconcileDraftImages === 'function') {
+          window.reconcileDraftImages(currentDraft, canvasProse);
+        }
         if (typeof window.hydrateCanvasImages === 'function') {
           window.hydrateCanvasImages(canvasProse, currentDraft);
         }
@@ -616,13 +631,16 @@
         }
       }
 
-      // Sync draft markdown & proseHtml
+      // Sync draft markdown, proseHtml, and active images
       if (currentDraft) {
         if (activeMode === 'canvas') {
           if (canvasProse) {
             currentDraft.proseHtml = cleanProseHtmlForStorage(canvasProse);
             if (typeof window.domToMarkdown === 'function') {
               currentDraft.markdown = window.domToMarkdown(canvasProse);
+            }
+            if (typeof window.reconcileDraftImages === 'function') {
+              window.reconcileDraftImages(currentDraft, canvasProse);
             }
           }
         } else {
@@ -631,10 +649,14 @@
             if (typeof window.parseMarkdownToHtml === 'function') {
               currentDraft.proseHtml = window.parseMarkdownToHtml(mdInput.value);
             }
+            if (typeof window.reconcileDraftImages === 'function') {
+              window.reconcileDraftImages(currentDraft);
+            }
           }
         }
       }
 
+      if (typeof window.updateImagesCount === 'function') window.updateImagesCount();
       if (typeof window.updateStats === 'function') window.updateStats();
       if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
       if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
@@ -752,6 +774,26 @@
     });
   }
 
+  function isImageInEditorHistory(filename) {
+    if (!filename) return false;
+    const clean = String(filename).split('/').pop().split('\\').pop().split('?')[0].trim();
+    if (!clean) return false;
+    const matchesSnap = (s) => {
+      if (!s) return false;
+      if (typeof s.proseHtml === 'string' && s.proseHtml.includes(clean)) return true;
+      if (typeof s.markdown === 'string' && s.markdown.includes(clean)) return true;
+      return false;
+    };
+    if (matchesSnap(checkpointState)) return true;
+    for (let i = 0; i < undoStack.length; i++) {
+      if (matchesSnap(undoStack[i])) return true;
+    }
+    for (let j = 0; j < redoStack.length; j++) {
+      if (matchesSnap(redoStack[j])) return true;
+    }
+    return false;
+  }
+
   // Exports
   window.getCaretOffset = getCaretOffset;
   window.setCaretOffset = setCaretOffset;
@@ -772,6 +814,7 @@
   window.applyEditorSnapshot = applyEditorSnapshot;
   window.isEditorFocusedOrActive = isEditorFocusedOrActive;
   window.setupHistoryListeners = setupHistoryListeners;
+  window.isImageInEditorHistory = isImageInEditorHistory;
 
   const historyExports = {
     getCaretOffset,

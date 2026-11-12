@@ -2337,12 +2337,25 @@
 
     const nextIsEmptyP = nextSib && nextSib.tagName === 'P' && (!nextSib.textContent.trim() || nextSib.innerHTML === '<br>');
 
-    // Extract any images in the block being deleted to purge from post images & media archive
+    // Extract any images in the block being deleted to retain in session undo cache & reconcile post images
     const imgs = container.querySelectorAll('img');
     const removedFilenames = [];
     imgs.forEach(img => {
-      const fn = img.getAttribute('data-img-name') || img.dataset?.imgName || img.dataset?.filename || (img.src && img.src.split('/').pop().split('?')[0]);
-      if (fn && !removedFilenames.includes(fn)) removedFilenames.push(fn);
+      const fn = img.getAttribute('data-img-name') || img.dataset?.imgName || img.dataset?.filename || (img.src && !img.src.startsWith('data:') && !img.src.startsWith('blob:') ? img.src.split('/').pop().split('?')[0] : '');
+      if (fn) {
+        if (!removedFilenames.includes(fn)) removedFilenames.push(fn);
+        if (typeof window.retainSessionLingeringImage === 'function') {
+          const srcVal = img.getAttribute('src') || '';
+          const origVal = img.getAttribute('data-original-src') || `/blog/images/${fn}`;
+          window.retainSessionLingeringImage({
+            filename: fn,
+            relativePath: origVal,
+            dataUrl: srcVal.startsWith('data:') ? srcVal : '',
+            objectUrl: srcVal.startsWith('blob:') ? srcVal : '',
+            src: srcVal
+          }, (typeof currentDraft !== 'undefined' && currentDraft) ? currentDraft.id : null, true);
+        }
+      }
     });
 
     container.remove();
@@ -2359,21 +2372,28 @@
     }
 
     if (removedFilenames.length > 0 && typeof currentDraft !== 'undefined' && currentDraft) {
-      if (Array.isArray(currentDraft.images)) {
-        currentDraft.images = currentDraft.images.filter(im => !removedFilenames.includes(im.filename));
+      if (Array.isArray(currentDraft.images) && typeof window.retainSessionLingeringImage === 'function') {
+        currentDraft.images.forEach(im => {
+          if (im && removedFilenames.includes(im.filename)) {
+            window.retainSessionLingeringImage(im, currentDraft.id, true);
+          }
+        });
       }
-      if (Array.isArray(currentDraft.tempImages)) {
-        currentDraft.tempImages = currentDraft.tempImages.filter(im => !removedFilenames.includes(im.filename));
-      }
-      if (currentDraft.coverImage && removedFilenames.some(fn => currentDraft.coverImage.includes(fn))) {
-        currentDraft.coverImage = '';
-        currentDraft.coverImageRemoved = false;
-      }
-      removedFilenames.forEach(fn => {
-        if (typeof window.cleanupOrphanedImageStorage === 'function') {
-          window.cleanupOrphanedImageStorage(fn, currentDraft.id);
+      if (typeof window.reconcileDraftImages === 'function') {
+        window.reconcileDraftImages(currentDraft, canvasProse);
+      } else {
+        if (Array.isArray(currentDraft.images)) {
+          currentDraft.images = currentDraft.images.filter(im => !removedFilenames.includes(im.filename));
         }
-      });
+        if (Array.isArray(currentDraft.tempImages)) {
+          currentDraft.tempImages = currentDraft.tempImages.filter(im => !removedFilenames.includes(im.filename));
+        }
+        removedFilenames.forEach(fn => {
+          if (typeof window.cleanupOrphanedImageStorage === 'function') {
+            window.cleanupOrphanedImageStorage(fn, currentDraft.id);
+          }
+        });
+      }
       if (typeof updateImagesCount === 'function') updateImagesCount();
     }
 

@@ -132,11 +132,14 @@
                 createdAt: Date.now()
               };
 
-              // Register globally in memory
+              // Register globally in memory and session undo linger cache
               if (typeof imageRegistry !== 'undefined' && imageRegistry) {
                 imageRegistry.set(filename, imgObj);
                 imageRegistry.set(relativePath, imgObj);
                 imageRegistry.set(`blog/images/${filename}`, imgObj);
+              }
+              if (typeof window !== 'undefined' && typeof window.retainSessionLingeringImage === 'function') {
+                window.retainSessionLingeringImage(imgObj, window.currentDraft ? window.currentDraft.id : null, false);
               }
 
               // Persist blob in High-Capacity Virtual Storage (OPFS / IndexedDB)

@@ -164,6 +164,19 @@
       }
     }
 
+    // 2b. Session linger cache lookup (restores recently undone/cycled session images)
+    if (typeof window.getSessionLingeringImage === 'function') {
+      const lingered = window.getSessionLingeringImage(filename || trimmed);
+      if (lingered) {
+        if (lingered.dataUrl) return lingered.dataUrl;
+        if (lingered.objectUrl) return lingered.objectUrl;
+        if (lingered.blob) {
+          try { return URL.createObjectURL(lingered.blob); } catch (e) {}
+        }
+        if (lingered.src && (lingered.src.startsWith('data:') || lingered.src.startsWith('blob:'))) return lingered.src;
+      }
+    }
+
     // 3. Lookup in draft.images
     if (draft && Array.isArray(draft.images) && draft.images.length > 0) {
       let match = draft.images.find(im => 
@@ -951,35 +964,37 @@
     if (hasImage) {
       const displaySrc = resolveImageDisplayUrl(cover, currentDraft);
       imgEl.onerror = () => {
-        const failedBase = getImageBaseFilename(cover).toLowerCase();
-        if (failedBase && currentDraft) {
-          if (!(currentDraft._brokenCoverUrls instanceof Set)) {
-            currentDraft._brokenCoverUrls = new Set();
-          }
-          if (!currentDraft._brokenCoverUrls.has(failedBase)) {
-            currentDraft._brokenCoverUrls.add(failedBase);
-            const nextAvailable = getDraftAvailableImages(currentDraft, { skipReconcile: true });
-            if (nextAvailable.length > 0 && !currentDraft.coverImageRemoved) {
-              currentDraft.coverImage = nextAvailable[0];
-              renderSetupFeaturedImage();
-              updateVisualCardPreviews();
-              return;
+        if (!currentDraft || (currentDraft.coverImage || '').trim() !== cover) return;
+        const failedBase = getImageBaseFilename(cover);
+        if (failedBase && typeof window.resolveMediaBlob === 'function' && imgEl.dataset.hydratedRetry !== failedBase) {
+          imgEl.dataset.hydratedRetry = failedBase;
+          window.resolveMediaBlob(failedBase).then(blobUrl => {
+            if (blobUrl && currentDraft && (currentDraft.coverImage || '').trim() === cover) {
+              imgEl.src = blobUrl;
+              imgEl.style.display = 'block';
+              if (emptyEl) emptyEl.style.display = 'none';
             }
-          }
+          }).catch(() => {});
+          return;
         }
         imgEl.style.display = 'none';
         if (emptyEl) emptyEl.style.display = 'flex';
       };
       imgEl.onload = () => {
+        if (!currentDraft || !(currentDraft.coverImage || '').trim()) return;
         imgEl.style.display = 'block';
         if (emptyEl) emptyEl.style.display = 'none';
       };
+      imgEl.dataset.hydratedRetry = '';
       imgEl.src = displaySrc;
       imgEl.style.display = 'block';
       emptyEl.style.display = 'none';
       if (badgeEl) badgeEl.style.display = 'none';
     } else {
-      imgEl.src = '';
+      imgEl.onerror = null;
+      imgEl.onload = null;
+      imgEl.dataset.hydratedRetry = '';
+      imgEl.removeAttribute('src');
       imgEl.style.display = 'none';
       emptyEl.style.display = 'flex';
       if (badgeEl) badgeEl.style.display = 'none';
@@ -988,6 +1003,9 @@
 
   function cycleDraftFeaturedImage(direction) {
     if (!currentDraft) return;
+    if (currentDraft._brokenCoverUrls instanceof Set) {
+      currentDraft._brokenCoverUrls.clear();
+    }
     const available = getDraftAvailableImages(currentDraft);
     if (available.length === 0) return;
 
@@ -1031,6 +1049,9 @@
 
   function resetDraftFeaturedImage() {
     if (!currentDraft) return;
+    if (currentDraft._brokenCoverUrls instanceof Set) {
+      currentDraft._brokenCoverUrls.clear();
+    }
     const available = getDraftAvailableImages(currentDraft);
     if (available.length > 0) {
       currentDraft.coverImage = available[0];
@@ -1063,6 +1084,9 @@
 
   function openFeaturedImgLightbox() {
     if (!currentDraft) return;
+    if (currentDraft._brokenCoverUrls instanceof Set) {
+      currentDraft._brokenCoverUrls.clear();
+    }
     const available = getDraftAvailableImages(currentDraft);
     if (available.length === 0) {
       if (typeof showToast === 'function') {
@@ -1323,6 +1347,9 @@
     }
 
     // 1. Auto-detect featured image if none set, or reset if current was deleted
+    if (currentDraft._brokenCoverUrls instanceof Set) {
+      currentDraft._brokenCoverUrls.clear();
+    }
     const available = getDraftAvailableImages(currentDraft, { skipReconcile: true });
     const autoImg = available.length > 0 ? available[0] : '';
     if (!currentDraft.coverImage || currentDraft.coverImage.trim() === '') {

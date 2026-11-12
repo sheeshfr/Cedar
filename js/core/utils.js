@@ -894,37 +894,162 @@
     return false;
   }
 
+  const SESSION_IMAGE_LINGER_MS = 30 * 60 * 1000; // 30 minutes session undo retention
+  window._sessionImageLingerCache = window._sessionImageLingerCache || new Map();
+  const _deferredImageCleanupTimers = new Map();
+
+  function _normalizeImageFilenameKey(val) {
+    if (!val || typeof val !== 'string') return '';
+    return val.split('/').pop().split('\\').pop().split('?')[0].split('#')[0].trim().toLowerCase();
+  }
+
   /**
-   * Safely deletes an orphaned image file from memory registry and virtual vault storage
+   * Preserves an image's binary/dataUrl in the session linger cache and imageRegistry
+   * so that undoing/redoing in the editor within the same session (15-30+ minutes) can
+   * always restore deleted or replaced images without storing them permanently on the post.
    */
-  async function cleanupOrphanedImageStorage(filename, excludeDraftId = null) {
+  function retainSessionLingeringImage(imgObj, draftId = null, markRemoved = false) {
+    if (!imgObj || typeof imgObj !== 'object') return null;
+    const rawFn = String(imgObj.filename || imgObj.name || imgObj.relativePath || '').split('/').pop().split('\\').pop().split('?')[0].trim();
+    if (!rawFn || rawFn.startsWith('data:') || rawFn.startsWith('blob:')) return null;
+    const key = rawFn.toLowerCase();
+    const cache = window._sessionImageLingerCache;
+    const reg = (typeof window !== 'undefined' && window.imageRegistry instanceof Map) ? window.imageRegistry : null;
+    const prevCached = cache.get(key) || (reg && (reg.get(rawFn) || reg.get(`/blog/images/${rawFn}`) || reg.get(`blog/images/${rawFn}`))) || null;
+
+    const relPath = (imgObj.relativePath && !String(imgObj.relativePath).startsWith('data:'))
+      ? imgObj.relativePath
+      : (prevCached?.relativePath || `/blog/images/${rawFn}`);
+    const dataUrl = (imgObj.dataUrl && String(imgObj.dataUrl).startsWith('data:'))
+      ? imgObj.dataUrl
+      : ((imgObj.src && String(imgObj.src).startsWith('data:')) ? imgObj.src : (prevCached?.dataUrl || ''));
+    const objectUrl = (imgObj.objectUrl && String(imgObj.objectUrl).startsWith('blob:'))
+      ? imgObj.objectUrl
+      : ((imgObj.src && String(imgObj.src).startsWith('blob:')) ? imgObj.src : (prevCached?.objectUrl || ''));
+    const blob = (typeof Blob !== 'undefined' && imgObj.blob instanceof Blob)
+      ? imgObj.blob
+      : (prevCached?.blob || null);
+    const bestSrc = dataUrl || objectUrl || imgObj.src || prevCached?.src || relPath;
+
+    const now = Date.now();
+    const merged = {
+      ...(prevCached || {}),
+      ...imgObj,
+      filename: rawFn,
+      relativePath: relPath,
+      dataUrl: dataUrl,
+      objectUrl: objectUrl,
+      blob: blob,
+      src: bestSrc,
+      draftId: draftId || imgObj.draftId || prevCached?.draftId || null,
+      lastSeenAt: now,
+      removedAt: markRemoved ? (prevCached?.removedAt || now) : 0
+    };
+
+    cache.set(key, merged);
+    if (!markRemoved && _deferredImageCleanupTimers.has(key)) {
+      clearTimeout(_deferredImageCleanupTimers.get(key));
+      _deferredImageCleanupTimers.delete(key);
+    }
+
+    if (reg && (dataUrl || objectUrl || blob)) {
+      reg.set(rawFn, merged);
+      reg.set(relPath, merged);
+      reg.set(`/blog/images/${rawFn}`, merged);
+      reg.set(`blog/images/${rawFn}`, merged);
+    }
+    return merged;
+  }
+
+  function getSessionLingeringImage(filenameOrPath) {
+    const key = _normalizeImageFilenameKey(filenameOrPath);
+    if (!key) return null;
+    if (window._sessionImageLingerCache && window._sessionImageLingerCache.has(key)) {
+      return window._sessionImageLingerCache.get(key);
+    }
+    if (typeof window !== 'undefined' && window.imageRegistry instanceof Map) {
+      const raw = String(filenameOrPath || '').split('/').pop().split('\\').pop().split('?')[0].trim();
+      return window.imageRegistry.get(raw)
+        || window.imageRegistry.get(key)
+        || window.imageRegistry.get(`/blog/images/${raw}`)
+        || window.imageRegistry.get(`blog/images/${raw}`)
+        || null;
+    }
+    return null;
+  }
+
+  /**
+   * Safely deletes an orphaned image file from memory registry and virtual vault storage.
+   * By default, images removed during an editing session linger in memory/virtual storage
+   * for SESSION_IMAGE_LINGER_MS (30 min) and while referenced in the editor undo/redo stack
+   * so the author can undo back into them without keeping them saved on the post forever.
+   */
+  async function cleanupOrphanedImageStorage(filename, excludeDraftId = null, options = {}) {
     if (!filename) return;
     if (isImageUsedAnywhereElse(filename, excludeDraftId)) return;
 
+    const rawFn = String(filename).split('/').pop().split('\\').pop().split('?')[0].trim();
+    const key = _normalizeImageFilenameKey(rawFn);
+    const forceImmediate = Boolean(options && options.forceImmediate);
+
+    if (!forceImmediate && key) {
+      const existing = getSessionLingeringImage(rawFn);
+      if (existing) {
+        retainSessionLingeringImage(existing, excludeDraftId, true);
+      }
+      const cached = window._sessionImageLingerCache.get(key);
+      const removedAt = cached?.removedAt || Date.now();
+      const elapsed = Date.now() - removedAt;
+      const inHistory = typeof window.isImageInEditorHistory === 'function' && window.isImageInEditorHistory(rawFn);
+
+      if (inHistory || elapsed < SESSION_IMAGE_LINGER_MS) {
+        if (!_deferredImageCleanupTimers.has(key)) {
+          const waitMs = Math.max(60 * 1000, SESSION_IMAGE_LINGER_MS - elapsed + 1000);
+          const tid = setTimeout(() => {
+            _deferredImageCleanupTimers.delete(key);
+            cleanupOrphanedImageStorage(rawFn, null);
+          }, waitMs);
+          _deferredImageCleanupTimers.set(key, tid);
+        }
+        return;
+      }
+    }
+
+    if (key) {
+      if (_deferredImageCleanupTimers.has(key)) {
+        clearTimeout(_deferredImageCleanupTimers.get(key));
+        _deferredImageCleanupTimers.delete(key);
+      }
+      if (window._sessionImageLingerCache) {
+        window._sessionImageLingerCache.delete(key);
+      }
+    }
+
     // Remove from in-memory registry
     if (typeof imageRegistry !== 'undefined' && imageRegistry) {
+      imageRegistry.delete(rawFn);
       imageRegistry.delete(filename);
-      imageRegistry.delete(`/blog/images/${filename}`);
-      imageRegistry.delete(`blog/images/${filename}`);
+      imageRegistry.delete(`/blog/images/${rawFn}`);
+      imageRegistry.delete(`blog/images/${rawFn}`);
     }
 
     // Remove from Virtual Vault (OPFS / IndexedDB)
     if ((typeof window.CedarVirtualStorage !== 'undefined' && window.CedarVirtualStorage) || (typeof window.OutpostVirtualStorage !== 'undefined' && window.OutpostVirtualStorage)) {
       try {
-        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).deleteFile(`blog/images/${filename}`);
+        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).deleteFile(`blog/images/${rawFn}`);
       } catch (e) {}
       try {
-        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).deleteFile(`media/${filename}`);
+        await (window.CedarVirtualStorage || window.OutpostVirtualStorage).deleteFile(`media/${rawFn}`);
       } catch (e) {}
     }
 
     // Remove from SheeshVault (FSA)
     if (typeof window.SheeshVault !== 'undefined' && window.SheeshVault && typeof window.SheeshVault.deleteFile === 'function') {
       try {
-        await window.SheeshVault.deleteFile(`blog/images/${filename}`);
+        await window.SheeshVault.deleteFile(`blog/images/${rawFn}`);
       } catch (e) {}
       try {
-        await window.SheeshVault.deleteFile(`media/${filename}`);
+        await window.SheeshVault.deleteFile(`media/${rawFn}`);
       } catch (e) {}
     }
   }
@@ -1029,30 +1154,37 @@
       if (filename.toLowerCase() === 'web-image.jpg' && !isDataOrBlob) return;
       if (!/\.(png|jpe?g|webp|gif|svg|avif|bmp)$/i.test(filename) && !isDataOrBlob) return;
 
-      const dataUrl = isDataOrBlob ? src : '';
-      const relPath = (origSrc && !origSrc.startsWith('data:')) ? origSrc : (filename ? `/blog/images/${filename}` : '');
+      const cached = getSessionLingeringImage(filename);
+      const dataUrl = (src && src.startsWith('data:image/')) ? src : (cached?.dataUrl || '');
+      const objectUrl = (src && src.startsWith('blob:')) ? src : (cached?.objectUrl || '');
+      const blob = cached?.blob || null;
+      const relPath = (origSrc && !origSrc.startsWith('data:') && !origSrc.startsWith('blob:'))
+        ? origSrc
+        : (cached?.relativePath || (filename ? `/blog/images/${filename}` : ''));
 
       let existing = draft.images.find(im => im && (im.filename === filename || (im.relativePath && im.relativePath.endsWith(filename))));
       if (existing) {
         if (!existing.dataUrl && dataUrl) existing.dataUrl = dataUrl;
+        if (!existing.objectUrl && objectUrl) existing.objectUrl = objectUrl;
+        if (!existing.blob && blob) existing.blob = blob;
         if (!existing.relativePath && relPath) existing.relativePath = relPath;
-        if (!existing.src && src) existing.src = src;
+        if ((!existing.src || !String(existing.src).startsWith('data:')) && (dataUrl || objectUrl || src)) {
+          existing.src = dataUrl || objectUrl || src;
+        }
       } else {
         existing = {
           filename: filename,
           relativePath: relPath,
           dataUrl: dataUrl,
-          src: src,
-          alt: alt || 'Image'
+          objectUrl: objectUrl,
+          blob: blob,
+          src: dataUrl || objectUrl || src,
+          alt: alt || cached?.alt || 'Image'
         };
         draft.images.push(existing);
       }
 
-      if (dataUrl && typeof window !== 'undefined' && window.imageRegistry) {
-        window.imageRegistry.set(filename, { dataUrl, filename, relativePath: relPath });
-        window.imageRegistry.set(`/blog/images/${filename}`, { dataUrl, filename, relativePath: relPath });
-        window.imageRegistry.set(`blog/images/${filename}`, { dataUrl, filename, relativePath: relPath });
-      }
+      retainSessionLingeringImage(existing, draft.id, false);
     }
 
     // 1a. Scan live DOM canvas if available
@@ -1094,13 +1226,11 @@
       }
     }
 
-    // 1c. Ensure all draft.images with dataUrl are registered in imageRegistry
-    if (typeof window !== 'undefined' && window.imageRegistry) {
+    // 1c. Ensure all draft.images with dataUrl/blob/objectUrl are registered in imageRegistry & session linger cache
+    if (typeof window !== 'undefined') {
       draft.images.forEach(im => {
-        if (im && im.filename && im.dataUrl) {
-          window.imageRegistry.set(im.filename, { dataUrl: im.dataUrl, filename: im.filename, relativePath: im.relativePath });
-          window.imageRegistry.set(`/blog/images/${im.filename}`, { dataUrl: im.dataUrl, filename: im.filename, relativePath: im.relativePath });
-          window.imageRegistry.set(`blog/images/${im.filename}`, { dataUrl: im.dataUrl, filename: im.filename, relativePath: im.relativePath });
+        if (im && im.filename && (im.dataUrl || im.blob || im.objectUrl)) {
+          retainSessionLingeringImage(im, draft.id, false);
         }
       });
     }
@@ -1111,8 +1241,12 @@
 
     draft.images.forEach(img => {
       if (img && img.filename && isImageReferencedInDraft(img, draft, liveCanvasProse)) {
+        retainSessionLingeringImage(img, draft.id, false);
         validImages.push(img);
       } else {
+        if (img && img.filename) {
+          retainSessionLingeringImage(img, draft.id, true);
+        }
         removedImages.push(img);
       }
     });
@@ -1125,6 +1259,7 @@
         if (!im || !im.filename) return false;
         const isRef = isImageReferencedInDraft(im, draft, liveCanvasProse);
         if (!isRef) {
+          retainSessionLingeringImage(im, draft.id, true);
           purgedTemp.push(im);
           return false;
         }
@@ -1163,6 +1298,8 @@
   window.formatDateDisplay = formatDateDisplay;
   window.isImageReferencedInDraft = isImageReferencedInDraft;
   window.isImageUsedAnywhereElse = isImageUsedAnywhereElse;
+  window.retainSessionLingeringImage = retainSessionLingeringImage;
+  window.getSessionLingeringImage = getSessionLingeringImage;
   window.cleanupOrphanedImageStorage = cleanupOrphanedImageStorage;
   window.reconcileDraftImages = reconcileDraftImages;
   window.stripMarkdownToPlainText = stripMarkdownToPlainText;
@@ -1303,6 +1440,19 @@
           const res = matchImage(reg, false);
           if (res) return res;
         }
+      }
+    }
+
+    // 2b. Check in session image linger cache (for undo/redo within the editing session)
+    if (typeof window !== 'undefined' && window._sessionImageLingerCache instanceof Map) {
+      const lingerHit = window._sessionImageLingerCache.get(cleanName) || window._sessionImageLingerCache.get(cleanNoPrefix);
+      if (lingerHit) {
+        const res = matchImage(lingerHit, false);
+        if (res) return res;
+      }
+      for (const cached of window._sessionImageLingerCache.values()) {
+        const res = matchImage(cached, false);
+        if (res) return res;
       }
     }
 
