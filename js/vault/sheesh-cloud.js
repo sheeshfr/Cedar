@@ -302,7 +302,8 @@
     if (!hasInitializedTabSession || isVerifyingFocusSession) return;
     if (pendingInviteCode || needsBootstrap) return;
     const now = Date.now();
-    if (!force && now - lastFocusCheckAt < 3000) return;
+    if (!force && now - lastFocusCheckAt < 60000) return;
+    if (!force && !currentUser && !getStoredToken()) return;
     lastFocusCheckAt = now;
 
     isVerifyingFocusSession = true;
@@ -311,7 +312,7 @@
       const token = getStoredToken();
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const resp = await fetch(`${base}/auth/me`, {
+      const resp = await fetch(`${base}/auth/me?light=1`, {
         method: 'GET',
         headers,
         credentials: 'include'
@@ -1352,14 +1353,33 @@
     const allKeys = Object.keys(payloadMap);
     if (allKeys.length === 0 && deleteKeys.length === 0) return;
 
-    const BATCH_SIZE = 10;
+    const MAX_BATCH_KEYS = 20;
+    const MAX_BATCH_CHARS = 420000;
     const batches = [];
-    for (let i = 0; i < allKeys.length; i += BATCH_SIZE) {
-      const batchKeys = allKeys.slice(i, i + BATCH_SIZE);
-      const batchObj = {};
-      for (const k of batchKeys) batchObj[k] = payloadMap[k];
-      const reqBody = { items: batchObj };
-      if (i === 0 && deleteKeys.length > 0) {
+    let currentObj = {};
+    let currentKeyCount = 0;
+    let currentCharCount = 0;
+
+    for (const k of allKeys) {
+      const val = String(payloadMap[k] || '');
+      const entryChars = k.length + val.length;
+      if (currentKeyCount > 0 && (currentKeyCount >= MAX_BATCH_KEYS || currentCharCount + entryChars > MAX_BATCH_CHARS)) {
+        const reqBody = { items: currentObj };
+        if (batches.length === 0 && deleteKeys.length > 0) {
+          reqBody.deleteKeys = deleteKeys.slice(0, 64);
+        }
+        batches.push(reqBody);
+        currentObj = {};
+        currentKeyCount = 0;
+        currentCharCount = 0;
+      }
+      currentObj[k] = val;
+      currentKeyCount++;
+      currentCharCount += entryChars;
+    }
+    if (currentKeyCount > 0) {
+      const reqBody = { items: currentObj };
+      if (batches.length === 0 && deleteKeys.length > 0) {
         reqBody.deleteKeys = deleteKeys.slice(0, 64);
       }
       batches.push(reqBody);
@@ -1383,6 +1403,59 @@
         }
       }
     }));
+  }
+
+  function snapshotCedarFingerprints() {
+    try {
+      const safeCfg = stripSecretsFromConfig(window.projectConfig || {});
+      lastSyncedFingerprints.set('config:main', JSON.stringify(safeCfg));
+
+      let brandingRaw = localStorage.getItem('cedar_branding_files_v1');
+      if (!brandingRaw && window.brandingFiles && typeof window.brandingFiles === 'object') {
+        brandingRaw = JSON.stringify(window.brandingFiles);
+      }
+      if (brandingRaw && brandingRaw.length < MAX_MEDIA_CHARS) {
+        lastSyncedFingerprints.set('branding:files', brandingRaw);
+      }
+
+      const defaultAuthorAvatar = (window.projectConfig && Array.isArray(window.projectConfig.authors) && window.projectConfig.authors[0] && window.projectConfig.authors[0].avatar) || '';
+      const draftsArr = Array.isArray(window.drafts) ? window.drafts : [];
+      for (const post of draftsArr) {
+        if (!post || !post.id) continue;
+        const key = `post:${String(post.id).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
+        const postCopy = safeJsonParse(JSON.stringify(post), null) || Object.assign({}, post);
+        if (postCopy.authorAvatar && String(postCopy.authorAvatar).startsWith('data:') && defaultAuthorAvatar && postCopy.authorAvatar === defaultAuthorAvatar) {
+          postCopy.authorAvatar = '__useProjectAuthorAvatar__';
+        }
+        if (Array.isArray(postCopy.images)) {
+          postCopy.images.forEach(im => {
+            if (!im || typeof im !== 'object') return;
+            delete im.blob;
+            delete im.objectUrl;
+            if (!im.dataUrl && im.src && String(im.src).startsWith('data:')) {
+              im.dataUrl = im.src;
+            }
+            if (!im.dataUrl) {
+              const regData = getImageRegistryValue(im.relativePath)
+                || getImageRegistryValue(im.savedRelPath)
+                || getImageRegistryValue(im.filename)
+                || getImageRegistryValue(im.id)
+                || getImageRegistryValue(im.name);
+              if (regData && regData.startsWith('data:')) {
+                im.dataUrl = regData;
+              }
+            }
+            if (im.src && im.dataUrl && im.src === im.dataUrl) {
+              delete im.src;
+            }
+          });
+        }
+        lastSyncedFingerprints.set(key, JSON.stringify(postCopy));
+      }
+
+      const indexIds = JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id));
+      lastSyncedFingerprints.set('index:posts', indexIds);
+    } catch (_) {}
   }
 
   async function pushCedarToCloud(options = {}) {
@@ -1611,7 +1684,11 @@
 
       if (keys.length === 0) {
         isPullingFromCloud = false;
-        await pushCedarToCloud({ deltaOnly: false });
+        if (hasLocalCedarContent()) {
+          await pushCedarToCloud({ deltaOnly: false });
+        } else {
+          snapshotCedarFingerprints();
+        }
         return;
       }
 
@@ -1851,7 +1928,6 @@
           }
           return true;
         });
-
         // Preserve any local non-blank drafts that were created or edited more recently than the cloud copy
         // (e.g., if the user typed on a post and immediately refreshed before the debounced cloud push finished).
         const existingLocalDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
@@ -1968,6 +2044,12 @@
         window.updateAllPreviewFrames();
       }
 
+      if (syncDebounceTimer) {
+        clearTimeout(syncDebounceTimer);
+        syncDebounceTimer = null;
+      }
+      snapshotCedarFingerprints();
+
       localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(Date.now()));
       updateGlobalIndicators('Synced');
       renderModalState();
@@ -1978,8 +2060,12 @@
     }
   }
 
-  async function checkRemoteMetaAndPullIfNewer() {
+  let lastMetaCheckAt = 0;
+  async function checkRemoteMetaAndPullIfNewer(force = false) {
     if (!currentUser || isPullingFromCloud || isPushingToCloud || syncDebounceTimer) return;
+    const now = Date.now();
+    if (!force && now - lastMetaCheckAt < 30000) return;
+    lastMetaCheckAt = now;
     try {
       const meta = await apiRequest('/sync/cedar?meta=1');
       const remoteTs = Number(meta && meta.updatedAt) || 0;
@@ -2023,22 +2109,17 @@
 
     if (!window.__sheeshLifecycleBound) {
       window.__sheeshLifecycleBound = true;
-      const flushPendingCloudSync = () => {
-        if (syncDebounceTimer) {
-          clearTimeout(syncDebounceTimer);
-          syncDebounceTimer = null;
-          pushCedarToCloud({ deltaOnly: true, keepalive: true });
-        }
-      };
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-          flushPendingCloudSync();
+          if (syncDebounceTimer) {
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = null;
+            pushCedarToCloud({ deltaOnly: true, keepalive: true });
+          }
         } else if (document.visibilityState === 'visible') {
           checkRemoteMetaAndPullIfNewer();
         }
       });
-      window.addEventListener('pagehide', flushPendingCloudSync);
-      window.addEventListener('beforeunload', flushPendingCloudSync);
       window.addEventListener('focus', () => {
         checkRemoteMetaAndPullIfNewer();
       });
