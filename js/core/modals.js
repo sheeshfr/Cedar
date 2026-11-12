@@ -3580,7 +3580,7 @@
           alert('Please paste some content or choose a file to import.');
           return;
         }
-        const importedDraft = importContent(pasted);
+        const importedDraft = importContent(pasted, { stripColors: true });
         if (importedDraft) {
           drafts.unshift(importedDraft);
           currentDraft = importedDraft;
@@ -3754,7 +3754,21 @@
   }
 
 
-  function importContent(rawText) {
+  function importContent(rawText, options = {}) {
+    const stripColors = Boolean(options && options.stripColors);
+    const stripMarkupColors = (str) => {
+      if (!str || !stripColors) return str;
+      let s = str;
+      let prev = '';
+      while (s !== prev) {
+        prev = s;
+        s = s
+          .replace(/<span\b[^>]*class=["'][^"']*cedar-custom-color[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, '$1')
+          .replace(/<span\b[^>]*style=["'][^"']*color\s*:[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, '$1')
+          .replace(/<font\b[^>]*>([\s\S]*?)<\/font>/gi, '$1');
+      }
+      return s;
+    };
     const text = rawText.trim();
     if (!text) return null;
 
@@ -3773,7 +3787,7 @@
     }
 
     // HTML
-    if (text.includes('<html') || text.includes('article-title') || text.includes('article-prose') || text.includes('<p>')) {
+    if (!text.startsWith('---') && (text.includes('<html') || text.includes('article-title') || text.includes('article-prose') || /<(?:article|p|div|h[1-6])\b/i.test(text))) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(text, 'text/html');
 
@@ -3800,7 +3814,27 @@
       }
 
       const proseEl = doc.querySelector('.article-prose') || doc.querySelector('article') || doc.body;
-      const markdown = domToMarkdown(proseEl);
+      if (stripColors && proseEl && proseEl.querySelectorAll) {
+        proseEl.querySelectorAll('span.cedar-custom-color, font').forEach(el => {
+          const parent = el.parentNode;
+          if (parent) {
+            while (el.firstChild) parent.insertBefore(el.firstChild, el);
+            parent.removeChild(el);
+          }
+        });
+        proseEl.querySelectorAll('[style], [color]').forEach(el => {
+          el.removeAttribute('color');
+          el.removeAttribute('data-custom-color');
+          if (el.style) {
+            el.style.color = '';
+            el.style.removeProperty('-webkit-text-fill-color');
+            if (!el.getAttribute('style') || !el.getAttribute('style').trim()) {
+              el.removeAttribute('style');
+            }
+          }
+        });
+      }
+      const markdown = stripMarkupColors(domToMarkdown(proseEl));
 
       const draft = createNewDraftModel(title);
       draft.subtitle = subtitle;
@@ -3840,7 +3874,7 @@
     draft.tag = frontmatter.tag || draft.tag;
     draft.authorName = frontmatter.author || draft.authorName;
     draft.coverImage = frontmatter.cover_image || '';
-    draft.markdown = mdBody;
+    draft.markdown = stripMarkupColors(mdBody);
     return draft;
   }
 

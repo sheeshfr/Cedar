@@ -568,16 +568,33 @@
       }
     }
 
-    // 1. Strip any rogue inline color / text-decoration-color styles injected by browser execCommand/backspace on inline tags
-    container.querySelectorAll('u[style], s[style], del[style], strike[style], strong[style], b[style], em[style], i[style]').forEach(el => {
+    // 1. Strip any rogue inline color / background / font styles or legacy <font> tags on non-custom-color elements
+    // (e.g. injected by browser execCommand, DeleteSelectionCommand, or external clipboard HTML)
+    container.querySelectorAll('[style], [color], font').forEach(el => {
       if (el.closest('[contenteditable="false"]')) return;
+      if (el.tagName === 'SPAN' && el.classList.contains('cedar-custom-color') && (el.getAttribute('data-custom-color') || el.style?.color)) {
+        return;
+      }
+      if (el.tagName === 'FONT') {
+        unwrapElementPreservingChildren(el);
+        return;
+      }
+      if (el.hasAttribute('color')) {
+        el.removeAttribute('color');
+      }
       if (el.style) {
         el.style.color = '';
+        el.style.removeProperty('-webkit-text-fill-color');
         el.style.textDecorationColor = '';
         el.style.backgroundColor = '';
+        el.style.fontFamily = '';
+        el.style.fontSize = '';
         if (!el.getAttribute('style') || !el.getAttribute('style').trim()) {
           el.removeAttribute('style');
         }
+      }
+      if (el.tagName === 'SPAN' && !el.attributes.length) {
+        unwrapElementPreservingChildren(el);
       }
     });
 
@@ -752,11 +769,27 @@
       const mdInput = document.getElementById('markdown-input');
       if (!mdInput) return;
       if (normalizedColor === 'default') {
+        mdInput.focus();
+        if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
         const start = mdInput.selectionStart;
         const end = mdInput.selectionEnd;
-        const selected = mdInput.value.substring(start, end);
-        const stripped = selected.replace(/<span\b[^>]*class=["'][^"']*cedar-custom-color[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, '$1');
-        insertMarkdownAtCursor(stripped, '', '');
+        const val = mdInput.value;
+        let stripped = val.substring(start, end);
+        let prev = '';
+        while (stripped !== prev) {
+          prev = stripped;
+          stripped = stripped
+            .replace(/<span\b[^>]*class=["'][^"']*cedar-custom-color[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, '$1')
+            .replace(/<span\b[^>]*style=["'][^"']*color\s*:[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, '$1')
+            .replace(/<font\b[^>]*>([\s\S]*?)<\/font>/gi, '$1');
+        }
+        mdInput.value = val.substring(0, start) + stripped + val.substring(end);
+        mdInput.selectionStart = start;
+        mdInput.selectionEnd = start + stripped.length;
+        if (typeof window.autoResizeMarkdownTextarea === 'function') window.autoResizeMarkdownTextarea();
+        if (typeof window.recordAction === 'function') window.recordAction('format', true);
+        if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
+        if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       } else {
         insertMarkdownAtCursor(
           `<span class="cedar-custom-color" data-custom-color="${normalizedColor}" style="color: ${normalizedColor};">`,
@@ -778,7 +811,18 @@
 
     let anchorEl = range.commonAncestorContainer;
     if (anchorEl.nodeType === Node.TEXT_NODE) anchorEl = anchorEl.parentNode;
-    const enclosingColorSpan = (anchorEl && anchorEl.closest) ? anchorEl.closest('span.cedar-custom-color') : null;
+
+    // Find outermost enclosing .cedar-custom-color span inside canvas
+    let enclosingColorSpan = null;
+    if (anchorEl) {
+      let cur = anchorEl;
+      while (cur && cur !== canvas && canvas.contains(cur)) {
+        if (cur.nodeType === Node.ELEMENT_NODE && cur.tagName === 'SPAN' && cur.classList.contains('cedar-custom-color')) {
+          enclosingColorSpan = cur;
+        }
+        cur = cur.parentNode;
+      }
+    }
 
     if (sel.isCollapsed) {
       // Collect active inline formatting tags (u, s, del, strike, strong, b, em, i) inside enclosingColorSpan
@@ -847,8 +891,8 @@
             savedSelectionRange = newRange.cloneRange();
             window._savedSelectionRange = savedSelectionRange;
           }
-          normalizeCustomColorNodes(canvas);
         }
+        normalizeCustomColorNodes(canvas);
       } else {
         // Custom hex color selected with collapsed caret
         if (enclosingColorSpan && canvas.contains(enclosingColorSpan)) {
@@ -895,63 +939,180 @@
 
       updateToolbarActiveStates();
       if (typeof window.recordAction === 'function') window.recordAction('format', true);
+      if (typeof window.syncFormToDraft === 'function') window.syncFormToDraft();
       if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
       return;
     }
 
-    // Non-collapsed selection (highlighted text)
-    if (enclosingColorSpan && canvas.contains(enclosingColorSpan)) {
-      const splitRes = splitInlineElementAtRange(enclosingColorSpan, range);
-      if (splitRes && splitRes.range) {
-        range = splitRes.range;
+    // Non-collapsed selection (highlighted text across single or multiple blocks/spans):
+    // 1. Split boundary text nodes so every overlapping text node is 100% contained in `range`
+    if (range.endContainer && range.endContainer.nodeType === Node.TEXT_NODE) {
+      const endLen = (range.endContainer.nodeValue || '').length;
+      if (range.endOffset > 0 && range.endOffset < endLen) {
+        range.endContainer.splitText(range.endOffset);
+        range.setEnd(range.endContainer, range.endContainer.nodeValue.length);
+      }
+    }
+    if (range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+      const startLen = (range.startContainer.nodeValue || '').length;
+      if (range.startOffset > 0 && range.startOffset < startLen) {
+        const sameNode = (range.endContainer === range.startContainer);
+        const adjustedEndOffset = range.endOffset - range.startOffset;
+        const afterStart = range.startContainer.splitText(range.startOffset);
+        range.setStart(afterStart, 0);
+        if (sameNode) {
+          range.setEnd(afterStart, adjustedEndOffset);
+        }
       }
     }
 
-    if (normalizedColor === 'default') {
-      const contents = range.extractContents();
-      contents.querySelectorAll('span.cedar-custom-color').forEach(s => unwrapElementPreservingChildren(s));
-      contents.querySelectorAll('[style]').forEach(el => {
-        if (el.style) {
-          el.style.color = '';
-          el.style.textDecorationColor = '';
-          if (!el.getAttribute('style') || !el.getAttribute('style').trim()) {
-            el.removeAttribute('style');
+    // 2. Collect all editable text nodes with positive character overlap inside `range`
+    const startPt = range.cloneRange();
+    startPt.collapse(true);
+    const endPt = range.cloneRange();
+    endPt.collapse(false);
+
+    const selectedTextNodes = [];
+    const walker = document.createTreeWalker(canvas, NodeFilter.SHOW_TEXT, null, false);
+    let curTxt = walker.nextNode();
+    while (curTxt) {
+      const len = (curTxt.nodeValue || '').length;
+      if (len > 0 && !(curTxt.parentElement && curTxt.parentElement.closest('[contenteditable="false"]'))) {
+        try {
+          if (endPt.comparePoint(curTxt, 0) === -1 && startPt.comparePoint(curTxt, len) === 1) {
+            selectedTextNodes.push(curTxt);
+          }
+        } catch (e) {}
+      }
+      curTxt = walker.nextNode();
+    }
+
+    const selectedSet = new Set(selectedTextNodes);
+
+    // 3. Clear any rogue inline color styles on block / non-wrapper ancestors of selected text nodes
+    const isColorWrapperEl = (el) => {
+      if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+      if (el.tagName === 'FONT') return true;
+      if (el.tagName === 'SPAN' && (el.classList.contains('cedar-custom-color') || el.hasAttribute('data-custom-color') || Boolean(el.style && el.style.color))) {
+        return true;
+      }
+      return false;
+    };
+
+    selectedTextNodes.forEach(tNode => {
+      let anc = tNode.parentElement;
+      while (anc && anc !== canvas && canvas.contains(anc)) {
+        if (!isColorWrapperEl(anc)) {
+          if (anc.hasAttribute('color')) anc.removeAttribute('color');
+          if (anc.hasAttribute('data-custom-color')) anc.removeAttribute('data-custom-color');
+          if (anc.classList && anc.classList.contains('cedar-custom-color')) {
+            anc.classList.remove('cedar-custom-color');
+            if (!anc.className.trim()) anc.removeAttribute('class');
+          }
+          if (anc.style && (anc.style.color || anc.style.getPropertyValue('-webkit-text-fill-color') || anc.style.textDecorationColor)) {
+            anc.style.color = '';
+            anc.style.removeProperty('-webkit-text-fill-color');
+            anc.style.textDecorationColor = '';
+            if (!anc.getAttribute('style') || !anc.getAttribute('style').trim()) {
+              anc.removeAttribute('style');
+            }
           }
         }
+        anc = anc.parentElement;
+      }
+    });
+
+    // 4. Unwrap or split inline color wrappers (.cedar-custom-color, span[style*="color"], <font>) around selected text nodes
+    const hasUnselectedVisibleText = (wrapperEl) => {
+      const w = document.createTreeWalker(wrapperEl, NodeFilter.SHOW_TEXT, null, false);
+      let n = w.nextNode();
+      while (n) {
+        if (!selectedSet.has(n)) {
+          const vis = (n.nodeValue || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+          if (vis.length > 0) return true;
+        }
+        n = w.nextNode();
+      }
+      return false;
+    };
+
+    selectedTextNodes.forEach(tNode => {
+      if (!tNode.isConnected) return;
+      let guard = 0;
+      while (guard < 20) {
+        guard++;
+        let colorWrap = null;
+        let anc = tNode.parentElement;
+        while (anc && anc !== canvas && canvas.contains(anc)) {
+          if (isColorWrapperEl(anc)) {
+            colorWrap = anc;
+            break;
+          }
+          anc = anc.parentElement;
+        }
+        if (!colorWrap) break;
+
+        if (!hasUnselectedVisibleText(colorWrap)) {
+          unwrapElementPreservingChildren(colorWrap);
+        } else {
+          const singleRange = document.createRange();
+          singleRange.selectNode(tNode);
+          splitInlineElementAtRange(colorWrap, singleRange);
+        }
+      }
+    });
+
+    // 5. If applying a custom color (not Theme Default), wrap each selected prose text node
+    const structuralContainers = new Set(['UL', 'OL', 'DL', 'TABLE', 'TBODY', 'THEAD', 'TFOOT', 'TR']);
+    const structuralTextNodes = [];
+    if (normalizedColor !== 'default') {
+      selectedTextNodes.forEach(tNode => {
+        if (!tNode.isConnected || !tNode.parentNode) return;
+        const pTag = tNode.parentNode.tagName || '';
+        const isInterBlockWhitespace = !tNode.nodeValue.trim() && (tNode.parentNode === canvas || structuralContainers.has(pTag));
+        if (isInterBlockWhitespace) return;
+
+        const span = document.createElement('span');
+        span.className = 'cedar-custom-color';
+        span.setAttribute('data-custom-color', normalizedColor);
+        span.style.color = normalizedColor;
+        tNode.parentNode.insertBefore(span, tNode);
+        span.appendChild(tNode);
+        structuralTextNodes.push(tNode);
       });
-      const firstChild = contents.firstChild;
-      const lastChild = contents.lastChild;
-      range.insertNode(contents);
-      if (firstChild && lastChild && firstChild.parentNode && lastChild.parentNode) {
-        const newRange = document.createRange();
-        newRange.setStartBefore(firstChild);
-        newRange.setEndAfter(lastChild);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        savedSelectionRange = newRange.cloneRange();
-        window._savedSelectionRange = savedSelectionRange;
-      }
-      normalizeCustomColorNodes(canvas);
-    } else {
-      const contents = range.extractContents();
-      contents.querySelectorAll('span.cedar-custom-color').forEach(s => unwrapElementPreservingChildren(s));
-      const span = document.createElement('span');
-      span.className = 'cedar-custom-color';
-      span.setAttribute('data-custom-color', normalizedColor);
-      span.style.color = normalizedColor;
-      span.appendChild(contents);
-      range.insertNode(span);
+    }
 
-      if (span.isConnected) {
-        const newRange = document.createRange();
-        newRange.selectNodeContents(span);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        savedSelectionRange = newRange.cloneRange();
-        window._savedSelectionRange = savedSelectionRange;
-      }
+    // 6. Restore highlighted selection across all processed text nodes, then normalize inline wrappers
+    const connectedSelected = selectedTextNodes.filter(n => n && n.isConnected && !(
+      !n.nodeValue.trim() && (n.parentNode === canvas || structuralContainers.has(n.parentNode?.tagName || ''))
+    ));
+    const firstTxt = connectedSelected[0] || selectedTextNodes.find(n => n && n.isConnected);
+    const lastTxt = connectedSelected[connectedSelected.length - 1] || firstTxt;
 
-      normalizeCustomColorNodes(canvas);
+    if (firstTxt && lastTxt && firstTxt.isConnected && lastTxt.isConnected) {
+      try {
+        const preNormRange = document.createRange();
+        preNormRange.setStart(firstTxt, 0);
+        preNormRange.setEnd(lastTxt, (lastTxt.nodeValue || '').length);
+        sel.removeAllRanges();
+        sel.addRange(preNormRange);
+        savedSelectionRange = preNormRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      } catch (e) {}
+    }
+
+    normalizeCustomColorNodes(canvas);
+
+    if (firstTxt && lastTxt && firstTxt.isConnected && lastTxt.isConnected) {
+      try {
+        const finalRange = document.createRange();
+        finalRange.setStart(firstTxt, 0);
+        finalRange.setEnd(lastTxt, (lastTxt.nodeValue || '').length);
+        sel.removeAllRanges();
+        sel.addRange(finalRange);
+        savedSelectionRange = finalRange.cloneRange();
+        window._savedSelectionRange = savedSelectionRange;
+      } catch (e) {}
     }
 
     updateToolbarActiveStates();
@@ -1835,9 +1996,15 @@
         if (tag === 'mark') isHighlight = true;
         if (tag === 'u') isUnderline = true;
         if (tag === 'a') isLink = true;
-        if (activeCustomColor === 'default' && curr.classList && curr.classList.contains('cedar-custom-color')) {
-          const customHex = (curr.getAttribute('data-custom-color') || '').trim().toLowerCase();
-          if (customHex) activeCustomColor = customHex;
+        if (activeCustomColor === 'default') {
+          if (curr.classList && curr.classList.contains('cedar-custom-color')) {
+            const customHex = (curr.getAttribute('data-custom-color') || curr.style?.color || '').trim().toLowerCase();
+            if (customHex) activeCustomColor = customHex;
+          } else if (curr.style && curr.style.color) {
+            activeCustomColor = curr.style.color.trim().toLowerCase();
+          } else if (curr.getAttribute && curr.getAttribute('color')) {
+            activeCustomColor = curr.getAttribute('color').trim().toLowerCase();
+          }
         }
         if (tag === 'blockquote') {
           isQuote = true;
@@ -1870,6 +2037,51 @@
         }
         curr = curr.parentNode;
       }
+
+      // For non-collapsed selections (e.g. triple-click, full-block, or multi-paragraph highlight),
+      // inspect the selected text nodes so activeCustomColor reflects colored/mixed text accurately
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed && canvas && canvas.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        try {
+          const r = sel.getRangeAt(0);
+          const sPt = r.cloneRange();
+          sPt.collapse(true);
+          const ePt = r.cloneRange();
+          ePt.collapse(false);
+          const foundColors = new Set();
+          const w = document.createTreeWalker(canvas, NodeFilter.SHOW_TEXT, null, false);
+          let tn = w.nextNode();
+          while (tn) {
+            const val = tn.nodeValue || '';
+            if (val.trim().length > 0 && !(tn.parentElement && tn.parentElement.closest('[contenteditable="false"]'))) {
+              if (ePt.comparePoint(tn, 0) === -1 && sPt.comparePoint(tn, val.length) === 1) {
+                let tnColor = 'default';
+                let a = tn.parentElement;
+                while (a && a !== canvas && canvas.contains(a)) {
+                  if (a.classList && a.classList.contains('cedar-custom-color')) {
+                    const hex = (a.getAttribute('data-custom-color') || a.style?.color || '').trim().toLowerCase();
+                    if (hex) { tnColor = hex; break; }
+                  } else if (a.style && a.style.color) {
+                    tnColor = a.style.color.trim().toLowerCase();
+                    break;
+                  } else if (a.getAttribute && a.getAttribute('color')) {
+                    tnColor = a.getAttribute('color').trim().toLowerCase();
+                    break;
+                  }
+                  a = a.parentElement;
+                }
+                foundColors.add(tnColor);
+                if (foundColors.size > 1) break;
+              }
+            }
+            tn = w.nextNode();
+          }
+          if (foundColors.size === 1) {
+            activeCustomColor = Array.from(foundColors)[0];
+          } else if (foundColors.size > 1) {
+            activeCustomColor = 'mixed';
+          }
+        } catch (e) {}
+      }
     }
 
     // Toggle button active classes
@@ -1889,7 +2101,9 @@
     const fontColorBtn = document.getElementById('tb-btn-font-color');
     const fontColorMenu = document.getElementById('tb-font-color-menu');
     if (fontColorIndicator) {
-      fontColorIndicator.style.background = activeCustomColor === 'default' ? 'var(--text-primary)' : activeCustomColor;
+      fontColorIndicator.style.background = (activeCustomColor === 'default' || activeCustomColor === 'mixed')
+        ? 'var(--text-primary)'
+        : activeCustomColor;
     }
     if (fontColorBtn) {
       fontColorBtn.classList.toggle('active', activeCustomColor !== 'default');
@@ -2141,10 +2355,9 @@
     if (typeof window.setupHistoryListeners === 'function') window.setupHistoryListeners();
 
     if (toolbar) {
-      // Prevent mousedown on toolbar from ever stealing focus
+      // Prevent mousedown anywhere on toolbar / dropdown menus from stealing focus or collapsing selection
       toolbar.addEventListener('mousedown', (e) => {
-        const btn = e.target.closest('button');
-        if (btn) {
+        if (!e.target.closest('input, textarea, select')) {
           e.preventDefault();
         }
       });
@@ -2998,6 +3211,8 @@
   window.applyInlineCode = applyInlineCode;
   window.applyHighlight = applyHighlight;
   window.applyFontColor = applyFontColor;
+  window.splitInlineElementAtRange = splitInlineElementAtRange;
+  window.unwrapElementPreservingChildren = unwrapElementPreservingChildren;
   window.applyBlockIndent = applyBlockIndent;
   window.normalizeCustomColorNodes = normalizeCustomColorNodes;
   window.formatBlockStyle = formatBlockStyle;

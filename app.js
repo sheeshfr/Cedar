@@ -47,7 +47,7 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '6.7.1';
+    let staticVersion = '6.7.3';
     try {
       const compareSemver = (a, b) => {
         const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -113,6 +113,9 @@
 
     // Step 0: Load HTML Component Partials into DOM
     await loadHTMLPartials();
+    if (window.SheeshCloud && typeof window.SheeshCloud.init === 'function') {
+      try { window.SheeshCloud.init(); } catch (_) {}
+    }
 
     // Apply active theme immediately to newly injected DOM partials (without overwriting storage before Vault hydration)
     const ftue = window.CedarFTUE || window.OutpostFTUE;

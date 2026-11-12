@@ -2022,15 +2022,16 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   background: var(--popout-3d-bg, var(--bg-card, #1e293b));
   color: var(--popout-3d-color, var(--text-primary, #f4f4f5)) !important;
   border: 1px solid var(--popout-3d-border, var(--border-card, var(--border-color, rgba(255, 255, 255, 0.14))));
-  transform: translate(0, 0);
-  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #71717a));
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #71717a)), 0 0 0 rgba(0, 0, 0, 0);
   cursor: pointer;
   user-select: none;
   text-decoration: none;
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-              background 0.22s ease,
-              border-color 0.22s ease;
+  transition: transform 0.18s ease-out,
+              box-shadow 0.18s ease-out,
+              background-color 0.18s ease-out,
+              border-color 0.18s ease-out;
   outline: none !important;
 }
 
@@ -2050,7 +2051,7 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 .btn-share-article:hover,
 .btn-copy-share-url:hover,
 .btn-rss-subscribe:hover {
-  transform: translate(-4px, -4px);
+  transform: translate3d(-4px, -4px, 0);
   box-shadow: 5px 5px 0px 0px var(--popout-3d-shelf, var(--accent-primary, #71717a)), 8px 14px 28px rgba(0, 0, 0, 0.32);
   border-color: var(--popout-3d-border-hover, var(--popout-3d-shelf, rgba(255, 255, 255, 0.24)));
   background: var(--popout-3d-bg-hover, var(--popout-3d-bg, var(--bg-card, #1e293b)));
@@ -2061,8 +2062,8 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 .btn-share-article:active,
 .btn-copy-share-url:active,
 .btn-rss-subscribe:active {
-  transform: translate(0, 0);
-  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #71717a));
+  transform: translate3d(0, 0, 0);
+  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #71717a)), 0 0 0 rgba(0, 0, 0, 0);
 }
 
 /* Light Theme overrides for 3D depth */
@@ -2073,15 +2074,15 @@ body.is-dragging-active #canvas-drop-indicator.visible {
   background: var(--popout-3d-bg, var(--bg-card, #f4f4f5));
   border-color: var(--popout-3d-border, rgba(0, 0, 0, 0.14));
   color: var(--popout-3d-color, var(--text-primary, #18181b)) !important;
-  transform: translate(0, 0);
-  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #18181b));
+  transform: translate3d(0, 0, 0);
+  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #18181b)), 0 0 0 rgba(0, 0, 0, 0);
 }
 
 .app-theme-light .popout-3d:hover,
 .app-theme-light .btn-share-article:hover,
 .app-theme-light .btn-copy-share-url:hover,
 .app-theme-light .btn-rss-subscribe:hover {
-  transform: translate(-4px, -4px);
+  transform: translate3d(-4px, -4px, 0);
   box-shadow: 5px 5px 0px 0px var(--popout-3d-shelf, var(--accent-primary, #18181b)), 8px 14px 28px rgba(0, 0, 0, 0.14);
   background: var(--popout-3d-bg-hover, var(--popout-3d-bg, #f4f4f5));
   border-color: var(--popout-3d-border-hover, var(--popout-3d-shelf, rgba(0, 0, 0, 0.24)));
@@ -2091,8 +2092,8 @@ body.is-dragging-active #canvas-drop-indicator.visible {
 .app-theme-light .btn-share-article:active,
 .app-theme-light .btn-copy-share-url:active,
 .app-theme-light .btn-rss-subscribe:active {
-  transform: translate(0, 0);
-  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #18181b));
+  transform: translate3d(0, 0, 0);
+  box-shadow: 0 0 0 0 var(--popout-3d-shelf, var(--accent-primary, #18181b)), 0 0 0 rgba(0, 0, 0, 0);
 }
 
 /* Selected state: preserves the 3D shelf shadow, adds clear outline highlight */

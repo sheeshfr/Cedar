@@ -671,7 +671,7 @@
           You created content locally before signing in. Would you like to import it into your online workspace, or start fresh?
         </p>
         <div class="sheesh-local-import-actions">
-          <button type="button" class="btn btn-primary popout-3d sheesh-submit-btn" id="btn-sheesh-choice-import">
+          <button type="button" class="btn btn-primary sheesh-submit-btn" id="btn-sheesh-choice-import">
             <span>Import to Online Workspace</span>
           </button>
           <button type="button" class="btn btn-secondary sheesh-submit-btn" id="btn-sheesh-choice-fresh" style="background: rgba(255,255,255,0.06); color: var(--text-primary, #f4f4f5); border: 1px solid rgba(255,255,255,0.14);">
@@ -2187,18 +2187,41 @@
   // USER MODAL OPEN / CLOSE & EVENT WIRING
   // =========================================================================
 
+  function applyOptimisticPillState() {
+    if (currentUser) return;
+    if (!getStoredToken()) return;
+    const sidebarBtn = document.getElementById('sheesh-sidebar-btn');
+    const dotInline = document.getElementById('sheesh-sidebar-dot-inline');
+    const statusText = document.getElementById('sheesh-sidebar-status-text');
+    if (sidebarBtn) {
+      sidebarBtn.classList.add('is-online');
+      sidebarBtn.classList.remove('is-local');
+    }
+    if (dotInline) {
+      dotInline.classList.add('is-online');
+    }
+    if (statusText) {
+      statusText.textContent = 'Cloud';
+    }
+  }
+
   async function openSheeshModal(initialMode) {
     const modal = document.getElementById('modal-sheesh-cloud');
     if (!modal) return;
     showAlert('');
     pushModalHistoryState();
-    modal.style.display = 'flex';
 
     const phraseCode = document.getElementById('sheesh-rolled-passphrase');
     if (phraseCode && !phraseCode.dataset.initialized) {
       phraseCode.textContent = rollPassphrase();
       phraseCode.dataset.initialized = 'true';
     }
+
+    if (!currentUser) {
+      switchAuthMode(pendingInviteCode || initialMode === 'register' ? 'register' : 'login');
+    }
+    renderModalState();
+    modal.style.display = 'flex';
 
     if (!currentUser || pendingInviteCode) {
       try {
@@ -2230,9 +2253,8 @@
           switchAuthMode('login');
         }
       }
+      renderModalState();
     }
-
-    renderModalState();
   }
 
   function closeSheeshModal(options) {
@@ -2286,6 +2308,7 @@
       sidebarBtn.dataset.bound = 'true';
       sidebarBtn.addEventListener('click', () => openSheeshModal());
     }
+    applyOptimisticPillState();
 
     const expOpenBtn = document.getElementById('btn-export-sheesh-open');
     if (expOpenBtn && !expOpenBtn.dataset.bound) {
@@ -2784,14 +2807,12 @@
   };
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    document.addEventListener('DOMContentLoaded', () => {
       hookCedarSaveFunctions();
       if (!initPromise && document.getElementById('modal-sheesh-cloud')) initSheeshCloud();
-    }, 600));
+    });
   } else {
-    setTimeout(() => {
-      hookCedarSaveFunctions();
-      if (!initPromise && document.getElementById('modal-sheesh-cloud')) initSheeshCloud();
-    }, 600);
+    hookCedarSaveFunctions();
+    if (!initPromise && document.getElementById('modal-sheesh-cloud')) initSheeshCloud();
   }
 })();

@@ -2311,9 +2311,316 @@
         return;
       }
 
-      // If text/HTML was pasted, ensure any raw/inline images are normalized into standalone figure boxes and adjacent lists are merged
+      // Rich-text & plain-text paste into prose canvas:
+      // Strip all inline/custom text colors and foreign styles so anything pasted defaults to Theme Default color.
+      const sel = window.getSelection ? window.getSelection() : null;
+      const inProse = Boolean(
+        (window.activeMode || 'canvas') === 'canvas' &&
+        sel && sel.rangeCount > 0 &&
+        canvasProse.contains(sel.getRangeAt(0).commonAncestorContainer)
+      );
+
+      if (inProse) {
+        e._cedarImageHandled = true;
+        e._outpostImageHandled = true;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+
+        let range = sel.getRangeAt(0);
+        const startEl = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
+        const inPre = Boolean(startEl && startEl.closest && startEl.closest('pre'));
+
+        if (inPre) {
+          const rawPlainInPre = clipboardData.getData('text/plain') || '';
+          document.execCommand('insertText', false, rawPlainInPre);
+        } else {
+          // Ensure caret / selection steps outside any enclosing .cedar-custom-color span so pasted text gets Theme Default color
+          let pasteAnchorZwsp = null;
+          if (range.collapsed) {
+            let encColor = null;
+            let cur = startEl;
+            while (cur && cur !== canvasProse && canvasProse.contains(cur)) {
+              if (cur.nodeType === Node.ELEMENT_NODE && cur.tagName === 'SPAN' && cur.classList.contains('cedar-custom-color')) {
+                encColor = cur;
+              }
+              cur = cur.parentElement;
+            }
+            if (encColor && typeof window.splitInlineElementAtRange === 'function') {
+              const vis = (encColor.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+              if (!vis) {
+                const parent = encColor.parentNode;
+                pasteAnchorZwsp = document.createTextNode('\u200B');
+                parent.replaceChild(pasteAnchorZwsp, encColor);
+                const nr = document.createRange();
+                nr.setStart(pasteAnchorZwsp, 1);
+                nr.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(nr);
+              } else {
+                const splitRes = window.splitInlineElementAtRange(encColor, range);
+                pasteAnchorZwsp = document.createTextNode('\u200B');
+                if (splitRes && splitRes.beforeNode && splitRes.beforeNode.parentNode) {
+                  splitRes.beforeNode.parentNode.insertBefore(pasteAnchorZwsp, splitRes.beforeNode.nextSibling);
+                } else if (splitRes && splitRes.afterNode && splitRes.afterNode.parentNode) {
+                  splitRes.afterNode.parentNode.insertBefore(pasteAnchorZwsp, splitRes.afterNode);
+                } else if (splitRes && splitRes.range) {
+                  splitRes.range.insertNode(pasteAnchorZwsp);
+                }
+                if (pasteAnchorZwsp.isConnected) {
+                  const nr = document.createRange();
+                  nr.setStart(pasteAnchorZwsp, 1);
+                  nr.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(nr);
+                }
+              }
+            }
+          } else {
+            // Non-collapsed selection: if endpoints sit inside .cedar-custom-color, clear custom color on selection first
+            const endEl = range.endContainer.nodeType === Node.TEXT_NODE ? range.endContainer.parentElement : range.endContainer;
+            const hasColorEndpoint = Boolean(
+              (startEl && startEl.closest && startEl.closest('span.cedar-custom-color')) ||
+              (endEl && endEl.closest && endEl.closest('span.cedar-custom-color'))
+            );
+            if (hasColorEndpoint && typeof window.applyFontColor === 'function') {
+              window.applyFontColor('default');
+            }
+          }
+
+          const sanitizePastedHtmlForCanvas = (rawHtml) => {
+            if (!rawHtml || !rawHtml.trim()) return '';
+            const withoutMarkers = rawHtml.replace(/<!--StartFragment-->|<!--EndFragment-->/gi, '');
+            const doc = new DOMParser().parseFromString(withoutMarkers, 'text/html');
+            if (!doc || !doc.body) return '';
+
+            const unwrapNode = (node) => {
+              if (!node || !node.parentNode) return;
+              const p = node.parentNode;
+              while (node.firstChild) p.insertBefore(node.firstChild, node);
+              p.removeChild(node);
+            };
+
+            const cedarBlockSelector = '.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-individual-post-block, .page-recent-posts-block';
+            const isProtected = (el) => Boolean(el && el.closest && el.closest(cedarBlockSelector));
+
+            doc.querySelectorAll('script, style, meta, link, title, head, noscript').forEach(el => el.remove());
+            doc.body.querySelectorAll('button, svg').forEach(el => {
+              if (!isProtected(el)) el.remove();
+            });
+            doc.body.querySelectorAll('[contenteditable]').forEach(el => {
+              if (!isProtected(el)) el.removeAttribute('contenteditable');
+            });
+
+            // Unwrap Google Docs / Word non-bold <b> / <strong> wrappers (<b style="font-weight:normal">)
+            doc.body.querySelectorAll('b[style], strong[style]').forEach(el => {
+              if (isProtected(el)) return;
+              const fw = (el.style.fontWeight || '').trim().toLowerCase();
+              if (fw === 'normal' || fw === '400' || fw === '300' || fw === '200' || fw === '100') {
+                unwrapNode(el);
+              }
+            });
+
+            // Convert semantic bold/italic/underline/strikethrough on <span>/<font>, then unwrap ALL <span>/<font> (stripping all colors)
+            Array.from(doc.body.querySelectorAll('span, font')).reverse().forEach(el => {
+              if (!el.parentNode || isProtected(el)) return;
+              const fw = (el.style && el.style.fontWeight) ? String(el.style.fontWeight).trim().toLowerCase() : '';
+              const fs = (el.style && el.style.fontStyle) ? String(el.style.fontStyle).trim().toLowerCase() : '';
+              const td = (el.style && (el.style.textDecoration || el.style.textDecorationLine))
+                ? String(el.style.textDecoration || el.style.textDecorationLine).toLowerCase()
+                : '';
+
+              const wantBold = (fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600) && !el.closest('strong, b, h1, h2, h3, h4, h5, h6');
+              const wantItalic = (fs === 'italic' || fs === 'oblique') && !el.closest('em, i');
+              const wantUnderline = td.includes('underline') && !el.closest('u, a');
+              const wantStrike = td.includes('line-through') && !el.closest('s, del, strike');
+
+              const wrappers = [];
+              if (wantBold) wrappers.push('strong');
+              if (wantItalic) wrappers.push('em');
+              if (wantUnderline) wrappers.push('u');
+              if (wantStrike) wrappers.push('s');
+
+              if (wrappers.length > 0 && (el.textContent || '').length > 0) {
+                let outer = null;
+                let inner = null;
+                wrappers.forEach(tag => {
+                  const w = doc.createElement(tag);
+                  if (!outer) outer = w;
+                  if (inner) inner.appendChild(w);
+                  inner = w;
+                });
+                while (el.firstChild) inner.appendChild(el.firstChild);
+                el.parentNode.insertBefore(outer, el);
+              }
+              unwrapNode(el);
+            });
+
+            // Unwrap generic external layout containers
+            let unwrappedContainer = true;
+            let cGuard = 0;
+            while (unwrappedContainer && cGuard < 20) {
+              unwrappedContainer = false;
+              cGuard++;
+              doc.body.querySelectorAll('section, article, main, header, footer, aside, nav').forEach(el => {
+                if (!isProtected(el)) {
+                  unwrapNode(el);
+                  unwrappedContainer = true;
+                }
+              });
+              doc.body.querySelectorAll('div').forEach(div => {
+                if (isProtected(div) || div.matches(cedarBlockSelector)) return;
+                if (div.querySelector('p, div, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, hr, figure, table')) {
+                  unwrapNode(div);
+                  unwrappedContainer = true;
+                }
+              });
+            }
+
+            // Convert remaining plain <div> blocks to <p> (or unwrap if single inline snippet)
+            const plainDivs = Array.from(doc.body.querySelectorAll('div')).filter(d => !isProtected(d) && !d.matches(cedarBlockSelector));
+            if (plainDivs.length === 1 && doc.body.children.length === 1 && doc.body.firstElementChild === plainDivs[0]) {
+              unwrapNode(plainDivs[0]);
+            } else if (plainDivs.length > 0) {
+              plainDivs.forEach(div => {
+                if (!div.parentNode) return;
+                const hasTextOrImg = Boolean((div.textContent || '').trim() || div.querySelector('img'));
+                if (!hasTextOrImg) {
+                  div.remove();
+                  return;
+                }
+                const p = doc.createElement('p');
+                const align = (div.getAttribute('align') || div.style?.textAlign || '').trim().toLowerCase();
+                if (align === 'center' || align === 'right') {
+                  p.setAttribute('align', align);
+                  p.style.textAlign = align;
+                }
+                while (div.firstChild) p.appendChild(div.firstChild);
+                div.parentNode.replaceChild(p, div);
+              });
+            }
+
+            // Strip all inline color/font/background styles & foreign classes/attributes from every element
+            const allowedClasses = new Set(['cedar-highlight', 'align-center', 'align-right', 'align-left', 'canvas-divider']);
+            const alignableBlocks = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'UL', 'OL', 'LI']);
+            doc.body.querySelectorAll('*').forEach(el => {
+              if (isProtected(el) || el.matches(cedarBlockSelector)) return;
+              const align = (el.getAttribute('align') || el.style?.textAlign || '').trim().toLowerCase();
+              el.removeAttribute('style');
+              el.removeAttribute('color');
+              el.removeAttribute('bgcolor');
+              el.removeAttribute('face');
+              el.removeAttribute('size');
+              el.removeAttribute('data-custom-color');
+              el.removeAttribute('id');
+
+              if (el.hasAttribute('class')) {
+                const kept = Array.from(el.classList).filter(c => allowedClasses.has(c));
+                if (kept.length > 0) el.className = kept.join(' ');
+                else el.removeAttribute('class');
+              }
+
+              if (el.tagName === 'MARK') {
+                el.classList.add('cedar-highlight');
+              }
+
+              if (alignableBlocks.has(el.tagName) && (align === 'center' || align === 'right')) {
+                el.setAttribute('align', align);
+                el.style.textAlign = align;
+                el.classList.add(`align-${align}`);
+              } else {
+                el.removeAttribute('align');
+              }
+
+              if (el.tagName === 'A') {
+                const href = (el.getAttribute('href') || '').trim();
+                if (href && !href.startsWith('#')) {
+                  el.setAttribute('target', '_blank');
+                  el.setAttribute('rel', 'noopener noreferrer');
+                }
+              }
+            });
+
+            const outHtml = doc.body.innerHTML;
+            if (!outHtml || (!outHtml.trim() && !doc.body.querySelector('img, hr, br'))) return '';
+            // Preserve single leading/trailing spaces on inline fragments (e.g. pasting " DefaultSuffix")
+            const hasBlockElements = Boolean(doc.body.querySelector('p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, hr, figure'));
+            return hasBlockElements ? outHtml.trim() : outHtml;
+          };
+
+          let inserted = false;
+          if (htmlText && htmlText.trim()) {
+            const cleanHtml = sanitizePastedHtmlForCanvas(htmlText);
+            if (cleanHtml) {
+              try {
+                inserted = document.execCommand('insertHTML', false, cleanHtml);
+              } catch (err) {
+                inserted = false;
+              }
+            }
+          }
+
+          if (!inserted) {
+            const rawPlain = clipboardData.getData('text/plain') || '';
+            if (rawPlain) {
+              document.execCommand('insertText', false, rawPlain);
+            }
+          }
+
+          // Clean up temporary \u200B anchor text node used to step outside .cedar-custom-color
+          if (pasteAnchorZwsp && pasteAnchorZwsp.isConnected && typeof pasteAnchorZwsp.nodeValue === 'string') {
+            const curSel = window.getSelection();
+            const isCaretInAnchor = Boolean(curSel && curSel.rangeCount > 0 && curSel.getRangeAt(0).startContainer === pasteAnchorZwsp);
+            const oldOffset = isCaretInAnchor ? curSel.getRangeAt(0).startOffset : 0;
+            const beforeRemoved = (pasteAnchorZwsp.nodeValue.slice(0, oldOffset).match(/\u200B/g) || []).length;
+            pasteAnchorZwsp.nodeValue = pasteAnchorZwsp.nodeValue.replace(/\u200B/g, '');
+            if (!pasteAnchorZwsp.nodeValue) {
+              pasteAnchorZwsp.remove();
+            } else if (isCaretInAnchor) {
+              try {
+                const adj = document.createRange();
+                adj.setStart(pasteAnchorZwsp, Math.max(0, Math.min(pasteAnchorZwsp.nodeValue.length, oldOffset - beforeRemoved)));
+                adj.collapse(true);
+                curSel.removeAllRanges();
+                curSel.addRange(adj);
+              } catch (err) {}
+            }
+          }
+        }
+
+        if (typeof window.normalizeCustomColorNodes === 'function') {
+          window.normalizeCustomColorNodes(canvasProse);
+        }
+        normalizeRawImages(canvasProse);
+        ensureImageCaptionElements(canvasProse);
+        if (window.mergeAdjacentLists) {
+          window.mergeAdjacentLists(canvasProse);
+        }
+        if (typeof window.ensureTrailingTextBlock === 'function') {
+          window.ensureTrailingTextBlock();
+        }
+        if (typeof window.updateToolbarActiveStates === 'function') {
+          window.updateToolbarActiveStates();
+        }
+        if (typeof window.recordAction === 'function') {
+          window.recordAction('paste', true);
+        }
+        if (typeof window.syncFormToDraft === 'function') {
+          window.syncFormToDraft();
+        }
+        if (typeof window.scheduleAutosave === 'function') {
+          window.scheduleAutosave();
+        }
+        return;
+      }
+
+      // If text/HTML was pasted outside direct prose range, ensure any raw/inline images are normalized into standalone figure boxes and adjacent lists are merged
       setTimeout(() => {
         if (canvasProse) {
+          if (typeof window.normalizeCustomColorNodes === 'function') {
+            window.normalizeCustomColorNodes(canvasProse);
+          }
           normalizeRawImages(canvasProse);
           ensureImageCaptionElements(canvasProse);
           if (window.mergeAdjacentLists) {

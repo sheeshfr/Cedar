@@ -63,7 +63,9 @@ body.writer-body.app-theme-light {
   text-decoration: none;
   user-select: none;
   white-space: nowrap;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  transition: background-color 0.16s ease-out, border-color 0.16s ease-out, color 0.16s ease-out, box-shadow 0.16s ease-out, opacity 0.16s ease-out, transform 0.16s ease-out;
   box-sizing: border-box;
   outline: none;
 }
@@ -73,7 +75,7 @@ body.writer-body.app-theme-light {
 }
 
 .btn:active {
-  transform: scale(0.98);
+  transform: translate3d(0, 1px, 0);
 }
 
 .btn-sm {
@@ -101,7 +103,6 @@ body.writer-body.app-theme-light {
   opacity: 0.92;
   box-shadow: 0 4px 16px var(--btn-primary-glow, rgba(113, 113, 122, 0.45));
   color: var(--btn-primary-color, #ffffff) !important;
-  transform: translateY(-1px);
 }
 
 .btn-primary:focus,
@@ -130,7 +131,7 @@ body.writer-body.app-theme-light {
   background: var(--btn-secondary-hover-bg, #3f3f46);
   border-color: var(--border-color-hover, rgba(255, 255, 255, 0.25));
   color: var(--btn-secondary-color, #ffffff);
-  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
 }
 
 .btn-ghost {
