@@ -6185,7 +6185,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
           window.CedarStore.remove(cur.id);
         }
       } else {
-        cur.updatedAt = Date.now();
+        if (!cur.updatedAt) {
+          cur.updatedAt = Date.now();
+        }
         const idx = drafts.findIndex(d => d && d.id === cur.id);
         if (idx !== -1) {
           const existing = drafts[idx];
@@ -6469,7 +6471,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
         }
       }
 
-      if (cur) {
+      if (cur && !isDraftActuallyBlank(cur)) {
 
         localStorage.setItem(STORAGE_KEY_ACTIVE, cur.id);
 
@@ -6650,9 +6652,35 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     markDraftAsEdited();
 
+    const curImmediate = window.currentDraft || currentDraft;
+    if (curImmediate) {
+      if (typeof window.syncFormToDraft === 'function') {
+        window.syncFormToDraft();
+      }
+      curImmediate.updatedAt = Date.now();
+      try {
+        if (window.CedarStore) {
+          if (isDraftActuallyBlank(curImmediate)) {
+            window.CedarStore.remove(curImmediate.id);
+            localStorage.removeItem(STORAGE_KEY_ACTIVE);
+          } else {
+            window.CedarStore.upsert(curImmediate);
+            localStorage.setItem(STORAGE_KEY_ACTIVE, curImmediate.id);
+          }
+          drafts = window.CedarStore.getAllDrafts();
+          window.drafts = drafts;
+          if (typeof window.CedarStore.persistToLocalStorage === 'function') {
+            window.CedarStore.persistToLocalStorage(drafts);
+          }
+        }
+      } catch (e) {}
+    }
+
     clearTimeout(saveTimeout);
 
     saveTimeout = setTimeout(() => {
+
+      saveTimeout = null;
 
       const cur = window.currentDraft || currentDraft;
 

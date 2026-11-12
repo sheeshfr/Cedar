@@ -625,6 +625,7 @@
     if (btnCreateDraft) {
       btnCreateDraft.addEventListener('click', () => {
         const newDraft = createNewDraftModel('', 'blank', 'post', 'draft');
+        Object.defineProperty(newDraft, '_isSessionNewDraft', { value: true, writable: true, configurable: true, enumerable: false });
         currentDraft = newDraft;
         window.currentDraft = newDraft;
         openPostInEditor(newDraft);
@@ -1367,6 +1368,25 @@
 
   function findDraftBySlugOrId(slugOrId, hintType = null) {
     if (!slugOrId) return null;
+    const raw = String(slugOrId).trim();
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw).trim();
+    } catch (e) {}
+    const rawLower = raw.toLowerCase();
+    const decodedLower = decoded.toLowerCase();
+
+    // If URL slug is a generic untitled fallback, prefer the active draft ID if its slug matches
+    if (rawLower === 'untitled-post' || rawLower === 'untitled-page') {
+      const activeId = localStorage.getItem('sheesh_static_writer_active_id_v2') || localStorage.getItem('sheesh_static_writer_active_id');
+      if (activeId && window.CedarStore && typeof window.CedarStore.get === 'function') {
+        const activeMatch = window.CedarStore.get(activeId);
+        if (activeMatch && (!activeMatch.slug || String(activeMatch.slug).toLowerCase() === rawLower)) {
+          return activeMatch;
+        }
+      }
+    }
+
     if (window.CedarStore && typeof window.CedarStore.get === 'function') {
       const match = (hintType === 'post')
         ? window.CedarStore.getPost(slugOrId)
@@ -1375,15 +1395,6 @@
     }
     const draftsList = Array.isArray(window.drafts) ? window.drafts : [];
     if (draftsList.length === 0) return null;
-
-    const raw = String(slugOrId).trim();
-    let decoded = raw;
-    try {
-      decoded = decodeURIComponent(raw).trim();
-    } catch (e) {}
-
-    const rawLower = raw.toLowerCase();
-    const decodedLower = decoded.toLowerCase();
 
     const isPage = (d) => Boolean(d && (d.type === 'page' || d.isCategoryAggregate || (d.id && String(d.id).startsWith('page_'))));
 
@@ -1608,29 +1619,25 @@
         if (route.pageSlug && !route.postSlug) hint = 'page';
         else if (route.postSlug && !route.pageSlug) hint = 'post';
         targetDraft = findDraftBySlugOrId(lookupSlugOrId, hint);
+      } else {
+        targetDraft = window.currentDraft || currentDraft || null;
       }
 
-      if (!targetDraft && (route.postSlug || route.pageSlug || route.draftId)) {
-        const activeId = localStorage.getItem('sheesh_static_writer_active_id_v2') || localStorage.getItem('sheesh_static_writer_active_id');
-        targetDraft = (activeId ? draftsList.find(d => d.id === activeId) : null) || draftsList[0] || null;
-        if (!targetDraft) {
-          showToast('Requested post was not found, returning to pipeline');
-          navigateTo('home', true);
-          return;
-        }
-      }
+      const isBlankTarget = Boolean(
+        targetDraft &&
+        typeof window.isDraftActuallyBlank === 'function' &&
+        window.isDraftActuallyBlank(targetDraft)
+      );
 
-      if (!targetDraft) {
-        if (window.currentDraft) {
-          targetDraft = window.currentDraft;
-        } else if (currentDraft) {
-          targetDraft = currentDraft;
-        } else if (draftsList.length > 0) {
-          targetDraft = draftsList[0];
-        } else {
-          handleNewPost();
-          return;
+      // If reloading on a blank unsaved post (not found in storage, or blank without an active in-session flag),
+      // redirect cleanly to the Posts (or Pages) tab instead of pulling up a random fallback post.
+      if (!targetDraft || (isBlankTarget && !targetDraft._isSessionNewDraft)) {
+        if (targetDraft && isBlankTarget && typeof window.discardBlankDraft === 'function') {
+          window.discardBlankDraft(targetDraft);
         }
+        const fallbackTab = (route.pageSlug && !route.postSlug) ? 'pages' : 'posts';
+        navigateTo(fallbackTab, true);
+        return;
       }
 
       if (isCategoryAggregateItem(targetDraft) || isAllPageItem(targetDraft) || (targetDraft && (targetDraft.id === 'page_about_cedar' || targetDraft.slug === 'about-cedar'))) {

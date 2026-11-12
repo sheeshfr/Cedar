@@ -1431,9 +1431,10 @@
   function handleNewPost() {
     if (typeof window.createNewDraftModel !== 'function') return;
     const newPost = window.createNewDraftModel('', 'blank', 'post', 'draft');
+    Object.defineProperty(newPost, '_isSessionNewDraft', { value: true, writable: true, configurable: true, enumerable: false });
     window.currentDraft = newPost;
     // Note: Do not save to persistent storage or log activity yet while the post is blank.
-    // If the user leaves the post blank and presses back, it will be discarded rather than shown as an Untitled Post draft.
+    // If the user leaves the post blank and presses back or reloads, it will be discarded rather than shown as an Untitled Post draft.
     if (typeof window.openPostInEditor === 'function') {
       window.openPostInEditor(newPost);
     }
@@ -1446,6 +1447,7 @@
     newPage.status = 'published';
     newPage.hidden = false;
     newPage.retired = false;
+    Object.defineProperty(newPage, '_isSessionNewDraft', { value: true, writable: true, configurable: true, enumerable: false });
     if (window.drafts) window.drafts.unshift(newPage);
     window.currentDraft = newPage;
     // Note: Do not save to persistent storage or log activity yet.
@@ -1719,18 +1721,31 @@
     updateCanvasHeaderVisibility
   };
 
-  // Flush any pending draft changes upon page unload or reload ONLY if boot hydration completed and an active edit timer is pending
-  window.addEventListener('beforeunload', () => {
+  // Flush any pending draft changes upon page unload or reload if boot hydration completed
+  function flushPendingEditorDraftOnUnload() {
     try {
       if (!window.__cedarBootHydrationComplete) return;
-      const cur = window.currentDraft;
+      if (urlSlugUpdateTimer) {
+        clearTimeout(urlSlugUpdateTimer);
+        urlSlugUpdateTimer = null;
+      }
       if (window.saveTimeout) {
         clearTimeout(window.saveTimeout);
         window.saveTimeout = null;
+      }
+      const inEditor = window.currentView === 'editor' || /^#\/?write(\/|$)/i.test(window.location.hash || '');
+      const cur = window.currentDraft;
+      if (inEditor && cur) {
         if (typeof window.syncFormToDraft === 'function') {
           window.syncFormToDraft();
         }
-        if (cur && typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(cur)) {
+        if (typeof window.updateEditorUrlSlug === 'function' && cur.slug) {
+          window.updateEditorUrlSlug(cur.slug);
+        }
+        const isBlank = typeof window.isDraftActuallyBlank === 'function'
+          ? window.isDraftActuallyBlank(cur)
+          : (typeof window.isPageActuallyBlank === 'function' && window.isPageActuallyBlank(cur));
+        if (isBlank) {
           if (typeof window.discardBlankDraft === 'function') {
             window.discardBlankDraft(cur);
           }
@@ -1739,7 +1754,9 @@
         }
       }
     } catch (e) {}
-  });
+  }
+  window.addEventListener('beforeunload', flushPendingEditorDraftOnUnload);
+  window.addEventListener('pagehide', flushPendingEditorDraftOnUnload);
 
   window.Cedar.editor = Object.assign(window.Cedar.editor || {}, coordinatorExports);
   window.Outpost.editor = window.Cedar.editor;

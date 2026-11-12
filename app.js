@@ -47,7 +47,7 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '6.7.3';
+    let staticVersion = '6.7.4';
     try {
       const compareSemver = (a, b) => {
         const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -184,6 +184,33 @@
           if (res.ok) {
             const fileDrafts = await res.json();
             if (Array.isArray(fileDrafts) && fileDrafts.length > 0) {
+              const existingLocal = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+                ? window.CedarStore.getAllDrafts()
+                : (Array.isArray(window.drafts) ? window.drafts : []);
+              if (Array.isArray(existingLocal) && existingLocal.length > 0) {
+                const diskById = new Map();
+                fileDrafts.forEach((d, idx) => {
+                  if (d && d.id) diskById.set(String(d.id), idx);
+                });
+                const nowTs = Date.now();
+                for (const localDraft of existingLocal) {
+                  if (!localDraft || !localDraft.id) continue;
+                  if (typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(localDraft)) continue;
+                  const lid = String(localDraft.id);
+                  const localUpdated = Number(localDraft.updatedAt || localDraft.createdAt) || 0;
+                  if (diskById.has(lid)) {
+                    const idx = diskById.get(lid);
+                    const diskDraft = fileDrafts[idx];
+                    const diskUpdated = Number(diskDraft && (diskDraft.updatedAt || diskDraft.createdAt)) || 0;
+                    if (localUpdated > diskUpdated) {
+                      fileDrafts[idx] = Object.assign({}, diskDraft, localDraft);
+                    }
+                  } else if (localUpdated > 0 && (nowTs - localUpdated) < 10 * 60 * 1000) {
+                    fileDrafts.unshift(localDraft);
+                    diskById.set(lid, 0);
+                  }
+                }
+              }
               if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
                 window.CedarStore.hydrateFromList(fileDrafts);
                 window.drafts = window.CedarStore.getAllDrafts();

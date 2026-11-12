@@ -15,6 +15,34 @@
 
   let quickIdeasExpanded = false;
 
+  function getPublishedSortTimestamp(p) {
+    if (!p) return 0;
+    const dateStr = p.publishedDate || p.date;
+    if (dateStr) {
+      const m = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) {
+        const localNoon = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0).getTime();
+        if (!isNaN(localNoon) && localNoon > 0) return localNoon;
+      }
+      const parsed = new Date(dateStr).getTime();
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    const fallback = Number(p.publishedAt || p.createdAt || p.updatedAt || 0);
+    if (Number.isFinite(fallback) && fallback > 0) return fallback;
+    const parsedFallback = new Date(p.publishedAt || p.createdAt || p.updatedAt || 0).getTime();
+    return (!isNaN(parsedFallback) && parsedFallback > 0) ? parsedFallback : 0;
+  }
+
+  function comparePublishedPostsNewestFirst(a, b) {
+    const tB = getPublishedSortTimestamp(b);
+    const tA = getPublishedSortTimestamp(a);
+    if (tB !== tA) return tB - tA;
+    const pubB = Number(b?.publishedAt || b?.createdAt || b?.updatedAt || 0) || 0;
+    const pubA = Number(a?.publishedAt || a?.createdAt || a?.updatedAt || 0) || 0;
+    return pubB - pubA;
+  }
+  window.comparePublishedPostsNewestFirst = comparePublishedPostsNewestFirst;
+
   function renderPostsPipeline() {
     let posts = (window.CedarStore && typeof window.CedarStore.getPosts === 'function')
       ? window.CedarStore.getPosts()
@@ -30,7 +58,7 @@
     if (cardsDrafts || cardsPub) {
       const activePosts = posts.filter(d => d && d.type !== 'note' && d.status !== 'idea' && !(typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(d)));
       const draftsList = activePosts.filter(p => !p.status || p.status === 'draft');
-      const published = activePosts.filter(p => p.status === 'published');
+      const published = activePosts.filter(p => p.status === 'published').sort(comparePublishedPostsNewestFirst);
       if (cardsDrafts) renderPipelineColumn('cards-drafts', draftsList, 'draft');
       if (cardsPub) renderPipelineColumn('cards-published', published, 'published');
     }
@@ -569,7 +597,7 @@
 
     const hiddenList = [];
     const draftsList = posts.filter(p => (p.status === 'draft' || p.status === 'scheduled' || !p.status));
-    const published = posts.filter(p => p.status === 'published');
+    const published = posts.filter(p => p.status === 'published').sort(comparePublishedPostsNewestFirst);
 
     const countDraftsEl = document.getElementById('posts-overview-count-drafts') || document.getElementById('posts-count-drafts');
     const countPubEl = document.getElementById('posts-overview-count-published') || document.getElementById('posts-count-published');

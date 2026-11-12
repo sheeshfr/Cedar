@@ -1831,10 +1831,55 @@
           }
           return true;
         });
+
+        // Preserve any local non-blank drafts that were created or edited more recently than the cloud copy
+        // (e.g., if the user typed on a post and immediately refreshed before the debounced cloud push finished).
+        const existingLocalDrafts = (window.CedarStore && typeof window.CedarStore.getAllDrafts === 'function')
+          ? window.CedarStore.getAllDrafts()
+          : (Array.isArray(window.drafts) ? window.drafts : []);
+        if (Array.isArray(existingLocalDrafts) && existingLocalDrafts.length > 0) {
+          const remoteIndexById = new Map();
+          orderedPosts.forEach((p, idx) => {
+            if (p && p.id) remoteIndexById.set(String(p.id), idx);
+          });
+          const nowTs = Date.now();
+          const activeCurId = window.currentDraft && window.currentDraft.id ? String(window.currentDraft.id) : null;
+          for (const localDraft of existingLocalDrafts) {
+            if (!localDraft || !localDraft.id) continue;
+            const lid = String(localDraft.id);
+            if (delIds.has(lid)) continue;
+            if (typeof window.isDraftActuallyBlank === 'function' && window.isDraftActuallyBlank(localDraft)) continue;
+            const localUpdated = Number(localDraft.updatedAt || localDraft.createdAt) || 0;
+            if (remoteIndexById.has(lid)) {
+              const rIdx = remoteIndexById.get(lid);
+              const remoteDraft = orderedPosts[rIdx];
+              const remoteUpdated = Number(remoteDraft && (remoteDraft.updatedAt || remoteDraft.createdAt)) || 0;
+              if (localUpdated > remoteUpdated) {
+                orderedPosts[rIdx] = Object.assign({}, remoteDraft, localDraft);
+              }
+            } else {
+              const isRecentLocal = (localUpdated > 0 && (nowTs - localUpdated) < 10 * 60 * 1000) || (activeCurId && lid === activeCurId);
+              if (isRecentLocal) {
+                orderedPosts.unshift(localDraft);
+                remoteIndexById.set(lid, 0);
+              }
+            }
+          }
+        }
+
         if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function') {
           window.CedarStore.hydrateFromList(orderedPosts);
         } else {
           window.drafts = orderedPosts;
+        }
+        if (window.currentView === 'editor' && window.currentDraft && window.currentDraft.id && window.CedarStore && typeof window.CedarStore.get === 'function') {
+          const refreshedCur = window.CedarStore.get(window.currentDraft.id);
+          if (refreshedCur) {
+            window.currentDraft = refreshedCur;
+            if (typeof window.syncDraftToForm === 'function') {
+              window.syncDraftToForm();
+            }
+          }
         }
         if (typeof window.syncCategoryPages === 'function') {
           window.syncCategoryPages();
@@ -1928,17 +1973,22 @@
 
     if (!window.__sheeshLifecycleBound) {
       window.__sheeshLifecycleBound = true;
+      const flushPendingCloudSync = () => {
+        if (syncDebounceTimer) {
+          clearTimeout(syncDebounceTimer);
+          syncDebounceTimer = null;
+          pushCedarToCloud({ deltaOnly: true, keepalive: true });
+        }
+      };
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-          if (syncDebounceTimer) {
-            clearTimeout(syncDebounceTimer);
-            syncDebounceTimer = null;
-            pushCedarToCloud({ deltaOnly: true, keepalive: true });
-          }
+          flushPendingCloudSync();
         } else if (document.visibilityState === 'visible') {
           checkRemoteMetaAndPullIfNewer();
         }
       });
+      window.addEventListener('pagehide', flushPendingCloudSync);
+      window.addEventListener('beforeunload', flushPendingCloudSync);
       window.addEventListener('focus', () => {
         checkRemoteMetaAndPullIfNewer();
       });
