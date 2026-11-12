@@ -2583,7 +2583,7 @@ ${window.currentDraft.markdown || ''}` : ((typeof window.generateMarkdownWithFro
             { id: 'export-sec-github-sync', el: document.getElementById('export-sec-github-sync') },
             { id: 'export-sec-web', el: document.getElementById('export-sec-web') },
             { id: 'export-sec-links', el: document.getElementById('export-sec-links') },
-            { id: 'export-sec-danger', el: document.getElementById('export-sec-danger') }
+            { id: 'settings-sec-import-backup', el: document.getElementById('settings-sec-import-backup') }
           ].filter(s => s.el);
 
           const cRect = container.getBoundingClientRect();

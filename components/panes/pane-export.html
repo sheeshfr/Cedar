@@ -221,26 +221,28 @@
                 </div>
               </div>
 
-              <!-- Section 5: Danger Zone -->
-              <div class="settings-section-group settings-section-danger" id="export-sec-danger">
+              <!-- Section 4: Import Site Backup -->
+              <div class="settings-section-group" id="settings-sec-import-backup">
                 <div class="settings-section-header">
-                  <div class="settings-section-title-wrap settings-title-danger">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    <h4>Danger Zone</h4>
+                  <div class="settings-section-title-wrap">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <h4>Import Site Backup</h4>
                   </div>
                 </div>
-                <div class="project-settings-card settings-danger-card">
-                  <!-- Clear Browser Cache Data -->
-                  <div class="danger-action-row">
-                    <button type="button" class="btn btn-sm btn-danger-nuclear" id="btn-danger-nuclear-reset">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                      <span>Clear Browser Cache</span>
-                    </button>
-                    <p class="danger-action-note" style="font-size: 0.8rem; color: var(--text-dim, #71717a); margin-top: 0.65rem; text-align: center; line-height: 1.45;">This doesn't erase your local folder, just the browser's connection to it.</p>
+                <div class="project-settings-card">
+                  <div class="form-row" style="margin-bottom: 0;">
+                    <div class="form-group flex-1">
+                      <label class="form-label">Restore from Backup (.ZIP)</label>
+                      <p style="font-size: 0.76rem; color: var(--text-dim, #71717a); margin: 0 0 0.75rem 0; line-height: 1.4;">Restore your blog's posts, drafts, pages, media files, and site settings from a previously exported Raw Backup (<code>.zip</code>).</p>
+                      <div style="display: flex; justify-content: center; width: 100%;">
+                        <label class="btn btn-sm btn-secondary popout-3d" id="btn-trigger-import-zip" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 8px;" title="Restore blog from backup (.ZIP)">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                          <span>Restore from Backup (.ZIP)</span>
+                          <input type="file" id="input-pane-import-zip" accept=".zip" style="display: none;">
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div class="cedar-version-footer" style="text-align: center; margin-top: 1.35rem; padding-bottom: 0.5rem; font-size: 0.74rem; font-family: var(--font-mono, monospace); color: var(--text-dim, #71717a); opacity: 0.65; letter-spacing: 0.03em; user-select: none;">
-                  <span id="cedar-version-label">Cedar v6.7.6</span>
                 </div>
               </div>
 
