@@ -5998,19 +5998,14 @@ ${socialMeta.metaLines}
         addFile('feed.xml', rssFeed);
         addFile('blog/feed.xml', rssFeed);
         addFile('_headers', [
-          '/feed.xml',
+          '/*',
           '  Access-Control-Allow-Origin: *',
           '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
-          '  Content-Type: application/xml; charset=utf-8',
           '',
-          '/blog/feed.xml',
-          '  Access-Control-Allow-Origin: *',
-          '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
+          '/feed.xml',
           '  Content-Type: application/xml; charset=utf-8',
           '',
           '/*/feed.xml',
-          '  Access-Control-Allow-Origin: *',
-          '  Access-Control-Allow-Methods: GET, HEAD, OPTIONS',
           '  Content-Type: application/xml; charset=utf-8',
           ''
         ].join('\n'));
