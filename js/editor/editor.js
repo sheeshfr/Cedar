@@ -367,6 +367,7 @@
           : (curDraft.markdown || '');
       }
       canvasProse.querySelectorAll('#canvas-drop-indicator').forEach(el => el.remove());
+      if (typeof window.normalizeCanvasProseBlocks === 'function') window.normalizeCanvasProseBlocks(canvasProse);
       if (typeof window.normalizeCustomColorNodes === 'function') window.normalizeCustomColorNodes(canvasProse);
       if (typeof window.normalizeRawImages === 'function') window.normalizeRawImages(canvasProse);
       if (typeof window.mergeAdjacentLists === 'function') window.mergeAdjacentLists(canvasProse);
@@ -877,6 +878,7 @@
       if (window.currentDraft) window.currentDraft.markdown = rawMd;
       if (canvasProse) {
         canvasProse.innerHTML = (typeof window.parseMarkdownToHtml === 'function') ? window.parseMarkdownToHtml(rawMd) : rawMd;
+        if (typeof window.normalizeCanvasProseBlocks === 'function') window.normalizeCanvasProseBlocks(canvasProse);
         if (window.mergeAdjacentLists) {
           window.mergeAdjacentLists(canvasProse);
         }
@@ -1241,7 +1243,9 @@
         if (window.currentDraft) window.currentDraft._headerSyncClean = false;
         scheduleStatsUpdate();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-        if (typeof window.maintainCaretScrollBuffer === 'function') window.maintainCaretScrollBuffer();
+        if (!window._cedarSuppressCaretScroll && typeof window.maintainCaretScrollBuffer === 'function') {
+          window.maintainCaretScrollBuffer();
+        }
       });
 
       canvasProse.addEventListener('paste', () => {
@@ -1264,10 +1268,19 @@
         scheduleStatsUpdate();
         autoResizeMarkdownTextarea();
         if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
-        if (typeof window.maintainCaretScrollBuffer === 'function') window.maintainCaretScrollBuffer();
+        if (!window._cedarSuppressCaretScroll && typeof window.maintainCaretScrollBuffer === 'function') {
+          window.maintainCaretScrollBuffer();
+        }
       });
 
       mdInput.addEventListener('paste', (e) => {
+        const sc = mdInput.closest('.canvas-scroll-container') || document.querySelector('.canvas-scroll-container');
+        const savedScrollTop = sc ? sc.scrollTop : 0;
+        window._cedarSuppressCaretScroll = true;
+        const restoreMdScroll = () => {
+          if (sc) sc.scrollTop = savedScrollTop;
+          if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+        };
         const clipboardData = e.clipboardData || window.clipboardData;
         if (clipboardData) {
           const text = (clipboardData.getData('text/plain') || '').trim();
@@ -1282,11 +1295,20 @@
               mdInput.setRangeText(replacement, start, end, 'select');
               updateStats();
               if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+              restoreMdScroll();
+              window._cedarSuppressCaretScroll = false;
               return;
             }
           }
         }
-        setTimeout(updateStats, 0);
+        requestAnimationFrame(() => {
+          restoreMdScroll();
+          setTimeout(() => {
+            restoreMdScroll();
+            window._cedarSuppressCaretScroll = false;
+            updateStats();
+          }, 30);
+        });
       });
 
       mdInput.addEventListener('keydown', (e) => {

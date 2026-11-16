@@ -1262,6 +1262,7 @@
   }
 
   function maintainCaretScrollBufferLocal(smooth = false) {
+    if (window._cedarSuppressCaretScroll) return;
     if (typeof window.maintainCaretScrollBuffer === 'function') {
       return window.maintainCaretScrollBuffer(smooth);
     }

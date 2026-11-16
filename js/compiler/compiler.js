@@ -227,8 +227,11 @@
 
     function flushParagraph() {
       if (inParagraph) {
-        const content = pLines.map(l => parseInlines(l)).join('<br>');
-        parsedBlocks.push(`<p>${content}</p>`);
+        pLines.forEach(l => {
+          if (l.trim()) {
+            parsedBlocks.push(`<p>${parseInlines(l)}</p>`);
+          }
+        });
         inParagraph = false;
         pLines = [];
       }

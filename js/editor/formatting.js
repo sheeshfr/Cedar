@@ -1320,6 +1320,7 @@
    * as empty breathing space below the active typing line/block.
    */
   function maintainCaretScrollBuffer(smooth = false) {
+    if (window._cedarSuppressCaretScroll) return;
     const container = document.querySelector('.canvas-scroll-container');
     if (!container) return;
 

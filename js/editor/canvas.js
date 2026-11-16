@@ -1593,18 +1593,66 @@
 
     // Beforeinput safeguard: prevent browser native merge/delete of preceding/following non-text blocks or captions
     canvasProse.addEventListener('beforeinput', (e) => {
+      const sc = canvasProse.closest('.canvas-scroll-container') || document.querySelector('.canvas-scroll-container');
+      canvasProse._preInputScrollTop = sc ? sc.scrollTop : 0;
+      canvasProse._preInputBlockCount = canvasProse.children.length;
+
       const inputType = e.inputType || '';
       if (inputType === 'deleteContentBackward' && tryRevertPendingEmDash(e)) {
         return;
       }
-      if (inputType === 'insertParagraph' || inputType === 'insertLineBreak') {
+      if (
+        inputType === 'insertParagraph' ||
+        inputType === 'insertLineBreak' ||
+        ((inputType === 'insertText' || inputType === 'insertCompositionText') && e.data === '\n')
+      ) {
+        if (e.target && e.target.closest && e.target.closest('figcaption, .gallery-caption, input, textarea, pre')) {
+          return;
+        }
         const selForList = window.getSelection();
         const li = findEnclosingListItem(selForList, e.target);
-        if (li && canvasProse.contains(li) && isBlankListItem(li)) {
+        if (li && canvasProse.contains(li)) {
           const listParent = li.closest('ul, ol');
           if (listParent && canvasProse.contains(listParent)) {
+            if (isBlankListItem(li)) {
+              e.preventDefault();
+              exitListItemToNewParagraph(li, listParent);
+              return;
+            }
+          }
+          return;
+        }
+
+        // Mobile soft keyboard Enter fallback (when keydown fired Unidentified / 229):
+        // Route paragraph / line-break insertions through splitBlockToNewParagraph so Enter always creates a <p> block.
+        if (selForList && selForList.rangeCount) {
+          const range = selForList.getRangeAt(0);
+          let node = range.commonAncestorContainer;
+          if (node && node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+          if (node && node.closest && node.closest('figcaption, .gallery-caption, pre, code, input, textarea')) {
+            return;
+          }
+          let topBlock = node;
+          while (topBlock && topBlock.parentNode !== canvasProse && topBlock !== canvasProse && topBlock !== document.body) {
+            topBlock = topBlock.parentNode;
+          }
+          if (topBlock && (topBlock.parentNode === canvasProse || topBlock === canvasProse)) {
+            if (topBlock.parentNode === canvasProse) {
+              const raw = (topBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
+              if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(topBlock.tagName) && /^(\-{3,}|\u2014\-+|\*{3,}|\_{3,})$/.test(raw)) {
+                e.preventDefault();
+                window._lastActiveBlock = topBlock;
+                if (typeof window.swapCurrentBlock === 'function') {
+                  window.swapCurrentBlock('divider');
+                  return;
+                }
+              }
+            }
             e.preventDefault();
-            exitListItemToNewParagraph(li, listParent);
+            if (window.commitCheckpoint) window.commitCheckpoint();
+            if (typeof window.splitBlockToNewParagraph === 'function') {
+              window.splitBlockToNewParagraph(topBlock === canvasProse ? null : topBlock, canvasProse);
+            }
             return;
           }
         }
@@ -3006,22 +3054,69 @@
         pendingEmDashRevert = null;
       }
 
+      const splitsFromInput = (typeof window.normalizeCanvasProseBlocks === 'function')
+        ? window.normalizeCanvasProseBlocks(canvasProse)
+        : 0;
+      const isBulkPasteInput = splitsFromInput > 0 ||
+        (e && (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop')) ||
+        (typeof canvasProse._preInputBlockCount === 'number' && (canvasProse.children.length - canvasProse._preInputBlockCount) >= 2);
+
       if (typeof window.normalizeRawImages === 'function') {
         window.normalizeRawImages(canvasProse);
       }
       if (typeof window.ensureTrailingTextBlock === 'function') {
         window.ensureTrailingTextBlock();
       }
-      if (typeof window.maintainCaretScrollBuffer === 'function') {
+
+      if (isBulkPasteInput || window._cedarSuppressCaretScroll) {
+        const sc = canvasProse.closest('.canvas-scroll-container') || document.querySelector('.canvas-scroll-container');
+        const targetScroll = typeof canvasProse._preInputScrollTop === 'number' ? canvasProse._preInputScrollTop : (sc ? sc.scrollTop : 0);
+        window._cedarSuppressCaretScroll = true;
+        if (sc) sc.scrollTop = targetScroll;
+        if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+        requestAnimationFrame(() => {
+          if (sc) sc.scrollTop = targetScroll;
+          if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+          setTimeout(() => {
+            window._cedarSuppressCaretScroll = false;
+          }, 30);
+        });
+      } else if (typeof window.maintainCaretScrollBuffer === 'function') {
         window.maintainCaretScrollBuffer();
       }
     });
+
+    // Synchronize visualViewport height on mobile so virtual keyboard never pushes top of #view-editor off-screen
+    if (!window._hasCedarVisualViewportSync) {
+      window._hasCedarVisualViewportSync = true;
+      const syncVisualViewport = () => {
+        const vv = window.visualViewport;
+        const h = vv ? Math.round(vv.height) : window.innerHeight;
+        if (h > 0) {
+          document.documentElement.style.setProperty('--app-viewport-height', `${h}px`);
+        }
+        const isKeyboardOpen = Boolean(vv && (window.innerHeight - vv.height > 110));
+        if (document.body) {
+          document.body.classList.toggle('mobile-keyboard-open', isKeyboardOpen);
+        }
+        if (window.scrollY !== 0 || window.scrollX !== 0 || (vv && vv.offsetTop > 0)) {
+          window.scrollTo(0, 0);
+        }
+      };
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncVisualViewport, { passive: true });
+        window.visualViewport.addEventListener('scroll', syncVisualViewport, { passive: true });
+      }
+      window.addEventListener('resize', syncVisualViewport, { passive: true });
+      syncVisualViewport();
+    }
 
     // Click below post in canvas container focuses trailing text block
     const scrollContainer = document.querySelector('.canvas-scroll-container');
     if (scrollContainer && !scrollContainer._hasCedarHeadroomListener) {
       scrollContainer._hasCedarHeadroomListener = true;
       let lastScrollTop = scrollContainer.scrollTop || 0;
+      let lastHeaderToggleAt = 0;
       let ticking = false;
       const editorView = document.getElementById('view-editor');
 
@@ -3030,14 +3125,22 @@
           window.requestAnimationFrame(() => {
             const currentScrollTop = Math.max(0, scrollContainer.scrollTop || 0);
             const scrollDelta = currentScrollTop - lastScrollTop;
+            const now = Date.now();
 
             if (window.innerWidth <= 768 && editorView) {
-              if (currentScrollTop <= 15) {
-                editorView.classList.remove('editor-header-hidden');
-              } else if (scrollDelta > 6 && currentScrollTop > 50) {
-                editorView.classList.add('editor-header-hidden');
-              } else if (scrollDelta < -6) {
-                editorView.classList.remove('editor-header-hidden');
+              if (currentScrollTop <= 20) {
+                if (editorView.classList.contains('editor-header-hidden')) {
+                  editorView.classList.remove('editor-header-hidden');
+                  lastHeaderToggleAt = now;
+                }
+              } else if (now - lastHeaderToggleAt > 320) {
+                if (scrollDelta > 10 && currentScrollTop > 60 && !editorView.classList.contains('editor-header-hidden')) {
+                  editorView.classList.add('editor-header-hidden');
+                  lastHeaderToggleAt = now;
+                } else if (scrollDelta < -18 && editorView.classList.contains('editor-header-hidden')) {
+                  editorView.classList.remove('editor-header-hidden');
+                  lastHeaderToggleAt = now;
+                }
               }
             } else if (editorView) {
               editorView.classList.remove('editor-header-hidden');

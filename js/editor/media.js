@@ -2111,6 +2111,202 @@
   }
 
   // =========================================================================
+  // PROSE BLOCK & LINE-BREAK NORMALIZATION (ENTER vs SHIFT+ENTER)
+  // =========================================================================
+
+  function pruneEmptyInlineNodes(root) {
+    if (!root || !root.querySelectorAll) return;
+    let removed = true;
+    while (removed) {
+      removed = false;
+      root.querySelectorAll('u, s, del, strike, strong, b, em, i, span, mark, code, a, font').forEach(el => {
+        const txt = (el.textContent || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+        if (!txt && !el.querySelector('img, br')) {
+          el.remove();
+          removed = true;
+        }
+      });
+    }
+  }
+
+  /**
+   * Splits a <p> element at any internal <br> (or literal \n in text nodes) into
+   * standalone <p> blocks so pasted/typed line breaks always behave as Enter-key
+   * paragraphs rather than Shift+Enter soft breaks.
+   */
+  function splitParagraphOnBrs(pEl, doc = document) {
+    if (!pEl || !pEl.parentNode || pEl.tagName !== 'P') return 0;
+    if (pEl.classList && pEl.classList.contains('gallery-caption')) return 0;
+    if (pEl.closest && pEl.closest('blockquote, pre, [contenteditable="false"]')) return 0;
+
+    // 1. Convert any literal \n inside text nodes of pEl into <br> elements first
+    const walker = doc.createTreeWalker(pEl, NodeFilter.SHOW_TEXT, null, false);
+    const textNodesWithNl = [];
+    let tNode = walker.nextNode();
+    while (tNode) {
+      if (tNode.nodeValue && /[\r\n]/.test(tNode.nodeValue) && !(tNode.parentElement && tNode.parentElement.closest('pre, code'))) {
+        textNodesWithNl.push(tNode);
+      }
+      tNode = walker.nextNode();
+    }
+    textNodesWithNl.forEach(tn => {
+      const parts = tn.nodeValue.replace(/\r\n?/g, '\n').split('\n');
+      if (parts.length <= 1) return;
+      const frag = doc.createDocumentFragment();
+      parts.forEach((part, idx) => {
+        if (part.length > 0) {
+          frag.appendChild(doc.createTextNode(part));
+        }
+        if (idx < parts.length - 1) {
+          frag.appendChild(doc.createElement('br'));
+        }
+      });
+      if (tn.parentNode) {
+        tn.parentNode.replaceChild(frag, tn);
+      }
+    });
+
+    if (!pEl.querySelector('br')) return 0;
+
+    const hasVisibleContent = (nodeOrFrag) => {
+      if (!nodeOrFrag) return false;
+      const clean = (nodeOrFrag.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+      if (clean.length > 0) return true;
+      return Boolean(nodeOrFrag.querySelector && nodeOrFrag.querySelector('img, video, audio, iframe, hr'));
+    };
+
+    // If the entire paragraph has no visible content (e.g. <p><br></p>), keep a single <br> and do not split
+    if (!hasVisibleContent(pEl)) {
+      const brs = Array.from(pEl.querySelectorAll('br'));
+      if (brs.length > 1) {
+        pEl.innerHTML = '<br>';
+      }
+      return 0;
+    }
+
+    // Remove trailing <br>s at the very end of a non-empty paragraph that have no content after them
+    let trailingRemoved = true;
+    while (trailingRemoved) {
+      trailingRemoved = false;
+      const allBrs = pEl.querySelectorAll('br');
+      if (allBrs.length === 0) break;
+      const lastBr = allBrs[allBrs.length - 1];
+      const afterRange = doc.createRange();
+      afterRange.selectNodeContents(pEl);
+      afterRange.setStartAfter(lastBr);
+      if (!hasVisibleContent(afterRange.cloneContents())) {
+        lastBr.remove();
+        trailingRemoved = true;
+      }
+    }
+
+    if (!pEl.querySelector('br')) return 0;
+
+    let splitCount = 0;
+    let guard = 0;
+    while (pEl.querySelector('br') && guard < 500) {
+      guard++;
+      const br = pEl.querySelector('br');
+      if (!br) break;
+
+      const beforeRange = doc.createRange();
+      beforeRange.setStart(pEl, 0);
+      beforeRange.setEndBefore(br);
+      const beforeFrag = beforeRange.extractContents();
+      br.remove();
+
+      pruneEmptyInlineNodes(beforeFrag);
+
+      if (hasVisibleContent(beforeFrag)) {
+        const newP = doc.createElement('p');
+        if (pEl.getAttribute('align')) newP.setAttribute('align', pEl.getAttribute('align'));
+        if (pEl.style && pEl.style.textAlign) newP.style.textAlign = pEl.style.textAlign;
+        if (pEl.className) newP.className = pEl.className;
+        if (pEl.getAttribute('data-indent')) newP.setAttribute('data-indent', pEl.getAttribute('data-indent'));
+        newP.appendChild(beforeFrag);
+        pEl.parentNode.insertBefore(newP, pEl);
+        splitCount++;
+      }
+    }
+
+    pruneEmptyInlineNodes(pEl);
+    if (!hasVisibleContent(pEl)) {
+      if (splitCount > 0) {
+        pEl.remove();
+      } else {
+        pEl.innerHTML = '<br>';
+      }
+    }
+
+    return splitCount;
+  }
+
+  /**
+   * Normalizes top-level blocks in #rich-canvas-prose:
+   * - Wraps stray top-level text/inline nodes into <p>
+   * - Converts plain <div> children into <p>
+   * - Splits any <p> containing <br> (or \n) into standalone <p> blocks
+   */
+  function normalizeCanvasProseBlocks(canvasProse) {
+    if (!canvasProse) return 0;
+    const cedarSpecialBlockSelector = '.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, .rss-feed-showcase-card, .image-sanitizing-placeholder, .canvas-drop-indicator, .post-nav-grid, [contenteditable="false"]';
+
+    let totalSplits = 0;
+
+    // 1. Wrap any stray top-level text nodes or inline elements directly under canvasProse into <p> blocks
+    const blockTagNames = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'BLOCKQUOTE', 'PRE', 'HR', 'FIGURE', 'TABLE']);
+    let child = canvasProse.firstChild;
+    while (child) {
+      const next = child.nextSibling;
+      const isStrayText = (child.nodeType === Node.TEXT_NODE && (child.nodeValue || '').trim().length > 0);
+      const isStrayInlineEl = (child.nodeType === Node.ELEMENT_NODE && !blockTagNames.has(child.tagName) && !(child.matches && child.matches(cedarSpecialBlockSelector)));
+      if (isStrayText || isStrayInlineEl) {
+        const p = document.createElement('p');
+        canvasProse.insertBefore(p, child);
+        let cur = child;
+        while (cur) {
+          const nxt = cur.nextSibling;
+          const curIsBlock = (cur.nodeType === Node.ELEMENT_NODE && (blockTagNames.has(cur.tagName) || (cur.matches && cur.matches(cedarSpecialBlockSelector))));
+          if (curIsBlock) break;
+          p.appendChild(cur);
+          cur = nxt;
+        }
+        totalSplits++;
+        child = cur;
+        continue;
+      }
+      child = next;
+    }
+
+    // 2. Convert any plain <div> direct child of canvasProse into a <p> block
+    Array.from(canvasProse.children).forEach(el => {
+      if (el.tagName === 'DIV' && !(el.matches && el.matches(cedarSpecialBlockSelector)) && el.id !== 'canvas-drop-indicator') {
+        const p = document.createElement('p');
+        if (el.getAttribute('align')) p.setAttribute('align', el.getAttribute('align'));
+        if (el.style && el.style.textAlign) p.style.textAlign = el.style.textAlign;
+        if (el.getAttribute('data-indent')) p.setAttribute('data-indent', el.getAttribute('data-indent'));
+        while (el.firstChild) {
+          p.appendChild(el.firstChild);
+        }
+        if (!p.hasChildNodes()) {
+          p.innerHTML = '<br>';
+        }
+        canvasProse.replaceChild(p, el);
+        totalSplits++;
+      }
+    });
+
+    // 3. Split any <p> direct child of canvasProse that contains <br> (or literal \n) with visible text into separate <p> blocks
+    Array.from(canvasProse.children).forEach(el => {
+      if (el.tagName === 'P' && !el.classList.contains('gallery-caption')) {
+        totalSplits += splitParagraphOnBrs(el, document);
+      }
+    });
+
+    return totalSplits;
+  }
+
+  // =========================================================================
   // CLIPBOARD & DRAG/DROP SANITIZED IMAGE HANDLER
   // =========================================================================
 
@@ -2351,6 +2547,19 @@
         e.preventDefault();
         e.stopPropagation();
 
+        // Preserve scroll position across paste so pasting multi-line text never scrolls to the bottom
+        const scrollContainer = canvasProse.closest('.canvas-scroll-container') || document.querySelector('.canvas-scroll-container');
+        const savedScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+        window._cedarSuppressCaretScroll = true;
+        const restorePasteScrollPosition = () => {
+          if (scrollContainer) {
+            scrollContainer.scrollTop = savedScrollTop;
+          }
+          if (window.scrollY !== 0 || window.scrollX !== 0) {
+            window.scrollTo(0, 0);
+          }
+        };
+
         if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
 
         let range = sel.getRangeAt(0);
@@ -2414,7 +2623,28 @@
             }
           }
 
-          const sanitizePastedHtmlForCanvas = (rawHtml) => {
+          const buildPlainParagraphsHtml = (rawPlainStr) => {
+            if (!rawPlainStr) return '';
+            const normalized = rawPlainStr.replace(/\r\n?/g, '\n');
+            if (!normalized.includes('\n')) return '';
+            const lines = normalized.split('\n');
+            const pParts = [];
+            let emptyRun = 0;
+            lines.forEach(line => {
+              if (line.trim().length > 0) {
+                if (emptyRun >= 2 && pParts.length > 0) {
+                  pParts.push('<p data-intentional-space="true"><br></p>');
+                }
+                emptyRun = 0;
+                pParts.push(`<p>${escapeHtml(line)}</p>`);
+              } else {
+                emptyRun++;
+              }
+            });
+            return pParts.join('');
+          };
+
+          const sanitizePastedHtmlForCanvas = (rawHtml, rawPlainStr = '') => {
             if (!rawHtml || !rawHtml.trim()) return '';
             const withoutMarkers = rawHtml.replace(/<!--StartFragment-->|<!--EndFragment-->/gi, '');
             const doc = new DOMParser().parseFromString(withoutMarkers, 'text/html');
@@ -2430,12 +2660,62 @@
             const cedarBlockSelector = '.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-individual-post-block, .page-recent-posts-block';
             const isProtected = (el) => Boolean(el && el.closest && el.closest(cedarBlockSelector));
 
-            doc.querySelectorAll('script, style, meta, link, title, head, noscript').forEach(el => el.remove());
+            doc.querySelectorAll('script, style, meta, link, title, head, noscript, colgroup, col').forEach(el => el.remove());
             doc.body.querySelectorAll('button, svg').forEach(el => {
               if (!isProtected(el)) el.remove();
             });
             doc.body.querySelectorAll('[contenteditable]').forEach(el => {
               if (!isProtected(el)) el.removeAttribute('contenteditable');
+            });
+
+            // 1. Convert literal \n inside text nodes (e.g. from white-space: pre-wrap spans/divs or multi-line text nodes) into <br> BEFORE stripping styles or unwrapping spans
+            const textWalker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+            const nlTextNodes = [];
+            let curT = textWalker.nextNode();
+            while (curT) {
+              if (curT.nodeValue && /[\r\n]/.test(curT.nodeValue)) {
+                const pEl = curT.parentElement;
+                if (pEl && !pEl.closest('pre, code') && !isProtected(pEl)) {
+                  const hasPreStyle = Boolean(pEl.closest('[style*="pre"]'));
+                  const hasInlineSibsOrText = curT.nodeValue.trim().length > 0;
+                  if (hasPreStyle || hasInlineSibsOrText) {
+                    nlTextNodes.push(curT);
+                  }
+                }
+              }
+              curT = textWalker.nextNode();
+            }
+            nlTextNodes.forEach(tn => {
+              const normVal = tn.nodeValue.replace(/\r\n?/g, '\n');
+              // Ignore pure HTML source indentation newlines between block elements
+              if (!normVal.trim()) return;
+              const trimmedEdges = normVal.replace(/^\n+|\n+$/g, '');
+              if (!trimmedEdges.includes('\n') && !tn.parentElement?.closest('[style*="pre"]')) return;
+              const parts = (tn.parentElement?.closest('[style*="pre"]') ? normVal : trimmedEdges).split('\n');
+              if (parts.length <= 1) return;
+              const frag = doc.createDocumentFragment();
+              parts.forEach((part, idx) => {
+                if (part.length > 0) {
+                  frag.appendChild(doc.createTextNode(part));
+                }
+                if (idx < parts.length - 1) {
+                  frag.appendChild(doc.createElement('br'));
+                }
+              });
+              if (tn.parentNode) {
+                tn.parentNode.replaceChild(frag, tn);
+              }
+            });
+
+            // 2. Convert table cells/rows (e.g. Google Sheets / Excel / Notion table paste) into block <div>s and unwrap table wrappers
+            doc.body.querySelectorAll('td, th').forEach(cell => {
+              if (isProtected(cell)) return;
+              const div = doc.createElement('div');
+              while (cell.firstChild) div.appendChild(cell.firstChild);
+              if (cell.parentNode) cell.parentNode.replaceChild(div, cell);
+            });
+            doc.body.querySelectorAll('google-sheets-html-origin, table, thead, tbody, tfoot, tr').forEach(tblEl => {
+              if (!isProtected(tblEl)) unwrapNode(tblEl);
             });
 
             // Unwrap Google Docs / Word non-bold <b> / <strong> wrappers (<b style="font-weight:normal">)
@@ -2455,6 +2735,7 @@
               const td = (el.style && (el.style.textDecoration || el.style.textDecorationLine))
                 ? String(el.style.textDecoration || el.style.textDecorationLine).toLowerCase()
                 : '';
+              const disp = (el.style && el.style.display) ? String(el.style.display).trim().toLowerCase() : '';
 
               const wantBold = (fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600) && !el.closest('strong, b, h1, h2, h3, h4, h5, h6');
               const wantItalic = (fs === 'italic' || fs === 'oblique') && !el.closest('em, i');
@@ -2478,6 +2759,9 @@
                 });
                 while (el.firstChild) inner.appendChild(el.firstChild);
                 el.parentNode.insertBefore(outer, el);
+              }
+              if ((disp === 'block' || disp === 'flex' || disp === 'grid') && el.nextSibling) {
+                el.parentNode.insertBefore(doc.createElement('br'), el.nextSibling);
               }
               unwrapNode(el);
             });
@@ -2503,9 +2787,9 @@
               });
             }
 
-            // Convert remaining plain <div> blocks to <p> (or unwrap if single inline snippet)
+            // Convert remaining plain <div> blocks to <p> (or unwrap ONLY if single inline snippet without <br>)
             const plainDivs = Array.from(doc.body.querySelectorAll('div')).filter(d => !isProtected(d) && !d.matches(cedarBlockSelector));
-            if (plainDivs.length === 1 && doc.body.children.length === 1 && doc.body.firstElementChild === plainDivs[0]) {
+            if (plainDivs.length === 1 && doc.body.children.length === 1 && doc.body.firstElementChild === plainDivs[0] && !plainDivs[0].querySelector('br')) {
               unwrapNode(plainDivs[0]);
             } else if (plainDivs.length > 0) {
               plainDivs.forEach(div => {
@@ -2567,6 +2851,60 @@
               }
             });
 
+            // 3. If doc.body has any <br> or block elements, wrap stray top-level inline/text nodes in <p> and split all <p>s on <br>
+            // so every line break becomes a real Enter-key <p> block rather than a Shift+Enter <br>!
+            const blockTagsInBody = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'BLOCKQUOTE', 'PRE', 'HR', 'FIGURE']);
+            const hasBlocksOrBrs = Boolean(doc.body.querySelector('p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, hr, figure, br'));
+            if (hasBlocksOrBrs) {
+              let bChild = doc.body.firstChild;
+              while (bChild) {
+                const bNext = bChild.nextSibling;
+                if (bChild.nodeType === Node.ELEMENT_NODE && bChild.tagName === 'BR') {
+                  bChild.remove();
+                  bChild = bNext;
+                  continue;
+                }
+                const isInlineText = (bChild.nodeType === Node.TEXT_NODE && (bChild.nodeValue || '').trim().length > 0);
+                const isInlineEl = (bChild.nodeType === Node.ELEMENT_NODE && !blockTagsInBody.has(bChild.tagName) && !isProtected(bChild) && !bChild.matches(cedarBlockSelector));
+                if (isInlineText || isInlineEl) {
+                  const wrapP = doc.createElement('p');
+                  doc.body.insertBefore(wrapP, bChild);
+                  let walk = bChild;
+                  while (walk) {
+                    const wNext = walk.nextSibling;
+                    const walkIsBlock = (walk.nodeType === Node.ELEMENT_NODE && (blockTagsInBody.has(walk.tagName) || isProtected(walk) || walk.matches(cedarBlockSelector)));
+                    if (walkIsBlock) break;
+                    wrapP.appendChild(walk);
+                    walk = wNext;
+                  }
+                  bChild = walk;
+                  continue;
+                }
+                bChild = bNext;
+              }
+
+              Array.from(doc.body.querySelectorAll('p')).forEach(pEl => {
+                if (!isProtected(pEl)) {
+                  splitParagraphOnBrs(pEl, doc);
+                  const cleanTxt = (pEl.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+                  if (!cleanTxt && !pEl.querySelector('img, video, audio, iframe, hr') && pEl.getAttribute('data-intentional-space') !== 'true') {
+                    pEl.remove();
+                  }
+                }
+              });
+            }
+
+            // 4. If plain text has more non-empty lines than doc.body blocks and doc.body has no rich formatting,
+            // prefer the plain text paragraph builder so CSS-only line breaks from external apps are never lost.
+            if (rawPlainStr && /[\r\n]/.test(rawPlainStr)) {
+              const plainLineCount = rawPlainStr.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim().length > 0).length;
+              const htmlBlockCount = doc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre').length;
+              const hasRichFormatting = Boolean(doc.body.querySelector('strong, b, em, i, u, s, del, strike, mark, code, pre, a, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, img, hr, figure'));
+              if (plainLineCount > 1 && htmlBlockCount < plainLineCount && !hasRichFormatting) {
+                return buildPlainParagraphsHtml(rawPlainStr);
+              }
+            }
+
             const outHtml = doc.body.innerHTML;
             if (!outHtml || (!outHtml.trim() && !doc.body.querySelector('img, hr, br'))) return '';
             // Preserve single leading/trailing spaces on inline fragments (e.g. pasting " DefaultSuffix")
@@ -2574,21 +2912,118 @@
             return hasBlockElements ? outHtml.trim() : outHtml;
           };
 
+          const insertMultiBlockHtmlIntoProse = (blockHtml) => {
+            const temp = document.createElement('div');
+            temp.innerHTML = blockHtml;
+            const nodes = Array.from(temp.children);
+            if (nodes.length === 0) return false;
+
+            const curSel = window.getSelection();
+            if (!curSel || !curSel.rangeCount) {
+              const recent = canvasProse.querySelector('.page-recent-posts-block');
+              nodes.forEach(n => {
+                if (recent && recent.parentNode === canvasProse) canvasProse.insertBefore(n, recent);
+                else canvasProse.appendChild(n);
+              });
+              return true;
+            }
+
+            let curRange = curSel.getRangeAt(0);
+            if (!curRange.collapsed) {
+              curRange.deleteContents();
+            }
+
+            let topBlock = curRange.startContainer;
+            if (topBlock && topBlock.nodeType === Node.TEXT_NODE) topBlock = topBlock.parentElement;
+            while (topBlock && topBlock.parentNode !== canvasProse && topBlock !== canvasProse && topBlock !== document.body) {
+              topBlock = topBlock.parentNode;
+            }
+
+            const isBlockEmptyFn = (el) => {
+              if (typeof window.isTrulyEmptyBlock === 'function') return window.isTrulyEmptyBlock(el);
+              if (!el || (el.tagName !== 'P' && el.tagName !== 'DIV')) return false;
+              if (el.querySelector('img, iframe, video, hr')) return false;
+              return (el.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '').length === 0;
+            };
+
+            let lastInserted = nodes[nodes.length - 1];
+
+            if (!topBlock || topBlock === canvasProse || topBlock.parentNode !== canvasProse) {
+              const recent = canvasProse.querySelector('.page-recent-posts-block');
+              nodes.forEach(n => {
+                if (recent && recent.parentNode === canvasProse) canvasProse.insertBefore(n, recent);
+                else canvasProse.appendChild(n);
+              });
+            } else if (isBlockEmptyFn(topBlock)) {
+              nodes.forEach(n => canvasProse.insertBefore(n, topBlock));
+              topBlock.remove();
+            } else {
+              const preRange = document.createRange();
+              preRange.selectNodeContents(topBlock);
+              preRange.setEnd(curRange.startContainer, curRange.startOffset);
+              const preText = (preRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+              const postRange = document.createRange();
+              postRange.selectNodeContents(topBlock);
+              postRange.setStart(curRange.endContainer, curRange.endOffset);
+              const postText = (postRange.toString() || '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+              if (preText.length === 0) {
+                nodes.forEach(n => canvasProse.insertBefore(n, topBlock));
+              } else if (postText.length === 0) {
+                let ref = topBlock.nextSibling;
+                nodes.forEach(n => canvasProse.insertBefore(n, ref));
+              } else {
+                const postFrag = postRange.extractContents();
+                pruneEmptyInlineNodes(postFrag);
+                let ref = topBlock.nextSibling;
+                nodes.forEach(n => canvasProse.insertBefore(n, ref));
+                const cleanPost = (postFrag.textContent || '').replace(/[\u200B-\u200D\uFEFF\s\u00A0]/g, '');
+                if (cleanPost.length > 0 || (postFrag.querySelector && postFrag.querySelector('img, hr'))) {
+                  const tailP = document.createElement('p');
+                  tailP.appendChild(postFrag);
+                  canvasProse.insertBefore(tailP, ref);
+                }
+              }
+            }
+
+            if (lastInserted && lastInserted.isConnected) {
+              try {
+                const endR = document.createRange();
+                endR.selectNodeContents(lastInserted);
+                endR.collapse(false);
+                curSel.removeAllRanges();
+                curSel.addRange(endR);
+                window._savedSelectionRange = endR.cloneRange();
+                window._lastActiveBlock = lastInserted;
+              } catch (err) {}
+            }
+            return true;
+          };
+
+          const rawPlain = clipboardData.getData('text/plain') || '';
           let inserted = false;
           if (htmlText && htmlText.trim()) {
-            const cleanHtml = sanitizePastedHtmlForCanvas(htmlText);
+            const cleanHtml = sanitizePastedHtmlForCanvas(htmlText, rawPlain);
             if (cleanHtml) {
-              try {
-                inserted = document.execCommand('insertHTML', false, cleanHtml);
-              } catch (err) {
-                inserted = false;
+              const isMultiBlockHtml = /^<(p|h[1-6]|ul|ol|blockquote|pre|hr|figure|div)\b/i.test(cleanHtml.trim());
+              if (isMultiBlockHtml) {
+                inserted = insertMultiBlockHtmlIntoProse(cleanHtml);
+              } else {
+                try {
+                  inserted = document.execCommand('insertHTML', false, cleanHtml);
+                } catch (err) {
+                  inserted = false;
+                }
               }
             }
           }
 
-          if (!inserted) {
-            const rawPlain = clipboardData.getData('text/plain') || '';
-            if (rawPlain) {
+          if (!inserted && rawPlain) {
+            const multiLinePlainHtml = buildPlainParagraphsHtml(rawPlain);
+            if (multiLinePlainHtml) {
+              inserted = insertMultiBlockHtmlIntoProse(multiLinePlainHtml);
+            } else {
               document.execCommand('insertText', false, rawPlain);
             }
           }
@@ -2614,6 +3049,7 @@
           }
         }
 
+        normalizeCanvasProseBlocks(canvasProse);
         if (typeof window.normalizeCustomColorNodes === 'function') {
           window.normalizeCustomColorNodes(canvasProse);
         }
@@ -2625,6 +3061,14 @@
         if (typeof window.ensureTrailingTextBlock === 'function') {
           window.ensureTrailingTextBlock();
         }
+        restorePasteScrollPosition();
+        requestAnimationFrame(() => {
+          restorePasteScrollPosition();
+          setTimeout(() => {
+            restorePasteScrollPosition();
+            window._cedarSuppressCaretScroll = false;
+          }, 30);
+        });
         if (typeof window.updateToolbarActiveStates === 'function') {
           window.updateToolbarActiveStates();
         }
@@ -2643,6 +3087,7 @@
       // If text/HTML was pasted outside direct prose range, ensure any raw/inline images are normalized into standalone figure boxes and adjacent lists are merged
       setTimeout(() => {
         if (canvasProse) {
+          normalizeCanvasProseBlocks(canvasProse);
           if (typeof window.normalizeCustomColorNodes === 'function') {
             window.normalizeCustomColorNodes(canvasProse);
           }
@@ -3483,6 +3928,8 @@
   // =========================================================================
 
   window.normalizeRawImages = normalizeRawImages;
+  window.normalizeCanvasProseBlocks = normalizeCanvasProseBlocks;
+  window.splitParagraphOnBrs = splitParagraphOnBrs;
   window.createFigureHtml = createFigureHtml;
   window.createGalleryHtml = createGalleryHtml;
   window.convertSingleImageToGallery = convertSingleImageToGallery;
@@ -3510,6 +3957,8 @@
 
   const mediaExports = {
     normalizeRawImages,
+    normalizeCanvasProseBlocks,
+    splitParagraphOnBrs,
     createFigureHtml,
     createGalleryHtml,
     convertSingleImageToGallery,
