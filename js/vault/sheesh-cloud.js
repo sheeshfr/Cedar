@@ -1405,6 +1405,15 @@
     }));
   }
 
+  function computeFastPostStamp(post) {
+    if (!post || typeof post !== 'object') return '';
+    const imgCount = Array.isArray(post.images) ? post.images.length : 0;
+    const linksCount = (post.linksData && Array.isArray(post.linksData.items)) ? post.linksData.items.length : 0;
+    return `${post.updatedAt || 0}|${post.status || ''}|${post.title || ''}|${post.slug || ''}|${(post.subtitle || '').length}|${(post.markdown || '').length}|${(post.proseHtml || '').length}|${post.coverImage || ''}|${imgCount}|${linksCount}|${Boolean(post.hidden)}|${Boolean(post.retired)}`;
+  }
+
+  let lastSyncedPostStamps = new Map();
+
   function snapshotCedarFingerprints() {
     try {
       const safeCfg = stripSecretsFromConfig(window.projectConfig || {});
@@ -1451,6 +1460,7 @@
           });
         }
         lastSyncedFingerprints.set(key, JSON.stringify(postCopy));
+        lastSyncedPostStamps.set(key, computeFastPostStamp(post));
       }
 
       const indexIds = JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id));
@@ -1498,6 +1508,22 @@
         const key = `post:${String(post.id).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
         activeLogicalKeys.add(key);
 
+        if (Array.isArray(post.images)) {
+          post.images.forEach(im => {
+            if (!im || typeof im !== 'object') return;
+            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
+            if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
+            if (im.filename) embeddedMediaPaths.add(String(im.filename));
+            if (im.id) embeddedMediaPaths.add(String(im.id));
+            if (im.name) embeddedMediaPaths.add(String(im.name));
+          });
+        }
+
+        const fastStamp = computeFastPostStamp(post);
+        if (isDeltaOnly && lastSyncedFingerprints.has(key) && lastSyncedPostStamps.get(key) === fastStamp) {
+          continue;
+        }
+
         const postCopy = safeJsonParse(JSON.stringify(post), null) || Object.assign({}, post);
         if (postCopy.authorAvatar && String(postCopy.authorAvatar).startsWith('data:') && defaultAuthorAvatar && postCopy.authorAvatar === defaultAuthorAvatar) {
           postCopy.authorAvatar = '__useProjectAuthorAvatar__';
@@ -1523,11 +1549,6 @@
             if (im.src && im.dataUrl && im.src === im.dataUrl) {
               delete im.src;
             }
-            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
-            if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
-            if (im.filename) embeddedMediaPaths.add(String(im.filename));
-            if (im.id) embeddedMediaPaths.add(String(im.id));
-            if (im.name) embeddedMediaPaths.add(String(im.name));
           });
         }
 
@@ -1536,6 +1557,7 @@
           encodeChunkedItem(payloadMap, key, postJson);
           lastSyncedFingerprints.set(key, postJson);
         }
+        lastSyncedPostStamps.set(key, fastStamp);
       }
 
       // 4. Post Index Manifest
@@ -2078,10 +2100,18 @@
   function scheduleAutoSync() {
     if (!currentUser || isPullingFromCloud) return;
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+    const lastTyped = Number(window._lastEditorTypingAt || 0);
+    const elapsedSinceTyping = lastTyped > 0 ? Math.max(0, Date.now() - lastTyped) : 2000;
+    const delayMs = elapsedSinceTyping < 2000 ? Math.max(300, 2000 - elapsedSinceTyping) : 2000;
     syncDebounceTimer = setTimeout(() => {
       syncDebounceTimer = null;
+      const latestTyped = Number(window._lastEditorTypingAt || 0);
+      if ((latestTyped > 0 && Date.now() - latestTyped < 1950) || window.saveTimeout) {
+        scheduleAutoSync();
+        return;
+      }
       pushCedarToCloud({ deltaOnly: true });
-    }, 900);
+    }, delayMs);
   }
 
   function hookCedarSaveFunctions() {

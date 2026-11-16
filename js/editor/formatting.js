@@ -2348,11 +2348,19 @@
     const canvasProse = document.getElementById('rich-canvas-prose');
     const toolbar = document.getElementById('editor-formatting-toolbar');
 
-    // Continuous selection saving
-    document.addEventListener('selectionchange', saveCurrentSelection);
-    document.addEventListener('keyup', saveCurrentSelection);
+    // Continuous selection saving (coalesced to animation frame so keystrokes don't trigger 3x synchronous queryCommandState passes)
+    let selectionSaveRaf = null;
+    const scheduleSaveCurrentSelection = () => {
+      if (selectionSaveRaf) return;
+      selectionSaveRaf = requestAnimationFrame(() => {
+        selectionSaveRaf = null;
+        saveCurrentSelection();
+      });
+    };
+    document.addEventListener('selectionchange', scheduleSaveCurrentSelection);
+    document.addEventListener('keyup', scheduleSaveCurrentSelection);
     document.addEventListener('mouseup', saveCurrentSelection);
-    document.addEventListener('input', saveCurrentSelection);
+    document.addEventListener('input', scheduleSaveCurrentSelection);
     if (typeof window.setupHistoryListeners === 'function') window.setupHistoryListeners();
 
     if (toolbar) {
@@ -2814,6 +2822,12 @@
         case 'swap-block-divider':
           insertMarkdownAtCursor('\n\n---\n\n', '', '');
           break;
+        case 'insert-markdown':
+        case 'open-markdown-modal':
+          if (typeof window.openInsertMarkdownModal === 'function') {
+            window.openInsertMarkdownModal();
+          }
+          break;
         case 'delete-current-block': {
           const mdInput = document.getElementById('markdown-input');
           if (mdInput) {
@@ -2893,9 +2907,16 @@
       return;
     }
 
+    if (action === 'insert-markdown' || action === 'open-markdown-modal') {
+      if (typeof window.openInsertMarkdownModal === 'function') {
+        window.openInsertMarkdownModal();
+      }
+      return;
+    }
+
     const sel = window.getSelection();
     let node = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).commonAncestorContainer : null;
-    if (isTitleContainer(node) || isSubtitleContainer(node)) {
+    if ((isTitleContainer(node) || isSubtitleContainer(node)) && !action.startsWith('swap-block-')) {
       // Title and Subtitle guarantee their fixed structure and bold typography.
       // Toolbar formatting actions are not applicable to Title or Subtitle.
       return;

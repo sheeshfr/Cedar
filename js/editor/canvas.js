@@ -2897,24 +2897,37 @@
     }
 
     // Input / typing ensures trailing text block & maintains 1/3rd bottom window space
+    let caretScrollBufferRaf = null;
     canvasProse.addEventListener('input', (e) => {
       if (e.target && e.target.classList && e.target.classList.contains('individual-post-url-input')) {
         return;
       }
 
-      // 1. Clean up zero-width space placeholders (\u200B) once real characters are typed into the same text node
+      // Resolve the active top-level block once so normal typing keystrokes only inspect the active block
+      // rather than walking the entire article DOM on every character typed
       const selForCleanup = window.getSelection();
       let activeTextNode = null;
       let activeOffset = 0;
-      if (selForCleanup && selForCleanup.rangeCount && selForCleanup.isCollapsed) {
+      let activeBlock = null;
+      if (selForCleanup && selForCleanup.rangeCount) {
         const r = selForCleanup.getRangeAt(0);
-        if (r.startContainer && r.startContainer.nodeType === Node.TEXT_NODE) {
+        if (selForCleanup.isCollapsed && r.startContainer && r.startContainer.nodeType === Node.TEXT_NODE) {
           activeTextNode = r.startContainer;
           activeOffset = r.startOffset;
         }
+        let cur = r.startContainer;
+        if (cur && cur.nodeType === Node.TEXT_NODE) cur = cur.parentElement;
+        while (cur && cur.parentNode !== canvasProse && cur !== canvasProse && cur !== document.body) {
+          cur = cur.parentNode;
+        }
+        if (cur && cur.parentNode === canvasProse) {
+          activeBlock = cur;
+        }
       }
+      const scopeRoot = activeBlock || canvasProse;
 
-      const textWalker = document.createTreeWalker(canvasProse, NodeFilter.SHOW_TEXT, null, false);
+      // 1. Clean up zero-width space placeholders (\u200B) once real characters are typed into the same text node
+      const textWalker = document.createTreeWalker(scopeRoot, NodeFilter.SHOW_TEXT, null, false);
       const textNodesToClean = [];
       let tNode = textWalker.nextNode();
       while (tNode) {
@@ -2948,76 +2961,71 @@
       });
 
       // 2. Strip any Chromium-injected inline style spans (<span style="..."> / <font>) that are NOT .cedar-custom-color
-      // (Chromium's DeleteSelectionCommand injects <span style="background-color:...; color:...;"> when backspacing across inline tags)
-      canvasProse.querySelectorAll('span[style], font').forEach(el => {
-        if (el.closest('[contenteditable="false"]')) return;
-        if (el.tagName === 'SPAN' && el.classList.contains('cedar-custom-color') && el.getAttribute('data-custom-color')) {
-          const customHex = el.getAttribute('data-custom-color');
-          const td = (el.style.textDecoration || el.style.textDecorationLine || '').toLowerCase();
-          if (td.includes('underline') && !el.closest('u')) {
-            const alreadyU = el.children.length === 1 && el.childNodes.length === 1 && el.firstElementChild.tagName === 'U';
-            if (!alreadyU) {
+      // (Only run when scopeRoot actually contains styled/colored spans or <font>)
+      if (scopeRoot.querySelector && scopeRoot.querySelector('span[style], font, [color], span.cedar-custom-color')) {
+        scopeRoot.querySelectorAll('span[style], font').forEach(el => {
+          if (el.closest('[contenteditable="false"]')) return;
+          if (el.tagName === 'SPAN' && el.classList.contains('cedar-custom-color') && el.getAttribute('data-custom-color')) {
+            const customHex = el.getAttribute('data-custom-color');
+            const td = (el.style.textDecoration || el.style.textDecorationLine || '').toLowerCase();
+            if (td.includes('underline') && !el.closest('u')) {
+              const alreadyU = el.children.length === 1 && el.childNodes.length === 1 && el.firstElementChild.tagName === 'U';
+              if (!alreadyU) {
+                const u = document.createElement('u');
+                while (el.firstChild) {
+                  u.appendChild(el.firstChild);
+                }
+                el.appendChild(u);
+              }
+            }
+            if (el.style.backgroundColor || el.style.fontFamily || el.style.fontSize || el.style.textDecoration || el.style.textDecorationLine || el.style.textDecorationColor) {
+              el.removeAttribute('style');
+              el.style.color = customHex;
+            }
+            return;
+          }
+          const parent = el.parentNode;
+          if (parent) {
+            const fw = (el.style && el.style.fontWeight) ? String(el.style.fontWeight).toLowerCase() : '';
+            const td = (el.style && (el.style.textDecoration || el.style.textDecorationLine)) ? String(el.style.textDecoration || el.style.textDecorationLine).toLowerCase() : '';
+            const isBoldSpan = fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600;
+            const isUnderlineSpan = td.includes('underline');
+            if (isBoldSpan && !el.closest('strong, b, h1, h2, h3, h4')) {
+              const strong = document.createElement('strong');
+              while (el.firstChild) {
+                strong.appendChild(el.firstChild);
+              }
+              parent.replaceChild(strong, el);
+            } else if (isUnderlineSpan && !el.closest('u')) {
               const u = document.createElement('u');
               while (el.firstChild) {
                 u.appendChild(el.firstChild);
               }
-              el.appendChild(u);
+              parent.replaceChild(u, el);
+            } else {
+              while (el.firstChild) {
+                parent.insertBefore(el.firstChild, el);
+              }
+              parent.removeChild(el);
             }
           }
-          if (el.style.backgroundColor || el.style.fontFamily || el.style.fontSize || el.style.textDecoration || el.style.textDecorationLine || el.style.textDecorationColor) {
-            el.removeAttribute('style');
-            el.style.color = customHex;
-          }
-          return;
-        }
-        const parent = el.parentNode;
-        if (parent) {
-          const fw = (el.style && el.style.fontWeight) ? String(el.style.fontWeight).toLowerCase() : '';
-          const td = (el.style && (el.style.textDecoration || el.style.textDecorationLine)) ? String(el.style.textDecoration || el.style.textDecorationLine).toLowerCase() : '';
-          const isBoldSpan = fw === 'bold' || fw === 'bolder' || parseInt(fw, 10) >= 600;
-          const isUnderlineSpan = td.includes('underline');
-          if (isBoldSpan && !el.closest('strong, b, h1, h2, h3, h4')) {
-            const strong = document.createElement('strong');
-            while (el.firstChild) {
-              strong.appendChild(el.firstChild);
-            }
-            parent.replaceChild(strong, el);
-          } else if (isUnderlineSpan && !el.closest('u')) {
-            const u = document.createElement('u');
-            while (el.firstChild) {
-              u.appendChild(el.firstChild);
-            }
-            parent.replaceChild(u, el);
-          } else {
-            while (el.firstChild) {
-              parent.insertBefore(el.firstChild, el);
-            }
-            parent.removeChild(el);
-          }
-        }
-      });
+        });
 
-      if (typeof window.normalizeCustomColorNodes === 'function') {
-        window.normalizeCustomColorNodes(canvasProse);
+        if (typeof window.normalizeCustomColorNodes === 'function') {
+          window.normalizeCustomColorNodes(scopeRoot);
+        }
       }
 
       // Check for horizontal rule (divider) shortcut: ---, ***, or ___ in a block
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount) {
-        let block = sel.anchorNode;
-        if (block && block.nodeType === Node.TEXT_NODE) block = block.parentNode;
-        while (block && block.parentNode !== canvasProse && block !== canvasProse && block !== document.body) {
-          block = block.parentNode;
-        }
-        if (block && block.parentNode === canvasProse && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(block.tagName)) {
-          const raw = (block.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
-          if (/^(\-{3,}|\u2014\-+|\*{3,}|\_{3,})$/.test(raw)) {
-            pendingEmDashRevert = null;
-            window._lastActiveBlock = block;
-            if (typeof window.swapCurrentBlock === 'function') {
-              window.swapCurrentBlock('divider');
-              return;
-            }
+      const sel = selForCleanup;
+      if (activeBlock && ['P', 'DIV', 'H1', 'H2', 'H3', 'H4'].includes(activeBlock.tagName)) {
+        const raw = (activeBlock.textContent || '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim();
+        if (raw.length >= 2 && raw.length <= 12 && /^(\-{3,}|\u2014\-+|\*{3,}|\_{3,})$/.test(raw)) {
+          pendingEmDashRevert = null;
+          window._lastActiveBlock = activeBlock;
+          if (typeof window.swapCurrentBlock === 'function') {
+            window.swapCurrentBlock('divider');
+            return;
           }
         }
       }
@@ -3054,14 +3062,26 @@
         pendingEmDashRevert = null;
       }
 
-      const splitsFromInput = (typeof window.normalizeCanvasProseBlocks === 'function')
+      const inputType = (e && e.inputType) ? e.inputType : '';
+      const mightHaveMultiLineOrPaste = (
+        inputType === 'insertFromPaste' ||
+        inputType === 'insertFromDrop' ||
+        inputType === 'insertReplacementText' ||
+        inputType === 'insertLineBreak' ||
+        inputType === 'insertParagraph' ||
+        Boolean(e && e.data && /[\r\n]/.test(e.data)) ||
+        Boolean(activeBlock && activeBlock.tagName === 'P' && activeBlock.childNodes.length > 1 && activeBlock.querySelector('br')) ||
+        (typeof canvasProse._preInputBlockCount === 'number' && canvasProse.children.length !== canvasProse._preInputBlockCount)
+      );
+
+      const splitsFromInput = (mightHaveMultiLineOrPaste && typeof window.normalizeCanvasProseBlocks === 'function')
         ? window.normalizeCanvasProseBlocks(canvasProse)
         : 0;
       const isBulkPasteInput = splitsFromInput > 0 ||
-        (e && (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop')) ||
+        (inputType === 'insertFromPaste' || inputType === 'insertFromDrop') ||
         (typeof canvasProse._preInputBlockCount === 'number' && (canvasProse.children.length - canvasProse._preInputBlockCount) >= 2);
 
-      if (typeof window.normalizeRawImages === 'function') {
+      if (mightHaveMultiLineOrPaste && typeof window.normalizeRawImages === 'function') {
         window.normalizeRawImages(canvasProse);
       }
       if (typeof window.ensureTrailingTextBlock === 'function') {
@@ -3081,8 +3101,13 @@
             window._cedarSuppressCaretScroll = false;
           }, 30);
         });
-      } else if (typeof window.maintainCaretScrollBuffer === 'function') {
-        window.maintainCaretScrollBuffer();
+      } else if (typeof window.maintainCaretScrollBuffer === 'function' && !caretScrollBufferRaf) {
+        caretScrollBufferRaf = requestAnimationFrame(() => {
+          caretScrollBufferRaf = null;
+          if (!window._cedarSuppressCaretScroll && typeof window.maintainCaretScrollBuffer === 'function') {
+            window.maintainCaretScrollBuffer();
+          }
+        });
       }
     });
 

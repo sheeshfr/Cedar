@@ -699,7 +699,7 @@
       words = stats.words;
       chars = stats.chars;
 
-      const titleText = (canvasTitle ? (canvasTitle.innerText || canvasTitle.textContent || '') : '').trim();
+      const titleText = (canvasTitle ? (canvasTitle.textContent || '') : '').trim();
       if (titleText) {
         const titleStats = (typeof window.getCleanProseStats === 'function')
           ? window.getCleanProseStats(titleText, false)
@@ -708,7 +708,7 @@
         chars += titleStats.chars;
       }
 
-      const subText = (canvasSubtitle ? (canvasSubtitle.innerText || canvasSubtitle.textContent || '') : '').trim();
+      const subText = (canvasSubtitle ? (canvasSubtitle.textContent || '') : '').trim();
       if (subText) {
         const subStats = (typeof window.getCleanProseStats === 'function')
           ? window.getCleanProseStats(subText, false)
@@ -786,7 +786,7 @@
     statsUpdateTimer = setTimeout(() => {
       statsUpdateTimer = null;
       updateStats();
-    }, 150);
+    }, 1000);
   }
   window.scheduleStatsUpdate = scheduleStatsUpdate;
 

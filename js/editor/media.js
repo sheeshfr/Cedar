@@ -3914,6 +3914,471 @@
         if (typeof window.showToast === 'function') window.showToast('Inserted Next / Previous Posts block!');
       });
     }
+
+    const btnPasteMd = document.getElementById('btn-markdown-dialog-paste');
+    if (btnPasteMd && !btnPasteMd._hasCedarMediaListener) {
+      btnPasteMd._hasCedarMediaListener = true;
+      btnPasteMd.addEventListener('click', async () => {
+        const ta = document.getElementById('markdown-insert-dialog-textarea');
+        if (!ta) return;
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+            const clipText = await navigator.clipboard.readText();
+            if (clipText) {
+              const start = typeof ta.selectionStart === 'number' ? ta.selectionStart : ta.value.length;
+              const end = typeof ta.selectionEnd === 'number' ? ta.selectionEnd : ta.value.length;
+              ta.setRangeText(clipText, start, end, 'end');
+              ta.focus();
+              return;
+            }
+          }
+        } catch (err) {}
+        ta.focus();
+        if (typeof window.showToast === 'function') {
+          window.showToast('Press Ctrl+V (or long-press Paste) inside the box.', 'info');
+        }
+      });
+    }
+
+    const mdDialogTextarea = document.getElementById('markdown-insert-dialog-textarea');
+    if (mdDialogTextarea && !mdDialogTextarea._hasCedarMediaListener) {
+      mdDialogTextarea._hasCedarMediaListener = true;
+      mdDialogTextarea.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          const confirmBtn = document.getElementById('btn-confirm-insert-markdown');
+          if (confirmBtn) confirmBtn.click();
+        }
+      });
+    }
+
+    const btnConfirmMd = document.getElementById('btn-confirm-insert-markdown');
+    if (btnConfirmMd && !btnConfirmMd._hasCedarMediaListener) {
+      btnConfirmMd._hasCedarMediaListener = true;
+      btnConfirmMd.addEventListener('click', () => {
+        const ta = document.getElementById('markdown-insert-dialog-textarea');
+        const raw = (ta ? ta.value : '').trim();
+        if (!raw) {
+          if (typeof window.showToast === 'function') {
+            window.showToast('Please paste or type some Markdown first.', 'info');
+          }
+          if (ta) ta.focus();
+          return;
+        }
+        insertParsedMarkdownIntoPost(raw);
+        if (ta) ta.value = '';
+        if (typeof window.closeModal === 'function') window.closeModal('modal-insert-markdown');
+      });
+    }
+  }
+
+  function openInsertMarkdownModal() {
+    setupEditorMediaModalControls();
+    if (typeof window.saveCurrentSelection === 'function') {
+      window.saveCurrentSelection();
+    }
+    const ta = document.getElementById('markdown-insert-dialog-textarea');
+    if (ta) {
+      ta.value = '';
+    }
+    if (typeof window.openModal === 'function') {
+      window.openModal('modal-insert-markdown');
+    } else {
+      const modal = document.getElementById('modal-insert-markdown');
+      if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+      }
+    }
+    if (ta) {
+      setTimeout(() => ta.focus(), 30);
+    }
+  }
+
+  function stripMarkdownInlineToPlain(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/^#+\s*/, '')
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+      .replace(/___(.+?)___/g, '$1')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/\*([^\*\n]+)\*/g, '$1')
+      .replace(/_([^_\n]+)_/g, '$1')
+      .replace(/~~(.+?)~~/g, '$1')
+      .replace(/`([^`\n]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+      .replace(/<[^>]+>/g, '')
+      .trim();
+  }
+
+  function insertParsedMarkdownIntoPost(rawMd) {
+    if (!rawMd || !String(rawMd).trim()) return false;
+    let md = String(rawMd).replace(/\r\n?/g, '\n').trim();
+
+    if (typeof window.commitCheckpoint === 'function') window.commitCheckpoint();
+
+    // If user is currently in raw markdown code view, switch to rich canvas view so structured post blocks are hydrated
+    if (window.activeMode === 'markdown' && typeof window.setEditorMode === 'function') {
+      window.setEditorMode('canvas');
+    }
+
+    const canvasProse = document.getElementById('rich-canvas-prose');
+    const canvasTitle = document.getElementById('rich-canvas-title');
+    const canvasSubtitle = document.getElementById('rich-canvas-subtitle');
+    const curDraft = window.currentDraft;
+
+    const scrollContainer = canvasProse
+      ? (canvasProse.closest('.canvas-scroll-container') || document.querySelector('.canvas-scroll-container'))
+      : document.querySelector('.canvas-scroll-container');
+    const savedScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+    window._cedarSuppressCaretScroll = true;
+    const restoreScroll = () => {
+      if (scrollContainer) scrollContainer.scrollTop = savedScrollTop;
+      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+    };
+
+    let extractedTitle = '';
+    let extractedSubtitle = '';
+
+    // 1. Extract optional YAML Frontmatter (--- ... ---) at top of Markdown
+    const fmMatch = md.match(/^---\n([\s\S]*?)\n---\s*(?:\n|$)/);
+    if (fmMatch) {
+      const fmBody = fmMatch[1];
+      const titleFm = fmBody.match(/^title\s*:\s*(.+)$/im);
+      const subFm = fmBody.match(/^(?:subtitle|description|excerpt|deck)\s*:\s*(.+)$/im);
+      if (titleFm && titleFm[1]) {
+        extractedTitle = titleFm[1].trim().replace(/^["']|["']$/g, '').trim();
+      }
+      if (subFm && subFm[1]) {
+        extractedSubtitle = subFm[1].trim().replace(/^["']|["']$/g, '').trim();
+      }
+      md = md.slice(fmMatch[0].length).trim();
+    }
+
+    // 2. Inspect current Title / Subtitle / Body emptiness
+    const existingTitleText = (canvasTitle ? (canvasTitle.textContent || '') : (curDraft?.title || '')).trim();
+    const isTitleEmpty = !existingTitleText || /^untitled\s+(post|page|draft|article)$/i.test(existingTitleText);
+    const existingSubText = (canvasSubtitle ? (canvasSubtitle.textContent || '') : (curDraft?.subtitle || '')).trim();
+    const isSubtitleEmpty = !existingSubText;
+    const isProseEmpty = !canvasProse || Array.from(canvasProse.children).every(ch => {
+      if (typeof window.isTrulyEmptyBlock === 'function') return window.isTrulyEmptyBlock(ch);
+      return (ch.tagName === 'P' || ch.tagName === 'DIV') && !ch.textContent.trim() && !ch.querySelector('img, hr, iframe, video');
+    });
+
+    const lines = md.split('\n');
+    let firstIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim().length > 0) {
+        firstIdx = i;
+        break;
+      }
+    }
+
+    let consumedHeaderUpTo = -1;
+    if (firstIdx !== -1) {
+      const firstLine = lines[firstIdx].trim();
+      const h1Match = firstLine.match(/^#\s+(.+)$/);
+      const explicitTitleMatch = !h1Match ? firstLine.match(/^(?:\*\*|__)?title\s*:\s*(.+?)(?:\*\*|__)?$/i) : null;
+
+      if (h1Match || explicitTitleMatch) {
+        const rawCandidate = (h1Match ? h1Match[1] : explicitTitleMatch[1]).replace(/\s+#+\s*$/, '').trim();
+        const cleanCandidate = stripMarkdownInlineToPlain(rawCandidate);
+        if (cleanCandidate) {
+          if (isTitleEmpty) {
+            if (!extractedTitle) extractedTitle = cleanCandidate;
+            consumedHeaderUpTo = firstIdx;
+          } else if (existingTitleText.toLowerCase() === cleanCandidate.toLowerCase()) {
+            consumedHeaderUpTo = firstIdx;
+          }
+        }
+      } else if (isTitleEmpty && isProseEmpty && !extractedTitle) {
+        // Check if the user pasted a full article starting with a standalone plain/bold title line
+        // followed by an "Or: ..." / italic subtitle or blank line + body paragraphs
+        const isNotBlockSyntax = !/^(?:[#>*\-\+\u2022`]|\d+[\.\)]\s|!\[|:::|\|)/.test(firstLine) && !/^https?:\/\//i.test(firstLine);
+        if (isNotBlockSyntax && firstLine.length <= 150 && lines.length >= 3) {
+          let nextNonEmptyIdx = -1;
+          for (let j = firstIdx + 1; j < lines.length; j++) {
+            if (lines[j].trim().length > 0) {
+              nextNonEmptyIdx = j;
+              break;
+            }
+          }
+          if (nextNonEmptyIdx !== -1) {
+            const secondLine = lines[nextNonEmptyIdx].trim();
+            const looksLikeDeckNext = /^(?:(?:\*[^\*\n]+\*|_[^_\n]+_)|(?:or|subtitle|deck)\s*:|#{2,3}\s+)/i.test(secondLine);
+            const hasBlankGap = nextNonEmptyIdx > firstIdx + 1;
+            const looksLikeTitleLine = !/[.]$/.test(firstLine) || /\)$/.test(firstLine) || /^\*\*.+\*\*$/.test(firstLine);
+            if (looksLikeDeckNext || (hasBlankGap && looksLikeTitleLine)) {
+              extractedTitle = stripMarkdownInlineToPlain(firstLine);
+              consumedHeaderUpTo = firstIdx;
+            }
+          }
+        }
+      }
+
+      // 3. If we consumed a top Title line (or frontmatter had a title), check if the next non-empty line is a Subtitle / Deck
+      if ((consumedHeaderUpTo !== -1 || extractedTitle) && isSubtitleEmpty && !extractedSubtitle) {
+        const searchStart = consumedHeaderUpTo !== -1 ? consumedHeaderUpTo + 1 : firstIdx;
+        let subCandidateIdx = -1;
+        for (let j = searchStart; j < lines.length; j++) {
+          if (lines[j].trim().length > 0) {
+            subCandidateIdx = j;
+            break;
+          }
+        }
+
+        if (subCandidateIdx !== -1) {
+          const subLine = lines[subCandidateIdx].trim();
+          let afterSubIdx = -1;
+          for (let k = subCandidateIdx + 1; k < lines.length; k++) {
+            if (lines[k].trim().length > 0) {
+              afterSubIdx = k;
+              break;
+            }
+          }
+          const lineAfterSub = afterSubIdx !== -1 ? lines[afterSubIdx].trim() : '';
+          const followedByHr = /^(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(lineAfterSub);
+
+          const italicSubMatch = subLine.match(/^(?:\*([^\*\n]+)\*|_([^_\n]+)_)$/);
+          const explicitSubPrefix = subLine.match(/^(?:\*\*|__)?(?:subtitle|deck)\s*:\s*(.+?)(?:\*\*|__)?$/i);
+          const orDeckMatch = subLine.match(/^(?:\*|_)?(or\s*:\s*.+?)(?:\*|_)?$/i);
+          const subHeadingDeckMatch = (afterSubIdx !== -1 && subLine.length <= 220)
+            ? subLine.match(/^#{2,3}\s+(.+)$/)
+            : null;
+          const quoteDeckMatch = (followedByHr && subLine.length <= 220)
+            ? subLine.match(/^>\s*(.+)$/)
+            : null;
+
+          if (italicSubMatch) {
+            extractedSubtitle = stripMarkdownInlineToPlain(italicSubMatch[1] || italicSubMatch[2]);
+            consumedHeaderUpTo = subCandidateIdx;
+          } else if (explicitSubPrefix) {
+            extractedSubtitle = stripMarkdownInlineToPlain(explicitSubPrefix[1]);
+            consumedHeaderUpTo = subCandidateIdx;
+          } else if (orDeckMatch) {
+            extractedSubtitle = stripMarkdownInlineToPlain(orDeckMatch[1]);
+            consumedHeaderUpTo = subCandidateIdx;
+          } else if (subHeadingDeckMatch && (followedByHr || (afterSubIdx > subCandidateIdx && !/^#/.test(lineAfterSub)))) {
+            // Only treat ## / ### right under # Title as a subtitle if there are more paragraphs after it
+            // and it reads like a subtitle/deck (or is followed by ---)
+            if (followedByHr || subHeadingDeckMatch[1].length > 45 || /[:.?!]/.test(subHeadingDeckMatch[1])) {
+              extractedSubtitle = stripMarkdownInlineToPlain(subHeadingDeckMatch[1]);
+              consumedHeaderUpTo = subCandidateIdx;
+            }
+          } else if (quoteDeckMatch) {
+            extractedSubtitle = stripMarkdownInlineToPlain(quoteDeckMatch[1]);
+            consumedHeaderUpTo = subCandidateIdx;
+          } else if (followedByHr && subLine.length <= 220 && !/^(?:[#>*\-\+\u2022`]|\d+[\.\)]\s|!\[|:::|\|)/.test(subLine)) {
+            extractedSubtitle = stripMarkdownInlineToPlain(subLine);
+            consumedHeaderUpTo = subCandidateIdx;
+          }
+        }
+      }
+
+      // If there is a horizontal rule (---) immediately after the extracted Title/Subtitle header, consume it
+      if (consumedHeaderUpTo !== -1) {
+        for (let k = consumedHeaderUpTo + 1; k < lines.length; k++) {
+          const t = lines[k].trim();
+          if (!t) continue;
+          if (/^(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(t)) {
+            consumedHeaderUpTo = k;
+          }
+          break;
+        }
+      }
+    }
+
+    const bodyMd = (consumedHeaderUpTo !== -1 ? lines.slice(consumedHeaderUpTo + 1).join('\n') : md).trim();
+
+    // 4. Apply Extracted Title & Subtitle to Canvas & Draft Metadata
+    if (extractedTitle && isTitleEmpty) {
+      if (canvasTitle) canvasTitle.textContent = extractedTitle;
+      const metaTitle = document.getElementById('meta-title');
+      if (metaTitle) metaTitle.value = extractedTitle;
+      const setupTitle = document.getElementById('setup-post-title');
+      if (setupTitle) setupTitle.value = extractedTitle;
+      const headerTitle = document.getElementById('editor-header-title');
+      if (headerTitle) {
+        headerTitle.textContent = extractedTitle;
+        headerTitle.title = extractedTitle;
+      }
+      if (curDraft) {
+        curDraft.title = extractedTitle;
+        const isUntitledSlug = !curDraft.slug || /^untitled-(post|page|draft|article)$/i.test(curDraft.slug);
+        const shouldAutoSync = (typeof window.shouldAutoSyncSlugFromTitle === 'function')
+          ? window.shouldAutoSyncSlugFromTitle(curDraft)
+          : (!curDraft.everPublished && curDraft.status !== 'published' && !curDraft.slugManuallyEdited);
+        if ((shouldAutoSync || isUntitledSlug) && typeof window.generateSlug === 'function') {
+          const newSlug = window.generateSlug(extractedTitle, (curDraft.type === 'page' ? 'untitled-page' : 'untitled-post'), 30);
+          curDraft.slug = newSlug;
+          const metaSlug = document.getElementById('meta-slug');
+          if (metaSlug) metaSlug.value = newSlug;
+          const setupSlug = document.getElementById('setup-post-slug');
+          if (setupSlug) setupSlug.value = newSlug;
+          if (typeof window.updateEditorUrlSlug === 'function') {
+            window.updateEditorUrlSlug(newSlug);
+          }
+        }
+      }
+    }
+
+    if (extractedSubtitle && isSubtitleEmpty) {
+      if (canvasSubtitle) canvasSubtitle.textContent = extractedSubtitle;
+      const metaSubtitle = document.getElementById('meta-subtitle');
+      if (metaSubtitle) metaSubtitle.value = extractedSubtitle;
+      const setupSubtitle = document.getElementById('setup-post-subtitle');
+      if (setupSubtitle) setupSubtitle.value = extractedSubtitle;
+      if (curDraft) curDraft.subtitle = extractedSubtitle;
+    }
+
+    // 5. Convert standalone YouTube URLs or standalone web URLs on their own line in bodyMd into Cedar directives
+    const pendingCardUrls = [];
+    let processedBodyMd = bodyMd;
+    if (processedBodyMd) {
+      const bLines = processedBodyMd.split('\n');
+      let inCodeFence = false;
+      for (let i = 0; i < bLines.length; i++) {
+        const tl = bLines[i].trim();
+        if (/^(?:```|~~~)/.test(tl)) {
+          inCodeFence = !inCodeFence;
+          continue;
+        }
+        if (inCodeFence) continue;
+        if (/^https?:\/\/[^\s]+$/i.test(tl) && !/\.(png|jpe?g|webp|gif|svg|avif|bmp)(\?[^\s]*)?$/i.test(tl)) {
+          const ytId = (typeof window.extractYouTubeId === 'function') ? window.extractYouTubeId(tl) : '';
+          if (ytId) {
+            bLines[i] = `:::youtube ${ytId}:::`;
+          } else {
+            const prevEmpty = (i === 0 || !bLines[i - 1].trim());
+            const nextEmpty = (i === bLines.length - 1 || !bLines[i + 1].trim());
+            if (prevEmpty && nextEmpty) {
+              pendingCardUrls.push(tl);
+              bLines[i] = `:::individual-post url="${tl.replace(/"/g, '&quot;')}" layout="grid":::`;
+            }
+          }
+        }
+      }
+      processedBodyMd = bLines.join('\n');
+    }
+
+    // 6. Compile Markdown body to Cedar HTML & insert into #rich-canvas-prose
+    if (canvasProse && processedBodyMd) {
+      const compiledHtml = (typeof window.parseMarkdownToHtml === 'function')
+        ? window.parseMarkdownToHtml(processedBodyMd)
+        : processedBodyMd;
+
+      if (compiledHtml && compiledHtml.trim()) {
+        const temp = document.createElement('div');
+        temp.innerHTML = compiledHtml.trim();
+        const nodes = Array.from(temp.children);
+
+        if (nodes.length > 0) {
+          if (typeof window.restoreEditorSelection === 'function') {
+            window.restoreEditorSelection();
+          }
+          const sel = window.getSelection();
+          let targetBlock = null;
+          if (sel && sel.rangeCount > 0 && canvasProse.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+            let cur = sel.getRangeAt(0).startContainer;
+            if (cur && cur.nodeType === Node.TEXT_NODE) cur = cur.parentElement;
+            while (cur && cur.parentNode !== canvasProse && cur !== canvasProse && cur !== document.body) {
+              cur = cur.parentNode;
+            }
+            if (cur && cur.parentNode === canvasProse) {
+              targetBlock = cur;
+            }
+          }
+          if (!targetBlock && window._lastActiveBlock && window._lastActiveBlock.parentNode === canvasProse) {
+            targetBlock = window._lastActiveBlock;
+          }
+          if (!targetBlock) {
+            targetBlock = canvasProse.lastElementChild;
+          }
+
+          const isTargetBlank = targetBlock && (
+            (typeof window.isTrulyEmptyBlock === 'function' && window.isTrulyEmptyBlock(targetBlock)) ||
+            ((targetBlock.tagName === 'P' || targetBlock.tagName === 'DIV') && !targetBlock.textContent.trim() && !targetBlock.querySelector('img, hr, iframe, video'))
+          );
+
+          const lastInserted = nodes[nodes.length - 1];
+          if (!targetBlock || targetBlock.parentNode !== canvasProse) {
+            const recent = canvasProse.querySelector('.page-recent-posts-block');
+            nodes.forEach(n => {
+              if (recent && recent.parentNode === canvasProse) canvasProse.insertBefore(n, recent);
+              else canvasProse.appendChild(n);
+            });
+          } else if (isTargetBlank) {
+            nodes.forEach(n => canvasProse.insertBefore(n, targetBlock));
+            targetBlock.remove();
+          } else {
+            const ref = targetBlock.nextSibling;
+            nodes.forEach(n => canvasProse.insertBefore(n, ref));
+          }
+
+          normalizeCanvasProseBlocks(canvasProse);
+          if (typeof window.normalizeCustomColorNodes === 'function') {
+            window.normalizeCustomColorNodes(canvasProse);
+          }
+          normalizeRawImages(canvasProse);
+          ensureImageCaptionElements(canvasProse);
+          if (typeof window.mergeAdjacentLists === 'function') {
+            window.mergeAdjacentLists(canvasProse);
+          }
+          if (typeof window.cleanConsecutiveEmptyParagraphs === 'function') {
+            window.cleanConsecutiveEmptyParagraphs(canvasProse);
+          }
+          if (typeof window.ensureTrailingTextBlock === 'function') {
+            window.ensureTrailingTextBlock();
+          }
+          hydrateCanvasImages(canvasProse, curDraft);
+          if (typeof window.hydratePageBlocks === 'function') {
+            window.hydratePageBlocks(canvasProse, curDraft, { isEditor: true, initialPage: 1 });
+          }
+
+          // Hydrate any newly created standalone URL cards asynchronously
+          if (pendingCardUrls.length > 0 && typeof window.applyIndividualPostUrlLink === 'function') {
+            canvasProse.querySelectorAll('.page-individual-post-block[data-url]').forEach(blockEl => {
+              const u = blockEl.getAttribute('data-url');
+              if (u && pendingCardUrls.includes(u) && !blockEl.getAttribute('data-title')) {
+                window.applyIndividualPostUrlLink(blockEl, u);
+              }
+            });
+          }
+
+          if (lastInserted && lastInserted.isConnected && sel) {
+            try {
+              const r = document.createRange();
+              r.selectNodeContents(lastInserted);
+              r.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(r);
+              window._savedSelectionRange = r.cloneRange();
+              window._lastActiveBlock = lastInserted;
+            } catch (e) {}
+          }
+        }
+      }
+    }
+
+    restoreScroll();
+    requestAnimationFrame(() => {
+      restoreScroll();
+      setTimeout(() => {
+        restoreScroll();
+        window._cedarSuppressCaretScroll = false;
+      }, 30);
+    });
+
+    if (curDraft) curDraft._headerSyncClean = false;
+    if (typeof window.updateToolbarActiveStates === 'function') window.updateToolbarActiveStates();
+    if (typeof window.recordAction === 'function') window.recordAction('insert-markdown', true);
+    if (typeof window.scheduleStatsUpdate === 'function') window.scheduleStatsUpdate();
+    if (typeof window.scheduleAutosave === 'function') window.scheduleAutosave();
+    if (typeof window.showToast === 'function') {
+      window.showToast('Markdown converted & inserted into post!');
+    }
+    return true;
   }
 
   // Auto-connect modal controls on DOM ready or immediate if ready
@@ -3954,6 +4419,8 @@
   window.handleImageUploadAndInsert = handleImageUploadAndInsert;
   window.handleImageManagerFiles = handleImageManagerFiles;
   window.setupEditorMediaModalControls = setupEditorMediaModalControls;
+  window.openInsertMarkdownModal = openInsertMarkdownModal;
+  window.insertParsedMarkdownIntoPost = insertParsedMarkdownIntoPost;
 
   const mediaExports = {
     normalizeRawImages,
@@ -3981,7 +4448,9 @@
     setupImageClipboardAndDrop,
     handleImageUploadAndInsert,
     handleImageManagerFiles,
-    setupEditorMediaModalControls
+    setupEditorMediaModalControls,
+    openInsertMarkdownModal,
+    insertParsedMarkdownIntoPost
   };
 
   window.Cedar.editor = Object.assign(window.Cedar.editor || {}, mediaExports);

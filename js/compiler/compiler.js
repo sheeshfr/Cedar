@@ -13,7 +13,19 @@
 
   function parseMarkdownToHtml(mdText) {
     if (!mdText) return '';
-    let html = mdText;
+    let html = String(mdText).replace(/\r\n?/g, '\n');
+
+    // 0. Extract fenced code blocks (```lang ... ``` or ~~~lang ... ~~~) into safe single-line tokens
+    // BEFORE running image/inline/line-splitting rules so multi-line code blocks stay intact inside <pre><code>
+    const codeBlockTokens = [];
+    html = html.replace(/(?:^|\n)(?:```|~~~)([a-zA-Z0-9_+-]*)[ \t]*\n([\s\S]*?)(?:```|~~~)[ \t]*(?=\n|$)/g, function (_, lang, code) {
+      const idx = codeBlockTokens.length;
+      const cleanLang = (lang || '').trim();
+      const classAttr = cleanLang ? ` class="language-${escapeHtml(cleanLang)}"` : '';
+      const cleanCode = code.replace(/^\n+|\n+$/g, '');
+      codeBlockTokens.push(`<pre><code${classAttr}>${escapeHtml(cleanCode || '')}</code></pre>`);
+      return `\n__CEDAR_CODE_BLOCK_${idx}__\n`;
+    });
 
     // 1. YouTube Custom Embeds: :::youtube VIDEO_ID_OR_URL:::
     html = html.replace(/:::youtube\s+([^\n:]+):::/gi, function (_, urlOrId) {
@@ -193,9 +205,13 @@
       return `\n<div class="captioned-image-container${hasCaption ? ' has-caption' : ''}" contenteditable="false" draggable="true" tabindex="0"><figure><div class="image-media-wrapper"><img src="${escapeHtml(displaySrc)}" data-original-src="${escapeHtml(src)}" data-img-name="${escapeHtml(imgName)}" alt="${escapeHtml(alt)}" loading="lazy" draggable="false"><button type="button" class="image-add-caption-btn" title="Add Caption"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Add Caption</span></button></div>${hasCaption ? `<figcaption contenteditable="true" placeholder="Add caption here...">${escapeHtml(caption)}</figcaption>` : ''}</figure></div>\n`;
     });
 
-    // 4. Code Blocks: ```lang ... ```
+    // 4. Inline single-line fenced code blocks fallback: ```lang ... ```
     html = html.replace(/```([a-z0-9_-]*)\n([\s\S]*?)```/gi, function (_, lang, code) {
-      return `<pre><code class="language-${lang}">${escapeHtml(code.trim())}</code></pre>`;
+      const idx = codeBlockTokens.length;
+      const cleanLang = (lang || '').trim();
+      const classAttr = cleanLang ? ` class="language-${escapeHtml(cleanLang)}"` : '';
+      codeBlockTokens.push(`<pre><code${classAttr}>${escapeHtml(code.trim())}</code></pre>`);
+      return `\n__CEDAR_CODE_BLOCK_${idx}__\n`;
     });
 
     // 5. Split into blocks/paragraphs
@@ -218,8 +234,24 @@
 
     function flushQuote() {
       if (inQuote) {
-        const quoteContent = quoteLines.map(l => parseInlines(l)).join('<br/>');
-        parsedBlocks.push(`<blockquote><p>${quoteContent}</p></blockquote>`);
+        const paragraphs = [];
+        let curGroup = [];
+        quoteLines.forEach(ql => {
+          if (!ql.trim()) {
+            if (curGroup.length > 0) {
+              paragraphs.push(`<p>${curGroup.map(l => parseInlines(l)).join('<br/>')}</p>`);
+              curGroup = [];
+            }
+          } else {
+            curGroup.push(ql);
+          }
+        });
+        if (curGroup.length > 0) {
+          paragraphs.push(`<p>${curGroup.map(l => parseInlines(l)).join('<br/>')}</p>`);
+        }
+        if (paragraphs.length > 0) {
+          parsedBlocks.push(`<blockquote data-block-type="quote">${paragraphs.join('')}</blockquote>`);
+        }
         inQuote = false;
         quoteLines = [];
       }
@@ -237,15 +269,70 @@
       }
     }
 
+    function stripRedundantOuterStrong(headingHtml) {
+      return headingHtml.replace(/^<strong>([\s\S]*?)<\/strong>$/i, '$1').trim();
+    }
+
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
+      const trimmedLine = line.trim();
+
+      // Code Block Token Restoration
+      const codeTokenMatch = trimmedLine.match(/^__CEDAR_CODE_BLOCK_(\d+)__$/);
+      if (codeTokenMatch) {
+        flushParagraph();
+        flushList();
+        flushQuote();
+        const tokIdx = parseInt(codeTokenMatch[1], 10);
+        if (codeBlockTokens[tokIdx]) {
+          parsedBlocks.push(codeBlockTokens[tokIdx]);
+        }
+        continue;
+      }
+
+      // Markdown Table Block (| Header 1 | Header 2 | \n |---|---| \n | Row 1 | Row 2 |)
+      if (/^\|.*\|$/.test(trimmedLine) && i + 1 < lines.length && /^\|[\s:|-]+\|$/.test(lines[i + 1].trim())) {
+        flushParagraph();
+        flushList();
+        flushQuote();
+        const parseTableCells = (rowStr) => rowStr.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+        const headers = parseTableCells(trimmedLine);
+        i += 2; // Skip header and separator row
+        const tableItems = [];
+        while (i < lines.length && /^\|.*\|$/.test(lines[i].trim())) {
+          const cells = parseTableCells(lines[i]);
+          if (cells.some(Boolean)) {
+            if (headers.length >= 2 && cells.length >= 2) {
+              const pairs = cells.map((cellVal, cIdx) => {
+                const hLabel = headers[cIdx] ? stripRedundantOuterStrong(parseInlines(headers[cIdx])) : '';
+                const cFormatted = parseInlines(cellVal);
+                if (!cFormatted) return '';
+                return cIdx === 0
+                  ? `<strong>${cFormatted}</strong>`
+                  : (hLabel ? `${hLabel}: ${cFormatted}` : cFormatted);
+              }).filter(Boolean);
+              if (pairs.length > 0) {
+                tableItems.push(`<li>${pairs.join(' &mdash; ')}</li>`);
+              }
+            } else {
+              tableItems.push(`<li>${cells.map(c => parseInlines(c)).filter(Boolean).join(' &mdash; ')}</li>`);
+            }
+          }
+          i++;
+        }
+        i--; // Adjust for loop increment
+        if (tableItems.length > 0) {
+          parsedBlocks.push(`<ul>\n${tableItems.join('\n')}\n</ul>`);
+        }
+        continue;
+      }
 
       // Blockquotes
-      if (line.startsWith('>')) {
+      if (/^\s*>\s?/.test(line)) {
         flushParagraph();
         flushList();
         inQuote = true;
-        let qText = line.replace(/^>\s?/, '');
+        let qText = line.replace(/^\s*>\s?/, '');
         if (qText.startsWith('[!')) {
           qText = `<strong>${qText}</strong>`;
         }
@@ -256,7 +343,7 @@
       }
 
       // Pre-rendered custom blocks & aligned HTML blocks
-      const trimmedBlockLine = line.trim();
+      const trimmedBlockLine = trimmedLine;
       if (trimmedBlockLine.startsWith('<div class="video-wrapper"') || 
           trimmedBlockLine.startsWith('<div class="captioned-image-container"') || 
           trimmedBlockLine.startsWith('<div class="custom-gallery-grid"') ||
@@ -279,42 +366,46 @@
         continue;
       }
 
-      // Horizontal Rule
-      if (/^(\*{3,}|-{3,}|_{3,})$/.test(line.trim())) {
+      // Horizontal Rule (---, ***, ___, - - -, * * *)
+      if (/^(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(trimmedLine)) {
         flushParagraph();
         flushList();
-        parsedBlocks.push('<hr class="canvas-divider" style="border:0; border-top: 1px solid var(--border-subtle, var(--border-color, rgba(255,255,255,0.12))); margin: 2.25rem 0;" />');
+        parsedBlocks.push('<hr class="canvas-divider" contenteditable="false" draggable="true" style="border:0; border-top: 1px solid var(--border-subtle, var(--border-color, rgba(255,255,255,0.12))); margin: 2.25rem 0;" />');
         continue;
       }
 
-      // Headings
-      if (/^####\s+(.*)/.test(line)) {
+      // Headings (# -> h1, ## -> h2, ### -> h3, ####/#####/###### -> h4)
+      if (/^#{4,6}\s+(.*)/.test(trimmedLine)) {
         flushParagraph();
         flushList();
-        parsedBlocks.push(`<h4>${parseInlines(line.replace(/^####\s+/, ''))}</h4>`);
+        const hInner = stripRedundantOuterStrong(parseInlines(trimmedLine.replace(/^#{4,6}\s+/, '').replace(/\s+#+\s*$/, '')));
+        parsedBlocks.push(`<h4>${hInner}</h4>`);
         continue;
       }
-      if (/^###\s+(.*)/.test(line)) {
+      if (/^###\s+(.*)/.test(trimmedLine)) {
         flushParagraph();
         flushList();
-        parsedBlocks.push(`<h3>${parseInlines(line.replace(/^###\s+/, ''))}</h3>`);
+        const hInner = stripRedundantOuterStrong(parseInlines(trimmedLine.replace(/^###\s+/, '').replace(/\s+#+\s*$/, '')));
+        parsedBlocks.push(`<h3>${hInner}</h3>`);
         continue;
       }
-      if (/^##\s+(.*)/.test(line)) {
+      if (/^##\s+(.*)/.test(trimmedLine)) {
         flushParagraph();
         flushList();
-        parsedBlocks.push(`<h2>${parseInlines(line.replace(/^##\s+/, ''))}</h2>`);
+        const hInner = stripRedundantOuterStrong(parseInlines(trimmedLine.replace(/^##\s+/, '').replace(/\s+#+\s*$/, '')));
+        parsedBlocks.push(`<h2>${hInner}</h2>`);
         continue;
       }
-      if (/^#\s+(.*)/.test(line)) {
+      if (/^#\s+(.*)/.test(trimmedLine)) {
         flushParagraph();
         flushList();
-        parsedBlocks.push(`<h2>${parseInlines(line.replace(/^#\s+/, ''))}</h2>`);
+        const hInner = stripRedundantOuterStrong(parseInlines(trimmedLine.replace(/^#\s+/, '').replace(/\s+#+\s*$/, '')));
+        parsedBlocks.push(`<h1>${hInner}</h1>`);
         continue;
       }
 
-      // Unordered Lists
-      if (/^[\*\-\+\u2022]\s+(.*)/.test(line)) {
+      // Unordered Lists (- , * , + , • , including indented or task list items - [ ] / - [x])
+      if (/^\s*[\*\-\+\u2022]\s+(.*)/.test(line)) {
         flushParagraph();
         if (!inList || listType !== 'ul') {
           flushList();
@@ -322,12 +413,14 @@
           inList = true;
           listType = 'ul';
         }
-        parsedBlocks.push(`<li>${parseInlines(line.replace(/^[\*\-\+\u2022]\s+/, ''))}</li>`);
+        let liRaw = line.replace(/^\s*[\*\-\+\u2022]\s+/, '');
+        liRaw = liRaw.replace(/^\[([ xX])\]\s+/, (_, check) => (check.toLowerCase() === 'x' ? '☑ ' : '☐ '));
+        parsedBlocks.push(`<li>${parseInlines(liRaw)}</li>`);
         continue;
       }
 
-      // Ordered Lists
-      if (/^\d+[\.\)]\s+(.*)/.test(line)) {
+      // Ordered Lists (1. , 1) )
+      if (/^\s*\d+[\.\)]\s+(.*)/.test(line)) {
         flushParagraph();
         if (!inList || listType !== 'ol') {
           flushList();
@@ -335,12 +428,12 @@
           inList = true;
           listType = 'ol';
         }
-        parsedBlocks.push(`<li>${parseInlines(line.replace(/^\d+[\.\)]\s+/, ''))}</li>`);
+        parsedBlocks.push(`<li>${parseInlines(line.replace(/^\s*\d+[\.\)]\s+/, ''))}</li>`);
         continue;
       }
 
       // Empty line handling: flush paragraphs; keep list open if next non-empty line continues the same list type
-      if (!line.trim()) {
+      if (!trimmedLine) {
         flushParagraph();
         if (inList) {
           let nextNonEmpty = '';
@@ -350,8 +443,8 @@
               break;
             }
           }
-          const continuesUl = (listType === 'ul' && /^[\*\-\+\u2022]\s+(.*)/.test(nextNonEmpty));
-          const continuesOl = (listType === 'ol' && /^\d+[\.\)]\s+(.*)/.test(nextNonEmpty));
+          const continuesUl = (listType === 'ul' && /^\s*[\*\-\+\u2022]\s+(.*)/.test(nextNonEmpty));
+          const continuesOl = (listType === 'ol' && /^\s*\d+[\.\)]\s+(.*)/.test(nextNonEmpty));
           if (!continuesUl && !continuesOl) {
             flushList();
           }
@@ -375,15 +468,55 @@
 
   function parseInlines(text) {
     if (!text) return '';
-    let res = text;
-    res = res.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
-    res = res.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    res = res.replace(/__(.*?)__/g, '<strong>$1</strong>');
-    res = res.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    res = res.replace(/_([^_]+)_/g, '<em>$1</em>');
-    res = res.replace(/`([^`]+)`/g, '<code>$1</code>');
-    res = res.replace(/~~(.*?)~~/g, '<del>$1</del>');
-    res = res.replace(/\[(.*?)\]\(([^\)]+)\)/g, '<a href="$2">$1</a>');
+    let res = String(text);
+
+    // 1. Protect inline code (`code`) FIRST so asterisks, underscores, and URLs inside `code` are never mangled
+    const inlineTokens = [];
+    res = res.replace(/`([^`\n]+)`/g, function (_, codeContent) {
+      const idx = inlineTokens.length;
+      inlineTokens.push(`<code>${escapeHtml(codeContent)}</code>`);
+      return `\u0000CEDARINLINETOK${idx}\u0000`;
+    });
+
+    // 2. Protect Markdown links [label](url) BEFORE underscore italics so URLs with underscores remain untouched
+    res = res.replace(/\[([^\]]+)\]\(([^\s\)]+)(?:\s+"[^"]*")?\)/g, function (_, label, url) {
+      const idx = inlineTokens.length;
+      const cleanUrl = url.trim();
+      const targetAttrs = (!cleanUrl.startsWith('#')) ? ' target="_blank" rel="noopener noreferrer"' : '';
+      // Allow bold/italic/code inside link label
+      let formattedLabel = label
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/__(.+?)__/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/~~(.+?)~~/g, '<s>$1</s>');
+      inlineTokens.push(`<a href="${escapeHtml(cleanUrl)}"${targetAttrs}>${formattedLabel}</a>`);
+      return `\u0000CEDARINLINETOK${idx}\u0000`;
+    });
+
+    // 3. Auto-links <https://...>
+    res = res.replace(/<(https?:\/\/[^>\s]+)>/gi, function (_, url) {
+      const idx = inlineTokens.length;
+      const cleanUrl = url.trim();
+      inlineTokens.push(`<a href="${escapeHtml(cleanUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(cleanUrl)}</a>`);
+      return `\u0000CEDARINLINETOK${idx}\u0000`;
+    });
+
+    // 4. Bold + Italic, Bold, Italic, Strikethrough, Highlight
+    res = res.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    res = res.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+    res = res.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    res = res.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    res = res.replace(/\*([^\*\n]+?)\*/g, '<em>$1</em>');
+    res = res.replace(/(^|[\s([{"'\u2014\u2013-])_([^_\n]+?)_(?=$|[\s.,!?:;)\]}"'\u2014\u2013-])/g, '$1<em>$2</em>');
+    res = res.replace(/~~(.+?)~~/g, '<s>$1</s>');
+    res = res.replace(/==(.+?)==/g, '<mark class="cedar-highlight">$1</mark>');
+
+    // 5. Restore protected inline code and link tokens
+    res = res.replace(/\u0000CEDARINLINETOK(\d+)\u0000/g, function (_, tokIdx) {
+      return inlineTokens[parseInt(tokIdx, 10)] || '';
+    });
+
     return res;
   }
 
@@ -580,7 +713,18 @@
         };
 
         switch (tag) {
-          case 'h1':
+          case 'h1': {
+            const hAlign = getAlignment(node);
+            const hIndent = getIndent(node);
+            const hText = inlineDomToMarkdown(node).trim();
+            const attrs = buildBlockAttrs(hAlign, hIndent);
+            if (attrs) {
+              output += `\n\n<h1${attrs}>${hText}</h1>\n\n`;
+            } else {
+              output += `\n\n# ${hText}\n\n`;
+            }
+            break;
+          }
           case 'h2': {
             const hAlign = getAlignment(node);
             const hIndent = getIndent(node);

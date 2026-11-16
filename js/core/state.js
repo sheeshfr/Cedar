@@ -186,6 +186,9 @@
       },
 
       set(v) {
+        if (v === drafts || v === draftsProxy || window.__cedarInternalDraftsSync) {
+          return;
+        }
         if (window.CedarStore && typeof window.CedarStore.hydrateFromList === 'function' && Array.isArray(v)) {
           if (!window.CedarStore._isHydrating) {
             window.CedarStore.hydrateFromList(v);
@@ -6628,13 +6631,15 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
     if (cur.status === 'published') {
 
+      const wasAlreadyEdited = Boolean(cur.hasUnpublishedEdits);
+
       cur.hasUnpublishedEdits = true;
 
       cur.editedAt = Date.now();
 
       cur.editedDate = typeof getLocalIsoDate === 'function' ? getLocalIsoDate() : new Date().toLocaleDateString('en-CA');
 
-      if (typeof updateEditorHeader === 'function') {
+      if (!wasAlreadyEdited && typeof updateEditorHeader === 'function') {
 
         updateEditorHeader();
 
@@ -6644,40 +6649,61 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
   }
 
+  function flushPendingAutosave() {
+    if (!saveTimeout) return false;
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+    const cur = window.currentDraft || currentDraft;
+    if (cur) {
+      if (typeof window.syncFormToDraft === 'function') {
+        window.syncFormToDraft();
+      }
+      cur.updatedAt = Date.now();
+      saveDraftsToStorage();
+      if (typeof window.scheduleStatsUpdate === 'function') {
+        window.scheduleStatsUpdate();
+      } else if (typeof updateStats === 'function') {
+        updateStats();
+      }
+      if (typeof updateEditorHeader === 'function') {
+        updateEditorHeader();
+      }
+      return true;
+    }
+    return false;
+  }
+  window.flushPendingAutosave = flushPendingAutosave;
 
+  if (typeof document !== 'undefined' && !window.__cedarVisibilityFlushBound) {
+    window.__cedarVisibilityFlushBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingAutosave();
+      }
+    });
+  }
 
   function scheduleAutosave() {
 
-    updateSaveStatus(false, 'Saving...');
+    window._lastEditorTypingAt = Date.now();
+
+    const bar = document.getElementById('draft-status-bar');
+    if (!bar || !bar.classList.contains('is-unsaved')) {
+      updateSaveStatus(false, 'Saving...');
+    }
 
     markDraftAsEdited();
 
     const curImmediate = window.currentDraft || currentDraft;
     if (curImmediate) {
-      if (typeof window.syncFormToDraft === 'function') {
-        window.syncFormToDraft();
-      }
-      curImmediate.updatedAt = Date.now();
-      try {
-        if (window.CedarStore) {
-          if (isDraftActuallyBlank(curImmediate)) {
-            window.CedarStore.remove(curImmediate.id);
-            localStorage.removeItem(STORAGE_KEY_ACTIVE);
-          } else {
-            window.CedarStore.upsert(curImmediate);
-            localStorage.setItem(STORAGE_KEY_ACTIVE, curImmediate.id);
-          }
-          drafts = window.CedarStore.getAllDrafts();
-          window.drafts = drafts;
-          if (typeof window.CedarStore.persistToLocalStorage === 'function') {
-            window.CedarStore.persistToLocalStorage(drafts);
-          }
-        }
-      } catch (e) {}
+      curImmediate.updatedAt = window._lastEditorTypingAt;
     }
 
-    clearTimeout(saveTimeout);
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
 
+    // Wait 2 full seconds (2000ms) of no typing before running DOM serialization, local storage persistence & cloud sync
     saveTimeout = setTimeout(() => {
 
       saveTimeout = null;
@@ -6706,7 +6732,7 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       }
 
-    }, 800);
+    }, 2000);
 
   }
 
