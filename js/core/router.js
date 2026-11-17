@@ -920,7 +920,14 @@
       const tab = tabBtn.dataset.dashTab;
       if (tab) {
         if (e.preventDefault) e.preventDefault();
-        if (tab === 'settings' && window._suppressSettingsReopen) return;
+        if (tab === 'settings') {
+          if (window._suppressSettingsReopen) return;
+          const paneSettings = document.getElementById('pane-settings');
+          if (paneSettings && paneSettings.style.display !== 'none') {
+            exitSettingsView();
+            return;
+          }
+        }
         navigateTo(tab);
         return;
       }
@@ -995,7 +1002,12 @@
     if (topSettingsBtn) {
       e.preventDefault();
       if (!window._suppressSettingsReopen) {
-        navigateTo('settings');
+        const paneSettings = document.getElementById('pane-settings');
+        if (paneSettings && paneSettings.style.display !== 'none') {
+          exitSettingsView();
+        } else {
+          navigateTo('settings');
+        }
       }
       return;
     }

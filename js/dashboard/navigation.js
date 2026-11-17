@@ -799,14 +799,7 @@
       });
     }
 
-    const btnTopbarSettings = document.getElementById('btn-topbar-settings');
-    if (btnTopbarSettings) {
-      btnTopbarSettings.addEventListener('click', (e) => {
-        if (e && e.preventDefault) e.preventDefault();
-        if (window._suppressSettingsReopen) return;
-        navigateTo('settings');
-      });
-    }
+    // Topbar Settings toggle is handled via delegated router click handler in core/router.js
 
     // Consolidated + New Dropdown & Options (if present)
     const newDropdownWrap = document.getElementById('dash-new-dropdown-wrap');

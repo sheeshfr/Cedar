@@ -519,6 +519,53 @@
       .sheesh-local-import-actions .sheesh-submit-btn {
         margin-top: 0;
       }
+      .sheesh-header-settings-btn {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        padding: 0;
+        margin: 0;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.10);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: rgba(255, 255, 255, 0.78);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+        box-sizing: border-box;
+        line-height: 1;
+      }
+      .sheesh-header-settings-btn:hover {
+        background: rgba(255, 255, 255, 0.20);
+        border-color: rgba(255, 255, 255, 0.30);
+        color: #ffffff;
+        transform: scale(1.06);
+      }
+      .sheesh-header-settings-btn.active {
+        background: rgba(255, 255, 255, 0.22);
+        border-color: var(--accent-primary, rgba(255, 255, 255, 0.45));
+        color: #ffffff;
+      }
+      .app-theme-light .sheesh-header-settings-btn {
+        background: rgba(0, 0, 0, 0.08);
+        border-color: rgba(0, 0, 0, 0.14);
+        color: #3f3f46;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .app-theme-light .sheesh-header-settings-btn:hover {
+        background: rgba(0, 0, 0, 0.14);
+        border-color: rgba(0, 0, 0, 0.24);
+        color: #09090b;
+      }
+      .app-theme-light .sheesh-header-settings-btn.active {
+        background: rgba(0, 0, 0, 0.16);
+        border-color: var(--accent-primary, #27272a);
+        color: #09090b;
+      }
       html.sheesh-logged-in #storage-unlinked-banner,
       body.sheesh-logged-in #storage-unlinked-banner,
       html.sheesh-logged-in #storage-linked-location-wrap,
@@ -1405,15 +1452,6 @@
     }));
   }
 
-  function computeFastPostStamp(post) {
-    if (!post || typeof post !== 'object') return '';
-    const imgCount = Array.isArray(post.images) ? post.images.length : 0;
-    const linksCount = (post.linksData && Array.isArray(post.linksData.items)) ? post.linksData.items.length : 0;
-    return `${post.updatedAt || 0}|${post.status || ''}|${post.title || ''}|${post.slug || ''}|${(post.subtitle || '').length}|${(post.markdown || '').length}|${(post.proseHtml || '').length}|${post.coverImage || ''}|${imgCount}|${linksCount}|${Boolean(post.hidden)}|${Boolean(post.retired)}`;
-  }
-
-  let lastSyncedPostStamps = new Map();
-
   function snapshotCedarFingerprints() {
     try {
       const safeCfg = stripSecretsFromConfig(window.projectConfig || {});
@@ -1460,7 +1498,6 @@
           });
         }
         lastSyncedFingerprints.set(key, JSON.stringify(postCopy));
-        lastSyncedPostStamps.set(key, computeFastPostStamp(post));
       }
 
       const indexIds = JSON.stringify(draftsArr.filter(d => d && d.id).map(d => d.id));
@@ -1508,22 +1545,6 @@
         const key = `post:${String(post.id).replace(/[^a-zA-Z0-9:_./-]/g, '_')}`;
         activeLogicalKeys.add(key);
 
-        if (Array.isArray(post.images)) {
-          post.images.forEach(im => {
-            if (!im || typeof im !== 'object') return;
-            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
-            if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
-            if (im.filename) embeddedMediaPaths.add(String(im.filename));
-            if (im.id) embeddedMediaPaths.add(String(im.id));
-            if (im.name) embeddedMediaPaths.add(String(im.name));
-          });
-        }
-
-        const fastStamp = computeFastPostStamp(post);
-        if (isDeltaOnly && lastSyncedFingerprints.has(key) && lastSyncedPostStamps.get(key) === fastStamp) {
-          continue;
-        }
-
         const postCopy = safeJsonParse(JSON.stringify(post), null) || Object.assign({}, post);
         if (postCopy.authorAvatar && String(postCopy.authorAvatar).startsWith('data:') && defaultAuthorAvatar && postCopy.authorAvatar === defaultAuthorAvatar) {
           postCopy.authorAvatar = '__useProjectAuthorAvatar__';
@@ -1549,6 +1570,11 @@
             if (im.src && im.dataUrl && im.src === im.dataUrl) {
               delete im.src;
             }
+            if (im.relativePath) embeddedMediaPaths.add(String(im.relativePath));
+            if (im.savedRelPath) embeddedMediaPaths.add(String(im.savedRelPath));
+            if (im.filename) embeddedMediaPaths.add(String(im.filename));
+            if (im.id) embeddedMediaPaths.add(String(im.id));
+            if (im.name) embeddedMediaPaths.add(String(im.name));
           });
         }
 
@@ -1557,7 +1583,6 @@
           encodeChunkedItem(payloadMap, key, postJson);
           lastSyncedFingerprints.set(key, postJson);
         }
-        lastSyncedPostStamps.set(key, fastStamp);
       }
 
       // 4. Post Index Manifest
@@ -2100,18 +2125,10 @@
   function scheduleAutoSync() {
     if (!currentUser || isPullingFromCloud) return;
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
-    const lastTyped = Number(window._lastEditorTypingAt || 0);
-    const elapsedSinceTyping = lastTyped > 0 ? Math.max(0, Date.now() - lastTyped) : 2000;
-    const delayMs = elapsedSinceTyping < 2000 ? Math.max(300, 2000 - elapsedSinceTyping) : 2000;
     syncDebounceTimer = setTimeout(() => {
       syncDebounceTimer = null;
-      const latestTyped = Number(window._lastEditorTypingAt || 0);
-      if ((latestTyped > 0 && Date.now() - latestTyped < 1950) || window.saveTimeout) {
-        scheduleAutoSync();
-        return;
-      }
       pushCedarToCloud({ deltaOnly: true });
-    }, delayMs);
+    }, 900);
   }
 
   function hookCedarSaveFunctions() {
@@ -2492,8 +2509,19 @@
     }
 
     let sidebarBtn = document.getElementById('sheesh-sidebar-btn');
+    const cedarSettingsBtn = document.getElementById('btn-topbar-settings');
     const cedarPreviewBtn = document.getElementById('btn-topbar-preview');
     const cedarHeaderActions = document.querySelector('.dash-topbar .dash-header-actions, .dash-header-actions');
+    const placeCedarPill = (btn) => {
+      if (!cedarHeaderActions) return;
+      if (cedarSettingsBtn && cedarSettingsBtn.parentElement === cedarHeaderActions) {
+        cedarSettingsBtn.insertAdjacentElement('afterend', btn);
+      } else if (cedarPreviewBtn && cedarPreviewBtn.parentElement === cedarHeaderActions) {
+        cedarPreviewBtn.insertAdjacentElement('afterend', btn);
+      } else {
+        cedarHeaderActions.appendChild(btn);
+      }
+    };
     if (!sidebarBtn && cedarHeaderActions) {
       sidebarBtn = document.createElement('button');
       sidebarBtn.type = 'button';
@@ -2503,17 +2531,9 @@
       sidebarBtn.innerHTML =
         '<span class="sheesh-portal-dot-inline" id="sheesh-sidebar-dot-inline"></span>' +
         '<span class="sheesh-portal-status-text" id="sheesh-sidebar-status-text">Local</span>';
-      if (cedarPreviewBtn && cedarPreviewBtn.parentElement === cedarHeaderActions) {
-        cedarPreviewBtn.insertAdjacentElement('afterend', sidebarBtn);
-      } else {
-        cedarHeaderActions.appendChild(sidebarBtn);
-      }
+      placeCedarPill(sidebarBtn);
     } else if (sidebarBtn && sidebarBtn.closest('.sidebar-footer, .site-footer') && cedarHeaderActions) {
-      if (cedarPreviewBtn && cedarPreviewBtn.parentElement === cedarHeaderActions) {
-        cedarPreviewBtn.insertAdjacentElement('afterend', sidebarBtn);
-      } else {
-        cedarHeaderActions.appendChild(sidebarBtn);
-      }
+      placeCedarPill(sidebarBtn);
     }
     if (sidebarBtn && !sidebarBtn.dataset.bound) {
       sidebarBtn.dataset.bound = 'true';
