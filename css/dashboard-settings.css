@@ -417,6 +417,17 @@
   }
 }
 
+@media (max-width: 640px) {
+  .project-settings-card {
+    padding: 1rem;
+  }
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+}
+
 /* Bottom Save Button: Positioned underneath the last option in the list */
 .pane-bottom-save-wrap {
   margin-top: 1.5rem;

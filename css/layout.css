@@ -868,7 +868,7 @@ body.sidebar-collapsed .dash-main-wrap {
   }
 
   .dash-topbar.topbar-hidden {
-    margin-top: -58px !important;
+    margin-top: -52px !important;
     transform: translateY(-100%) !important;
   }
 

@@ -14,9 +14,10 @@
    DASHBOARD ARCHITECTURE & PIPELINE STYLES
    ========================================================================== */
 
-/* Top Dashboard Bar */
+/* Top Dashboard Bar (Cedar 52px Standard) */
 .dash-topbar {
-  height: 58px;
+  height: 52px;
+  min-height: 52px;
   background: var(--topbar-bg, var(--bg-primary, #121214));
   border-bottom: 1px solid var(--topbar-border, var(--border-color, rgba(255, 255, 255, 0.08)));
   backdrop-filter: blur(12px);
