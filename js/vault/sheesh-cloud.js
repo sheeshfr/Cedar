@@ -2343,19 +2343,8 @@
         if (users.length === 0) {
           usersList.innerHTML = `<div class="sheesh-empty-row">You haven't invited anyone yet. Create an invite link above!</div>`;
         } else {
-          const allTools = ['cedar', 'loudmouth', 'zentube', 'headroom'];
           usersList.innerHTML = users.map(u => {
-            const uRoles = Array.isArray(u.roles) ? u.roles : [];
             const isPaused = u.status === 'paused';
-            const toolPills = allTools.map(tool => {
-              const hasRole = uRoles.includes(tool);
-              return `
-                <button type="button" class="sheesh-role-pill" data-toggle-user-role="${escapeHtml(u.username)}" data-role="${tool}"
-                  style="cursor: pointer; opacity: ${hasRole ? '1' : '0.38'}; border-color: ${hasRole ? '#22c55e' : 'rgba(255,255,255,0.12)'}; color: ${hasRole ? '#4ade80' : 'var(--text-muted)'};">
-                  ${hasRole ? '✓ ' : '+ '}${tool}
-                </button>
-              `;
-            }).join('');
 
             return `
               <div class="sheesh-admin-row" style="flex-direction: column; align-items: stretch; gap: 6px;">
@@ -2376,10 +2365,6 @@
                       ${isPaused ? 'Unpause' : 'Pause Access'}
                     </button>
                   </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                  <span style="font-size: 0.72rem; color: var(--text-muted); margin-right: 2px;">Apps:</span>
-                  ${toolPills}
                 </div>
               </div>
             `;
@@ -2924,8 +2909,7 @@
           if (labelInp) labelInp.focus();
           return;
         }
-        const roleChecks = document.querySelectorAll('#modal-sheesh-admin .sheesh-role-check input[type="checkbox"]:checked');
-        const roles = Array.from(roleChecks).map(c => c.value);
+        const roles = ['cedar', 'loudmouth', 'zentube', 'headroom'];
 
         createInviteBtn.disabled = true;
         try {
@@ -2992,19 +2976,6 @@
           const code = revokeBtn.getAttribute('data-revoke-invite');
           try {
             await apiRequest('/admin/invites/revoke', { method: 'POST', body: { code } });
-            await loadAdminOverview();
-          } catch (err) {
-            showAlert(err.message, false, 'sheesh-admin-alert');
-          }
-          return;
-        }
-
-        const roleToggleBtn = e.target.closest('[data-toggle-user-role]');
-        if (roleToggleBtn) {
-          const username = roleToggleBtn.getAttribute('data-toggle-user-role');
-          const role = roleToggleBtn.getAttribute('data-role');
-          try {
-            await apiRequest('/admin/users/toggle-role', { method: 'POST', body: { username, role } });
             await loadAdminOverview();
           } catch (err) {
             showAlert(err.message, false, 'sheesh-admin-alert');
