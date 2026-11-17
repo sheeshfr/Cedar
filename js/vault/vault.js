@@ -1995,7 +1995,17 @@
     applyHydratedImageMap(hydratedMap);
   }
 
+  function isSheeshCloudSessionActive() {
+    try {
+      if (window.SheeshCloud && typeof window.SheeshCloud.getUser === 'function' && window.SheeshCloud.getUser()) return true;
+      if (window.SheeshCloud && typeof window.SheeshCloud.hasPendingCloudIntent === 'function' && window.SheeshCloud.hasPendingCloudIntent()) return true;
+      if (localStorage.getItem('sheesh_auth_token') || sessionStorage.getItem('sheesh_auth_token_session')) return true;
+    } catch (e) {}
+    return false;
+  }
+
   async function hydrateImagesFromVirtualStorage() {
+    if (isSheeshCloudSessionActive()) return false;
     const vStorage = window.CedarVirtualStorage || window.OutpostVirtualStorage;
     if (!vStorage || typeof vStorage.listFiles !== 'function' || typeof vStorage.readFile !== 'function') return false;
 
@@ -3362,6 +3372,7 @@
     bindHeaderVaultButtons();
     if (!_initVaultPromise) {
       _initVaultPromise = (async () => {
+        if (isSheeshCloudSessionActive()) return;
         await Vault.reconnectIfPossible();
         try {
           await hydrateImagesFromVirtualStorage();

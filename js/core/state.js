@@ -311,7 +311,9 @@
 
         deviceMode: 'desktop',
 
-        activeTheme: 'gaslamp_gazette',
+        activeTheme: 'basalt',
+
+        blogTheme: 'basalt',
 
         headerAlign: 'center',
 
@@ -1825,9 +1827,21 @@
         delete projectConfig._vaultRecoveryDrafts;
       }
 
-      const savedTheme = (projectConfig.design && (projectConfig.design.customColors || projectConfig.design.blogTheme || projectConfig.design.activeTheme)) || projectConfig.editorTheme || localStorage.getItem('cedar_theme') || localStorage.getItem('cedar_editor_theme') || 'basalt';
+      const _isLegacyThemeId = (t) => !t || t === 'gaslamp_gazette' || t === 'forest-dark';
+      const _designThemeId = (projectConfig.design && (!_isLegacyThemeId(projectConfig.design.blogTheme) ? projectConfig.design.blogTheme : (!_isLegacyThemeId(projectConfig.design.activeTheme) ? projectConfig.design.activeTheme : ''))) || '';
+      const savedTheme = _designThemeId
+        || (!_isLegacyThemeId(projectConfig.editorTheme) ? projectConfig.editorTheme : '')
+        || (!_isLegacyThemeId(localStorage.getItem('cedar_theme')) ? localStorage.getItem('cedar_theme') : '')
+        || (!_isLegacyThemeId(localStorage.getItem('cedar_editor_theme')) ? localStorage.getItem('cedar_editor_theme') : '')
+        || (projectConfig.design && projectConfig.design.customColors ? 'custom' : '')
+        || 'basalt';
 
       projectConfig.editorTheme = (typeof savedTheme === 'object') ? 'custom' : savedTheme;
+      if (!projectConfig.design || typeof projectConfig.design !== 'object') {
+        projectConfig.design = {};
+      }
+      projectConfig.design.blogTheme = projectConfig.editorTheme;
+      projectConfig.design.activeTheme = projectConfig.editorTheme;
 
       try {
 
@@ -2683,11 +2697,21 @@
 
     try {
 
-      const currentEditorTheme = (effectiveConfig.design && (effectiveConfig.design.blogTheme || effectiveConfig.design.activeTheme)) || localStorage.getItem('cedar_theme') || localStorage.getItem('cedar_editor_theme') || effectiveConfig.editorTheme || 'basalt';
+      const _isLegacyThemeId = (t) => !t || t === 'gaslamp_gazette' || t === 'forest-dark';
+      const _designThemeId = (effectiveConfig.design && (!_isLegacyThemeId(effectiveConfig.design.blogTheme) ? effectiveConfig.design.blogTheme : (!_isLegacyThemeId(effectiveConfig.design.activeTheme) ? effectiveConfig.design.activeTheme : ''))) || '';
+      const currentEditorTheme = _designThemeId
+        || (!_isLegacyThemeId(localStorage.getItem('cedar_theme')) ? localStorage.getItem('cedar_theme') : '')
+        || (!_isLegacyThemeId(localStorage.getItem('cedar_editor_theme')) ? localStorage.getItem('cedar_editor_theme') : '')
+        || (!_isLegacyThemeId(effectiveConfig.editorTheme) ? effectiveConfig.editorTheme : '')
+        || 'basalt';
 
       effectiveConfig.editorTheme = (typeof currentEditorTheme === 'object') ? 'custom' : currentEditorTheme;
 
       projectConfig.editorTheme = effectiveConfig.editorTheme;
+      if (effectiveConfig.design && typeof effectiveConfig.design === 'object') {
+        effectiveConfig.design.blogTheme = effectiveConfig.editorTheme;
+        effectiveConfig.design.activeTheme = effectiveConfig.editorTheme;
+      }
 
     } catch (e) {}
 

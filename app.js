@@ -47,7 +47,7 @@
       typeof location !== 'undefined' &&
       (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.local'))
     );
-    let staticVersion = '6.8.2';
+    let staticVersion = '6.8.3';
     try {
       const compareSemver = (a, b) => {
         const pa = String(a || '').split('.').map(n => parseInt(n, 10) || 0);
@@ -137,8 +137,17 @@
       window.syncBlockTypeDropdown();
     }
 
-    // Auto-populate and reconcile drafts and config from connected external Vault (if any)
-    if (typeof window.initVault === 'function') {
+    const hasCloudSessionIntent = (() => {
+      try {
+        if (window.SheeshCloud && typeof window.SheeshCloud.getUser === 'function' && window.SheeshCloud.getUser()) return true;
+        if (window.SheeshCloud && typeof window.SheeshCloud.hasPendingCloudIntent === 'function' && window.SheeshCloud.hasPendingCloudIntent()) return true;
+        if (localStorage.getItem('sheesh_auth_token') || sessionStorage.getItem('sheesh_auth_token_session')) return true;
+      } catch (e) {}
+      return false;
+    })();
+
+    // Auto-populate and reconcile drafts and config from connected external Vault (only when not signed into Sheesh Cloud)
+    if (!hasCloudSessionIntent && typeof window.initVault === 'function') {
       try {
         await window.initVault();
       } catch (e) {
@@ -146,8 +155,8 @@
       }
     }
 
-    let hasExternalVault = Boolean(window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected());
-    if (window.Cedar.isLocalServer) {
+    let hasExternalVault = !hasCloudSessionIntent && Boolean(window.SheeshVault && typeof window.SheeshVault.isConnected === 'function' && window.SheeshVault.isConnected());
+    if (!hasCloudSessionIntent && window.Cedar.isLocalServer) {
       try {
         let savedVaultPath = ((localStorage.getItem('cedar_vault_path') || localStorage.getItem('outpost_vault_path') || (window.projectConfig && window.projectConfig.vaultPath)) || '').trim();
         const savedVaultName = ((localStorage.getItem('cedar_vault_name') || localStorage.getItem('outpost_vault_name')) || '').trim();
