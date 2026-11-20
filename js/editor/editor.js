@@ -559,11 +559,13 @@
         if ((isFocusedInHeader || isExportOpen) && curDraft._headerSyncClean && typeof curDraft.proseHtml === 'string') {
           // Prose has not changed while typing in title/subtitle or Post Settings modal; skip redundant DOM clone & markdown serialization
         } else {
-          if (window.mergeAdjacentLists) {
-            window.mergeAdjacentLists(canvasProse);
-          }
-          if (typeof window.normalizeCustomColorNodes === 'function') {
-            window.normalizeCustomColorNodes(canvasProse);
+          if (!window._isCedarPointerSelectingText) {
+            if (window.mergeAdjacentLists) {
+              window.mergeAdjacentLists(canvasProse);
+            }
+            if (typeof window.normalizeCustomColorNodes === 'function') {
+              window.normalizeCustomColorNodes(canvasProse);
+            }
           }
           curDraft.proseHtml = cleanProseHtmlForStorage(canvasProse);
           curDraft.markdown = (typeof window.domToMarkdown === 'function') ? window.domToMarkdown(canvasProse) : (curDraft.markdown || '');
@@ -783,10 +785,15 @@
   let statsUpdateTimer = null;
   function scheduleStatsUpdate() {
     if (statsUpdateTimer) clearTimeout(statsUpdateTimer);
-    statsUpdateTimer = setTimeout(() => {
+    const runStats = () => {
+      if (window._isCedarPointerSelectingText) {
+        statsUpdateTimer = setTimeout(runStats, 400);
+        return;
+      }
       statsUpdateTimer = null;
       updateStats();
-    }, 1000);
+    };
+    statsUpdateTimer = setTimeout(runStats, 1000);
   }
   window.scheduleStatsUpdate = scheduleStatsUpdate;
 

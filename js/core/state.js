@@ -6728,7 +6728,11 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
     }
 
     // Wait 2 full seconds (2000ms) of no typing before running DOM serialization, local storage persistence & cloud sync
-    saveTimeout = setTimeout(() => {
+    const runDeferredAutosave = () => {
+      if (window._isCedarPointerSelectingText) {
+        saveTimeout = setTimeout(runDeferredAutosave, 400);
+        return;
+      }
 
       saveTimeout = null;
 
@@ -6756,7 +6760,9 @@ Whatever your workflow, Cedar handles the file structure behind the scenes—so 
 
       }
 
-    }, 2000);
+    };
+
+    saveTimeout = setTimeout(runDeferredAutosave, 2000);
 
   }
 

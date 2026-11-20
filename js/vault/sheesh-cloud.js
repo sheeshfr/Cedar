@@ -2130,10 +2130,18 @@
           window.drafts = orderedPosts;
         }
         if (window.currentView === 'editor' && window.currentDraft && window.currentDraft.id && window.CedarStore && typeof window.CedarStore.get === 'function') {
-          const refreshedCur = window.CedarStore.get(window.currentDraft.id);
+          const prevCur = window.currentDraft;
+          const refreshedCur = window.CedarStore.get(prevCur.id);
           if (refreshedCur) {
+            const canvasProse = document.getElementById('rich-canvas-prose');
+            const isCanvasBlank = !canvasProse || !(canvasProse.textContent || '').trim();
+            const contentChanged = isCanvasBlank ||
+              (refreshedCur.proseHtml || '') !== (prevCur.proseHtml || '') ||
+              (refreshedCur.markdown || '') !== (prevCur.markdown || '') ||
+              (refreshedCur.title || '') !== (prevCur.title || '') ||
+              (refreshedCur.subtitle || '') !== (prevCur.subtitle || '');
             window.currentDraft = refreshedCur;
-            if (typeof window.syncDraftToForm === 'function') {
+            if (contentChanged && !window._isCedarPointerSelectingText && !window.saveTimeout && typeof window.syncDraftToForm === 'function') {
               window.syncDraftToForm();
             }
           }
@@ -2205,7 +2213,7 @@
 
   let lastMetaCheckAt = 0;
   async function checkRemoteMetaAndPullIfNewer(force = false) {
-    if (!currentUser || isPullingFromCloud || isPushingToCloud || syncDebounceTimer) return;
+    if (!currentUser || isPullingFromCloud || isPushingToCloud || syncDebounceTimer || window.saveTimeout || window._isCedarPointerSelectingText) return;
     const now = Date.now();
     if (!force && now - lastMetaCheckAt < 30000) return;
     lastMetaCheckAt = now;

@@ -1173,6 +1173,7 @@
   overflow-wrap: break-word;
   word-break: normal;
   max-width: 100%;
+  -webkit-user-drag: none;
 }
 
 .canvas-prose a:not(.post-card):not(.post-card-link):hover,
@@ -1320,6 +1321,8 @@
   height: 0;
   box-sizing: border-box;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
   transition: border-color 0.2s ease, outline 0.15s ease;
 }
 

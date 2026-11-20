@@ -234,13 +234,22 @@
       return res;
     }
 
+    const DRAGGABLE_NON_TEXT_BLOCK_SELECTOR = '.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-individual-post-block, hr, .canvas-divider';
+
     canvasProse.addEventListener('dragstart', (e) => {
-      if (e.target && e.target.closest && e.target.closest('.individual-post-url-input')) {
+      const targetEl = (e.target && e.target.nodeType === Node.TEXT_NODE) ? e.target.parentElement : e.target;
+      if (targetEl && targetEl.closest && targetEl.closest('.individual-post-url-input')) {
+        return;
+      }
+
+      // Never allow native drag-and-drop on prose text selections, inline links, or editable captions
+      if (!targetEl || (targetEl.closest && targetEl.closest('figcaption, .gallery-caption'))) {
+        e.preventDefault();
         return;
       }
 
       // 1. Check if dragging an individual gallery item
-      const item = e.target.closest ? e.target.closest('.custom-gallery-item') : null;
+      const item = targetEl.closest ? targetEl.closest('.custom-gallery-item') : null;
       if (item && !item.classList.contains('gallery-slot-placeholder')) {
         const gal = item.closest('.custom-gallery-grid');
         const img = item.querySelector('img');
@@ -265,7 +274,7 @@
             e.dataTransfer.effectAllowed = 'move';
             try {
               e.dataTransfer.setData('text/plain', 'cedar-gallery-item');
-        try { e.dataTransfer.setData('application/x-cedar-gallery-item', 'true'); } catch (err) {}
+              try { e.dataTransfer.setData('application/x-cedar-gallery-item', 'true'); } catch (err) {}
               e.dataTransfer.setData('text/uri-list', '');
             } catch (err) {}
           }
@@ -273,10 +282,9 @@
         }
       }
 
-      // 2. Otherwise dragging a top block
-      const block = getTopBlock(e.target);
-      if (!block) return;
-      if (block.classList.contains('page-recent-posts-block')) {
+      // 2. Otherwise only allow dragging explicit non-text blocks (never text paragraphs, headings, lists, or quotes)
+      const block = getTopBlock(targetEl);
+      if (!block || block.classList.contains('page-recent-posts-block') || !(block.matches && block.matches(DRAGGABLE_NON_TEXT_BLOCK_SELECTOR))) {
         e.preventDefault();
         return;
       }

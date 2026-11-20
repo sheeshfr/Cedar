@@ -448,15 +448,23 @@
 
     hasUncommittedChanges = true;
 
+    const scheduleMacroCommit = (delayMs) => {
+      if (macroInactivityTimer) clearTimeout(macroInactivityTimer);
+      macroInactivityTimer = setTimeout(() => {
+        if (window._isCedarPointerSelectingText) {
+          scheduleMacroCommit(400);
+          return;
+        }
+        commitCheckpoint();
+      }, delayMs);
+    };
+
     // 2. Sentence boundary detection within block:
     const char = details.char || '';
     if (['.', '!', '?'].includes(char)) {
       sessionSentenceCompleted = true;
     } else if (char === ' ' && sessionSentenceCompleted) {
-      if (macroInactivityTimer) clearTimeout(macroInactivityTimer);
-      macroInactivityTimer = setTimeout(() => {
-        commitCheckpoint();
-      }, 2000);
+      scheduleMacroCommit(2000);
       updateHistoryButtonsUI();
       return;
     } else if (char && char !== ' ') {
@@ -464,10 +472,7 @@
     }
 
     // 3. Generous inactivity timeout for a thought pause (3.5s)
-    if (macroInactivityTimer) clearTimeout(macroInactivityTimer);
-    macroInactivityTimer = setTimeout(() => {
-      commitCheckpoint();
-    }, MACRO_INACTIVITY_MS);
+    scheduleMacroCommit(MACRO_INACTIVITY_MS);
 
     updateHistoryButtonsUI();
   }

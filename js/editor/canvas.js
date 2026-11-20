@@ -258,15 +258,32 @@
 
     canvasProse.addEventListener('mousedown', (e) => {
       pendingEmDashRevert = null;
-      if (!e.target || e.target === canvasProse) return;
-      const inCaption = e.target.closest ? e.target.closest('figcaption, .gallery-caption') : null;
-      const inNonText = !inCaption && e.target.closest
-        ? e.target.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider')
+      if (!e.target) return;
+      const targetEl = (e.target.nodeType === Node.TEXT_NODE) ? e.target.parentElement : e.target;
+      const inCaption = targetEl && targetEl.closest ? targetEl.closest('figcaption, .gallery-caption') : null;
+      const inNonText = !inCaption && targetEl && targetEl.closest
+        ? targetEl.closest('.captioned-image-container, .custom-gallery-grid, .video-wrapper, .article-share-block, .article-rss-block, .page-recent-posts-block, .page-individual-post-block, hr, .canvas-divider')
         : null;
       if (!inNonText) {
-        canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
-        window._selectedImageBlock = null;
-        window._lastActiveImageBlock = null;
+        if (e.button === 0) {
+          window._isCedarPointerSelectingText = true;
+          // If starting a primary single-click drag inside prose while a previous text selection exists,
+          // collapse it before Blink's default mousedown handler runs so Blink always places the new
+          // selection anchor at the exact cursor point instead of entering text-drag standby mode.
+          if (e.detail === 1 && !e.shiftKey && !(targetEl && targetEl.closest && targetEl.closest('input, textarea, button'))) {
+            try {
+              const sel = window.getSelection();
+              if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+                sel.collapseToStart();
+              }
+            } catch (_) {}
+          }
+        }
+        if (e.target !== canvasProse) {
+          canvasProse.querySelectorAll('.selected, .selected-item').forEach(el => el.classList.remove('selected', 'selected-item'));
+          window._selectedImageBlock = null;
+          window._lastActiveImageBlock = null;
+        }
       }
     });
 
@@ -359,13 +376,17 @@
         return;
       }
 
-      // Link clicked inside prose: show floating link popup (except inside non-text cards like post-card or share-block)
+      // Link clicked inside prose: show floating link popup (except inside non-text cards like post-card or share-block, or when finishing a text highlight drag)
       const clickedLink = e.target.closest('a');
+      const liveSelForLink = window.getSelection ? window.getSelection() : null;
+      const hasActiveTextHighlight = Boolean(liveSelForLink && !liveSelForLink.isCollapsed && liveSelForLink.toString().trim().length > 0);
       if (clickedLink && canvasProse.contains(clickedLink) && !clickedLink.closest('.figure-hover-actions, .share-block-card, .captioned-image-container .image-hover-actions, .page-recent-posts-block, .page-individual-post-block')) {
         e.preventDefault();
         e.stopPropagation();
-        if (((window.Cedar && window.Cedar.linkPopup) || (window.Outpost && window.Outpost.linkPopup)) && typeof ((window.Cedar && window.Cedar.linkPopup) || (window.Outpost && window.Outpost.linkPopup)).show === 'function') {
-          ((window.Cedar && window.Cedar.linkPopup) || (window.Outpost && window.Outpost.linkPopup)).show(clickedLink);
+        if (!hasActiveTextHighlight) {
+          if (((window.Cedar && window.Cedar.linkPopup) || (window.Outpost && window.Outpost.linkPopup)) && typeof ((window.Cedar && window.Cedar.linkPopup) || (window.Outpost && window.Outpost.linkPopup)).show === 'function') {
+            ((window.Cedar && window.Cedar.linkPopup) || (window.Outpost && window.Outpost.linkPopup)).show(clickedLink);
+          }
         }
         return;
       } else {

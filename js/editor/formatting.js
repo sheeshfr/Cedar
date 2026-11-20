@@ -85,7 +85,7 @@
         }
         if (node && node.parentNode === canvas) {
           window._lastActiveBlock = node;
-          if (canvas) {
+          if (canvas && !window._isCedarPointerSelectingText) {
             canvas.querySelectorAll('.selected, .selected-item').forEach(el => {
               if (el !== node) el.classList.remove('selected', 'selected-item');
             });
@@ -95,7 +95,9 @@
         }
       }
     }
-    updateToolbarActiveStates();
+    if (!window._isCedarPointerSelectingText) {
+      updateToolbarActiveStates();
+    }
   }
 
   function restoreEditorSelection() {
@@ -554,15 +556,25 @@
   function normalizeCustomColorNodes(container) {
     if (!container || !container.querySelectorAll) return;
 
-    // Capture live selection text endpoints inside container so DOM wrapper restructuring never drops selection
+    // Capture live selection text endpoints & directionality inside container so DOM wrapper restructuring never drops selection
     const sel = (typeof window !== 'undefined' && window.getSelection) ? window.getSelection() : null;
     let savedStartPt = null;
     let savedEndPt = null;
     let wasCollapsed = false;
+    let isBackwardSelection = false;
+    let didMutateDom = false;
     if (sel && sel.rangeCount > 0) {
       const r = sel.getRangeAt(0);
       if (container.contains(r.commonAncestorContainer)) {
         wasCollapsed = r.collapsed;
+        if (!wasCollapsed && sel.anchorNode && sel.focusNode) {
+          try {
+            const dirRange = document.createRange();
+            dirRange.setStart(sel.anchorNode, sel.anchorOffset);
+            dirRange.setEnd(sel.focusNode, sel.focusOffset);
+            isBackwardSelection = dirRange.collapsed && (sel.anchorNode !== sel.focusNode || sel.anchorOffset !== sel.focusOffset);
+          } catch (e) {}
+        }
         savedStartPt = resolveRangeTextEndpoint(r.startContainer, r.startOffset, false);
         savedEndPt = wasCollapsed ? savedStartPt : resolveRangeTextEndpoint(r.endContainer, r.endOffset, true);
       }
@@ -577,6 +589,7 @@
       }
       if (el.tagName === 'FONT') {
         unwrapElementPreservingChildren(el);
+        didMutateDom = true;
         return;
       }
       if (el.hasAttribute('color')) {
@@ -595,6 +608,7 @@
       }
       if (el.tagName === 'SPAN' && !el.attributes.length) {
         unwrapElementPreservingChildren(el);
+        didMutateDom = true;
       }
     });
 
@@ -611,6 +625,7 @@
             u.appendChild(span.firstChild);
           }
           span.appendChild(u);
+          didMutateDom = true;
         }
       }
       if (customHex) {
@@ -648,6 +663,7 @@
           if (spanColor === parentColor) {
             unwrapElementPreservingChildren(span);
             moved = true;
+            didMutateDom = true;
             break;
           }
         }
@@ -704,6 +720,7 @@
 
         grandParent.removeChild(parent);
         moved = true;
+        didMutateDom = true;
         break;
       }
     }
@@ -722,6 +739,7 @@
             span.appendChild(toRemove.firstChild);
           }
           toRemove.remove();
+          didMutateDom = true;
         } else {
           break;
         }
@@ -739,11 +757,13 @@
           el.appendChild(toRemove.firstChild);
         }
         toRemove.remove();
+        didMutateDom = true;
       }
     });
 
-    // Restore live selection if endpoints are still connected in container
-    if (sel && savedStartPt && savedEndPt && savedStartPt.node && savedEndPt.node &&
+    // Only restore live selection if DOM nodes were actually restructured AND the user is not mid-drag
+    if (didMutateDom && !window._isCedarPointerSelectingText &&
+        sel && savedStartPt && savedEndPt && savedStartPt.node && savedEndPt.node &&
         savedStartPt.node.isConnected && savedEndPt.node.isConnected) {
       try {
         const restored = document.createRange();
@@ -753,8 +773,12 @@
         } else {
           restored.setEnd(savedEndPt.node, savedEndPt.offset);
         }
-        sel.removeAllRanges();
-        sel.addRange(restored);
+        if (!wasCollapsed && isBackwardSelection && typeof sel.setBaseAndExtent === 'function') {
+          sel.setBaseAndExtent(savedEndPt.node, savedEndPt.offset, savedStartPt.node, savedStartPt.offset);
+        } else {
+          sel.removeAllRanges();
+          sel.addRange(restored);
+        }
         savedSelectionRange = restored.cloneRange();
         window._savedSelectionRange = savedSelectionRange;
       } catch (e) {}
@@ -2346,7 +2370,46 @@
 
   function setupFormattingToolbar() {
     const canvasProse = document.getElementById('rich-canvas-prose');
+    const canvasTitle = document.getElementById('rich-canvas-title');
+    const canvasSubtitle = document.getElementById('rich-canvas-subtitle');
+    const mdInput = document.getElementById('markdown-input');
     const toolbar = document.getElementById('editor-formatting-toolbar');
+
+    const clearPointerSelectingState = () => {
+      if (window._isCedarPointerSelectingText) {
+        window._isCedarPointerSelectingText = false;
+        saveCurrentSelection();
+      } else {
+        saveCurrentSelection();
+      }
+    };
+
+    [canvasTitle, canvasSubtitle].filter(Boolean).forEach(headerEl => {
+      headerEl.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+          window._isCedarPointerSelectingText = true;
+          if (e.detail === 1 && !e.shiftKey) {
+            try {
+              const sel = window.getSelection();
+              if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+                sel.collapseToStart();
+              }
+            } catch (_) {}
+          }
+        }
+      });
+      headerEl.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+      });
+    });
+
+    if (mdInput) {
+      mdInput.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+          window._isCedarPointerSelectingText = true;
+        }
+      });
+    }
 
     // Continuous selection saving (coalesced to animation frame so keystrokes don't trigger 3x synchronous queryCommandState passes)
     let selectionSaveRaf = null;
@@ -2359,7 +2422,11 @@
     };
     document.addEventListener('selectionchange', scheduleSaveCurrentSelection);
     document.addEventListener('keyup', scheduleSaveCurrentSelection);
-    document.addEventListener('mouseup', saveCurrentSelection);
+    document.addEventListener('mouseup', clearPointerSelectingState);
+    document.addEventListener('dragend', clearPointerSelectingState);
+    window.addEventListener('blur', () => {
+      window._isCedarPointerSelectingText = false;
+    });
     document.addEventListener('input', scheduleSaveCurrentSelection);
     if (typeof window.setupHistoryListeners === 'function') window.setupHistoryListeners();
 
